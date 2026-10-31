@@ -1,0 +1,87 @@
+# Modular Weapon Prototype
+
+A small Godot 4 prototype that answers one question: **is building a weapon from parts, and swapping them, fun?**
+
+One arena, one wooden sword, nine parts, a 3x4 build grid and three kinds of enemy. No world, base, story or online play yet.
+
+## How to run it
+
+1. Install [Godot 4.3 or newer](https://godotengine.org/download) (the standard build, not .NET).
+2. Open Godot, click **Import**, and pick the `project.godot` file in this folder.
+3. Press **F5** (or the Play button at the top right).
+
+The first time you open it, Godot takes a few seconds to import the project.
+
+## Controls
+
+| Action | Keyboard and mouse | Controller |
+|---|---|---|
+| Move | WASD or arrows | Left stick or d-pad |
+| Aim | Mouse | Right stick (or move direction) |
+| Attack (steps through the combo) | Left click | X or right trigger |
+| Dodge (only with Feather Charm) | Space, Shift or right click | A or left trigger |
+| Open / close crafting table | Tab | Y |
+| Pause enemy spawning | P | Start |
+
+**At the crafting table** (the game pauses):
+
+- Mouse: click a part in the list to pick it up, click the grid to place it, right click to rotate, click a placed part to pick it back up.
+- Keys or controller: arrows or d-pad move the cursor, Q/E or LB/RB choose a part, Enter or A place or pick up, R or X rotate, Esc or B put a part back.
+
+Swapping is free.
+
+## How the parts work
+
+The combo reads **from the handle end (bottom of the grid) up to the tip (top)**. Parts in the same row read left to right. The number on each part shows its place in the order.
+
+| Part type | What it does here |
+|---|---|
+| Hilt | Adds moves to the combo (slash, stab, spin) |
+| Blade | Sets damage and reach, and can add an effect (waves, fire) |
+| Handle | Sets attack speed only (for now) |
+| Gem | Small 1x1 parts with a special effect, sometimes with a condition |
+
+Combining rules (all in `scripts/weapon/weapon_build.gd`, `compute()`):
+
+1. **Hilts merge.** If two hilts both add a move at the same combo step, they merge into one move. Oak Hilt below Iron Crossguard gives `slash + stab`; swap their positions and you get `stab + slash`.
+2. **Same type doesn't stack stats.** The lowest blade sets damage and the lowest handle sets speed. A second one only adds its effect.
+3. **Bonus pairs.** Iron Crossguard + Ember Blade gives +20% crit. Oak Hilt + Wooden Blade gives +15% speed.
+4. **Conditions.** Splitter Shard splits waves into three, but does nothing without the Tide Blade.
+5. **No base dodge.** You can only dodge with the Feather Charm on the sword.
+
+There's a training dummy near the start so you can test a build without being chased. Press P to stop enemies spawning.
+
+## Adding a part
+
+Parts are data files in `parts/`. Every `.tres` file in that folder is loaded automatically.
+
+1. In Godot's FileSystem panel, right click a part (for example `parts/oak_hilt.tres`) and choose **Duplicate**.
+2. Click the new file and change its values in the Inspector: name, type, shape (grid cells it covers), colour, moves, damage, speed, effects.
+3. Give it a new `id`. Run the game and it's in the parts list.
+
+Moves you can use: `slash`, `stab`, `spin` (tuned in `MOVES` in `scripts/player.gd`).
+Effects you can use: `wave`, `burn`, `split`, `dodge`, `lunge` (lunge isn't on any part yet; the last combo hit dashes you forward).
+
+New moves or effects need a little code in `scripts/player.gd`, in `_do_move()`.
+
+## Project layout
+
+```
+project.godot            Godot project settings
+scenes/main.tscn         The only scene; everything else is built in code
+scripts/main.gd          Arena, spawning, wiring
+scripts/player.gd        Movement, dodge, running the combo
+scripts/enemy.gd         Slime, charger, brute and training dummy
+scripts/projectile.gd    Waves from the Tide Blade
+scripts/weapon/weapon_build.gd   The grid and the combining rules
+scripts/parts/part_data.gd       What a part file contains
+scripts/parts/part_library.gd    Loads every part in parts/
+scripts/ui/build_menu.gd         The crafting table
+scripts/ui/hud.gd                Health, kills, combo display
+scripts/input_setup.gd           All key and controller bindings
+parts/*.tres             The nine sword parts
+```
+
+## Not in this prototype yet
+
+Online co-op (2 players next), levelling up to add grid squares, the mini boss and part reward, and a second weapon type (bow or staff). Those follow once the parts feel good.

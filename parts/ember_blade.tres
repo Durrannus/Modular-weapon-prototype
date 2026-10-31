@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="PartData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/parts/part_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "ember_blade"
+display_name = "Ember Blade"
+description = "Hits set enemies on fire for a few seconds. 9 damage."
+part_type = 1
+material = "fire stone"
+shape = [Vector2i(0, 0), Vector2i(1, 0), Vector2i(2, 0), Vector2i(1, 1)]
+color = Color(1, 0.5, 0.2, 1)
+damage = 9.0
+reach = 1.1
+effects = ["burn"]

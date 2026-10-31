@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="PartData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/parts/part_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "iron_crossguard"
+display_name = "Iron Crossguard"
+description = "Two-hit combo: a stab, then a full spin."
+part_type = 0
+material = "iron"
+shape = [Vector2i(0, 0), Vector2i(0, 1), Vector2i(1, 1)]
+color = Color(0.62, 0.66, 0.72, 1)
+moves = ["stab", "spin"]

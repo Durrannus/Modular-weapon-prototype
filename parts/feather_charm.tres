@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="PartData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/parts/part_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "feather_charm"
+display_name = "Feather Charm"
+description = "Lets you dodge (Space, right-click or A). You can't dodge without it."
+part_type = 3
+material = "feather"
+shape = [Vector2i(0, 0)]
+color = Color(0.85, 0.95, 1, 1)
+effects = ["dodge"]

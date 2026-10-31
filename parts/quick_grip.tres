@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="PartData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/parts/part_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "quick_grip"
+display_name = "Quick Grip"
+description = "Swing 45% faster."
+part_type = 2
+material = "leather"
+shape = [Vector2i(0, 0), Vector2i(0, 1)]
+color = Color(0.3, 0.75, 0.4, 1)
+speed = 1.45
