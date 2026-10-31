@@ -279,7 +279,7 @@ func _do_move(move: String) -> void:
 
 func _hit_enemy(e, dmg: float, kdir: Vector2, knock: float) -> void:
 	var crit := randf() < float(weapon.get("crit", 0.05))
-	var burn := "burn" in weapon.get("effects", [])
+	var burn: bool = "burn" in weapon.get("effects", [])
 	e.take_hit(dmg * (2.0 if crit else 1.0), kdir, knock, crit, burn)
 
 
