@@ -2,8 +2,8 @@ extends CanvasLayer
 ## The crafting table: fit parts onto the weapon's grid.
 ## Free to swap. Pauses the game while open.
 
-const CELL := 76.0
-const GRID_POS := Vector2(110, 150)
+const CELL := 64.0
+const GRID_POS := Vector2(150, 140)
 const INV_POS := Vector2(450, 120)
 const INV_ROW := 54.0
 const INV_W := 360.0
@@ -16,7 +16,7 @@ var root: Control
 var is_open := false
 var held: PartData = null
 var held_rot := 0
-var cursor := Vector2i(1, 3)
+var cursor := Vector2i(1, 4)
 var hover_inv := -1
 var message := ""
 
@@ -134,11 +134,12 @@ func _input(event: InputEvent) -> void:
 
 func _act_on_cursor() -> void:
 	if held != null:
-		if build.place(held, cursor, held_rot):
+		var problem := build.place_problem(held, cursor, held_rot)
+		if problem == "" and build.place(held, cursor, held_rot):
 			held = null
 			message = ""
 		else:
-			message = "That doesn't fit there. Try rotating it (R / right-click / X)."
+			message = problem + " Try another spot or rotate it (R / right-click / X)."
 	else:
 		var pl := build.remove_at(cursor)
 		if not pl.is_empty():
@@ -196,14 +197,24 @@ func _draw_menu() -> void:
 	var dim := Color(0.72, 0.75, 0.82)
 	root.draw_rect(Rect2(Vector2.ZERO, root.size), Color(0.05, 0.06, 0.09, 0.93))
 	root.draw_string(font, Vector2(60, 60), "Crafting table: Wooden Sword", HORIZONTAL_ALIGNMENT_LEFT, -1, 28, white)
-	root.draw_string(font, Vector2(60, 88), "Fit parts on the grid. The combo reads from the handle (bottom) up to the tip (top).", HORIZONTAL_ALIGNMENT_LEFT, -1, 15, dim)
+	root.draw_string(font, Vector2(60, 88), "Blades go at the top, hilts in the middle, handles at the end. Gems fit anywhere. The combo reads from the bottom up.", HORIZONTAL_ALIGNMENT_LEFT, -1, 15, dim)
 
 	# Grid
 	root.draw_string(font, GRID_POS + Vector2(0, -10), "TIP", HORIZONTAL_ALIGNMENT_CENTER, CELL * WeaponBuild.GRID_W, 14, dim)
-	root.draw_string(font, GRID_POS + Vector2(0, CELL * WeaponBuild.GRID_H + 20), "HANDLE", HORIZONTAL_ALIGNMENT_CENTER, CELL * WeaponBuild.GRID_W, 14, dim)
+	root.draw_string(font, GRID_POS + Vector2(0, CELL * WeaponBuild.GRID_H + 20), "END", HORIZONTAL_ALIGNMENT_CENTER, CELL * WeaponBuild.GRID_W, 14, dim)
+	var zone_tint := {"blade": Color(0.16, 0.19, 0.26), "hilt": Color(0.22, 0.18, 0.14), "handle": Color(0.15, 0.2, 0.15)}
+	var held_zone := WeaponBuild.zone_for(held) if held != null else ""
+	var last_zone := ""
 	for y in WeaponBuild.GRID_H:
+		var zone := WeaponBuild.zone_of_row(y)
+		var tint: Color = zone_tint[zone]
+		if held != null and held_zone != "" and held_zone != zone:
+			tint = tint.darkened(0.55)  # can't go here
 		for x in WeaponBuild.GRID_W:
-			root.draw_rect(_cell_rect(Vector2i(x, y)), Color(0.15, 0.17, 0.22))
+			root.draw_rect(_cell_rect(Vector2i(x, y)), tint)
+		if zone != last_zone:
+			last_zone = zone
+			root.draw_string(font, GRID_POS + Vector2(-90, y * CELL + 22), zone.to_upper(), HORIZONTAL_ALIGNMENT_RIGHT, 80, 13, dim)
 
 	var ordered := build.ordered_placements()
 	for i in ordered.size():

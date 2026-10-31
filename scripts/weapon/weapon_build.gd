@@ -9,7 +9,12 @@ extends RefCounted
 signal changed
 
 const GRID_W := 3
-const GRID_H := 4
+const GRID_H := 6
+
+## The grid is shaped like the weapon: each row belongs to an area, from the
+## tip (row 0) down to the handle end. Blades, hilts and handles can only go
+## in their own area. Gems are small and fit anywhere.
+const ROW_ZONES := ["blade", "blade", "blade", "hilt", "hilt", "handle"]
 
 ## Pairs of parts that unlock a bonus when both are on the weapon.
 const SYNERGIES := [
@@ -65,14 +70,38 @@ func has_part(part: PartData) -> bool:
 	return false
 
 
+static func zone_of_row(row: int) -> String:
+	return ROW_ZONES[row]
+
+
+## The area a part must go in, or "" if it fits anywhere.
+static func zone_for(part: PartData) -> String:
+	match part.part_type:
+		PartData.PartType.BLADE:
+			return "blade"
+		PartData.PartType.HILT:
+			return "hilt"
+		PartData.PartType.HANDLE:
+			return "handle"
+	return ""
+
+
 func can_place(part: PartData, origin: Vector2i, rotation: int) -> bool:
+	return place_problem(part, origin, rotation) == ""
+
+
+## Why a part can't go here, or "" if it can.
+func place_problem(part: PartData, origin: Vector2i, rotation: int) -> String:
+	var zone := zone_for(part)
 	for c in cells_for(part, origin, rotation):
 		var v: Vector2i = c
 		if v.x < 0 or v.y < 0 or v.x >= GRID_W or v.y >= GRID_H:
-			return false
+			return "That goes off the edge of the grid."
 		if not placement_at(v).is_empty():
-			return false
-	return true
+			return "Something is already there."
+		if zone != "" and zone_of_row(v.y) != zone:
+			return "%ss only go in the %s area." % [part.type_name(), zone]
+	return ""
 
 
 func place(part: PartData, origin: Vector2i, rotation: int) -> bool:

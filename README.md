@@ -2,7 +2,7 @@
 
 A small Godot 4 prototype that answers one question: **is building a weapon from parts, and swapping them, fun?**
 
-One arena, one wooden sword, nine parts, a 3x4 build grid and three kinds of enemy. No world, base, story or online play yet.
+One arena, one wooden sword, nine parts, a sword-shaped build grid and three kinds of enemy. No world, base, story or online play yet.
 
 ## How to run it
 
@@ -32,7 +32,17 @@ Swapping is free.
 
 ## How the parts work
 
-The combo reads **from the handle end (bottom of the grid) up to the tip (top)**. Parts in the same row read left to right. The number on each part shows its place in the order.
+The grid is shaped like the weapon. The sword's grid is 3 wide and 6 tall, split into areas from the tip down:
+
+| Rows | Area | What goes there |
+|---|---|---|
+| Top 3 | Blade | Blades. Two thin blades side by side make a two-pronged sword. |
+| Middle 2 | Hilt | Hilts. You can stack more than one. |
+| Bottom 1 | Handle | Handles |
+
+Gems are small and fit in any area. The areas are set in `ROW_ZONES` in `scripts/weapon/weapon_build.gd`.
+
+The combo reads **from the bottom of the grid up to the tip**. Parts in the same row read left to right. The number on each part shows its place in the order.
 
 | Part type | What it does here |
 |---|---|
@@ -73,7 +83,7 @@ scripts/main.gd          Arena, spawning, wiring
 scripts/player.gd        Movement, dodge, running the combo
 scripts/enemy.gd         Slime, charger, brute and training dummy
 scripts/projectile.gd    Waves from the Tide Blade
-scripts/weapon/weapon_build.gd   The grid and the combining rules
+scripts/weapon/weapon_build.gd   The grid, its areas and the combining rules
 scripts/parts/part_data.gd       What a part file contains
 scripts/parts/part_library.gd    Loads every part in parts/
 scripts/ui/build_menu.gd         The crafting table

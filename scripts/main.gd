@@ -40,7 +40,7 @@ func _ready() -> void:
 	dummy.position = ARENA.get_center() + Vector2(220, -40)
 	world.add_child(dummy)
 
-	# Weapon: starts as a plain wooden sword (wooden blade, no hilt or handle).
+	# Weapon: starts as a plain wooden sword (just a wooden blade).
 	parts = PartLibrary.load_all()
 	build = WeaponBuild.new()
 	var blade := PartLibrary.find(parts, "wooden_blade")
