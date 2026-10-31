@@ -82,6 +82,12 @@ scripts/input_setup.gd           All key and controller bindings
 parts/*.tres             The nine sword parts
 ```
 
+## Art
+
+Everything is drawn with simple shapes for now. The project is already set up for pixel art: textures use nearest filtering (no blur), 2D positions snap to whole pixels, and the window scales in whole steps. When real sprites arrive, you may also want a lower base resolution such as 640x360 (Project Settings → Display → Window → Viewport Width/Height); the crafting table layout would then need resizing.
+
+When you're knocked out you respawn at the start point (the "base" for now).
+
 ## Not in this prototype yet
 
 Online co-op (2 players next), levelling up to add grid squares, the mini boss and part reward, and a second weapon type (bow or staff). Those follow once the parts feel good.
