@@ -6,7 +6,7 @@ One arena, one wooden sword, nine parts, a 3x4 build grid and three kinds of ene
 
 ## How to run it
 
-1. Install [Godot 4.3 or newer](https://godotengine.org/download) (the standard build, not .NET).
+1. Install [Godot 4.7](https://godotengine.org/download) (4.3 or newer should also work) (the standard build, not .NET).
 2. Open Godot, click **Import**, and pick the `project.godot` file in this folder.
 3. Press **F5** (or the Play button at the top right).
 
