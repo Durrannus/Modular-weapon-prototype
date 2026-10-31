@@ -9,12 +9,22 @@ extends RefCounted
 signal changed
 
 const GRID_W := 3
-const GRID_H := 6
+const GRID_H := 7
 
-## The grid is shaped like the weapon: each row belongs to an area, from the
-## tip (row 0) down to the handle end. Blades, hilts and handles can only go
-## in their own area. Gems are small and fit anywhere.
-const ROW_ZONES := ["blade", "blade", "blade", "hilt", "hilt", "handle"]
+## The grid is drawn in the shape of a sword, tip at the top (row 0).
+## Each letter is one cell:  b = blade, h = hilt, g = grip (handle), . = not part of the sword.
+## Blades, hilts and handles only go in their own area. Gems are small and fit
+## in any area. Change this map to reshape the weapon.
+const SHAPE_MAP := [
+	"bbb",
+	"bbb",
+	"bbb",
+	"hhh",
+	"hhh",
+	".g.",
+	".g.",
+]
+const ZONE_NAMES := {"b": "blade", "h": "hilt", "g": "handle"}
 
 ## Pairs of parts that unlock a bonus when both are on the weapon.
 const SYNERGIES := [
@@ -70,8 +80,13 @@ func has_part(part: PartData) -> bool:
 	return false
 
 
-static func zone_of_row(row: int) -> String:
-	return ROW_ZONES[row]
+## The area a cell belongs to ("blade", "hilt", "handle"), or "" if the cell
+## isn't part of the weapon.
+static func zone_at(cell: Vector2i) -> String:
+	if cell.x < 0 or cell.y < 0 or cell.x >= GRID_W or cell.y >= GRID_H:
+		return ""
+	var row: String = SHAPE_MAP[cell.y]
+	return ZONE_NAMES.get(row[cell.x], "")
 
 
 ## The area a part must go in, or "" if it fits anywhere.
@@ -95,11 +110,12 @@ func place_problem(part: PartData, origin: Vector2i, rotation: int) -> String:
 	var zone := zone_for(part)
 	for c in cells_for(part, origin, rotation):
 		var v: Vector2i = c
-		if v.x < 0 or v.y < 0 or v.x >= GRID_W or v.y >= GRID_H:
-			return "That goes off the edge of the grid."
+		var cell_zone := zone_at(v)
+		if cell_zone == "":
+			return "That goes off the sword."
 		if not placement_at(v).is_empty():
 			return "Something is already there."
-		if zone != "" and zone_of_row(v.y) != zone:
+		if zone != "" and cell_zone != zone:
 			return "%ss only go in the %s area." % [part.type_name(), zone]
 	return ""
 

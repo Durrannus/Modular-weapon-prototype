@@ -32,15 +32,25 @@ Swapping is free.
 
 ## How the parts work
 
-The grid is shaped like the weapon. The sword's grid is 3 wide and 6 tall, split into areas from the tip down:
+The grid is drawn in the shape of a sword, tip at the top:
 
-| Rows | Area | What goes there |
-|---|---|---|
-| Top 3 | Blade | Blades. Two thin blades side by side make a two-pronged sword. |
-| Middle 2 | Hilt | Hilts. You can stack more than one. |
-| Bottom 1 | Handle | Handles |
+```
+b b b    blade area (3 rows): blades. Two thin blades side by side make a two-pronged sword.
+b b b
+b b b
+h h h    hilt area (2 rows): hilts. You can stack two.
+h h h
+  g      handle (2 cells, one wide): grips
+  g
+```
 
-Gems are small and fit in any area. The areas are set in `ROW_ZONES` in `scripts/weapon/weapon_build.gd`.
+Each part only goes in its own area, and every part fits there without rotating. Gems are small and fit in any area. The shape is set by `SHAPE_MAP` in `scripts/weapon/weapon_build.gd`.
+
+If you add or change a part, run this from the project folder to check it still fits its area:
+
+```
+godot --headless --script res://tests/check_parts.gd
+```
 
 The combo reads **from the bottom of the grid up to the tip**. Parts in the same row read left to right. The number on each part shows its place in the order.
 
@@ -90,6 +100,7 @@ scripts/ui/build_menu.gd         The crafting table
 scripts/ui/hud.gd                Health, kills, combo display
 scripts/input_setup.gd           All key and controller bindings
 parts/*.tres             The nine sword parts
+tests/check_parts.gd     Checks every part fits its area
 ```
 
 ## Art

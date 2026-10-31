@@ -2,10 +2,10 @@ extends CanvasLayer
 ## The crafting table: fit parts onto the weapon's grid.
 ## Free to swap. Pauses the game while open.
 
-const CELL := 64.0
+const CELL := 56.0
 const GRID_POS := Vector2(150, 140)
 const INV_POS := Vector2(450, 120)
-const INV_ROW := 54.0
+const INV_ROW := 66.0
 const INV_W := 360.0
 const INFO_POS := Vector2(850, 120)
 const INFO_W := 400.0
@@ -16,7 +16,7 @@ var root: Control
 var is_open := false
 var held: PartData = null
 var held_rot := 0
-var cursor := Vector2i(1, 4)
+var cursor := Vector2i(1, 3)
 var hover_inv := -1
 var message := ""
 
@@ -201,20 +201,24 @@ func _draw_menu() -> void:
 
 	# Grid
 	root.draw_string(font, GRID_POS + Vector2(0, -10), "TIP", HORIZONTAL_ALIGNMENT_CENTER, CELL * WeaponBuild.GRID_W, 14, dim)
-	root.draw_string(font, GRID_POS + Vector2(0, CELL * WeaponBuild.GRID_H + 20), "END", HORIZONTAL_ALIGNMENT_CENTER, CELL * WeaponBuild.GRID_W, 14, dim)
-	var zone_tint := {"blade": Color(0.16, 0.19, 0.26), "hilt": Color(0.22, 0.18, 0.14), "handle": Color(0.15, 0.2, 0.15)}
+	root.draw_string(font, GRID_POS + Vector2(0, CELL * WeaponBuild.GRID_H + 20), "POMMEL", HORIZONTAL_ALIGNMENT_CENTER, CELL * WeaponBuild.GRID_W, 14, dim)
+	var zone_tint := {"blade": Color(0.24, 0.3, 0.42), "hilt": Color(0.4, 0.3, 0.2), "handle": Color(0.34, 0.24, 0.32)}
 	var held_zone := WeaponBuild.zone_for(held) if held != null else ""
-	var last_zone := ""
+	var labelled := {}
 	for y in WeaponBuild.GRID_H:
-		var zone := WeaponBuild.zone_of_row(y)
-		var tint: Color = zone_tint[zone]
-		if held != null and held_zone != "" and held_zone != zone:
-			tint = tint.darkened(0.55)  # can't go here
 		for x in WeaponBuild.GRID_W:
-			root.draw_rect(_cell_rect(Vector2i(x, y)), tint)
-		if zone != last_zone:
-			last_zone = zone
-			root.draw_string(font, GRID_POS + Vector2(-90, y * CELL + 22), zone.to_upper(), HORIZONTAL_ALIGNMENT_RIGHT, 80, 13, dim)
+			var zone := WeaponBuild.zone_at(Vector2i(x, y))
+			if zone == "":
+				continue  # not part of the sword
+			var tint: Color = zone_tint[zone]
+			if held != null and held_zone != "" and held_zone != zone:
+				tint = tint.darkened(0.65)  # the part in hand can't go here
+			var cr := _cell_rect(Vector2i(x, y))
+			root.draw_rect(cr, tint)
+			root.draw_rect(cr, tint.lightened(0.25), false, 1.0)
+			if not labelled.has(zone):
+				labelled[zone] = true
+				root.draw_string(font, GRID_POS + Vector2(-100, y * CELL + 20), zone.to_upper(), HORIZONTAL_ALIGNMENT_RIGHT, 90, 13, dim)
 
 	var ordered := build.ordered_placements()
 	for i in ordered.size():
@@ -232,9 +236,13 @@ func _draw_menu() -> void:
 	# Held part ghost
 	if held != null:
 		var ok := build.can_place(held, cursor, held_rot)
-		var ghost := Color(0.4, 1.0, 0.5, 0.55) if ok else Color(1.0, 0.35, 0.35, 0.55)
+		var edge := Color(0.4, 1.0, 0.5) if ok else Color(1.0, 0.3, 0.3)
 		for c in build.cells_for(held, cursor, held_rot):
-			root.draw_rect(_cell_rect(c), ghost)
+			var gr := _cell_rect(c)
+			var fill := held.color
+			fill.a = 0.6
+			root.draw_rect(gr, fill)
+			root.draw_rect(gr, edge, false, 3.0)
 	root.draw_rect(_cell_rect(cursor).grow(2.0), Color(1, 1, 1, 0.9), false, 3.0)
 
 	var gy := GRID_POS.y + CELL * WeaponBuild.GRID_H + 52
@@ -250,7 +258,7 @@ func _draw_menu() -> void:
 		root.draw_rect(row, Color(0.2, 0.22, 0.29) if i == hover_inv else Color(0.12, 0.13, 0.18))
 		_draw_mini_shape(part, row.position + Vector2(10, 8), 0)
 		root.draw_string(font, row.position + Vector2(64, 20), "%s  (%s)" % [part.display_name, part.type_name()], HORIZONTAL_ALIGNMENT_LEFT, -1, 16, white)
-		root.draw_multiline_string(font, row.position + Vector2(64, 37), part.description, HORIZONTAL_ALIGNMENT_LEFT, INV_W - 72, 12, 2, dim)
+		root.draw_multiline_string(font, row.position + Vector2(64, 38), part.description, HORIZONTAL_ALIGNMENT_LEFT, INV_W - 72, 12, 2, dim)
 	if inv.is_empty():
 		root.draw_string(font, INV_POS + Vector2(0, 20), "Everything is on the sword.", HORIZONTAL_ALIGNMENT_LEFT, -1, 14, dim)
 
