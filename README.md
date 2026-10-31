@@ -84,7 +84,7 @@ parts/*.tres             The nine sword parts
 
 ## Art
 
-Everything is drawn with simple shapes for now. The project is already set up for pixel art: textures use nearest filtering (no blur), 2D positions snap to whole pixels, and the window scales in whole steps. When real sprites arrive, you may also want a lower base resolution such as 640x360 (Project Settings → Display → Window → Viewport Width/Height); the crafting table layout would then need resizing.
+Everything is drawn with simple shapes for now. The project is already set up for pixel art: textures use nearest filtering (no blur) and 2D positions snap to whole pixels. When real sprites arrive, switch to a low base resolution such as 640x360 (Project Settings → Display → Window → Viewport Width/Height) and set Stretch → Scale Mode to "integer", so pixels stay sharp at 1080p (3x) and 1440p (4x). The crafting table layout would then need resizing.
 
 When you're knocked out you respawn at the start point (the "base" for now).
 
