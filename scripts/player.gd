@@ -1,29 +1,29 @@
 extends CharacterBody2D
-## The player: movement, dash, aiming, and running the combo the weapon build
-## produced. Moves are small building blocks (slash, stab, spin) that parts
-## switch on; effects (wave, burn, lunge, split) modify them.
+## The player: movement, dodge, aiming, and running the combo the weapon build
+## produced. Each combo step is one move (slash, stab, lunge, spin, overhead).
+## Blade elements add effects on hit (fire, water, lightning, steam, electrified).
 
 const Fx := preload("res://scripts/fx/fx.gd")
-const Projectile := preload("res://scripts/projectile.gd")
 
-const MOVE_SPEED := 260.0
-const DASH_SPEED := 760.0
-const DASH_TIME := 0.15
-const DASH_COOLDOWN := 0.5
-const LUNGE_SPEED := 700.0
-const LUNGE_TIME := 0.14
+const MOVE_SPEED := 250.0
 const RADIUS := 16.0
-const BASE_STEP_TIME := 0.30   # time per combo step at speed 1.0
-const MERGE_GAP := 0.10        # gap between the parts of a merged move
-const LAST_STEP_RECOVERY := 0.14
-const COMBO_WINDOW := 0.55     # how long you can wait before the combo resets
-const SWING_ANIM := 0.12
+const COMBO_WINDOW := 0.5      # stop attacking this long and the combo resets
+const FINISHER_RECOVERY := 0.22  # extra pause after the hilt move
 
-## Damage multiplier, knockback and hit shape for each move.
+const DODGE_SPEED := 640.0
+const DODGE_TIME := 0.12
+const DODGE_MAX_CHARGES := 1
+const DODGE_REFILL := 0.9      # seconds per charge
+
+## The five sword moves. Times are at attack speed 1.0.
+## windup: time before the hit lands. time: whole move. reach in pixels (times blade reach).
+## arc: degrees for arcs. width: half-width for lines. power: damage multiplier.
 const MOVES := {
-	"slash": {"mult": 1.0, "knock": 230.0},
-	"stab": {"mult": 1.35, "knock": 330.0},
-	"spin": {"mult": 0.8, "knock": 260.0},
+	"slash": {"windup": 0.05, "time": 0.28, "shape": "arc", "arc": 120.0, "reach": 74.0, "power": 1.0, "knock": 230.0},
+	"stab": {"windup": 0.06, "time": 0.25, "shape": "line", "width": 16.0, "reach": 115.0, "power": 1.15, "knock": 320.0},
+	"lunge": {"windup": 0.15, "time": 0.38, "shape": "line", "width": 24.0, "reach": 85.0, "power": 1.3, "knock": 300.0, "dash": 170.0},
+	"spin": {"windup": 0.07, "time": 0.44, "shape": "circle", "reach": 72.0, "power": 0.85, "knock": 260.0},
+	"overhead": {"windup": 0.24, "time": 0.58, "shape": "arc", "arc": 70.0, "reach": 95.0, "power": 2.1, "knock": 460.0, "shake": 11.0},
 }
 
 var color := Color(0.35, 0.7, 1.0)
@@ -39,18 +39,21 @@ var weapon: Dictionary = {}
 var step_index := 0        # next combo step
 var current_step := -1     # step being played, -1 when idle
 var step_timer := 0.0
+var step_elapsed := 0.0
+var hit_time := -1.0       # when the current move's hit lands (-1 once landed)
+var step_duration := 0.0
 var queued := false
 var combo_timer := 0.0
-var pending: Array = []    # [{"t": float, "move": String}]
 var lunge_timer := 0.0
 var lunge_dir := Vector2.RIGHT
-var dash_timer := 0.0
-var dash_cooldown := 0.0
-var dash_dir := Vector2.RIGHT
+var lunge_speed := 0.0
+var dodge_timer := 0.0
+var dodge_dir := Vector2.RIGHT
+var dodge_charges := DODGE_MAX_CHARGES
+var dodge_refill := 0.0
 var invuln := 0.0
-var swing_kind := ""
-var swing_t := 1.0
-var swing_dir := Vector2.RIGHT
+var anim_move := ""
+var anim_dir := Vector2.RIGHT
 var knocked_out_timer := 0.0
 
 
@@ -81,10 +84,16 @@ func set_camera_limits(rect: Rect2) -> void:
 
 func set_weapon(stats: Dictionary) -> void:
 	weapon = stats
+	_reset_combo()
+
+
+func _reset_combo() -> void:
 	step_index = 0
 	current_step = -1
-	pending.clear()
+	hit_time = -1.0
 	queued = false
+	combo_timer = 0.0
+	lunge_timer = 0.0
 
 
 func _input(event: InputEvent) -> void:
@@ -98,36 +107,25 @@ func _input(event: InputEvent) -> void:
 
 func _physics_process(delta: float) -> void:
 	invuln = maxf(invuln - delta, 0.0)
-	dash_cooldown -= delta
-	swing_t = minf(swing_t + delta / SWING_ANIM, 1.0)
 
 	var move := Input.get_vector("move_left", "move_right", "move_up", "move_down")
 	_update_aim(move)
+	_update_dodge(delta, move)
 
-	if Input.is_action_just_pressed("dash") and dash_cooldown <= 0.0 and can_dodge():
-		dash_dir = move.normalized() if move.length() > 0.1 else aim_dir
-		dash_timer = DASH_TIME
-		dash_cooldown = DASH_COOLDOWN
-		invuln = maxf(invuln, DASH_TIME + 0.05)
-
-	var vel := move * MOVE_SPEED
+	var speed := MOVE_SPEED * (1.0 + float(weapon.get("move_speed", 0.0)))
+	var vel := move * speed
 	if current_step >= 0:
 		vel *= 0.55  # you slow down while swinging
-	if dash_timer > 0.0:
-		dash_timer -= delta
-		vel = dash_dir * DASH_SPEED
+	if dodge_timer > 0.0:
+		dodge_timer -= delta
+		vel = dodge_dir * DODGE_SPEED
 	elif lunge_timer > 0.0:
 		lunge_timer -= delta
-		vel = lunge_dir * LUNGE_SPEED
+		vel = lunge_dir * lunge_speed
 	velocity = vel
 	move_and_slide()
 
 	_update_combat(delta)
-
-
-## There's no base dodge: it comes from parts (see Feather Charm).
-func can_dodge() -> bool:
-	return "dodge" in weapon.get("effects", [])
 
 
 func _update_aim(move: Vector2) -> void:
@@ -143,35 +141,52 @@ func _update_aim(move: Vector2) -> void:
 			aim_dir = to_mouse.normalized()
 
 
+# --- Dodge ------------------------------------------------------------------
+# Everyone has a short step. One charge that refills. Cancels the swing and
+# resets the combo.
+
+func _update_dodge(delta: float, move: Vector2) -> void:
+	if dodge_charges < DODGE_MAX_CHARGES:
+		dodge_refill += delta
+		if dodge_refill >= DODGE_REFILL:
+			dodge_refill = 0.0
+			dodge_charges += 1
+	if Input.is_action_just_pressed("dash") and dodge_charges > 0 and dodge_timer <= 0.0:
+		dodge_charges -= 1
+		dodge_dir = move.normalized() if move.length() > 0.1 else aim_dir
+		dodge_timer = DODGE_TIME
+		invuln = maxf(invuln, DODGE_TIME + 0.06)
+		_reset_combo()
+
+
 # --- Combo ------------------------------------------------------------------
 
+func _steps() -> Array:
+	return weapon.get("steps", [])
+
+
+func _speed() -> float:
+	return maxf(float(weapon.get("speed", 1.0)), 0.2)
+
+
 func _update_combat(delta: float) -> void:
-	if Input.is_action_just_pressed("attack"):
+	if Input.is_action_just_pressed("attack") and dodge_timer <= 0.0:
 		if current_step < 0:
 			_start_step()
 		else:
 			queued = true
 
 	if current_step >= 0:
-		step_timer -= delta
-		var still: Array = []
-		for p in pending:
-			p["t"] -= delta
-			if p["t"] <= 0.0:
-				_do_move(p["move"])
-			else:
-				still.append(p)
-		pending = still
-		if step_timer <= 0.0 and pending.is_empty():
+		step_elapsed += delta
+		if hit_time >= 0.0 and step_elapsed >= hit_time:
+			hit_time = -1.0
+			_do_move(_steps()[current_step]["move"])
+		if step_elapsed >= step_duration:
 			_end_step()
 	elif combo_timer > 0.0:
 		combo_timer -= delta
 		if combo_timer <= 0.0:
 			step_index = 0
-
-
-func _steps() -> Array:
-	return weapon.get("steps", [])
 
 
 func _start_step() -> void:
@@ -181,19 +196,21 @@ func _start_step() -> void:
 	if step_index >= steps.size():
 		step_index = 0
 	current_step = step_index
-	var moves: Array = steps[current_step]
-	var speed: float = weapon.get("speed", 1.0)
-	pending.clear()
-	for i in moves.size():
-		pending.append({"t": i * MERGE_GAP / speed, "move": moves[i]})
-	step_timer = (BASE_STEP_TIME + (moves.size() - 1) * MERGE_GAP) / speed
+	var move: String = steps[current_step]["move"]
+	var info: Dictionary = MOVES.get(move, MOVES["slash"])
+	var speed := _speed()
+	step_elapsed = 0.0
+	hit_time = float(info["windup"]) / speed
+	step_duration = float(info["time"]) / speed
+	if current_step == steps.size() - 1 and steps.size() > 1:
+		step_duration += FINISHER_RECOVERY / speed
 	queued = false
-	var is_last := current_step == steps.size() - 1
-	if is_last:
-		step_timer += LAST_STEP_RECOVERY / speed
-		if "lunge" in weapon.get("effects", []):
-			lunge_timer = LUNGE_TIME
-			lunge_dir = aim_dir
+	anim_move = move
+	anim_dir = aim_dir
+	if info.has("dash"):
+		lunge_dir = aim_dir
+		lunge_timer = hit_time
+		lunge_speed = float(info["dash"]) / maxf(hit_time, 0.01)
 
 
 func _end_step() -> void:
@@ -210,21 +227,12 @@ func _end_step() -> void:
 
 func _do_move(move: String) -> void:
 	var info: Dictionary = MOVES.get(move, MOVES["slash"])
-	var reach: float = weapon.get("reach", 1.0)
-	var dmg: float = float(weapon.get("damage", 6.0)) * float(info["mult"])
+	var area := 1.0 + float(weapon.get("area", 0.0))
+	var reach: float = float(info["reach"]) * float(weapon.get("reach", 1.0)) * area
+	var dmg: float = float(weapon.get("damage", 4.0)) * float(info["power"])
 	var knock: float = info["knock"]
 	var dir := aim_dir
-	var effects: Array = weapon.get("effects", [])
-	var radius := 0.0
 	var hits := 0
-
-	match move:
-		"stab":
-			radius = 112.0 * reach
-		"spin":
-			radius = 70.0 * reach
-		_:
-			radius = 74.0 * reach
 
 	for e in get_tree().get_nodes_in_group("enemies"):
 		if not is_instance_valid(e) or e.dead:
@@ -233,65 +241,111 @@ func _do_move(move: String) -> void:
 		var r: float = e.radius
 		var hit := false
 		var kdir := rel.normalized() if rel.length() > 0.01 else dir
-		match move:
-			"stab":
+		match str(info["shape"]):
+			"line":
 				var along := rel.dot(dir)
 				var side := absf(rel.dot(dir.orthogonal()))
-				hit = along > -r and along <= radius + r and side <= 16.0 + r
+				hit = along > -r and along <= reach + r and side <= float(info["width"]) * area + r
 				kdir = dir
-			"spin":
-				hit = rel.length() <= radius + r
+			"circle":
+				hit = rel.length() <= reach + r
 			_:
-				hit = rel.length() <= radius + r and (rel.length() < r + RADIUS or absf(dir.angle_to(rel)) <= deg_to_rad(68.0))
+				var half_arc := deg_to_rad(float(info["arc"]) * 0.5 * (1.0 + (area - 1.0) * 0.5))
+				hit = rel.length() <= reach + r and (rel.length() < r + RADIUS or absf(dir.angle_to(rel)) <= half_arc)
 		if hit:
 			_hit_enemy(e, dmg, kdir, knock)
 			hits += 1
 
-	# Visuals
 	var fx := Fx.new()
-	fx.kind = move
+	fx.kind = str(info["shape"])
 	fx.dir = dir
-	fx.radius = radius
-	fx.color = weapon.get("blade_color", Color.WHITE)
+	fx.radius = reach
+	fx.arc = float(info.get("arc", 120.0))
+	fx.width = float(info.get("width", 16.0)) * area
+	fx.color = weapon.get("hit_color", Color.WHITE)
+	fx.thick = move == "overhead"
 	add_child(fx)
-	swing_kind = move
-	swing_dir = dir
-	swing_t = 0.0
-
-	# Wave blade: every move sends out waves.
-	if "wave" in effects:
-		var dirs: Array = [dir]
-		if move == "spin":
-			dirs = [dir, dir.rotated(PI * 0.5), dir.rotated(PI), dir.rotated(PI * 1.5)]
-		var all_dirs: Array = []
-		for d in dirs:
-			all_dirs.append(d)
-			if "split" in effects:
-				all_dirs.append(d.rotated(0.32))
-				all_dirs.append(d.rotated(-0.32))
-		for d in all_dirs:
-			_fire_wave(d, dmg * 0.6)
 
 	if hits > 0:
-		shake = maxf(shake, 4.0 + hits)
-		_hitstop(0.035 if move != "stab" else 0.06)
+		shake = maxf(shake, float(info.get("shake", 4.0)) + hits)
+		_hitstop(0.07 if move == "overhead" else 0.035)
 
 
 func _hit_enemy(e, dmg: float, kdir: Vector2, knock: float) -> void:
 	var crit := randf() < float(weapon.get("crit", 0.05))
-	var burn: bool = "burn" in weapon.get("effects", [])
-	e.take_hit(dmg * (2.0 if crit else 1.0), kdir, knock, crit, burn)
+	var final := dmg * (float(weapon.get("crit_damage", 1.5)) if crit else 1.0)
+	e.take_hit(final, kdir, knock, crit, weapon.get("hit_color", Color.WHITE))
+	_apply_elements(e, final)
 
 
-func _fire_wave(d: Vector2, dmg: float) -> void:
-	var p := Projectile.new()
-	p.velocity = d * 540.0
-	p.damage = dmg
-	p.crit_chance = float(weapon.get("crit", 0.05))
-	p.burn = "burn" in weapon.get("effects", [])
-	p.color = weapon.get("blade_color", Color.WHITE)
-	get_parent().add_child(p)
-	p.global_position = global_position + d * 24.0
+# --- Elements ---------------------------------------------------------------
+
+func _apply_elements(target, dmg: float) -> void:
+	var elements: Array = weapon.get("elements", [])
+	var combos: Array = weapon.get("combos", [])
+	if "fire" in elements:
+		target.apply_burn(maxf(1.0, dmg * 0.12), 2.5)
+	if "water" in elements:
+		target.apply_slow(0.45, 2.0)
+	if "lightning" in elements:
+		var electrified := "electrified" in combos
+		_chain(target, dmg * 0.5, 3 if electrified else 1, electrified)
+	if "steam" in combos:
+		_steam(target, dmg * 0.4)
+
+
+## Lightning jumps to the nearest enemy nearby. Electrified jumps further and stuns.
+func _chain(from_enemy, dmg: float, jumps: int, stun: bool) -> void:
+	var color_key := "electrified" if stun else "lightning"
+	var col: Color = WeaponBuild.ELEMENT_COLORS[color_key]
+	var hit_ids := {from_enemy.get_instance_id(): true}
+	var current = from_enemy
+	if stun and is_instance_valid(current) and not current.dead:
+		current.apply_stun(0.35)
+	for i in jumps:
+		var best = null
+		var best_d := 150.0
+		for e in get_tree().get_nodes_in_group("enemies"):
+			if not is_instance_valid(e) or e.dead or hit_ids.has(e.get_instance_id()):
+				continue
+			var d: float = e.global_position.distance_to(current.global_position)
+			if d < best_d:
+				best_d = d
+				best = e
+		if best == null:
+			return
+		hit_ids[best.get_instance_id()] = true
+		var line := Fx.new()
+		line.kind = "chain"
+		line.to = best.global_position - current.global_position
+		line.color = col
+		line.life = 0.18
+		get_parent().add_child(line)
+		line.global_position = current.global_position
+		var dir: Vector2 = (best.global_position - current.global_position).normalized()
+		best.take_hit(dmg, dir, 60.0, false, col)
+		if stun:
+			best.apply_stun(0.5)
+		current = best
+
+
+## Steam bursts around the target and scalds enemies next to it.
+func _steam(target, dmg: float) -> void:
+	var col: Color = WeaponBuild.ELEMENT_COLORS["steam"]
+	var radius := 64.0 * (1.0 + float(weapon.get("area", 0.0)))
+	var burst := Fx.new()
+	burst.kind = "burst"
+	burst.radius = radius
+	burst.color = col
+	burst.life = 0.3
+	get_parent().add_child(burst)
+	burst.global_position = target.global_position
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if not is_instance_valid(e) or e.dead or e == target:
+			continue
+		if e.global_position.distance_to(target.global_position) <= radius + e.radius:
+			var dir: Vector2 = (e.global_position - target.global_position).normalized()
+			e.take_hit(dmg, dir, 140.0, false, col)
 
 
 func _hitstop(duration: float) -> void:
@@ -313,6 +367,7 @@ func take_damage(amount: float) -> void:
 		global_position = spawn_point
 		knocked_out_timer = 2.0
 		invuln = 2.0
+		_reset_combo()
 
 
 func _process(delta: float) -> void:
@@ -322,30 +377,53 @@ func _process(delta: float) -> void:
 	queue_redraw()
 
 
-func _draw() -> void:
-	var blink := invuln > 0.0 and int(invuln * 20.0) % 2 == 0
-	draw_circle(Vector2.ZERO, RADIUS, Color(1, 1, 1) if blink else color)
-	draw_arc(Vector2.ZERO, RADIUS, 0.0, TAU, 28, color.darkened(0.45), 2.5)
+# --- Drawing ------------------------------------------------------------------
 
-	# The sword, drawn from the build's colours so swapping parts shows up.
-	var base_angle := aim_dir.angle()
+func _draw() -> void:
+	var blink := invuln > 0.0 and dodge_timer <= 0.0 and int(invuln * 20.0) % 2 == 0
+	var body := Color(1, 1, 1) if blink else color
+	if dodge_timer > 0.0:
+		body = color.lightened(0.4)
+		body.a = 0.6
+	draw_circle(Vector2.ZERO, RADIUS, body)
+	draw_arc(Vector2.ZERO, RADIUS, 0.0, TAU, 28, color.darkened(0.45), 2.5)
+	_draw_sword()
+
+
+## The sword, drawn from the build's colours so swapping parts shows up.
+func _draw_sword() -> void:
+	var angle := aim_dir.angle()
 	var extend := 0.0
-	if swing_t < 1.0:
-		var k := swing_t
-		base_angle = swing_dir.angle()
-		match swing_kind:
-			"stab":
-				extend = sin(k * PI) * 26.0
+	if current_step >= 0:
+		angle = anim_dir.angle()
+		# Before the hit lands the sword is held back; after, it swings through (~0.14s).
+		var after := 0.0
+		if hit_time < 0.0:
+			var info: Dictionary = MOVES.get(anim_move, MOVES["slash"])
+			after = clampf((step_elapsed - float(info["windup"]) / _speed()) / 0.14, 0.0, 1.0)
+		match anim_move:
+			"stab", "lunge":
+				extend = (sin(after * PI) * 26.0) if hit_time < 0.0 else -6.0
 			"spin":
-				base_angle += k * TAU
+				angle += after * TAU
+			"overhead":
+				angle += -2.2 if hit_time >= 0.0 else lerpf(-2.2, 0.3, minf(after * 2.0, 1.0))
+				extend = 0.0 if hit_time >= 0.0 else 6.0
 			_:
-				base_angle += lerpf(-1.2, 1.2, k)
-	var d := Vector2.RIGHT.rotated(base_angle)
+				angle += -1.2 if hit_time >= 0.0 else lerpf(-1.2, 1.2, after)
+	var d := Vector2.RIGHT.rotated(angle)
 	var side := d.orthogonal()
 	var reach: float = weapon.get("reach", 1.0)
-	var start := d * (RADIUS + 2.0 + extend)
-	var guard := start + d * 10.0
-	var tip := guard + d * (34.0 * reach)
-	draw_line(start, guard, weapon.get("handle_color", Color(0.45, 0.3, 0.18)), 5.0)
+	var pommel := d * (RADIUS - 2.0 + extend)
+	var guard := pommel + d * 12.0
+	var tip_len := 34.0 * maxf(reach, 0.6)
+	draw_line(pommel, guard, weapon.get("handle_color", Color(0.45, 0.3, 0.18)), 5.0)
+	draw_circle(pommel, 3.5, weapon.get("pommel_color", Color(0.5, 0.35, 0.2)))
 	draw_line(guard - side * 9.0, guard + side * 9.0, weapon.get("hilt_color", Color(0.55, 0.38, 0.22)), 4.0)
-	draw_line(guard, tip, weapon.get("blade_color", Color(0.7, 0.55, 0.35)), 6.0)
+	var blades: Array = weapon.get("blade_colors", [])
+	if blades.is_empty():
+		return
+	var w := 7.0 if weapon.get("big_blade", false) else (6.0 if blades.size() == 1 else 3.5)
+	for i in blades.size():
+		var offset := side * ((i - (blades.size() - 1) * 0.5) * 4.0)
+		draw_line(guard + offset, guard + offset + d * tip_len, blades[i], w)

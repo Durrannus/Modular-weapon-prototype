@@ -1,10 +1,10 @@
 class_name WeaponBuild
 extends RefCounted
 ## The build grid for one weapon, and the rules that turn the parts on it
-## into a combo. All combining rules live in compute(), so they're easy to tune.
+## into stats and a combo. All the rules live in this file so they're easy to tune.
 ##
-## Combo order: parts are read from the bottom of the weapon (handle end)
-## to the top (tip). In the same row, left to right.
+## Combo: pommel move, then handle move, then hilt move (bottom of the sword up),
+## then it loops. Blades add damage and elements. Charms add small bonuses.
 
 signal changed
 
@@ -12,29 +12,40 @@ const GRID_W := 3
 const GRID_H := 7
 
 ## The grid is drawn in the shape of a sword, tip at the top (row 0).
-## Each letter is one cell:  b = blade, h = hilt, g = grip (handle), . = not part of the sword.
-## Blades, hilts and handles only go in their own area. Gems are small and fit
-## in any area. Change this map to reshape the weapon.
+## b = blade, h = hilt, g = grip (handle), c = charm square, p = pommel,
+## . = not part of the sword. Change this map to reshape the weapon.
 const SHAPE_MAP := [
 	"bbb",
 	"bbb",
 	"bbb",
 	"hhh",
-	"hhh",
+	"cgc",
 	".g.",
-	".g.",
+	".p.",
 ]
-const ZONE_NAMES := {"b": "blade", "h": "hilt", "g": "handle"}
+const ZONE_NAMES := {"b": "blade", "h": "hilt", "g": "handle", "c": "charm", "p": "pommel"}
 
-## Pairs of parts that unlock a bonus when both are on the weapon.
-const SYNERGIES := [
-	{"parts": ["iron_crossguard", "ember_blade"], "name": "Forge-tempered", "text": "+20% crit chance", "crit": 0.20},
-	{"parts": ["oak_hilt", "wooden_blade"], "name": "Matching grain", "text": "+15% attack speed", "speed": 0.15},
+## Material multiplies a part's numbers (blade damage and stat bonuses).
+const MATERIALS := {"wood": 1.0, "iron": 1.4}
+
+## Elements and the combos two of them make.
+const ELEMENT_COMBOS := [
+	{"needs": ["fire", "water"], "name": "steam"},
+	{"needs": ["water", "lightning"], "name": "electrified"},
 ]
 
-const BASE_DAMAGE := 6.0
+## Colours for damage numbers and effects.
+const ELEMENT_COLORS := {
+	"fire": Color(1.0, 0.5, 0.15),
+	"water": Color(0.3, 0.65, 1.0),
+	"lightning": Color(1.0, 0.92, 0.3),
+	"steam": Color(0.88, 0.9, 0.95),
+	"electrified": Color(0.4, 0.95, 1.0),
+}
+
+const BASE_DAMAGE := 4.0  # bare hilt, no blade
 const BASE_CRIT := 0.05
-const BASE_STEPS := [["slash"], ["slash"]]
+const BASE_CRIT_DAMAGE := 1.5
 
 ## Each placement: {"part": PartData, "origin": Vector2i, "rotation": int, "cells": Array}
 var placements: Array = []
@@ -56,6 +67,10 @@ static func rotated_shape(shape: Array, rotation: int) -> Array:
 	for v in cells:
 		out.append(Vector2i(v.x - min_x, v.y - min_y))
 	return out
+
+
+static func material_mult(part: PartData) -> float:
+	return float(MATERIALS.get(part.material, 1.0))
 
 
 func cells_for(part: PartData, origin: Vector2i, rotation: int) -> Array:
@@ -80,8 +95,15 @@ func has_part(part: PartData) -> bool:
 	return false
 
 
-## The area a cell belongs to ("blade", "hilt", "handle"), or "" if the cell
-## isn't part of the weapon.
+func part_of_type(t: int) -> PartData:
+	for pl in placements:
+		if pl["part"].part_type == t:
+			return pl["part"]
+	return null
+
+
+## The area a cell belongs to ("blade", "hilt", "handle", "charm", "pommel"),
+## or "" if the cell isn't part of the weapon.
 static func zone_at(cell: Vector2i) -> String:
 	if cell.x < 0 or cell.y < 0 or cell.x >= GRID_W or cell.y >= GRID_H:
 		return ""
@@ -89,16 +111,18 @@ static func zone_at(cell: Vector2i) -> String:
 	return ZONE_NAMES.get(row[cell.x], "")
 
 
-## The area a part must go in, or "" if it fits anywhere.
+## The area a part must go in.
 static func zone_for(part: PartData) -> String:
 	match part.part_type:
-		PartData.PartType.BLADE:
-			return "blade"
-		PartData.PartType.HILT:
-			return "hilt"
+		PartData.PartType.POMMEL:
+			return "pommel"
 		PartData.PartType.HANDLE:
 			return "handle"
-	return ""
+		PartData.PartType.HILT:
+			return "hilt"
+		PartData.PartType.BLADE:
+			return "blade"
+	return "charm"
 
 
 func can_place(part: PartData, origin: Vector2i, rotation: int) -> bool:
@@ -107,6 +131,12 @@ func can_place(part: PartData, origin: Vector2i, rotation: int) -> bool:
 
 ## Why a part can't go here, or "" if it can.
 func place_problem(part: PartData, origin: Vector2i, rotation: int) -> String:
+	if has_part(part):
+		return "That part is already on the sword."
+	# One of each part, except blades (several small blades) and charms.
+	var t := part.part_type
+	if t != PartData.PartType.BLADE and t != PartData.PartType.CHARM and part_of_type(t) != null:
+		return "The sword already has a %s. Pick that one up first." % part.type_name().to_lower()
 	var zone := zone_for(part)
 	for c in cells_for(part, origin, rotation):
 		var v: Vector2i = c
@@ -115,13 +145,13 @@ func place_problem(part: PartData, origin: Vector2i, rotation: int) -> String:
 			return "That goes off the sword."
 		if not placement_at(v).is_empty():
 			return "Something is already there."
-		if zone != "" and cell_zone != zone:
+		if cell_zone != zone:
 			return "%ss only go in the %s area." % [part.type_name(), zone]
 	return ""
 
 
 func place(part: PartData, origin: Vector2i, rotation: int) -> bool:
-	if has_part(part) or not can_place(part, origin, rotation):
+	if not can_place(part, origin, rotation):
 		return false
 	placements.append({
 		"part": part,
@@ -141,7 +171,7 @@ func remove_at(cell: Vector2i) -> Dictionary:
 	return pl
 
 
-## Placements in combo order: bottom of the weapon first, then upward.
+## Placements from the bottom of the sword up (pommel first), left to right.
 func ordered_placements() -> Array:
 	var list: Array = placements.duplicate()
 	list.sort_custom(_order_less)
@@ -152,7 +182,7 @@ func _order_less(a: Dictionary, b: Dictionary) -> bool:
 	var ka := _order_key(a["cells"])
 	var kb := _order_key(b["cells"])
 	if ka.y != kb.y:
-		return ka.y > kb.y  # lower on the grid (bigger y) comes first
+		return ka.y > kb.y
 	return ka.x < kb.x
 
 
@@ -167,98 +197,84 @@ static func _order_key(cells: Array) -> Vector2i:
 
 
 ## Turns the grid into weapon stats and a combo.
-## Returns a Dictionary the player reads every attack.
+## Returns a plain Dictionary (easy to send over the network later).
 func compute() -> Dictionary:
-	var ordered := ordered_placements()
-	var hilt_moves: Array = []
-	var blade: PartData = null
-	var handle: PartData = null
-	var hilt: PartData = null
-	var effects: Array = []
-	var notes: Array = []
-	var ids := {}
-	var conditional: Array = []
+	var pommel := part_of_type(PartData.PartType.POMMEL)
+	var handle := part_of_type(PartData.PartType.HANDLE)
+	var hilt := part_of_type(PartData.PartType.HILT)
 
-	for pl in ordered:
-		var part: PartData = pl["part"]
-		ids[part.id] = true
-		if part.part_type == PartData.PartType.HILT:
-			hilt_moves.append(part.moves)
-			if hilt == null:
-				hilt = part
-		elif part.part_type == PartData.PartType.BLADE:
-			if blade == null:
-				blade = part
-			else:
-				notes.append("%s only adds its effect. The lowest blade sets damage." % part.display_name)
-		elif part.part_type == PartData.PartType.HANDLE:
-			if handle == null:
-				handle = part
-			else:
-				notes.append("%s only adds its effect. The lowest handle sets speed." % part.display_name)
-
-		if part.requires_effect != "":
-			conditional.append(part)
-		else:
-			for e in part.effects:
-				if not e in effects:
-					effects.append(e)
-
-	for part in conditional:
-		if part.requires_effect in effects:
-			for e in part.effects:
-				if not e in effects:
-					effects.append(e)
-		else:
-			notes.append("%s is asleep: it needs a part with \"%s\"." % [part.display_name, part.requires_effect])
-
-	# Rule: hilts that change the same combo step merge into one move.
-	# The lower hilt's move comes first (slash + stab = slash-stab).
+	# Combo: one move per part, pommel -> handle -> hilt.
 	var steps: Array = []
-	if hilt_moves.is_empty():
-		steps = BASE_STEPS.duplicate(true)
-	else:
-		var length := 0
-		for m in hilt_moves:
-			length = maxi(length, m.size())
-		for i in length:
-			var step: Array = []
-			for m in hilt_moves:
-				if i < m.size():
-					step.append(m[i])
-			steps.append(step)
+	for p in [pommel, handle, hilt]:
+		if p != null and p.move != "":
+			steps.append({"move": p.move, "from": p.type_name()})
+	if steps.is_empty():
+		steps.append({"move": "slash", "from": "Bare hands"})
 
-	var damage: float = BASE_DAMAGE
-	var reach: float = 0.85
-	if blade != null:
-		damage = blade.damage
-		reach = blade.reach
-	var speed: float = 1.0
-	if handle != null:
-		speed = handle.speed
-	var crit: float = BASE_CRIT
+	var damage := 0.0
+	var reach := 0.0
+	var weight := 1.0
+	var elements: Array = []
+	var blade_colors: Array = []
+	var blade_cells := 0
+	var attack_speed := 0.0
+	var crit := BASE_CRIT
+	var crit_damage := BASE_CRIT_DAMAGE
+	var area := 0.0
+	var move_speed := 0.0
 
-	var synergies: Array = []
-	for s in SYNERGIES:
+	for pl in ordered_placements():
+		var part: PartData = pl["part"]
+		var m := material_mult(part)
+		if part.part_type == PartData.PartType.BLADE:
+			damage += part.damage * m
+			reach = maxf(reach, part.reach)
+			weight = minf(weight, part.weight)
+			blade_colors.append(part.color)
+			blade_cells += part.shape.size()
+			if part.element != "" and not part.element in elements:
+				elements.append(part.element)
+		attack_speed += part.attack_speed * m
+		crit += part.crit_chance * m
+		crit_damage += part.crit_damage * m
+		area += part.area * m
+		move_speed += part.move_speed * m
+
+	if blade_colors.is_empty():
+		damage = BASE_DAMAGE
+		reach = 0.6
+
+	var combos: Array = []
+	for c in ELEMENT_COMBOS:
 		var all_there := true
-		for pid in s["parts"]:
-			if not ids.has(pid):
+		for e in c["needs"]:
+			if not e in elements:
 				all_there = false
 		if all_there:
-			synergies.append("%s: %s" % [s["name"], s["text"]])
-			crit += float(s.get("crit", 0.0))
-			speed *= 1.0 + float(s.get("speed", 0.0))
+			combos.append(c["name"])
+
+	# The colour this sword's hits show in: a combo first, then an element.
+	var hit_color := Color.WHITE
+	if not combos.is_empty():
+		hit_color = ELEMENT_COLORS[combos[0]]
+	elif not elements.is_empty():
+		hit_color = ELEMENT_COLORS[elements[0]]
 
 	return {
 		"steps": steps,
+		"hit_color": hit_color,
 		"damage": damage,
 		"reach": reach,
-		"speed": speed,
+		"speed": (1.0 + attack_speed) * weight,
 		"crit": crit,
-		"effects": effects,
-		"notes": notes,
-		"synergies": synergies,
-		"hilt_color": hilt.color if hilt != null else Color(0.55, 0.38, 0.22),
-		"blade_color": blade.color if blade != null else Color(0.7, 0.55, 0.35),
+		"crit_damage": crit_damage,
+		"area": area,
+		"move_speed": move_speed,
+		"elements": elements,
+		"combos": combos,
+		"blade_colors": blade_colors,
+		"big_blade": blade_cells >= 6 and blade_colors.size() == 1,
+		"pommel_color": pommel.color if pommel != null else Color(0.5, 0.35, 0.2),
 		"handle_color": handle.color if handle != null else Color(0.45, 0.3, 0.18),
+		"hilt_color": hilt.color if hilt != null else Color(0.55, 0.38, 0.22),
 	}

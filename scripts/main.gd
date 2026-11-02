@@ -40,12 +40,14 @@ func _ready() -> void:
 	dummy.position = ARENA.get_center() + Vector2(220, -40)
 	world.add_child(dummy)
 
-	# Weapon: starts as a plain wooden sword (just a wooden blade).
+	# Weapon: starts as the plain wooden sword (slash, slash, slash).
 	parts = PartLibrary.load_all()
 	build = WeaponBuild.new()
-	var blade := PartLibrary.find(parts, "wooden_blade")
-	if blade != null:
-		build.place(blade, Vector2i(1, 0), 0)
+	for start in [["wooden_blade", Vector2i(1, 0)], ["wooden_hilt", Vector2i(0, 3)],
+			["wooden_handle", Vector2i(1, 4)], ["wooden_pommel", Vector2i(1, 6)]]:
+		var part := PartLibrary.find(parts, start[0])
+		if part != null:
+			build.place(part, start[1], 0)
 	build.changed.connect(_on_build_changed)
 	_on_build_changed()
 

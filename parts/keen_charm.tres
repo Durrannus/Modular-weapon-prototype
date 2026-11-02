@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="PartData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/parts/part_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "keen_charm"
+display_name = "Keen Charm"
+description = "Charm: +10% crit chance."
+part_type = 4
+material = ""
+shape = [Vector2i(0, 0)]
+color = Color(0.95, 0.4, 0.45, 1)
+crit_chance = 0.1

@@ -4,11 +4,12 @@
 
 [resource]
 script = ExtResource("1")
-id = "quick_grip"
-display_name = "Quick Grip"
-description = "Swing 45% faster."
-part_type = 2
-material = "leather"
+id = "wrapped_handle"
+display_name = "Wrapped Handle"
+description = "Stab. Swing faster."
+part_type = 1
+material = "iron"
 shape = [Vector2i(0, 0), Vector2i(0, 1)]
-color = Color(0.3, 0.75, 0.4, 1)
-speed = 1.45
+color = Color(0.35, 0.55, 0.85, 1)
+move = "stab"
+attack_speed = 0.15

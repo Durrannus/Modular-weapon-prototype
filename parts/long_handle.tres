@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="PartData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/parts/part_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "long_handle"
+display_name = "Long Handle"
+description = "Lunge: dash forward and strike."
+part_type = 1
+material = "iron"
+shape = [Vector2i(0, 0), Vector2i(0, 1)]
+color = Color(0.75, 0.35, 0.65, 1)
+move = "lunge"

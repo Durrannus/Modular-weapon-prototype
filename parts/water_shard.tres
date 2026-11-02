@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="PartData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/parts/part_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "water_shard"
+display_name = "Water Shard"
+description = "Small blade. Adds water: slows."
+part_type = 3
+material = "iron"
+shape = [Vector2i(0, 0), Vector2i(0, 1), Vector2i(0, 2)]
+color = Color(0.25, 0.6, 1, 1)
+damage = 3.0
+element = "water"

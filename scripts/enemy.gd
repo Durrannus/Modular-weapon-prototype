@@ -22,7 +22,15 @@ var knock := Vector2.ZERO
 var flash := 0.0
 var burn_time := 0.0
 var burn_tick := 0.0
+var burn_damage := 2.0
+var slow_time := 0.0
+var slow_amount := 0.0
+var stun_time := 0.0
 var facing := Vector2.RIGHT
+
+# Training dummy: damage log for the damage-per-second readout.
+const DPS_WINDOW := 3.0
+var dps_log: Array = []  # [[time_seconds, damage], ...]
 
 # Charger state
 var state := "chase"
@@ -70,6 +78,8 @@ func _physics_process(delta: float) -> void:
 	if dead:
 		return
 	flash = maxf(flash - delta, 0.0)
+	slow_time = maxf(slow_time - delta, 0.0)
+	stun_time = maxf(stun_time - delta, 0.0)
 	_update_burn(delta)
 	if kind == "dummy":
 		return
@@ -84,9 +94,13 @@ func _physics_process(delta: float) -> void:
 			desired = _charger_ai(to_p, delta)
 		else:
 			desired = facing * speed
-		if to_p.length() < radius + 16.0 + 2.0 and contact_damage > 0.0:
+		if to_p.length() < radius + 16.0 + 2.0 and contact_damage > 0.0 and stun_time <= 0.0:
 			player.take_damage(contact_damage)
 
+	if slow_time > 0.0:
+		desired *= 1.0 - slow_amount
+	if stun_time > 0.0:
+		desired = Vector2.ZERO
 	if knock.length() > 60.0:
 		desired *= 0.2
 	knock = knock.move_toward(Vector2.ZERO, 1300.0 * delta)
@@ -129,10 +143,11 @@ func _update_burn(delta: float) -> void:
 	burn_tick -= delta
 	if burn_tick <= 0.0:
 		burn_tick = 0.5
-		_apply_damage(3.0, false, Color(1.0, 0.6, 0.2))
+		_apply_damage(burn_damage, false, WeaponBuild.ELEMENT_COLORS["fire"])
 
 
-func take_hit(dmg: float, dir: Vector2, knockback: float, crit: bool, burn: bool) -> void:
+## A hit from the player. num_color colours the damage number (by element).
+func take_hit(dmg: float, dir: Vector2, knockback: float, crit: bool, num_color: Color) -> void:
 	if dead:
 		return
 	flash = 0.1
@@ -140,9 +155,23 @@ func take_hit(dmg: float, dir: Vector2, knockback: float, crit: bool, burn: bool
 	if kind == "charger" and state == "windup":
 		state = "rest"  # a good hit interrupts the charge
 		state_timer = 0.6
-	if burn:
-		burn_time = 3.0
-	_apply_damage(dmg, crit, Color(1.0, 0.9, 0.3) if crit else Color.WHITE)
+	_apply_damage(dmg, crit, num_color)
+
+
+func apply_burn(damage_per_tick: float, duration: float) -> void:
+	burn_damage = maxf(burn_damage if burn_time > 0.0 else 0.0, damage_per_tick)
+	burn_time = maxf(burn_time, duration)
+
+
+func apply_slow(amount: float, duration: float) -> void:
+	slow_amount = amount
+	slow_time = maxf(slow_time, duration)
+
+
+func apply_stun(duration: float) -> void:
+	if kind == "dummy":
+		return
+	stun_time = maxf(stun_time, duration)
 
 
 func _apply_damage(dmg: float, crit: bool, num_color: Color) -> void:
@@ -150,15 +179,30 @@ func _apply_damage(dmg: float, crit: bool, num_color: Color) -> void:
 	var n := DamageNumber.new()
 	n.text = str(roundi(dmg)) + ("!" if crit else "")
 	n.color = num_color
-	n.font_size = 24 if crit else 16
+	n.font_size = 26 if crit else 16
 	get_parent().add_child(n)
-	n.global_position = global_position + Vector2(0, -radius - 6.0)
+	n.global_position = global_position + Vector2(randf_range(-8, 8), -radius - 6.0)
 	if kind == "dummy":
+		dps_log.append([Time.get_ticks_msec() / 1000.0, dmg])
 		if hp <= 0.0:
 			hp = max_hp
 		return
 	if hp <= 0.0:
 		_die()
+
+
+## Damage per second over the last few seconds (training dummy).
+func current_dps() -> float:
+	var now := Time.get_ticks_msec() / 1000.0
+	while not dps_log.is_empty() and now - float(dps_log[0][0]) > DPS_WINDOW:
+		dps_log.pop_front()
+	if dps_log.is_empty():
+		return 0.0
+	var total := 0.0
+	for entry in dps_log:
+		total += float(entry[1])
+	var span := clampf(now - float(dps_log[0][0]), 1.0, DPS_WINDOW)
+	return total / span
 
 
 func _die() -> void:
@@ -181,7 +225,9 @@ func _process(_delta: float) -> void:
 func _draw() -> void:
 	var c := color
 	if burn_time > 0.0:
-		c = c.lerp(Color(1.0, 0.5, 0.1), 0.45)
+		c = c.lerp(WeaponBuild.ELEMENT_COLORS["fire"], 0.45)
+	elif slow_time > 0.0:
+		c = c.lerp(WeaponBuild.ELEMENT_COLORS["water"], 0.4)
 	if flash > 0.0:
 		c = Color.WHITE
 
@@ -201,6 +247,19 @@ func _draw() -> void:
 			draw_circle(Vector2.ZERO, radius, c)
 			draw_arc(Vector2.ZERO, radius, 0.0, TAU, 28, c.darkened(0.4), 2.5)
 			draw_circle(facing * radius * 0.45, radius * 0.18, Color(0.1, 0.1, 0.1))
+
+	if stun_time > 0.0:
+		for i in 3:
+			var a := Time.get_ticks_msec() / 150.0 + i * TAU / 3.0
+			draw_circle(Vector2(cos(a), sin(a) * 0.4) * radius * 0.8 + Vector2(0, -radius - 6.0), 2.5, WeaponBuild.ELEMENT_COLORS["electrified"])
+
+	if kind == "dummy":
+		var dps := current_dps()
+		if dps > 0.0:
+			var font := ThemeDB.fallback_font
+			var label := "DPS %.1f" % dps
+			draw_string_outline(font, Vector2(-50, -radius - 14.0), label, HORIZONTAL_ALIGNMENT_CENTER, 100, 16, 4, Color.BLACK)
+			draw_string(font, Vector2(-50, -radius - 14.0), label, HORIZONTAL_ALIGNMENT_CENTER, 100, 16, Color(1, 0.95, 0.6))
 
 	if hp < max_hp and kind != "dummy":
 		var w := radius * 2.0

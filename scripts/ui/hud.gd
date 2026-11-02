@@ -37,13 +37,24 @@ func _draw_hud() -> void:
 	if player.knocked_out_timer > 0.0:
 		panel.draw_string(font, Vector2(0, 140), "Knocked out! Back to the start.", HORIZONTAL_ALIGNMENT_CENTER, size.x, 26, Color(1, 0.5, 0.5))
 
-	# Combo chips along the bottom
+	# Dodge charges
+	var dodge_y := 104.0 if not spawning else 84.0
+	panel.draw_string(font, Vector2(20, dodge_y), "Dodge", HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(0.75, 0.78, 0.85))
+	for i in player.DODGE_MAX_CHARGES:
+		var full: bool = i < player.dodge_charges
+		var c := Color(0.5, 0.85, 1.0) if full else Color(0.3, 0.32, 0.38)
+		panel.draw_circle(Vector2(72 + i * 16, dodge_y - 5), 6.0, c)
+	if player.dodge_charges < player.DODGE_MAX_CHARGES:
+		var frac: float = player.dodge_refill / player.DODGE_REFILL
+		panel.draw_arc(Vector2(72 + player.dodge_charges * 16, dodge_y - 5), 6.0, -PI * 0.5, -PI * 0.5 + TAU * frac, 16, Color(0.5, 0.85, 1.0), 2.0)
+
+	# Combo chips along the bottom: pommel -> handle -> hilt
 	var steps: Array = player.weapon.get("steps", [])
 	var x := 20.0
 	var y := size.y - 70.0
 	panel.draw_string(font, Vector2(x, y - 10), "Combo", HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(0.75, 0.78, 0.85))
 	for i in steps.size():
-		var label := " + ".join(PackedStringArray(steps[i]))
+		var label: String = steps[i]["move"]
 		var w := font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x + 24.0
 		var active: bool = player.current_step == i
 		var next: bool = player.current_step < 0 and player.step_index == i and player.step_index > 0
@@ -57,8 +68,5 @@ func _draw_hud() -> void:
 		x += w + 8.0
 
 	# Hints
-	var hint := "Tab / Y: crafting table    Click / X: attack"
-	if player.can_dodge():
-		hint += "    Space / A: dodge"
-	hint += "    P: pause enemies"
+	var hint := "Tab / Y: forge    Click / X: attack    Space / A: dodge    P: pause enemies"
 	panel.draw_string(font, Vector2(0, size.y - 16), hint, HORIZONTAL_ALIGNMENT_RIGHT, size.x - 20, 14, Color(0.7, 0.72, 0.8))

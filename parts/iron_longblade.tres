@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="PartData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/parts/part_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "iron_longblade"
+display_name = "Iron Longblade"
+description = "Big: more damage and reach, swings slower."
+part_type = 3
+material = "iron"
+shape = [Vector2i(0, 0), Vector2i(1, 0), Vector2i(0, 1), Vector2i(1, 1), Vector2i(0, 2), Vector2i(1, 2)]
+color = Color(0.75, 0.78, 0.85, 1)
+damage = 14.0
+reach = 1.35
+weight = 0.78

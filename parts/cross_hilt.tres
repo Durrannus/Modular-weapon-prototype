@@ -4,11 +4,13 @@
 
 [resource]
 script = ExtResource("1")
-id = "iron_crossguard"
-display_name = "Iron Crossguard"
-description = "A wide crossguard. Two-hit combo: a stab, then a full spin."
-part_type = 0
+id = "cross_hilt"
+display_name = "Cross Hilt"
+description = "Overhead: slow, huge hit. Crit and area."
+part_type = 2
 material = "iron"
 shape = [Vector2i(0, 0), Vector2i(1, 0), Vector2i(2, 0)]
-color = Color(0.62, 0.66, 0.72, 1)
-moves = ["stab", "spin"]
+color = Color(0.72, 0.74, 0.8, 1)
+move = "overhead"
+crit_chance = 0.05
+area = 0.1

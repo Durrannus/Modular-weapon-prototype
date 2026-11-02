@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="PartData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/parts/part_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "spike_pommel"
+display_name = "Spike Pommel"
+description = "Stab. Move a bit faster."
+part_type = 0
+material = "iron"
+shape = [Vector2i(0, 0)]
+color = Color(0.55, 0.6, 0.68, 1)
+move = "stab"
+move_speed = 0.06

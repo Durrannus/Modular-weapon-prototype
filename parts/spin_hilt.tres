@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="PartData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/parts/part_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "spin_hilt"
+display_name = "Spin Hilt"
+description = "Spin: hits all around you. More area."
+part_type = 2
+material = "iron"
+shape = [Vector2i(1, 0)]
+color = Color(0.95, 0.8, 0.3, 1)
+move = "spin"
+area = 0.15
