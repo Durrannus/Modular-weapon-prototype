@@ -1,5 +1,6 @@
-class_name WeaponBuild
 extends RefCounted
+
+const PartData := preload("res://scripts/parts/part_data.gd")
 ## The build grid for one weapon, and the rules that turn the parts on it
 ## into stats and a combo. All the rules live in this file so they're easy to tune.
 ##

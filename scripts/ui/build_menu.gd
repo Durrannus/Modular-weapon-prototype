@@ -1,4 +1,7 @@
 extends CanvasLayer
+
+const PartData := preload("res://scripts/parts/part_data.gd")
+const WeaponBuild := preload("res://scripts/weapon/weapon_build.gd")
 ## The crafting table: fit parts onto the weapon's grid.
 ## Free to swap. Pauses the game while open.
 

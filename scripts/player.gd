@@ -1,4 +1,6 @@
 extends CharacterBody2D
+
+const WeaponBuild := preload("res://scripts/weapon/weapon_build.gd")
 ## The player: movement, dodge, aiming, and running the combo the weapon build
 ## produced. Each combo step is one move (slash, stab, lunge, spin, overhead).
 ## Blade elements add effects on hit (fire, water, lightning, steam, electrified).

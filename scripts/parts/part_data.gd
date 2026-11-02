@@ -1,4 +1,3 @@
-class_name PartData
 extends Resource
 ## One weapon part or charm. Every part is a .tres file in res://parts/.
 ## To add a part: duplicate a .tres file in the editor and change the values.

@@ -1,4 +1,7 @@
 extends Node2D
+
+const WeaponBuild := preload("res://scripts/weapon/weapon_build.gd")
+const PartLibrary := preload("res://scripts/parts/part_library.gd")
 ## Sets up the arena, the player, enemies, the HUD and the crafting table.
 ## Everything is built in code so there are few scene files to merge.
 

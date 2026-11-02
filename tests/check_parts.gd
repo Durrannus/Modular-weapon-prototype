@@ -1,4 +1,7 @@
 extends SceneTree
+
+const WeaponBuild := preload("res://scripts/weapon/weapon_build.gd")
+const PartLibrary := preload("res://scripts/parts/part_library.gd")
 ## Checks that every part in res://parts/ fits its own area of the sword grid
 ## without rotating. Run from the project folder:
 ##   godot --headless --script res://tests/check_parts.gd

@@ -1,4 +1,6 @@
 extends CharacterBody2D
+
+const WeaponBuild := preload("res://scripts/weapon/weapon_build.gd")
 ## Simple enemies. Set `kind` before adding to the scene:
 ## "slime" (chaser), "charger" (winds up and dashes), "brute" (slow and tough),
 ## "dummy" (training dummy: never moves, never dies).

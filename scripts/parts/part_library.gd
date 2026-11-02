@@ -1,5 +1,6 @@
-class_name PartLibrary
 extends RefCounted
+
+const PartData := preload("res://scripts/parts/part_data.gd")
 ## Loads every part file in res://parts/.
 
 const PARTS_DIR := "res://parts/"
