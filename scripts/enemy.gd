@@ -10,6 +10,7 @@ signal died(enemy)
 const DamageNumber := preload("res://scripts/fx/damage_number.gd")
 const Fx := preload("res://scripts/fx/fx.gd")
 const Art := preload("res://scripts/art.gd")
+const SpriteOnce := preload("res://scripts/fx/sprite_once.gd")
 
 var kind := "slime"
 var max_hp := 30.0
@@ -30,6 +31,8 @@ var slow_time := 0.0
 var slow_amount := 0.0
 var stun_time := 0.0
 var facing := Vector2.RIGHT
+var anim_time := randf() * 2.0
+var hit_anim := 99.0  # time since the last hit, while the hit animation plays
 
 # Training dummy: damage log for the damage-per-second readout.
 const DPS_WINDOW := 3.0
@@ -81,6 +84,7 @@ func _physics_process(delta: float) -> void:
 	if dead:
 		return
 	flash = maxf(flash - delta, 0.0)
+	hit_anim += delta
 	slow_time = maxf(slow_time - delta, 0.0)
 	stun_time = maxf(stun_time - delta, 0.0)
 	_update_burn(delta)
@@ -154,6 +158,7 @@ func take_hit(dmg: float, dir: Vector2, knockback: float, crit: bool, num_color:
 	if dead:
 		return
 	flash = 0.1
+	hit_anim = 0.0
 	knock = dir * knockback * knock_resist
 	if kind == "charger" and state == "windup":
 		state = "rest"  # a good hit interrupts the charge
@@ -217,11 +222,24 @@ func _die() -> void:
 	b.life = 0.25
 	get_parent().add_child(b)
 	b.global_position = global_position
+	var info: Dictionary = Art.anchors().get("enemies", {}).get(kind, {})
+	var death := Art.texture("enemies/%s_death.png" % kind)
+	if death != null and info.get("strips", {}).has("death"):
+		var splat := SpriteOnce.new()
+		splat.texture = death
+		splat.frames = int(info["strips"]["death"]["frames"])
+		splat.fps = float(info["strips"]["death"]["fps"])
+		splat.origin = Vector2(info["origin_feet"][0], info["origin_feet"][1])
+		splat.feet = Vector2(0, radius * 0.7)
+		splat.flip = facing.x < 0.0
+		get_parent().add_child(splat)
+		splat.global_position = global_position
 	died.emit(self)
 	queue_free()
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
+	anim_time += delta
 	queue_redraw()
 
 
@@ -234,14 +252,37 @@ func _draw() -> void:
 	if flash > 0.0:
 		c = Color.WHITE
 
-	draw_circle(Vector2(0, radius * 0.8), radius * 0.9, Color(0, 0, 0, 0.25))  # shadow
-	var tex := Art.texture("enemies/%s.png" % kind)
-	if tex != null:
-		# Sprite, centred, flipped to face left/right; tinted by status and hit flash.
-		var flip := -1.0 if facing.x < 0.0 else 1.0
-		draw_set_transform(Vector2.ZERO, 0.0, Vector2(Art.PIXEL * flip, Art.PIXEL))
-		draw_texture(tex, -tex.get_size() * 0.5, c if c != color else Color.WHITE)
-		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+	var info: Dictionary = Art.anchors().get("enemies", {}).get(kind, {})
+	var still := Art.texture("enemies/%s.png" % kind)
+	var feet := Vector2(0, radius * 0.7)
+	draw_set_transform(feet, 0.0, Vector2(1.0, 0.4))
+	draw_circle(Vector2.ZERO, radius * 1.1, Color(0, 0, 0, 0.3))  # shadow
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+	if still != null and not info.is_empty():
+		# Animated sprite: hit flash, moving or idle. Sprites face right.
+		var anim := "idle"
+		var hit_strip: Dictionary = info["strips"].get("hit", {})
+		if not hit_strip.is_empty() and hit_anim < float(hit_strip["frames"]) / float(hit_strip["fps"]):
+			anim = "hit"
+		elif velocity.length() > 15.0 and info["strips"].has("move"):
+			anim = "move"
+		var strip: Dictionary = info["strips"][anim]
+		var tex := Art.texture("enemies/%s_%s.png" % [kind, anim])
+		if tex == null:
+			tex = still
+		var t := anim_time
+		if anim == "hit":
+			t = hit_anim
+		var frame := int(t * float(strip["fps"]))
+		if anim == "hit":
+			frame = mini(frame, int(strip["frames"]) - 1)
+		var tint := Color.WHITE
+		if burn_time > 0.0:
+			tint = Color(1.0, 0.7, 0.55)
+		elif slow_time > 0.0:
+			tint = Color(0.65, 0.8, 1.0)
+		var o: Array = info["origin_feet"]
+		Art.draw_strip(self, tex, int(strip["frames"]), frame, feet, Vector2(o[0], o[1]), facing.x < 0.0, tint)
 	else:
 		_draw_shape(c)
 

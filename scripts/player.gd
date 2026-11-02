@@ -60,6 +60,12 @@ var anim_dir := Vector2.RIGHT
 var knocked_out_timer := 0.0
 var facing := "down"       # nearest of 4 directions to the aim: up, down, left, right
 var weapon_layer: Node2D
+var weapon_group: CanvasGroup  # holds the sword so it gets one outline
+var anim_time := 0.0
+
+## Where the body sprite's feet sit, relative to the player's centre.
+const FEET := Vector2(0, 14)
+const OUTLINE_SHADER := preload("res://shaders/outline.gdshader")
 
 
 func _ready() -> void:
@@ -80,10 +86,24 @@ func _ready() -> void:
 	camera.make_current()
 	spawn_point = global_position
 	# The sword is its own layer so it can sit behind the body when facing up.
+	# All sword parts and the hand go in one CanvasGroup so the outline shader
+	# draws one outline round the assembled sword.
+	weapon_group = CanvasGroup.new()
+	weapon_group.name = "Weapon"
+	var mat := ShaderMaterial.new()
+	mat.shader = OUTLINE_SHADER
+	weapon_group.material = mat
+	add_child(weapon_group)
 	weapon_layer = Node2D.new()
-	weapon_layer.name = "Weapon"
-	add_child(weapon_layer)
+	weapon_group.add_child(weapon_layer)
 	weapon_layer.draw.connect(_draw_weapon)
+	# A soft light that follows the player, so the sword's colours read in the dark.
+	var light := PointLight2D.new()
+	light.texture = Art.light_texture()
+	light.texture_scale = 2.4
+	light.energy = 0.6
+	light.color = Color(0.95, 0.9, 1.0)
+	add_child(light)
 
 
 func set_camera_limits(rect: Rect2) -> void:
@@ -386,7 +406,11 @@ func _process(delta: float) -> void:
 	shake = move_toward(shake, 0.0, 40.0 * delta)
 	camera.offset = Vector2(randf_range(-1, 1), randf_range(-1, 1)) * shake
 	facing = _facing_of(aim_dir if current_step < 0 else anim_dir)
-	weapon_layer.show_behind_parent = facing == "up"
+	weapon_group.show_behind_parent = facing == "up"
+	anim_time += delta
+	# The outline is one game pixel: as many screen pixels as the window's scale.
+	var scale_px := maxf(floorf(float(get_window().size.y) / 360.0), 1.0)
+	(weapon_group.material as ShaderMaterial).set_shader_parameter("px", scale_px)
 	queue_redraw()
 	weapon_layer.queue_redraw()
 
@@ -401,24 +425,65 @@ static func _facing_of(d: Vector2) -> String:
 
 func _draw() -> void:
 	var blink := invuln > 0.0 and dodge_timer <= 0.0 and int(invuln * 20.0) % 2 == 0
+	draw_set_transform(FEET, 0.0, Vector2(1.0, 0.45))
+	draw_circle(Vector2.ZERO, 15.0, Color(0, 0, 0, 0.3))  # shadow
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+	var strip := _body_strip()
+	var tex := Art.texture("body/ivy_%s.png" % strip[0])
+	if tex != null:
+		var tint := Color(2.0, 2.0, 2.0) if blink else Color.WHITE
+		Art.draw_strip(self, tex, strip[1], strip[2], FEET, _body_origin(), false, tint)
+		return
+	# Stand-in body: a circle with eyes showing which way it faces.
 	var body := Color(1, 1, 1) if blink else color
 	if dodge_timer > 0.0:
 		body = color.lightened(0.4)
 		body.a = 0.6
-	draw_circle(Vector2(0, RADIUS * 0.8), RADIUS * 0.9, Color(0, 0, 0, 0.25))  # shadow
 	draw_circle(Vector2.ZERO, RADIUS, body)
 	draw_arc(Vector2.ZERO, RADIUS, 0.0, TAU, 28, color.darkened(0.45), 2.5)
-	# Eyes show which of the 4 directions the body faces (stand-in until the body sprite lands).
 	if facing != "up":
-		var f := {"down": Vector2(0, 1), "left": Vector2(-1, 0), "right": Vector2(1, 0)}[facing] as Vector2
-		var eye_side := Vector2(4.5, 0) if facing == "down" else Vector2(0, 0)
-		var centre := f * 6.0 + Vector2(0, -2)
 		var eye := Color(0.08, 0.1, 0.16)
 		if facing == "down":
-			draw_rect(Rect2(centre - eye_side - Vector2(1.5, 2.5), Vector2(3, 5)), eye)
-			draw_rect(Rect2(centre + eye_side - Vector2(1.5, 2.5), Vector2(3, 5)), eye)
+			draw_rect(Rect2(Vector2(-6, 2), Vector2(3, 5)), eye)
+			draw_rect(Rect2(Vector2(3, 2), Vector2(3, 5)), eye)
 		else:
-			draw_rect(Rect2(centre + f * 3.0 - Vector2(1.5, 2.5), Vector2(3, 5)), eye)
+			var x := 7.0 if facing == "right" else -10.0
+			draw_rect(Rect2(Vector2(x, -3), Vector2(3, 5)), eye)
+
+
+## [animation name, frame count, current frame] for the body sprite.
+func _body_strip() -> Array:
+	var anim := "idle"
+	var frame := 0
+	var frames := 4
+	if dodge_timer > 0.0:
+		anim = "dodge"
+		frames = 3
+		frame = clampi(int((1.0 - dodge_timer / DODGE_TIME) * 3.0), 0, 2)
+	elif velocity.length() > 20.0:
+		anim = "walk"
+		frames = 6
+		frame = int(anim_time * 10.0) % frames
+	else:
+		frame = int(anim_time * 6.0) % frames
+	return ["%s_%s" % [anim, facing], frames, frame]
+
+
+func _body_origin() -> Vector2:
+	var o: Array = Art.anchors().get("body", {}).get("origin_feet", [28, 52])
+	return Vector2(o[0], o[1])
+
+
+## Where the hand is (the sword's pivot), relative to the player's centre.
+func _hand_point() -> Vector2:
+	var strip := _body_strip()
+	var strips: Dictionary = Art.anchors().get("body", {}).get("strips", {})
+	var info: Dictionary = strips.get(strip[0], {})
+	var hands: Array = info.get("hand", [])
+	if hands.is_empty():
+		return FEET + Vector2(0, -12)
+	var h: Array = hands[posmod(int(strip[2]), hands.size())]
+	return FEET + (Vector2(h[0], h[1]) - _body_origin()) * Art.PIXEL
 
 
 # --- Weapon layer --------------------------------------------------------------
@@ -459,7 +524,7 @@ func _draw_weapon() -> void:
 	var pose := _sword_pose()
 	var angle: float = pose[0]
 	var d := Vector2.RIGHT.rotated(angle)
-	var hand := d * (RADIUS * 0.75 + float(pose[1])) + d.orthogonal() * 3.0
+	var hand := _hand_point() + d * float(pose[1])
 	# Art space: x right, y down, tip at the top. Rotate so "up" points along d.
 	weapon_layer.draw_set_transform(hand, angle + PI * 0.5, Vector2(Art.PIXEL, Art.PIXEL))
 	var c := HAND_CELL
@@ -477,6 +542,10 @@ func _draw_weapon() -> void:
 			weapon_layer.draw_texture(tex, top_left * c - grip)
 			continue
 		_draw_part_shape(item, cells, c, grip)
+	# The fist goes on the grip, on top of the sword.
+	var fist := Art.texture("body/hand.png")
+	if fist != null:
+		weapon_layer.draw_texture(fist, -fist.get_size() * 0.5)
 	weapon_layer.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 

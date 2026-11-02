@@ -11,8 +11,11 @@ const HudScript := preload("res://scripts/ui/hud.gd")
 const BuildMenuScript := preload("res://scripts/ui/build_menu.gd")
 const Art := preload("res://scripts/art.gd")
 
-const ARENA := Rect2(0, 0, 1800, 1100)
-const WALL := 40.0
+const ARENA := Rect2(0, 0, 1792, 1088)  # 56 x 34 tiles
+const WALL := 32.0  # one wall tile (16 art pixels)
+const TILE := 32.0  # world units per 16 px tile
+## The paved forge corner, in tiles from the arena's top-left.
+const FORGE_TILES := Rect2i(2, 2, 7, 5)
 const MAX_ENEMIES := 7
 const SPAWN_EVERY := 1.6
 
@@ -31,8 +34,10 @@ func _ready() -> void:
 	randomize()
 	world = Node2D.new()
 	world.name = "World"
+	world.y_sort_enabled = true  # things lower on screen draw in front
 	add_child(world)
 	_make_walls()
+	_make_props()
 
 	player = PlayerScript.new()
 	player.position = ARENA.get_center()
@@ -136,24 +141,65 @@ func _make_walls() -> void:
 		world.add_child(body)
 
 
+func _make_props() -> void:
+	# Forge-lit look: darken everything, then warm lights on torches and the bench.
+	if Art.texture("tiles/floor.png") != null:
+		var dark := CanvasModulate.new()
+		dark.color = Color(0.7, 0.72, 0.88)
+		add_child(dark)
+	var bench_pos := ARENA.position + (Vector2(FORGE_TILES.get_center()) + Vector2(0, 0.5)) * TILE
+	_add_prop("props/forge_bench.png", bench_pos, Vector2(23, 30))
+	_add_light(bench_pos + Vector2(0, -20), Color(1.0, 0.62, 0.3), 1.0, 2.2)
+	var bench_body := StaticBody2D.new()
+	bench_body.collision_layer = 4
+	bench_body.position = bench_pos + Vector2(0, -10)
+	var bench_shape := CollisionShape2D.new()
+	var box := RectangleShape2D.new()
+	box.size = Vector2(80, 24)
+	bench_shape.shape = box
+	bench_body.add_child(bench_shape)
+	world.add_child(bench_body)
+	var x := ARENA.position.x + 360.0
+	while x < ARENA.end.x - 100.0:
+		var torch_pos := Vector2(x, ARENA.position.y + 6.0)
+		_add_prop("props/torch.png", torch_pos, Vector2(4, 34))
+		_add_light(torch_pos + Vector2(0, -60), Color(1.0, 0.7, 0.4), 1.1, 2.6)
+		x += 520.0
+
+
+func _add_prop(path: String, feet: Vector2, origin: Vector2) -> void:
+	var tex := Art.texture(path)
+	if tex == null:
+		return
+	var sprite := Sprite2D.new()
+	sprite.texture = tex
+	sprite.centered = false
+	sprite.offset = -origin
+	sprite.scale = Vector2(Art.PIXEL, Art.PIXEL)
+	sprite.position = feet
+	world.add_child(sprite)
+
+
+func _add_light(pos: Vector2, col: Color, energy: float, size: float) -> void:
+	var light := PointLight2D.new()
+	light.texture = Art.light_texture()
+	light.texture_scale = size
+	light.color = col
+	light.energy = energy
+	light.position = pos
+	add_child(light)
+
+
+## A cheap repeatable "random" number per tile, so the floor looks the same every run.
+static func _tile_hash(x: int, y: int) -> float:
+	var h := (x * 73856093) ^ (y * 19349663)
+	return float(posmod(h, 1000)) / 1000.0
+
+
 func _draw() -> void:
 	var floor_tex := Art.texture("tiles/floor.png")
-	var wall_tex := Art.texture("tiles/wall.png")
-	if floor_tex != null or wall_tex != null:
-		texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
-		# Tiles are 16 art pixels, drawn at Art.PIXEL world units each.
-		draw_set_transform(Vector2.ZERO, 0.0, Vector2(Art.PIXEL, Art.PIXEL))
-		var outer := Rect2(ARENA.grow(WALL).position / Art.PIXEL, ARENA.grow(WALL).size / Art.PIXEL)
-		var inner := Rect2(ARENA.position / Art.PIXEL, ARENA.size / Art.PIXEL)
-		if wall_tex != null:
-			draw_texture_rect(wall_tex, outer, true)
-		else:
-			draw_rect(outer, Color(0.1, 0.09, 0.12))
-		if floor_tex != null:
-			draw_texture_rect(floor_tex, inner, true)
-		else:
-			draw_rect(inner, Color(0.2, 0.24, 0.2))
-		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+	if floor_tex != null:
+		_draw_tiles()
 		return
 	draw_rect(ARENA.grow(WALL), Color(0.1, 0.09, 0.12))
 	draw_rect(ARENA, Color(0.2, 0.24, 0.2))
@@ -166,3 +212,38 @@ func _draw() -> void:
 	while y <= ARENA.end.y:
 		draw_line(Vector2(ARENA.position.x, y), Vector2(ARENA.end.x, y), Color(1, 1, 1, 0.04), 1.0)
 		y += step
+
+
+func _draw_tiles() -> void:
+	var size := Vector2(TILE, TILE)
+	draw_rect(ARENA.grow(200.0), Color(0.03, 0.03, 0.05))
+	var cols := int(ARENA.size.x / TILE)
+	var rows := int(ARENA.size.y / TILE)
+	var variants := [Art.texture("tiles/floor.png"), Art.texture("tiles/floor_1.png"), Art.texture("tiles/floor_2.png")]
+	var flag := Art.texture("tiles/floor_3.png")
+	for ty in rows:
+		for tx in cols:
+			var tex: Texture2D = variants[0]
+			var r := _tile_hash(tx, ty)
+			if FORGE_TILES.has_point(Vector2i(tx, ty)) and flag != null:
+				tex = flag
+			elif r < 0.06 and variants[1] != null:
+				tex = variants[1]
+			elif r < 0.12 and variants[2] != null:
+				tex = variants[2]
+			draw_texture_rect(tex, Rect2(ARENA.position + Vector2(tx, ty) * TILE, size), false)
+	# Walls: one tile thick all round, plus capstones above the north wall.
+	var wall := Art.texture("tiles/wall.png")
+	var top := Art.texture("tiles/wall_top.png")
+	if wall == null:
+		return
+	for tx in range(-1, cols + 1):
+		var px := ARENA.position.x + tx * TILE
+		if top != null:
+			draw_texture_rect(top, Rect2(Vector2(px, ARENA.position.y - TILE * 2.0), size), false)
+		draw_texture_rect(wall, Rect2(Vector2(px, ARENA.position.y - TILE), size), false)
+		draw_texture_rect(wall, Rect2(Vector2(px, ARENA.end.y), size), false)
+	for ty in rows:
+		var py := ARENA.position.y + ty * TILE
+		draw_texture_rect(wall, Rect2(Vector2(ARENA.position.x - TILE, py), size), false)
+		draw_texture_rect(wall, Rect2(Vector2(ARENA.end.x, py), size), false)

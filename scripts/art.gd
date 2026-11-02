@@ -41,3 +41,49 @@ static func part_hand(id: String) -> Texture2D:
 
 static func part_grid(id: String) -> Texture2D:
 	return texture("parts/%s_grid.png" % id)
+
+
+## Draws frame `frame` of a horizontal strip with its feet origin at `feet`.
+## Sprites face right (or are already drawn per direction); flip mirrors them.
+static func draw_strip(ci: CanvasItem, tex: Texture2D, frames: int, frame: int, feet: Vector2,
+		origin: Vector2, flip := false, tint := Color.WHITE) -> void:
+	var fw := tex.get_width() / maxi(frames, 1)
+	var src := Rect2(float(posmod(frame, frames) * fw), 0.0, float(fw), float(tex.get_height()))
+	ci.draw_set_transform(feet, 0.0, Vector2(-PIXEL if flip else PIXEL, PIXEL))
+	ci.draw_texture_rect_region(tex, Rect2(-origin, src.size), src, tint)
+	ci.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+
+
+static var _anchors: Dictionary = {}
+
+## The numbers from art/anchors.json (frame sizes, origins, hand points).
+static func anchors() -> Dictionary:
+	if _anchors.is_empty():
+		var f := FileAccess.open(ART_DIR + "anchors.json", FileAccess.READ)
+		if f != null:
+			var parsed = JSON.parse_string(f.get_as_text())
+			if parsed is Dictionary:
+				_anchors = parsed
+		if _anchors.is_empty():
+			_anchors = {"missing": true}
+	return _anchors
+
+
+## Light texture: a soft round falloff, made in code.
+static var _light_tex: Texture2D = null
+
+static func light_texture() -> Texture2D:
+	if _light_tex == null:
+		var g := Gradient.new()
+		g.set_color(0, Color(1, 1, 1, 1))
+		g.set_color(1, Color(1, 1, 1, 0))
+		g.add_point(0.45, Color(1, 1, 1, 0.55))
+		var t := GradientTexture2D.new()
+		t.gradient = g
+		t.fill = GradientTexture2D.FILL_RADIAL
+		t.fill_from = Vector2(0.5, 0.5)
+		t.fill_to = Vector2(1.0, 0.5)
+		t.width = 256
+		t.height = 256
+		_light_tex = t
+	return _light_tex

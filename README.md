@@ -2,7 +2,7 @@
 
 A small Godot prototype that answers one question: **is building a sword from parts, and swapping them, fun?**
 
-This is **milestone 1, "Sword v2 feels good"**: one arena, single player, a sword built from four parts plus charms, three elements, three enemy types and a training dummy that shows damage per second. It's done when you can build three swords that play clearly differently, and the wooden sword feels plain next to them.
+This is **milestone 2, "Real sprites"**, built on milestone 1 ("Sword v2 feels good"): one arena, single player, a sword built from four parts plus charms, three elements, three enemy types and a training dummy that shows damage per second. It's done when you can build three swords that play clearly differently, and the wooden sword feels plain next to them. Milestone 2 swaps the placeholder shapes for real pixel art: Ivy, the slimes, the dummy, a tiled arena with a forge corner and torches, and a sword that's assembled from whatever parts you put on the grid.
 
 ## How to run it
 
@@ -130,7 +130,10 @@ scripts/parts/part_data.gd       What a part file contains
 scripts/parts/part_library.gd    Loads every part in parts/
 scripts/ui/build_menu.gd         The forge screen
 scripts/ui/hud.gd                Health, dodge, kills, combo display
-scripts/fx/                      Swing effects and damage numbers
+scripts/fx/                      Swing effects, damage numbers, death splats
+scripts/art.gd                   Loads sprites by name, falls back when missing
+art/                     Sprites (see art/sprites.md)
+shaders/outline.gdshader One outline round the assembled sword
 scripts/input_setup.gd           All key and controller bindings
 parts/*.tres             The 16 starter parts and charms
 tests/check_parts.gd     Checks every part fits its spot
@@ -140,7 +143,17 @@ The weapon's stats come out of `WeaponBuild.compute()` as one plain dictionary, 
 
 ## Art
 
-Everything is drawn with simple shapes for now. Real sprites and the switch to 640x360 come in milestone 2. Textures already use nearest filtering and 2D snaps to whole pixels.
+The game runs at **640x360**, doubled to a 1280x720 window (integer scaling). The HUD and forge are laid out at 1280x720 and drawn at half size, so text stays sharp.
+
+Sprites live in `art/` and are named by what they show. `art/sprites.md` lists every file, its frame size and anchor points, and `art/anchors.json` has the same numbers for code.
+
+- **The sword is built at runtime.** Each part has `art/parts/<part id>_hand.png` (5 px per grid cell) and `<part id>_grid.png` (18 px per grid cell for the forge). The game places every part on its grid cells, rotates the lot to the aim around the grip, holds it at Ivy's hand, and outlines the assembled sword with `shaders/outline.gdshader`. A new part only needs its two images.
+- **Ivy** faces the nearest of 4 directions to the aim, with idle, walk and dodge animations. The sword goes behind her when she faces up.
+- **Enemies** play idle, move, hit and death animations.
+- **Lighting:** a cool darkening over the arena with warm lights on the torches and forge bench, and a soft light on Ivy.
+- **Missing art falls back** to the old shapes, so you can add a part before its sprites exist.
+
+`art/` has a `.gdignore` file, so Godot doesn't import it and the game also runs from a fresh copy (handy on Steam Deck). Before making an exported build, remove `.gdignore` and switch `scripts/art.gd` to `load()`.
 
 When you're knocked out you respawn at the start point.
 

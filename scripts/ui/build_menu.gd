@@ -262,7 +262,7 @@ func _draw_menu() -> void:
 		var part: PartData = inv[i]
 		var row := Rect2(INV_POS + Vector2(0, i * INV_ROW), Vector2(INV_W, INV_ROW - 6))
 		root.draw_rect(row, Color(0.2, 0.22, 0.29) if i == hover_inv else Color(0.12, 0.13, 0.18))
-		_draw_mini_shape(part, row.position + Vector2(8, 5), 0, 9.0)
+		_draw_mini_shape(part, row.position + Vector2(8, 1), 0, 12.0)
 		root.draw_string(font, row.position + Vector2(50, 16), "%s   %s" % [part.display_name, _kind_text(part)], HORIZONTAL_ALIGNMENT_LEFT, -1, 14, white)
 		root.draw_string(font, row.position + Vector2(50, 32), part.description, HORIZONTAL_ALIGNMENT_LEFT, INV_W - 56, 12, dim)
 	if inv.is_empty():
