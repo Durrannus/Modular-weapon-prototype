@@ -9,6 +9,7 @@ signal died(enemy)
 
 const DamageNumber := preload("res://scripts/fx/damage_number.gd")
 const Fx := preload("res://scripts/fx/fx.gd")
+const Art := preload("res://scripts/art.gd")
 
 var kind := "slime"
 var max_hp := 30.0
@@ -233,22 +234,16 @@ func _draw() -> void:
 	if flash > 0.0:
 		c = Color.WHITE
 
-	match kind:
-		"charger":
-			var tip := facing * (radius + 6.0)
-			var side := facing.orthogonal() * radius
-			draw_colored_polygon(PackedVector2Array([tip, -facing * radius + side, -facing * radius - side]), c)
-			if state == "windup":
-				var pulse := 0.5 + 0.5 * sin(state_timer * 40.0)
-				draw_line(Vector2.ZERO, charge_dir * 200.0, Color(1, 0.2, 0.2, 0.3 + 0.4 * pulse), 4.0)
-		"dummy":
-			draw_circle(Vector2.ZERO, radius, c)
-			draw_line(Vector2(-radius, 0), Vector2(radius, 0), c.darkened(0.4), 3.0)
-			draw_line(Vector2(0, -radius), Vector2(0, radius), c.darkened(0.4), 3.0)
-		_:
-			draw_circle(Vector2.ZERO, radius, c)
-			draw_arc(Vector2.ZERO, radius, 0.0, TAU, 28, c.darkened(0.4), 2.5)
-			draw_circle(facing * radius * 0.45, radius * 0.18, Color(0.1, 0.1, 0.1))
+	draw_circle(Vector2(0, radius * 0.8), radius * 0.9, Color(0, 0, 0, 0.25))  # shadow
+	var tex := Art.texture("enemies/%s.png" % kind)
+	if tex != null:
+		# Sprite, centred, flipped to face left/right; tinted by status and hit flash.
+		var flip := -1.0 if facing.x < 0.0 else 1.0
+		draw_set_transform(Vector2.ZERO, 0.0, Vector2(Art.PIXEL * flip, Art.PIXEL))
+		draw_texture(tex, -tex.get_size() * 0.5, c if c != color else Color.WHITE)
+		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+	else:
+		_draw_shape(c)
 
 	if stun_time > 0.0:
 		for i in 3:
@@ -268,3 +263,22 @@ func _draw() -> void:
 		var y := -radius - 10.0
 		draw_rect(Rect2(-w * 0.5, y, w, 4.0), Color(0, 0, 0, 0.6))
 		draw_rect(Rect2(-w * 0.5, y, w * clampf(hp / max_hp, 0.0, 1.0), 4.0), Color(0.9, 0.25, 0.25))
+
+## Stand-in shapes until the enemy sprites land.
+func _draw_shape(c: Color) -> void:
+	match kind:
+		"charger":
+			var tip := facing * (radius + 6.0)
+			var side := facing.orthogonal() * radius
+			draw_colored_polygon(PackedVector2Array([tip, -facing * radius + side, -facing * radius - side]), c)
+			if state == "windup":
+				var pulse := 0.5 + 0.5 * sin(state_timer * 40.0)
+				draw_line(Vector2.ZERO, charge_dir * 200.0, Color(1, 0.2, 0.2, 0.3 + 0.4 * pulse), 4.0)
+		"dummy":
+			draw_circle(Vector2.ZERO, radius, c)
+			draw_line(Vector2(-radius, 0), Vector2(radius, 0), c.darkened(0.4), 3.0)
+			draw_line(Vector2(0, -radius), Vector2(0, radius), c.darkened(0.4), 3.0)
+		_:
+			draw_circle(Vector2.ZERO, radius, c)
+			draw_arc(Vector2.ZERO, radius, 0.0, TAU, 28, c.darkened(0.4), 2.5)
+			draw_circle(facing * radius * 0.45, radius * 0.18, Color(0.1, 0.1, 0.1))

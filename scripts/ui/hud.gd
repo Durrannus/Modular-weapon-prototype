@@ -10,7 +10,10 @@ var panel: Control
 func _ready() -> void:
 	layer = 5
 	panel = Control.new()
-	panel.set_anchors_preset(Control.PRESET_FULL_RECT)
+	# UI is laid out at 1280x720 and drawn at half scale onto the 640x360 screen,
+	# which the window then doubles, so text stays sharp.
+	scale = Vector2(0.5, 0.5)
+	panel.size = Vector2(1280, 720)
 	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(panel)
 	panel.draw.connect(_draw_hud)

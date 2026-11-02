@@ -9,6 +9,7 @@ const PlayerScript := preload("res://scripts/player.gd")
 const EnemyScript := preload("res://scripts/enemy.gd")
 const HudScript := preload("res://scripts/ui/hud.gd")
 const BuildMenuScript := preload("res://scripts/ui/build_menu.gd")
+const Art := preload("res://scripts/art.gd")
 
 const ARENA := Rect2(0, 0, 1800, 1100)
 const WALL := 40.0
@@ -136,6 +137,24 @@ func _make_walls() -> void:
 
 
 func _draw() -> void:
+	var floor_tex := Art.texture("tiles/floor.png")
+	var wall_tex := Art.texture("tiles/wall.png")
+	if floor_tex != null or wall_tex != null:
+		texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
+		# Tiles are 16 art pixels, drawn at Art.PIXEL world units each.
+		draw_set_transform(Vector2.ZERO, 0.0, Vector2(Art.PIXEL, Art.PIXEL))
+		var outer := Rect2(ARENA.grow(WALL).position / Art.PIXEL, ARENA.grow(WALL).size / Art.PIXEL)
+		var inner := Rect2(ARENA.position / Art.PIXEL, ARENA.size / Art.PIXEL)
+		if wall_tex != null:
+			draw_texture_rect(wall_tex, outer, true)
+		else:
+			draw_rect(outer, Color(0.1, 0.09, 0.12))
+		if floor_tex != null:
+			draw_texture_rect(floor_tex, inner, true)
+		else:
+			draw_rect(inner, Color(0.2, 0.24, 0.2))
+		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+		return
 	draw_rect(ARENA.grow(WALL), Color(0.1, 0.09, 0.12))
 	draw_rect(ARENA, Color(0.2, 0.24, 0.2))
 	var step := 100.0

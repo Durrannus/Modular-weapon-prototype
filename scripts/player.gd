@@ -6,6 +6,7 @@ const WeaponBuild := preload("res://scripts/weapon/weapon_build.gd")
 ## Blade elements add effects on hit (fire, water, lightning, steam, electrified).
 
 const Fx := preload("res://scripts/fx/fx.gd")
+const Art := preload("res://scripts/art.gd")
 
 const MOVE_SPEED := 250.0
 const RADIUS := 16.0
@@ -57,6 +58,8 @@ var invuln := 0.0
 var anim_move := ""
 var anim_dir := Vector2.RIGHT
 var knocked_out_timer := 0.0
+var facing := "down"       # nearest of 4 directions to the aim: up, down, left, right
+var weapon_layer: Node2D
 
 
 func _ready() -> void:
@@ -72,9 +75,15 @@ func _ready() -> void:
 	camera = Camera2D.new()
 	camera.position_smoothing_enabled = true
 	camera.position_smoothing_speed = 9.0
+	camera.zoom = Vector2(0.5, 0.5)  # 640x360 screen, world keeps its old units
 	add_child(camera)
 	camera.make_current()
 	spawn_point = global_position
+	# The sword is its own layer so it can sit behind the body when facing up.
+	weapon_layer = Node2D.new()
+	weapon_layer.name = "Weapon"
+	add_child(weapon_layer)
+	weapon_layer.draw.connect(_draw_weapon)
 
 
 func set_camera_limits(rect: Rect2) -> void:
@@ -376,7 +385,16 @@ func _process(delta: float) -> void:
 	knocked_out_timer = maxf(knocked_out_timer - delta, 0.0)
 	shake = move_toward(shake, 0.0, 40.0 * delta)
 	camera.offset = Vector2(randf_range(-1, 1), randf_range(-1, 1)) * shake
+	facing = _facing_of(aim_dir if current_step < 0 else anim_dir)
+	weapon_layer.show_behind_parent = facing == "up"
 	queue_redraw()
+	weapon_layer.queue_redraw()
+
+
+static func _facing_of(d: Vector2) -> String:
+	if absf(d.x) > absf(d.y):
+		return "right" if d.x > 0.0 else "left"
+	return "down" if d.y > 0.0 else "up"
 
 
 # --- Drawing ------------------------------------------------------------------
@@ -387,13 +405,31 @@ func _draw() -> void:
 	if dodge_timer > 0.0:
 		body = color.lightened(0.4)
 		body.a = 0.6
+	draw_circle(Vector2(0, RADIUS * 0.8), RADIUS * 0.9, Color(0, 0, 0, 0.25))  # shadow
 	draw_circle(Vector2.ZERO, RADIUS, body)
 	draw_arc(Vector2.ZERO, RADIUS, 0.0, TAU, 28, color.darkened(0.45), 2.5)
-	_draw_sword()
+	# Eyes show which of the 4 directions the body faces (stand-in until the body sprite lands).
+	if facing != "up":
+		var f := {"down": Vector2(0, 1), "left": Vector2(-1, 0), "right": Vector2(1, 0)}[facing] as Vector2
+		var eye_side := Vector2(4.5, 0) if facing == "down" else Vector2(0, 0)
+		var centre := f * 6.0 + Vector2(0, -2)
+		var eye := Color(0.08, 0.1, 0.16)
+		if facing == "down":
+			draw_rect(Rect2(centre - eye_side - Vector2(1.5, 2.5), Vector2(3, 5)), eye)
+			draw_rect(Rect2(centre + eye_side - Vector2(1.5, 2.5), Vector2(3, 5)), eye)
+		else:
+			draw_rect(Rect2(centre + f * 3.0 - Vector2(1.5, 2.5), Vector2(3, 5)), eye)
 
 
-## The sword, drawn from the build's colours so swapping parts shows up.
-func _draw_sword() -> void:
+# --- Weapon layer --------------------------------------------------------------
+# The sword is assembled from the parts on the grid: each part is drawn on its
+# own grid cells (5 art pixels per cell), the whole thing is rotated to point at
+# the aim and held at the hand. The grid's top row is the tip.
+
+const HAND_CELL := 5.0                      # art pixels per grid cell in hand
+const HAND_GRIP := Vector2(1.5, 5.0)        # where the hand holds it, in grid cells
+
+func _sword_pose() -> Array:
 	var angle := aim_dir.angle()
 	var extend := 0.0
 	if current_step >= 0:
@@ -413,19 +449,68 @@ func _draw_sword() -> void:
 				extend = 0.0 if hit_time >= 0.0 else 6.0
 			_:
 				angle += -1.2 if hit_time >= 0.0 else lerpf(-1.2, 1.2, after)
-	var d := Vector2.RIGHT.rotated(angle)
-	var side := d.orthogonal()
-	var reach: float = weapon.get("reach", 1.0)
-	var pommel := d * (RADIUS - 2.0 + extend)
-	var guard := pommel + d * 12.0
-	var tip_len := 34.0 * maxf(reach, 0.6)
-	draw_line(pommel, guard, weapon.get("handle_color", Color(0.45, 0.3, 0.18)), 5.0)
-	draw_circle(pommel, 3.5, weapon.get("pommel_color", Color(0.5, 0.35, 0.2)))
-	draw_line(guard - side * 9.0, guard + side * 9.0, weapon.get("hilt_color", Color(0.55, 0.38, 0.22)), 4.0)
-	var blades: Array = weapon.get("blade_colors", [])
-	if blades.is_empty():
+	return [angle, extend]
+
+
+func _draw_weapon() -> void:
+	var layout: Array = weapon.get("layout", [])
+	if layout.is_empty():
 		return
-	var w := 7.0 if weapon.get("big_blade", false) else (6.0 if blades.size() == 1 else 3.5)
-	for i in blades.size():
-		var offset := side * ((i - (blades.size() - 1) * 0.5) * 4.0)
-		draw_line(guard + offset, guard + offset + d * tip_len, blades[i], w)
+	var pose := _sword_pose()
+	var angle: float = pose[0]
+	var d := Vector2.RIGHT.rotated(angle)
+	var hand := d * (RADIUS * 0.75 + float(pose[1])) + d.orthogonal() * 3.0
+	# Art space: x right, y down, tip at the top. Rotate so "up" points along d.
+	weapon_layer.draw_set_transform(hand, angle + PI * 0.5, Vector2(Art.PIXEL, Art.PIXEL))
+	var c := HAND_CELL
+	var grip := HAND_GRIP * c
+	# Draw handle end first so the blade and guard sit on top.
+	var order := layout.duplicate()
+	order.sort_custom(func(a, b): return _layer_rank(a["type"]) < _layer_rank(b["type"]))
+	for item in order:
+		var cells: Array = item["cells"]
+		var tex := Art.part_hand(item["id"])
+		if tex != null and int(item.get("rotation", 0)) == 0:
+			var top_left := Vector2(cells[0])
+			for cell in cells:
+				top_left = top_left.min(Vector2(cell))
+			weapon_layer.draw_texture(tex, top_left * c - grip)
+			continue
+		_draw_part_shape(item, cells, c, grip)
+	weapon_layer.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+
+
+static func _layer_rank(t: int) -> int:
+	# pommel, handle, charm, blade, hilt (guard over the blade's base)
+	return [0, 1, 4, 3, 2][t]
+
+
+## Stand-in for a part sprite: pixel blocks per cell, pointed tip on blades.
+func _draw_part_shape(item: Dictionary, cells: Array, c: float, grip: Vector2) -> void:
+	var col: Color = item["color"]
+	var dark := col.darkened(0.45)
+	var t: int = item["type"]
+	for cell in cells:
+		var o := Vector2(cell) * c - grip
+		var above := cells.has(cell + Vector2i(0, -1))
+		match t:
+			3:  # blade
+				if not above:
+					weapon_layer.draw_colored_polygon(PackedVector2Array([o + Vector2(c * 0.5, 0), o + Vector2(c - 1, c * 0.6), o + Vector2(c - 1, c), o + Vector2(1, c), o + Vector2(1, c * 0.6)]), dark)
+					weapon_layer.draw_colored_polygon(PackedVector2Array([o + Vector2(c * 0.5, 1), o + Vector2(c - 2, c * 0.65), o + Vector2(c - 2, c), o + Vector2(2, c), o + Vector2(2, c * 0.65)]), col)
+				else:
+					weapon_layer.draw_rect(Rect2(o + Vector2(1, 0), Vector2(c - 2, c)), dark)
+					weapon_layer.draw_rect(Rect2(o + Vector2(2, 0), Vector2(c - 4, c)), col)
+				weapon_layer.draw_rect(Rect2(o + Vector2(c * 0.5 - 0.5, 1.5), Vector2(1, c - 1.5)), col.lightened(0.35))
+			2:  # hilt / guard
+				weapon_layer.draw_rect(Rect2(o + Vector2(0, 1), Vector2(c, c - 2)), dark)
+				weapon_layer.draw_rect(Rect2(o + Vector2(0, 2), Vector2(c, c - 4)), col)
+			1:  # handle / grip
+				weapon_layer.draw_rect(Rect2(o + Vector2(1.5, 0), Vector2(c - 3, c)), dark)
+				weapon_layer.draw_rect(Rect2(o + Vector2(2, 0), Vector2(c - 4, c)), col)
+				weapon_layer.draw_rect(Rect2(o + Vector2(1.5, c * 0.5), Vector2(c - 3, 1)), dark)
+			0:  # pommel
+				weapon_layer.draw_circle(o + Vector2(c * 0.5, c * 0.4), c * 0.4, dark)
+				weapon_layer.draw_circle(o + Vector2(c * 0.5, c * 0.4), c * 0.28, col)
+			_:  # charm: a small gem beside the grip
+				weapon_layer.draw_colored_polygon(PackedVector2Array([o + Vector2(c * 0.5, 0.5), o + Vector2(c - 1, c * 0.5), o + Vector2(c * 0.5, c - 0.5), o + Vector2(1, c * 0.5)]), col)

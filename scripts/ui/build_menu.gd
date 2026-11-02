@@ -2,11 +2,12 @@ extends CanvasLayer
 
 const PartData := preload("res://scripts/parts/part_data.gd")
 const WeaponBuild := preload("res://scripts/weapon/weapon_build.gd")
+const Art := preload("res://scripts/art.gd")
 ## The crafting table: fit parts onto the weapon's grid.
 ## Free to swap. Pauses the game while open.
 
-const CELL := 56.0
-const GRID_POS := Vector2(150, 140)
+const CELL := 72.0  # 36 screen pixels: grid sprites are 18 px per cell, drawn at 2x
+const GRID_POS := Vector2(150, 118)
 const INV_POS := Vector2(430, 124)
 const INV_ROW := 44.0
 const INV_W := 360.0
@@ -28,7 +29,9 @@ func _ready() -> void:
 	layer = 10
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	root = Control.new()
-	root.set_anchors_preset(Control.PRESET_FULL_RECT)
+	# Laid out at 1280x720 and drawn at half scale on the 640x360 screen.
+	scale = Vector2(0.5, 0.5)
+	root.size = Vector2(1280, 720)
 	root.mouse_filter = Control.MOUSE_FILTER_STOP
 	root.visible = false
 	add_child(root)
@@ -225,10 +228,12 @@ func _draw_menu() -> void:
 	var combo_number := {PartData.PartType.POMMEL: 1, PartData.PartType.HANDLE: 2, PartData.PartType.HILT: 3}
 	for pl in build.placements:
 		var part: PartData = pl["part"]
-		for c in pl["cells"]:
-			var r := _cell_rect(c)
-			root.draw_rect(r, part.color.darkened(0.15))
-			root.draw_rect(r, part.color.lightened(0.25), false, 2.0)
+		var tex := Art.part_grid(part.id)
+		if tex != null and pl["rotation"] == 0:
+			root.draw_texture_rect(tex, _cells_rect(pl["cells"]), false)
+		else:
+			for c in pl["cells"]:
+				_draw_part_cell(part, Rect2(GRID_POS + Vector2(c) * CELL, Vector2(CELL, CELL)).grow(-1.0), pl["cells"], c)
 		if combo_number.has(part.part_type):
 			var key: Vector2i = WeaponBuild._order_key(pl["cells"])
 			var kr := _cell_rect(key)
@@ -247,9 +252,8 @@ func _draw_menu() -> void:
 			root.draw_rect(gr, edge, false, 3.0)
 	root.draw_rect(_cell_rect(cursor).grow(2.0), Color(1, 1, 1, 0.9), false, 3.0)
 
-	var gy := GRID_POS.y + CELL * WeaponBuild.GRID_H + 52
 	if message != "":
-		root.draw_multiline_string(font, Vector2(60, gy), message, HORIZONTAL_ALIGNMENT_LEFT, 340, 14, -1, Color(1, 0.6, 0.5))
+		root.draw_multiline_string(font, Vector2(INFO_POS.x, 600), message, HORIZONTAL_ALIGNMENT_LEFT, INFO_W, 15, -1, Color(1, 0.6, 0.5))
 
 	# Parts list
 	root.draw_string(font, INV_POS + Vector2(0, -12), "Parts (click or Q/E, LB/RB)", HORIZONTAL_ALIGNMENT_LEFT, -1, 16, dim)
@@ -278,9 +282,40 @@ func _kind_text(part: PartData) -> String:
 
 
 func _draw_mini_shape(part: PartData, pos: Vector2, rot: int, s: float = 12.0) -> void:
-	for c in WeaponBuild.rotated_shape(part.shape, rot):
+	var cells := WeaponBuild.rotated_shape(part.shape, rot)
+	var tex := Art.part_grid(part.id)
+	if tex != null and rot == 0:
+		root.draw_texture_rect(tex, _cells_rect(cells, pos, s), false)
+		return
+	for c in cells:
 		var v: Vector2i = c
-		root.draw_rect(Rect2(pos + Vector2(v) * s, Vector2(s - 2, s - 2)), part.color)
+		_draw_part_cell(part, Rect2(pos + Vector2(v) * s, Vector2(s, s)), cells, v)
+
+
+## Bounding box of some cells, in grid-screen space or at pos with cell size s.
+func _cells_rect(cells: Array, pos: Vector2 = GRID_POS, s: float = CELL) -> Rect2:
+	var lo := Vector2i(999, 999)
+	var hi := Vector2i(-999, -999)
+	for c in cells:
+		lo = Vector2i(mini(lo.x, c.x), mini(lo.y, c.y))
+		hi = Vector2i(maxi(hi.x, c.x), maxi(hi.y, c.y))
+	return Rect2(pos + Vector2(lo) * s, Vector2(hi - lo + Vector2i.ONE) * s)
+
+
+## Stand-in for a part sprite: one bevelled block per cell, joined to the
+## part's other cells so a part reads as one piece.
+func _draw_part_cell(part: PartData, r: Rect2, cells: Array, c: Vector2i) -> void:
+	var g := maxf(r.size.x * 0.06, 1.0)
+	var inner := r
+	var face := r
+	for side in [[SIDE_LEFT, Vector2i(-1, 0)], [SIDE_RIGHT, Vector2i(1, 0)], [SIDE_TOP, Vector2i(0, -1)], [SIDE_BOTTOM, Vector2i(0, 1)]]:
+		if not cells.has(c + side[1]):
+			inner = inner.grow_side(side[0], -g)
+			face = face.grow_side(side[0], -g * 2.0)
+	root.draw_rect(inner, part.color.darkened(0.35))
+	root.draw_rect(face, part.color)
+	if not cells.has(c + Vector2i(0, -1)):
+		root.draw_rect(Rect2(face.position, Vector2(face.size.x, g)), part.color.lightened(0.3))
 
 
 func _draw_info(font: Font, white: Color, dim: Color) -> void:

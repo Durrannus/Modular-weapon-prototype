@@ -261,7 +261,14 @@ func compute() -> Dictionary:
 	elif not elements.is_empty():
 		hit_color = ELEMENT_COLORS[elements[0]]
 
+	# Where each part sits, so the sword in hand can be drawn from its parts.
+	var layout: Array = []
+	for pl in placements:
+		var lp: PartData = pl["part"]
+		layout.append({"id": lp.id, "type": lp.part_type, "color": lp.color, "cells": pl["cells"].duplicate(), "rotation": pl["rotation"]})
+
 	return {
+		"layout": layout,
 		"steps": steps,
 		"hit_color": hit_color,
 		"damage": damage,
