@@ -68,6 +68,21 @@ var weapon_layer: Node2D
 var weapon_group: CanvasGroup  # holds the sword so it gets one outline
 var anim_time := 0.0
 
+# Swing animation. The sword rests lowered at the side and only swings out on attack.
+# The hand orbits the shoulder, so the whole arm and sword sweep round the body.
+const SHOULDER := Vector2(0, -18)   # relative to the player's centre
+const ARM := 15.0                   # shoulder to hand while swinging
+var swing_side := 1.0               # +1 / -1: slashes alternate direction
+var pose_angle := PI * 0.4          # what's drawn, smoothed toward the target pose
+var pose_hand := Vector2(10, -14)
+var pose_from_angle := 0.0          # where the current swing started from
+var trail: Array = []               # [hand, angle, time] samples while sweeping
+var trail_layer: Node2D
+var squash := Vector2.ONE           # body squash and stretch
+var lean := 0.0                     # body lean in radians
+var stepped := false                # has this swing's step forward happened
+var trail_te := -1.0                # step time of the last trail sample
+
 # Swing path runes
 const REPEAT_GAP := 0.16      # Twice: the second go comes this long after the first
 const MAX_DODGES_WIND := 2    # Second Wind can top dodges up past the normal 1
@@ -102,6 +117,12 @@ func _ready() -> void:
 	# The sword is its own layer so it can sit behind the body when facing up.
 	# All sword parts and the hand go in one CanvasGroup so the outline shader
 	# draws one outline round the assembled sword.
+	trail_layer = Node2D.new()
+	var add := CanvasItemMaterial.new()
+	add.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	trail_layer.material = add
+	add_child(trail_layer)
+	trail_layer.draw.connect(_draw_trail)
 	weapon_group = CanvasGroup.new()
 	weapon_group.name = "Weapon"
 	var mat := ShaderMaterial.new()
@@ -258,6 +279,10 @@ func _start_step() -> void:
 	queued = false
 	anim_move = move
 	anim_dir = aim_dir
+	swing_side = 1.0 if current_step % 2 == 0 else -1.0
+	pose_from_angle = wrapf(pose_angle - anim_dir.angle(), -PI, PI)
+	stepped = false
+	trail_te = 0.0
 	# The swing travels up the sword: each slot lights for a moment, grip to tip.
 	for i in weapon.get("line", []).size():
 		sweep_flash[i] = game_time + float(i) * 0.04
@@ -285,7 +310,7 @@ func _do_move(move: String) -> void:
 	var reach: float = float(info["reach"]) * float(weapon.get("reach", 1.0)) * area
 	var dmg: float = float(weapon.get("damage", 4.0)) * float(info["power"])
 	var knock: float = info["knock"]
-	var dir := aim_dir
+	var dir := anim_dir
 	var hits := 0
 	var hit_list: Array = []
 
@@ -314,6 +339,8 @@ func _do_move(move: String) -> void:
 
 	var fx := Fx.new()
 	fx.kind = str(info["shape"])
+	if fx.kind == "arc":
+		fx.kind = "none"  # the sword's own trail shows the slash
 	fx.dir = dir
 	fx.radius = reach
 	fx.arc = float(info.get("arc", 120.0))
@@ -638,6 +665,8 @@ func _process(delta: float) -> void:
 	facing = _facing_of(aim_dir if current_step < 0 else anim_dir)
 	weapon_group.show_behind_parent = facing == "up"
 	anim_time += delta
+	_update_pose(delta)
+	trail_layer.queue_redraw()
 	# The outline is one game pixel: as many screen pixels as the window's scale.
 	var scale_px := maxf(floorf(float(get_window().size.y) / 360.0), 1.0)
 	(weapon_group.material as ShaderMaterial).set_shader_parameter("px", scale_px)
@@ -662,7 +691,11 @@ func _draw() -> void:
 	var tex := Art.texture("body/ivy_%s.png" % strip[0])
 	if tex != null:
 		var tint := Color(2.0, 2.0, 2.0) if blink else Color.WHITE
-		Art.draw_strip(self, tex, strip[1], strip[2], FEET, _body_origin(), false, tint)
+		var fw := tex.get_width() / maxi(int(strip[1]), 1)
+		var src := Rect2(float(posmod(int(strip[2]), int(strip[1])) * fw), 0.0, float(fw), float(tex.get_height()))
+		draw_set_transform(FEET, lean, Vector2(Art.PIXEL * squash.x, Art.PIXEL * squash.y))
+		draw_texture_rect_region(tex, Rect2(-_body_origin(), src.size), src, tint)
+		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 		return
 	# Stand-in body: a circle with eyes showing which way it faces.
 	var body := Color(1, 1, 1) if blink else color
@@ -724,27 +757,133 @@ func _hand_point() -> Vector2:
 const HAND_CELL := 5.0                      # art pixels per grid cell in hand
 const HAND_GRIP := Vector2(1.5, 5.0)        # where the hand holds it, in grid cells
 
+## The sword's pose: [angle, hand position relative to the player's centre].
 func _sword_pose() -> Array:
-	var angle := aim_dir.angle()
-	var extend := 0.0
+	return [pose_angle, pose_hand]
+
+
+## The swing curve for each move, as angles relative to the swing direction.
+## [start, end, arm at start, arm at end]. Slashes are mirrored on every other step.
+const SWING_CURVES := {
+	"slash": [-1.75, 1.5, 12.0, 16.0],
+	"overhead": [-2.7, 0.6, 8.0, 18.0],
+	"stab": [0.0, 0.0, 4.0, 26.0],
+	"lunge": [0.0, 0.0, 4.0, 26.0],
+	"spin": [0.0, TAU, 14.0, 14.0],
+}
+
+
+## Where the sword should be right now, during a swing. Returns [angle, hand, sweeping].
+func _attack_pose() -> Array:
+	var info: Dictionary = MOVES.get(anim_move, MOVES["slash"])
+	var curve: Array = SWING_CURVES.get(anim_move, SWING_CURVES["slash"])
+	var side := swing_side if anim_move == "slash" else 1.0
+	var hit_at := float(info["windup"]) / _speed()
+	var sweep_start := maxf(hit_at - 0.035, 0.0)
+	var sweep_end := hit_at + 0.065
+	var start_a: float = float(curve[0]) * side
+	var end_a: float = float(curve[1]) * side
+	var rel := 0.0
+	var arm := 0.0
+	var sweeping := false
+	var te := step_elapsed
+	if te < sweep_start:
+		# Wind up: pull back from wherever the sword was to the start of the swing.
+		var k := ease(clampf(te / maxf(sweep_start, 0.001), 0.0, 1.0), 0.4)
+		rel = lerp_angle(pose_from_angle, start_a, k)
+		arm = lerpf(14.0, float(curve[2]), k)
+	elif te < sweep_end:
+		# The swing itself: fast out, slowing at the end.
+		var k := clampf((te - sweep_start) / (sweep_end - sweep_start), 0.0, 1.0)
+		var e := 1.0 - pow(1.0 - k, 3.0)
+		rel = lerpf(start_a, end_a, e)
+		arm = lerpf(float(curve[2]), float(curve[3]), e)
+		sweeping = true
+	else:
+		# Follow through: a small overshoot that settles.
+		var k := te - sweep_end
+		rel = end_a + side * 0.18 * sin(minf(k / 0.12, 1.0) * PI) * (1.0 if anim_move != "stab" and anim_move != "lunge" else 0.0)
+		arm = lerpf(float(curve[3]), 14.0, clampf(k / 0.2, 0.0, 1.0))
+	var angle := anim_dir.angle() + rel
+	return [angle, SHOULDER + Vector2.RIGHT.rotated(angle) * arm, sweeping]
+
+
+## Resting pose: the sword lowered at the side, by the hand on the body sprite.
+func _rest_pose() -> Array:
+	var a := 0.95
+	match facing:
+		"left":
+			a = PI - 0.95
+		"down":
+			a = 2.2
+		"up":
+			a = 0.95
+	return [a, _hand_point()]
+
+
+func _update_pose(delta: float) -> void:
 	if current_step >= 0:
-		angle = anim_dir.angle()
-		# Before the hit lands the sword is held back; after, it swings through (~0.14s).
-		var after := 0.0
-		if hit_time < 0.0:
-			var info: Dictionary = MOVES.get(anim_move, MOVES["slash"])
-			after = clampf((step_elapsed - float(info["windup"]) / _speed()) / 0.14, 0.0, 1.0)
-		match anim_move:
-			"stab", "lunge":
-				extend = (sin(after * PI) * 26.0) if hit_time < 0.0 else -6.0
-			"spin":
-				angle += after * TAU
-			"overhead":
-				angle += -2.2 if hit_time >= 0.0 else lerpf(-2.2, 0.3, minf(after * 2.0, 1.0))
-				extend = 0.0 if hit_time >= 0.0 else 6.0
-			_:
-				angle += -1.2 if hit_time >= 0.0 else lerpf(-1.2, 1.2, after)
-	return [angle, extend]
+		var p := _attack_pose()
+		pose_angle = p[0]
+		pose_hand = p[1]
+		if p[2] or (trail_te >= 0.0 and trail_te < step_elapsed):
+			# Fill the trail at small time steps so it stays a smooth arc at any frame rate.
+			var now := step_elapsed
+			var te := trail_te if trail_te >= 0.0 else now
+			while te < now:
+				step_elapsed = te
+				var q := _attack_pose()
+				if q[2]:
+					trail.append([q[1], q[0], game_time - (now - te)])
+				te += 0.006
+			step_elapsed = now
+			trail.append([pose_hand, pose_angle, game_time])
+			trail_te = now if p[2] else -1.0
+			if not stepped:
+				# Step into the swing: the body moves, not just the hand.
+				stepped = true
+				var dist := 30.0 if anim_move == "overhead" else (12.0 if anim_move == "stab" else 18.0)
+				if not MOVES.get(anim_move, {}).has("dash"):
+					lunge_dir = anim_dir
+					lunge_timer = 0.07
+					lunge_speed = dist / 0.07
+				squash = Vector2(0.9, 1.1) if anim_move == "overhead" else Vector2(0.95, 1.06)
+		elif step_elapsed < float(MOVES.get(anim_move, MOVES["slash"])["windup"]) / _speed():
+			# Wind up: crouch into it.
+			squash = squash.lerp(Vector2(1.1, 0.9) if anim_move == "overhead" else Vector2(1.04, 0.96), 1.0 - exp(-30.0 * delta))
+		lean = lerpf(lean, signf(anim_dir.x) * (0.16 if anim_move == "overhead" else 0.1), 1.0 - exp(-20.0 * delta))
+	else:
+		var r := _rest_pose()
+		var k := 1.0 - exp(-14.0 * delta)
+		pose_angle = lerp_angle(pose_angle, r[0], k)
+		pose_hand = pose_hand.lerp(r[1], k)
+		lean = lerpf(lean, 0.0, 1.0 - exp(-12.0 * delta))
+	squash = squash.lerp(Vector2.ONE, 1.0 - exp(-12.0 * delta))
+	while not trail.is_empty() and game_time - float(trail[0][2]) > 0.12:
+		trail.pop_front()
+
+
+## The swing's smear: a fading band between the hand end and the tip.
+func _draw_trail() -> void:
+	if trail.size() < 2 or not weapon.has("blade"):
+		return
+	var length_px := SwordArt.pivot(weapon["blade"], weapon["grip"], "hand").y * Art.PIXEL
+	var col: Color = weapon.get("hit_color", Color.WHITE).lerp(Color(0.75, 0.88, 1.0), 0.5)
+	for i in range(1, trail.size()):
+		var a: Array = trail[i - 1]
+		var b: Array = trail[i]
+		var age := (game_time - float(b[2])) / 0.12
+		var alpha := clampf(1.0 - age, 0.0, 1.0) * 0.55
+		var da := Vector2.RIGHT.rotated(float(a[1]))
+		var db := Vector2.RIGHT.rotated(float(b[1]))
+		var pts := PackedVector2Array([a[0] + da * length_px * 0.45, a[0] + da * length_px, b[0] + db * length_px, b[0] + db * length_px * 0.45])
+		draw_colored_polygon_on(trail_layer, pts, Color(col.r, col.g, col.b, alpha))
+
+
+func draw_colored_polygon_on(ci: CanvasItem, pts: PackedVector2Array, c: Color) -> void:
+	# Long sweeps can make the quad cross itself; split it into two triangles.
+	ci.draw_colored_polygon(PackedVector2Array([pts[0], pts[1], pts[2]]), c)
+	ci.draw_colored_polygon(PackedVector2Array([pts[0], pts[2], pts[3]]), c)
 
 
 func _draw_weapon() -> void:
@@ -752,8 +891,7 @@ func _draw_weapon() -> void:
 		return
 	var pose := _sword_pose()
 	var angle: float = pose[0]
-	var d := Vector2.RIGHT.rotated(angle)
-	var hand := _hand_point() + d * float(pose[1])
+	var hand: Vector2 = pose[1]
 	# Art space: x right, y down, tip at the top. Rotate so "up" points along d.
 	weapon_layer.draw_set_transform(hand, angle + PI * 0.5, Vector2(Art.PIXEL, Art.PIXEL))
 	var blade: String = weapon["blade"]
@@ -784,8 +922,7 @@ func _slot_glow() -> Dictionary:
 func _slot_world(i: int) -> Vector2:
 	var pose := _sword_pose()
 	var angle: float = pose[0]
-	var d := Vector2.RIGHT.rotated(angle)
-	var hand := _hand_point() + d * float(pose[1])
+	var hand: Vector2 = pose[1]
 	var blade: String = weapon["blade"]
 	var grip: String = weapon["grip"]
 	var local := (SwordArt.slot_center(blade, grip, "hand", i) - SwordArt.pivot(blade, grip, "hand")) * Art.PIXEL
@@ -799,7 +936,7 @@ func _tip_world() -> Vector2:
 	var blade: String = weapon.get("blade", "iron_blade")
 	var grip: String = weapon.get("grip", "wooden_grip")
 	var length_px := SwordArt.pivot(blade, grip, "hand").y * Art.PIXEL
-	return global_position + _hand_point() + d * (float(pose[1]) + length_px)
+	return global_position + pose[1] + d * length_px
 
 
 static func _layer_rank(t: int) -> int:

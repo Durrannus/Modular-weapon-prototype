@@ -34,6 +34,8 @@ func _draw() -> void:
 	c.a = 1.0 - k
 	var line_w := (16.0 if thick else 10.0) * (1.0 - k) + 2.0
 	match kind:
+		"none":
+			pass
 		"line":
 			draw_line(dir * 20.0, dir * radius, c, minf(width, 14.0) * (1.0 - k) + 2.0)
 		"circle":
