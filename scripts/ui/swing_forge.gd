@@ -141,11 +141,7 @@ func close() -> void:
 	if dirty and finishing < 0.0:
 		finishing = 0.0
 		Sfx.play(self, "forged", -4.0)
-		var bh := SwordArt.blade_size(build.blade, "forge").y
 		playing.append(["hammer_strike", Vector2(CENTRE_X, sword_bottom + 4), t])
-		playing.append(["steam", Vector2(CENTRE_X, sword_top.y + bh), t + 0.1])
-		for n in 30:
-			steam.append([sword_top + Vector2(randf_range(0, sword_size.x), randf_range(sword_size.y * 0.1, sword_size.y * 0.9)), Vector2(randf_range(-12, 12), randf_range(-40, -15)), 0.0, randf_range(0.6, 1.2)])
 		return
 	_really_close()
 
@@ -514,28 +510,9 @@ func _draw_sword(stats: Dictionary) -> void:
 	var top := Vector2(CENTRE_X - size.x * 0.5, sword_bottom - size.y).round()
 	sword_top = top
 	sword_size = size
-	# Backdrop: the hearth glows behind the sword, breathing, hotter after a strike.
-	root.draw_rect(Rect2(244, 30, 156, 262), Color(0.05, 0.055, 0.075))
-	var hearth_tex := Art.texture("swing/forge-fx/hearth.png")
-	if hearth_tex != null:
-		var hf := int(t * 10.0) % 8
-		root.draw_texture_rect_region(hearth_tex, Rect2(244, 52, 156, 240), Rect2(hf * 156, 0, 156, 240))
-	var halo := Art.texture("swing/forge-fx/heat_halo.png")
-	if halo != null:
-		var guard_y := top.y + SwordArt.grip_origin(blade, "forge").y
-		var ha := (0.45 + 0.35 * heat) * (0.85 + 0.15 * sin(t * 2.4))
-		root.draw_texture(halo, Vector2(CENTRE_X - 60, guard_y - 170).round(), Color(1, 1, 1, ha))
-	var breathe := 0.5 + 0.5 * sin(t * 2.2) * 0.6 + 0.2 * sin(t * 7.3)
-	var glow_c := Vector2(CENTRE_X, top.y + size.y * 0.45)
-	for i in (0 if halo != null else 7):
-		var r := 30.0 + i * 13.0 + heat * 10.0
-		var c := Color(1.0, 0.45 + i * 0.03, 0.15, (0.05 + heat * 0.05) * breathe * (1.0 - i / 8.0))
-		root.draw_circle(glow_c, r, c)
-	var hearth := Rect2(250, 266, 144, 26)
-	for i in (0 if hearth_tex != null else 6):
-		var c := Color(1.0, 0.35 + 0.08 * i, 0.08, 0.07 * breathe)
-		root.draw_rect(hearth.grow_individual(-i * 6, -i * 2, -i * 6, 0), c)
-	root.draw_rect(Rect2(244, 30, 156, 262), Color(0.12, 0.13, 0.17), false, 1.0)
+	# Backdrop: a plain, calm panel so the sword reads clearly. No fire.
+	root.draw_rect(Rect2(244, 30, 156, 262), Color(0.07, 0.075, 0.095))
+	root.draw_rect(Rect2(244, 30, 156, 262), Color(0.16, 0.17, 0.21), false, 1.0)
 	var anvil := Art.texture("swing/ui/anvil.png")
 	if anvil != null:
 		root.draw_texture(anvil, Vector2(CENTRE_X - 47, sword_bottom - 2).round())
@@ -576,10 +553,11 @@ func _draw_sword(stats: Dictionary) -> void:
 		root.draw_rect(Rect2(bx - 6, y0 - 2, 4, 1), TEAL)
 		var tags: Array = []
 		if int(e["count"]) > 1:
-			tags.append("x%d" % int(e["count"]))
+			tags.append("fires x%d" % int(e["count"]))
 		if float(e["size"]) > 1.0:
-			tags.append("big")
-		_head(" ".join(tags), Vector2(bx + 4, (y0 + y1) * 0.5 + 3), TEAL)
+			tags.append("bigger")
+		for ti in tags.size():
+			_head(tags[ti], Vector2(bx + 4, (y0 + y1) * 0.5 + 3 + (ti - (tags.size() - 1) * 0.5) * 10), TEAL)
 	# Labels beside the sword, test swords left of the anvil, the dummy right of it.
 	var g: Dictionary = SwingBuild.GRIPS[grip]
 	var bl: Dictionary = SwingBuild.BLADES[blade]
@@ -618,9 +596,6 @@ func _update_fx(delta: float) -> void:
 	heat = move_toward(heat, 0.3, delta * 0.5)
 	if finishing >= 0.0:
 		heat = 0.0
-	# Embers drift up from the hearth all the time; more when hot.
-	if randf() < delta * (10.0 + heat * 30.0):
-		embers.append([Vector2(randf_range(256, 388), randf_range(270, 292)), Vector2(randf_range(-6, 6), randf_range(-45, -20)), 0.0, randf_range(1.2, 2.6)])
 	for list in [embers, sparks, steam]:
 		var keep: Array = []
 		for p in list:
@@ -659,8 +634,9 @@ func _draw_heat_fill() -> void:
 		for i in 10:
 			heat_fill.draw_rect(Rect2(r.position.x, sweep_y + i * 2.0 - 10.0, r.size.x, 2), Color(1, 1, 1, 0.08 * (5.0 - absf(i - 4.5))))
 		return
-	var pulse := 0.85 + 0.15 * sin(t * 5.0)
-	var steps := 24
+	# No idle glow: the sword only flashes when a part goes on.
+	var pulse := 0.0
+	var steps := 0
 	for i in steps:
 		var y0 := r.position.y + r.size.y * i / steps
 		var hotness := 1.0 - float(i) / steps  # the blade end is hottest
