@@ -113,6 +113,18 @@ func load_test(key: String) -> void:
 	changed.emit()
 
 
+# Stacking limits: each extra band of a kind adds less, up to a cap.
+const MAX_COUNT := 3          # Twice: at most 3 fires
+const MAX_SIZE := 2.0         # Wider: at most 2x size
+const WIDER_STEPS := [1.6, 1.85, 2.0]  # 1, 2, 3+ Wider bands
+
+
+static func wider_size(n: int) -> float:
+	if n <= 0:
+		return 1.0
+	return minf(WIDER_STEPS[mini(n, WIDER_STEPS.size()) - 1], MAX_SIZE)
+
+
 ## Reads the line bottom to top. Returns:
 ##   effects: one entry per rune: {id, slot, bands (ids), band_slots, trigger, count, size}
 ##   slots:   for each slot index: {"rune": effect index} / {"band": effect index} / {"unused": true}
@@ -133,9 +145,10 @@ static func resolve(slots: Array) -> Dictionary:
 			var band: String = slots[s]
 			e["bands"].append(band)
 			if band == "twice":
-				e["count"] += 1
+				e["count"] = mini(int(e["count"]) + 1, MAX_COUNT)
 			elif band == "wider":
-				e["size"] *= 1.6
+				e["wider"] = int(e.get("wider", 0)) + 1
+				e["size"] = wider_size(int(e["wider"]))
 			info[s] = {"band": effects.size()}
 		info[i] = {"rune": effects.size()}
 		effects.append(e)
@@ -177,7 +190,7 @@ func compute() -> Dictionary:
 	var r := resolve(line)
 	if g.get("built_in", "") == "wider":
 		for e in r["effects"]:
-			e["size"] = float(e["size"]) * 1.3
+			e["size"] = minf(float(e["size"]) * 1.3, MAX_SIZE)
 	var element: String = b["element"]
 	var hit_color := Color.WHITE
 	if element != "":

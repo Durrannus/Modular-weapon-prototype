@@ -363,7 +363,7 @@ func _queue_rune(effect: int, at: float, size: float, hits: Array) -> void:
 	var id: String = weapon["effects"][effect]["id"]
 	for q in rune_queue:
 		if q["effect"] != effect and weapon["effects"][q["effect"]]["id"] == id and absf(float(q["at"]) - at) < 0.03:
-			q["size"] = maxf(float(q["size"]), size) * 1.3
+			q["size"] = minf(maxf(float(q["size"]), size) * 1.3, SwingBuild.MAX_SIZE)
 			q["power"] = float(q["power"]) + 1.0
 			q["merged"].append(effect)
 			return

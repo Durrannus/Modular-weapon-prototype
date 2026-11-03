@@ -553,9 +553,9 @@ func _draw_sword(stats: Dictionary) -> void:
 		root.draw_rect(Rect2(bx - 6, y0 - 2, 4, 1), TEAL)
 		var tags: Array = []
 		if int(e["count"]) > 1:
-			tags.append("fires x%d" % int(e["count"]))
+			tags.append("fires x%d%s" % [int(e["count"]), " max" if int(e["count"]) >= SwingBuild.MAX_COUNT else ""])
 		if float(e["size"]) > 1.0:
-			tags.append("bigger")
+			tags.append("max size" if float(e["size"]) >= SwingBuild.MAX_SIZE else "bigger")
 		for ti in tags.size():
 			_head(tags[ti], Vector2(bx + 4, (y0 + y1) * 0.5 + 3 + (ti - (tags.size() - 1) * 0.5) * 10), TEAL)
 	# Labels beside the sword, test swords left of the anvil, the dummy right of it.
