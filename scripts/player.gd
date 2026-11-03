@@ -840,18 +840,12 @@ func _update_pose(delta: float) -> void:
 			trail.append([pose_hand, pose_angle, game_time])
 			trail_te = now if p[2] else -1.0
 			if not stepped:
-				# Step into the swing: the body moves, not just the hand.
+				# No step forward: swinging never moves you (it pushed you into enemies).
 				stepped = true
-				var dist := 30.0 if anim_move == "overhead" else (12.0 if anim_move == "stab" else 18.0)
-				if not MOVES.get(anim_move, {}).has("dash"):
-					lunge_dir = anim_dir
-					lunge_timer = 0.07
-					lunge_speed = dist / 0.07
 				squash = Vector2(0.9, 1.1) if anim_move == "overhead" else Vector2(0.95, 1.06)
 		elif step_elapsed < float(MOVES.get(anim_move, MOVES["slash"])["windup"]) / _speed():
 			# Wind up: crouch into it.
 			squash = squash.lerp(Vector2(1.1, 0.9) if anim_move == "overhead" else Vector2(1.04, 0.96), 1.0 - exp(-30.0 * delta))
-		lean = lerpf(lean, signf(anim_dir.x) * (0.16 if anim_move == "overhead" else 0.1), 1.0 - exp(-20.0 * delta))
 	else:
 		var r := _rest_pose()
 		var k := 1.0 - exp(-14.0 * delta)
