@@ -1,0 +1,705 @@
+{
+ "base_resolution": [
+  640,
+  360
+ ],
+ "scales": {
+  "hand": 1,
+  "forge": 5
+ },
+ "note": "Sizes and pivots at forge scale are hand x5, but use each scale's own slot_rects. Slots are listed bottom-up (read order). Every rect is [x, y, w, h] in that part's own image.",
+ "socket_px": {
+  "hand": 3,
+  "forge": 15
+ },
+ "blades": {
+  "iron_shortblade": {
+   "name": "Iron Shortblade",
+   "slots": 1,
+   "hand": {
+    "size": [
+     7,
+     15
+    ],
+    "slot_rects": [
+     [
+      2,
+      11,
+      3,
+      3
+     ]
+    ]
+   },
+   "forge": {
+    "size": [
+     35,
+     75
+    ],
+    "slot_rects": [
+     [
+      10,
+      52,
+      15,
+      15
+     ]
+    ]
+   }
+  },
+  "iron_blade": {
+   "name": "Iron Blade",
+   "slots": 2,
+   "hand": {
+    "size": [
+     7,
+     19
+    ],
+    "slot_rects": [
+     [
+      2,
+      15,
+      3,
+      3
+     ],
+     [
+      2,
+      11,
+      3,
+      3
+     ]
+    ]
+   },
+   "forge": {
+    "size": [
+     35,
+     95
+    ],
+    "slot_rects": [
+     [
+      10,
+      72,
+      15,
+      15
+     ],
+     [
+      10,
+      52,
+      15,
+      15
+     ]
+    ]
+   }
+  },
+  "iron_longblade": {
+   "name": "Iron Longblade",
+   "slots": 3,
+   "hand": {
+    "size": [
+     7,
+     23
+    ],
+    "slot_rects": [
+     [
+      2,
+      19,
+      3,
+      3
+     ],
+     [
+      2,
+      15,
+      3,
+      3
+     ],
+     [
+      2,
+      11,
+      3,
+      3
+     ]
+    ]
+   },
+   "forge": {
+    "size": [
+     35,
+     115
+    ],
+    "slot_rects": [
+     [
+      10,
+      92,
+      15,
+      15
+     ],
+     [
+      10,
+      72,
+      15,
+      15
+     ],
+     [
+      10,
+      52,
+      15,
+      15
+     ]
+    ]
+   }
+  }
+ },
+ "grips": {
+  "wooden_grip": {
+   "name": "Wooden Grip",
+   "slots": 1,
+   "kind": "craftable",
+   "special": null,
+   "hand": {
+    "size": [
+     15,
+     15
+    ],
+    "slot_rects": [
+     [
+      6,
+      4,
+      3,
+      3
+     ]
+    ],
+    "pivot": [
+     7.5,
+     9.5
+    ]
+   },
+   "forge": {
+    "size": [
+     75,
+     75
+    ],
+    "slot_rects": [
+     [
+      30,
+      17,
+      15,
+      15
+     ]
+    ],
+    "pivot": [
+     37.5,
+     47.5
+    ]
+   }
+  },
+  "wrapped_grip": {
+   "name": "Wrapped Grip",
+   "slots": 2,
+   "kind": "craftable",
+   "special": null,
+   "hand": {
+    "size": [
+     15,
+     19
+    ],
+    "slot_rects": [
+     [
+      6,
+      8,
+      3,
+      3
+     ],
+     [
+      6,
+      4,
+      3,
+      3
+     ]
+    ],
+    "pivot": [
+     7.5,
+     13.5
+    ]
+   },
+   "forge": {
+    "size": [
+     75,
+     95
+    ],
+    "slot_rects": [
+     [
+      30,
+      37,
+      15,
+      15
+     ],
+     [
+      30,
+      17,
+      15,
+      15
+     ]
+    ],
+    "pivot": [
+     37.5,
+     67.5
+    ]
+   }
+  },
+  "long_grip": {
+   "name": "Long Grip",
+   "slots": 3,
+   "kind": "craftable",
+   "special": null,
+   "hand": {
+    "size": [
+     15,
+     23
+    ],
+    "slot_rects": [
+     [
+      6,
+      12,
+      3,
+      3
+     ],
+     [
+      6,
+      8,
+      3,
+      3
+     ],
+     [
+      6,
+      4,
+      3,
+      3
+     ]
+    ],
+    "pivot": [
+     7.5,
+     17.5
+    ]
+   },
+   "forge": {
+    "size": [
+     75,
+     115
+    ],
+    "slot_rects": [
+     [
+      30,
+      57,
+      15,
+      15
+     ],
+     [
+      30,
+      37,
+      15,
+      15
+     ],
+     [
+      30,
+      17,
+      15,
+      15
+     ]
+    ],
+    "pivot": [
+     37.5,
+     87.5
+    ]
+   }
+  },
+  "ringed_grip": {
+   "name": "Ringed Grip",
+   "slots": 2,
+   "kind": "special",
+   "special": "built-in band in the pommel (boosts the whole sword)",
+   "hand": {
+    "size": [
+     15,
+     19
+    ],
+    "slot_rects": [
+     [
+      6,
+      8,
+      3,
+      3
+     ],
+     [
+      6,
+      4,
+      3,
+      3
+     ]
+    ],
+    "pivot": [
+     7.5,
+     13.5
+    ]
+   },
+   "forge": {
+    "size": [
+     75,
+     95
+    ],
+    "slot_rects": [
+     [
+      30,
+      37,
+      15,
+      15
+     ],
+     [
+      30,
+      17,
+      15,
+      15
+     ]
+    ],
+    "pivot": [
+     37.5,
+     67.5
+    ]
+   }
+  },
+  "gilded_grip": {
+   "name": "Gilded Grip",
+   "slots": 2,
+   "kind": "special",
+   "special": "top slot is the odd (gilded) slot",
+   "hand": {
+    "size": [
+     15,
+     19
+    ],
+    "slot_rects": [
+     [
+      6,
+      8,
+      3,
+      3
+     ],
+     [
+      6,
+      4,
+      3,
+      3
+     ]
+    ],
+    "pivot": [
+     7.5,
+     13.5
+    ]
+   },
+   "forge": {
+    "size": [
+     75,
+     95
+    ],
+    "slot_rects": [
+     [
+      30,
+      37,
+      15,
+      15
+     ],
+     [
+      30,
+      17,
+      15,
+      15
+     ]
+    ],
+    "pivot": [
+     37.5,
+     67.5
+    ]
+   }
+  }
+ },
+ "runes": {
+  "shockwave": {
+   "name": "Shockwave",
+   "trigger": "finisher",
+   "text": "Your finisher sends a shockwave forward."
+  },
+  "hook": {
+   "name": "Hook",
+   "trigger": "finisher",
+   "text": "Your finisher hooks enemies and yanks them in."
+  },
+  "cleave": {
+   "name": "Cleave",
+   "trigger": "every hit",
+   "text": "Every hit also strikes the enemy behind."
+  },
+  "second_wind": {
+   "name": "Second Wind",
+   "trigger": "on a kill",
+   "text": "Kills refill a dodge."
+  }
+ },
+ "bands": {
+  "twice": {
+   "name": "Twice",
+   "text": "The rune above happens twice.",
+   "blade_hand_size": [
+    9,
+    3
+   ],
+   "blade_forge_size": [
+    45,
+    15
+   ],
+   "grip_hand_size": [
+    7,
+    3
+   ],
+   "grip_forge_size": [
+    35,
+    15
+   ]
+  },
+  "wider": {
+   "name": "Wider",
+   "text": "The rune above is bigger.",
+   "blade_hand_size": [
+    9,
+    3
+   ],
+   "blade_forge_size": [
+    45,
+    15
+   ],
+   "grip_hand_size": [
+    7,
+    3
+   ],
+   "grip_forge_size": [
+    35,
+    15
+   ]
+  }
+ },
+ "fx": {
+  "shockwave_wave": {
+   "frames": 6,
+   "frame": [
+    40,
+    64
+   ],
+   "fps": 14,
+   "origin": [
+    0,
+    32
+   ],
+   "note": "moves forward; origin is the back of the crescent's centre line"
+  },
+  "shockwave_burst": {
+   "frames": 6,
+   "frame": [
+    64,
+    64
+   ],
+   "fps": 18,
+   "origin": [
+    32,
+    32
+   ],
+   "note": "at the finisher's impact point"
+  },
+  "hook_snag": {
+   "frames": 5,
+   "frame": [
+    28,
+    28
+   ],
+   "fps": 20,
+   "origin": [
+    14,
+    14
+   ],
+   "note": "where the hook bites"
+  },
+  "hook_yank": {
+   "frames": 4,
+   "frame": [
+    48,
+    24
+   ],
+   "fps": 16,
+   "origin": [
+    48,
+    12
+   ],
+   "note": "on the pulled enemy, right edge at its centre"
+  },
+  "cleave_arc": {
+   "frames": 5,
+   "frame": [
+    56,
+    64
+   ],
+   "fps": 20,
+   "origin": [
+    6,
+    28
+   ],
+   "note": "origin at the player's hand"
+  },
+  "cleave_echo": {
+   "frames": 4,
+   "frame": [
+    32,
+    32
+   ],
+   "fps": 16,
+   "origin": [
+    16,
+    16
+   ],
+   "note": "on the enemy behind the target"
+  },
+  "wind_swirl": {
+   "frames": 8,
+   "frame": [
+    48,
+    48
+   ],
+   "fps": 14,
+   "origin": [
+    24,
+    30
+   ],
+   "note": "round the player's feet"
+  },
+  "dodge_pip": {
+   "frames": 5,
+   "frame": [
+    10,
+    10
+   ],
+   "fps": 12,
+   "origin": [
+    5,
+    5
+   ],
+   "note": "HUD pip refilling"
+  },
+  "band_spark": {
+   "frames": 4,
+   "frame": [
+    16,
+    16
+   ],
+   "fps": 20,
+   "origin": [
+    8,
+    8
+   ],
+   "note": "on the band's centre when its rune fires"
+  },
+  "hook_head": {
+   "frame": [
+    16,
+    16
+   ],
+   "origin": [
+    2,
+    1
+   ],
+   "note": "points right; the chain joins at the eye (top-left). _bite is the closed/lit frame"
+  },
+  "chain_link": {
+   "frames": 2,
+   "frame": [
+    6,
+    4
+   ],
+   "note": "alternate the two frames, one every 5 px along the chain"
+  },
+  "wind_wisp": {
+   "frames": 4,
+   "frame": [
+    10,
+    10
+   ],
+   "fps": 12,
+   "origin": [
+    5,
+    5
+   ],
+   "note": "flies from the kill to the player"
+  }
+ },
+ "ui": {
+  "panel.png": {
+   "nine_patch_margins": [
+    8,
+    8,
+    8,
+    8
+   ]
+  },
+  "panel_titled.png": {
+   "nine_patch_margins": [
+    10,
+    22,
+    10,
+    8
+   ],
+   "note": "title strip inside the top margin"
+  },
+  "well.png": {
+   "nine_patch_margins": [
+    3,
+    3,
+    3,
+    3
+   ]
+  },
+  "well_selected.png": {
+   "nine_patch_margins": [
+    3,
+    3,
+    3,
+    3
+   ]
+  },
+  "button.png": {
+   "nine_patch_margins": [
+    3,
+    3,
+    3,
+    3
+   ]
+  },
+  "button_hot.png": {
+   "nine_patch_margins": [
+    3,
+    3,
+    3,
+    3
+   ]
+  },
+  "focus_corners.png": {
+   "note": "corner marks; stretch as a 9-patch with margins 4"
+  },
+  "colours": {
+   "ink": "#e6dccb",
+   "dim": "#8e877b",
+   "faint": "#5a5650",
+   "rune_amber": "#ffb24a",
+   "band_teal": "#6fd6cb",
+   "focus": "#fff3c4",
+   "plate": "#14171d",
+   "well": "#0b0d11",
+   "outline": "#06070a"
+  },
+  "fonts": {
+   "headings": "Silkscreen 8 px (16 px for the title), Google Fonts, OFL",
+   "body": "Pixelify Sans 11 px, Google Fonts, OFL; turn ligatures off"
+  }
+ }
+}

@@ -15,6 +15,9 @@ This branch tests the **swing path** (design notes, 3 November). It replaces the
 - Effects are deliberately loud: each rune has its own visual, sound and name pop-up, the slots flash on the sword and in the HUD when they fire, and the finisher gets a freeze-frame and screen shake. Identical runes firing together merge into one bigger effect.
 - **Order test:** the forge has Test sword A (Twice, Shockwave, Wider, Hook: two shockwaves and a wide hook) and Test sword B (Shockwave, Twice, Wider, Hook: one shockwave and a double, wide hook). Keys 1 and 2 switch between them.
 - **Pause enemies:** the button at the top right, or P / Start.
+- Parts: iron shortblade / blade / longblade (1, 2, 3 slots) and wooden / wrapped / long grips (1, 2, 3 slots). The Ringed Grip is a special grip whose built-in band makes every rune a bit bigger; the Gilded Grip is shown locked until it's designed.
+- The forge follows the art thread's design: parts tray on the left, the sword over the anvil with slot numbers and band brackets, and "what this sword does" on the right. **T** or the button puts you next to the dummy.
+- Art and numbers for all of this are in `art/swing/` (`swing_path.md` explains how the sword is assembled; `swing_path.json` has every slot, pivot and effect strip). Fonts are Silkscreen and Pixelify Sans (OFL), in `art/fonts/`.
 - Elemental blades are parked for now. Sounds are placeholders made in code (`scripts/sfx.gd`).
 
 Code: `scripts/weapon/swing_build.gd` (blades, grips, fittings, the reading rule), `scripts/weapon/sword_art.gd` (draws the sword with its slots), `scripts/ui/swing_forge.gd` (the forge), `scripts/fx/rune_fx.gd` (rune visuals), and the rune code in `scripts/player.gd`.

@@ -1,97 +1,97 @@
 extends RefCounted
-## Draws a swing path sword from part sprites, in "cells" (5 px each in hand,
-## 18 px each on the forge). Layout, top to bottom, 3 cells wide:
-##   rows 0-2   blade (blade slots sit on its lower cells, bottom slot first)
-##   row 3      hilt
-##   rows 4..   grip, one cell per grip slot (bottom slot lowest)
-##   last row   pommel
-## Fittings show as sockets: runes are gems, bands are metal rings round the sword.
+## Draws a swing path sword from the art in art/swing/ (see art/swing/swing_path.md).
+## Everything is in art pixels of the chosen scale ("hand" 1x, "forge" 5x); the
+## caller sets the transform. The sword frame is 15*k wide, tip at the top:
+## blade at (4k, 0), grip below it at (0, blade height).
 
 const SwingBuild := preload("res://scripts/weapon/swing_build.gd")
 const Art := preload("res://scripts/art.gd")
 
-
-static func rows(grip: String) -> int:
-	return 5 + int(SwingBuild.GRIPS[grip]["slots"])
+const DIR := "swing/"
 
 
-## Where the hand holds it, in cells: the middle of the grip.
-static func pivot(grip: String) -> Vector2:
-	return Vector2(1.5, 4.0 + float(SwingBuild.GRIPS[grip]["slots"]) * 0.5)
+static func data() -> Dictionary:
+	return Art.json("swing/swing_path.json")
 
 
-## Centre of slot i (0 = bottom of the line), in cells.
-static func slot_center(blade: String, grip: String, i: int) -> Vector2:
+static func _k(scale: String) -> float:
+	return 1.0 if scale == "hand" else 5.0
+
+
+static func _part(kind: String, id: String, scale: String) -> Dictionary:
+	return data().get(kind, {}).get(id, {}).get(scale, {})
+
+
+static func blade_size(blade: String, scale: String) -> Vector2:
+	var s: Array = _part("blades", blade, scale).get("size", [7.0 * _k(scale), 19.0 * _k(scale)])
+	return Vector2(s[0], s[1])
+
+
+static func grip_origin(blade: String, scale: String) -> Vector2:
+	return Vector2(0, blade_size(blade, scale).y)
+
+
+static func frame_size(blade: String, grip: String, scale: String) -> Vector2:
+	var g: Array = _part("grips", grip, scale).get("size", [15.0 * _k(scale), 19.0 * _k(scale)])
+	return Vector2(15.0 * _k(scale), blade_size(blade, scale).y + float(g[1]))
+
+
+## Where the hand holds the sword, in frame pixels.
+static func pivot(blade: String, grip: String, scale: String) -> Vector2:
+	var p: Array = _part("grips", grip, scale).get("pivot", [7.5, 13.5])
+	return grip_origin(blade, scale) + Vector2(p[0], p[1])
+
+
+## Slot i's rect (0 = bottom of the grip), in frame pixels.
+static func slot_rect(blade: String, grip: String, scale: String, i: int) -> Rect2:
+	var grects: Array = _part("grips", grip, scale).get("slot_rects", [])
+	var brects: Array = _part("blades", blade, scale).get("slot_rects", [])
+	var r: Array
+	var off: Vector2
+	if i < grects.size():
+		r = grects[i]
+		off = grip_origin(blade, scale)
+	elif i - grects.size() < brects.size():
+		r = brects[i - grects.size()]
+		off = Vector2(4.0 * _k(scale), 0)
+	else:
+		return Rect2(Vector2(7, 0) * _k(scale), Vector2(3, 3) * _k(scale))
+	return Rect2(off + Vector2(r[0], r[1]), Vector2(r[2], r[3]))
+
+
+static func slot_center(blade: String, grip: String, scale: String, i: int) -> Vector2:
+	return slot_rect(blade, grip, scale, i).get_center()
+
+
+## lit: slot index -> 0..1. A slot above 0.4 swaps to its _lit image.
+static func draw(ci: CanvasItem, blade: String, grip: String, line: Array, scale: String,
+		lit: Dictionary, origin := Vector2.ZERO) -> void:
 	var gs := int(SwingBuild.GRIPS[grip]["slots"])
-	if i < gs:
-		return Vector2(1.5, 4.0 + float(gs - 1 - i) + 0.5)
-	return Vector2(1.5, 2.0 - float(i - gs) + 0.5)
-
-
-## lit: slot index -> 0..1 glow. grid: use the forge sprites instead of the in-hand ones.
-static func draw(ci: CanvasItem, blade: String, grip: String, line: Array, slot_info: Dictionary,
-		cell: float, grid: bool, lit: Dictionary, origin := Vector2.ZERO) -> void:
-	var g: Dictionary = SwingBuild.GRIPS[grip]
-	var b: Dictionary = SwingBuild.BLADES[blade]
-	var gs := int(g["slots"])
-	var sfx := "_grid" if grid else "_hand"
-	var px := cell / (18.0 if grid else 5.0)  # screen units per art pixel
-	# Pommel
-	_part(ci, str(g["pommel"]) + sfx, origin + Vector2(1, 4 + gs) * cell, Vector2(cell, cell), Color(0.5, 0.35, 0.2))
-	# Grip: the handle sprite is 2 cells tall; repeat its cells down the grip.
-	var handle := Art.texture("parts/%s%s.png" % [g["sprite"], sfx])
-	for r in gs:
-		var dest := Rect2(origin + Vector2(1, 4 + r) * cell, Vector2(cell, cell))
-		if handle != null:
-			var hc := handle.get_height() / 2.0
-			ci.draw_texture_rect_region(handle, dest, Rect2(0, float(r % 2) * hc, handle.get_width(), hc))
-		else:
-			ci.draw_rect(dest.grow_individual(-cell * 0.25, 0, -cell * 0.25, 0), Color(0.45, 0.3, 0.18))
-	# Blade
-	var bw := int(b["cells"])
-	var bx := 1.5 - bw * 0.5
-	_part(ci, blade + sfx, origin + Vector2(bx, 0) * cell, Vector2(bw, 3) * cell, SwingBuild.ELEMENT_COLORS.get(b["element"], Color(0.8, 0.8, 0.85)))
-	# Hilt
-	_part(ci, str(g["hilt"]) + sfx, origin + Vector2(0, 3) * cell, Vector2(3, 1) * cell, Color(0.55, 0.38, 0.22))
-	# Sockets
+	var blade_tex := Art.texture(DIR + "blades/%s_%s.png" % [blade, scale])
+	var grip_tex := Art.texture(DIR + "grips/%s_%s.png" % [grip, scale])
+	if blade_tex != null:
+		ci.draw_texture(blade_tex, origin + Vector2(4.0 * _k(scale), 0))
+	if grip_tex != null:
+		ci.draw_texture(grip_tex, origin + grip_origin(blade, scale))
 	for i in line.size():
 		var id: String = line[i]
-		var c := origin + slot_center(blade, grip, i) * cell
-		var glow := float(lit.get(i, 0.0))
 		if id == "":
-			if grid:
-				ci.draw_arc(c, cell * 0.22, 0.0, TAU, 16, Color(0, 0, 0, 0.55), maxf(px, 1.0))
-			else:
-				ci.draw_rect(Rect2(c - Vector2(1, 1) * px, Vector2(2, 2) * px), Color(0.1, 0.08, 0.06, 0.8))
 			continue
+		var r := slot_rect(blade, grip, scale, i)
+		var on := float(lit.get(i, 0.0)) > 0.4
+		var suffix := "_lit" if on else ""
 		var f: Dictionary = SwingBuild.FITTINGS[id]
-		var col: Color = f["color"]
-		var unused: bool = slot_info.get(i, {}).has("unused")
-		if unused:
-			col = col.darkened(0.55)
-		col = col.lerp(Color.WHITE, glow * 0.7)
-		if glow > 0.0:
-			var halo := col
-			halo.a = 0.55 * glow
-			ci.draw_circle(c, cell * (0.55 + glow * 0.5), halo)
-		if f["kind"] == "band":
-			# A ring round the sword: a bright bar across the full width.
-			var w := cell * (0.95 if grid else 1.0)
-			ci.draw_rect(Rect2(c - Vector2(w * 0.5, cell * 0.17), Vector2(w, cell * 0.34)), Color(0.06, 0.07, 0.1))
-			ci.draw_rect(Rect2(c - Vector2(w * 0.5 - px, cell * 0.17 - px), Vector2(w - 2 * px, cell * 0.34 - 2 * px)), col)
+		if f["kind"] == "rune":
+			var tex := Art.texture(DIR + "runes/%s_%s%s.png" % [id, scale, suffix])
+			if tex != null:
+				ci.draw_texture(tex, origin + r.position)
+			else:
+				ci.draw_rect(Rect2(origin + r.position, r.size), f["color"])
 		else:
-			# A gem.
-			var r := cell * 0.3
-			var pts := PackedVector2Array([c + Vector2(0, -r), c + Vector2(r, 0), c + Vector2(0, r), c + Vector2(-r, 0)])
-			var outline := PackedVector2Array([c + Vector2(0, -r - px), c + Vector2(r + px, 0), c + Vector2(0, r + px), c + Vector2(-r - px, 0)])
-			ci.draw_colored_polygon(outline, Color(0.06, 0.07, 0.1))
-			ci.draw_colored_polygon(pts, col)
-			ci.draw_rect(Rect2(c + Vector2(-r * 0.35, -r * 0.55), Vector2(px, px)), Color(1, 1, 1, 0.85))
-
-
-static func _part(ci: CanvasItem, sprite: String, pos: Vector2, size: Vector2, fallback: Color) -> void:
-	var tex := Art.texture("parts/%s.png" % sprite)
-	if tex != null:
-		ci.draw_texture_rect(tex, Rect2(pos, size), false)
-	else:
-		ci.draw_rect(Rect2(pos, size).grow(-size.x * 0.1), fallback)
+			var host := "grip" if i < gs else "blade"
+			var tex := Art.texture(DIR + "bands/%s_%s_%s%s.png" % [id, host, scale, suffix])
+			if tex != null:
+				var pos := Vector2(r.get_center().x - tex.get_width() * 0.5, r.position.y)
+				ci.draw_texture(tex, origin + pos.round())
+			else:
+				ci.draw_rect(Rect2(origin + r.position - Vector2(2, 0) * _k(scale) / 1.0, r.size + Vector2(4, 0)), f["color"])

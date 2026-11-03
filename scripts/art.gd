@@ -46,10 +46,10 @@ static func part_grid(id: String) -> Texture2D:
 ## Draws frame `frame` of a horizontal strip with its feet origin at `feet`.
 ## Sprites face right (or are already drawn per direction); flip mirrors them.
 static func draw_strip(ci: CanvasItem, tex: Texture2D, frames: int, frame: int, feet: Vector2,
-		origin: Vector2, flip := false, tint := Color.WHITE) -> void:
+		origin: Vector2, flip := false, tint := Color.WHITE, px := PIXEL, angle := 0.0) -> void:
 	var fw := tex.get_width() / maxi(frames, 1)
 	var src := Rect2(float(posmod(frame, frames) * fw), 0.0, float(fw), float(tex.get_height()))
-	ci.draw_set_transform(feet, 0.0, Vector2(-PIXEL if flip else PIXEL, PIXEL))
+	ci.draw_set_transform(feet, angle, Vector2(-px if flip else px, px))
 	ci.draw_texture_rect_region(tex, Rect2(-origin, src.size), src, tint)
 	ci.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
@@ -87,3 +87,39 @@ static func light_texture() -> Texture2D:
 		t.height = 256
 		_light_tex = t
 	return _light_tex
+
+
+static var _json_cache := {}
+
+## Any JSON file under art/, parsed once.
+static func json(rel_path: String) -> Dictionary:
+	if not _json_cache.has(rel_path):
+		var out := {}
+		var f := FileAccess.open(ART_DIR + rel_path, FileAccess.READ)
+		if f != null:
+			var parsed = JSON.parse_string(f.get_as_text())
+			if parsed is Dictionary:
+				out = parsed
+		_json_cache[rel_path] = out
+	return _json_cache[rel_path]
+
+
+static var _fonts := {}
+
+## Pixel fonts from art/fonts (loaded at runtime so no import is needed).
+static func font(name: String) -> Font:
+	if _fonts.has(name):
+		return _fonts[name]
+	var f: Font = ThemeDB.fallback_font
+	var path := ART_DIR + "fonts/%s.ttf" % name
+	if FileAccess.file_exists(path):
+		var ff := FontFile.new()
+		if ff.load_dynamic_font(ProjectSettings.globalize_path(path)) == OK:
+			ff.antialiasing = TextServer.FONT_ANTIALIASING_NONE
+			ff.hinting = TextServer.HINTING_NONE
+			ff.subpixel_positioning = TextServer.SUBPIXEL_POSITIONING_DISABLED
+			var ts := TextServerManager.get_primary_interface()
+			ff.opentype_feature_overrides = {ts.name_to_tag("liga"): 0, ts.name_to_tag("calt"): 0}
+			f = ff
+	_fonts[name] = f
+	return f

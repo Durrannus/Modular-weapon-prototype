@@ -11,55 +11,52 @@ extends RefCounted
 signal changed
 
 const BLADES := {
-	"wooden_blade": {"name": "Wooden Blade", "chain": ["slash", "slash", "slash"], "damage": 9.0, "speed": 1.0, "reach": 1.0, "slots": 1, "element": "", "cells": 1,
-		"desc": "Slash, slash, slash. 1 slot."},
-	"iron_longblade": {"name": "Iron Longblade", "chain": ["slash", "slash", "overhead"], "damage": 12.0, "speed": 0.9, "reach": 1.15, "slots": 2, "element": "", "cells": 2,
-		"desc": "Slash, slash, overhead. Hits hard, a bit slower. 2 slots."},
-	"fire_shard": {"name": "Fire Blade", "chain": ["slash", "slash", "overhead"], "damage": 8.0, "speed": 1.05, "reach": 1.0, "slots": 2, "element": "fire", "cells": 1,
-		"desc": "Slash, slash, overhead. Sets enemies burning. 2 slots."},
-	"water_shard": {"name": "Water Blade", "chain": ["slash", "slash", "overhead"], "damage": 8.0, "speed": 1.05, "reach": 1.0, "slots": 2, "element": "water", "cells": 1,
-		"desc": "Slash, slash, overhead. Slows enemies. 2 slots."},
-	"lightning_shard": {"name": "Lightning Blade", "chain": ["slash", "slash", "overhead"], "damage": 7.0, "speed": 1.1, "reach": 1.0, "slots": 2, "element": "lightning", "cells": 1,
-		"desc": "Slash, slash, overhead. Lightning jumps to a nearby enemy. 2 slots."},
+	"iron_shortblade": {"name": "Iron Shortblade", "chain": ["slash", "slash", "slash"], "damage": 10.0, "speed": 1.08, "reach": 0.9, "slots": 1, "element": "",
+		"desc": "Slash, slash, slash. Quick. 1 slot."},
+	"iron_blade": {"name": "Iron Blade", "chain": ["slash", "slash", "overhead"], "damage": 11.0, "speed": 1.0, "reach": 1.0, "slots": 2, "element": "",
+		"desc": "Slash, slash, overhead. 2 slots."},
+	"iron_longblade": {"name": "Iron Longblade", "chain": ["slash", "slash", "overhead"], "damage": 9.0, "speed": 0.95, "reach": 1.15, "slots": 3, "element": "",
+		"desc": "Slash, slash, overhead. More reach and slots, softer hits. 3 slots."},
 }
-## Elemental blades are parked for now (Darren, 3 November), so only plain blades are offered.
-const BLADE_ORDER := ["wooden_blade", "iron_longblade"]
+## Elemental blades are parked for now (Darren, 3 November), so only iron blades.
+const BLADE_ORDER := ["iron_shortblade", "iron_blade", "iron_longblade"]
 
 const GRIPS := {
-	"short_grip": {"name": "Short Grip", "slots": 1, "speed": 1.0, "sprite": "wooden_handle", "hilt": "wooden_hilt", "pommel": "wooden_pommel",
-		"desc": "1 slot. Quick."},
-	"wrapped_grip": {"name": "Wrapped Grip", "slots": 2, "speed": 0.95, "sprite": "wrapped_handle", "hilt": "wooden_hilt", "pommel": "curved_pommel",
-		"desc": "2 slots. A touch slower."},
-	"long_grip": {"name": "Long Grip", "slots": 3, "speed": 0.88, "sprite": "long_handle", "hilt": "cross_hilt", "pommel": "spike_pommel",
-		"desc": "3 slots. Slower swings."},
+	"wooden_grip": {"name": "Wooden Grip", "slots": 1, "speed": 1.0, "desc": "1 slot. Quick."},
+	"wrapped_grip": {"name": "Wrapped Grip", "slots": 2, "speed": 0.95, "desc": "2 slots. A touch slower."},
+	"long_grip": {"name": "Long Grip", "slots": 3, "speed": 0.88, "desc": "3 slots. Slower swings."},
+	"ringed_grip": {"name": "Ringed Grip", "slots": 2, "speed": 0.95, "built_in": "wider",
+		"desc": "2 slots. Special: a band in the pommel makes every rune a bit bigger."},
+	"gilded_grip": {"name": "Gilded Grip", "slots": 2, "speed": 0.95, "locked": true,
+		"desc": "Special: its top slot is an odd slot. Not designed yet."},
 }
-const GRIP_ORDER := ["short_grip", "wrapped_grip", "long_grip"]
+const GRIP_ORDER := ["wooden_grip", "wrapped_grip", "long_grip", "ringed_grip", "gilded_grip"]
 
 ## Runes do something on their own; bands change the next rune above them.
 const FITTINGS := {
-	"shockwave": {"kind": "rune", "name": "Shockwave", "trigger": "finisher", "color": Color(1.0, 0.72, 0.25),
+	"shockwave": {"kind": "rune", "name": "Shockwave", "trigger": "finisher", "color": Color("#ffb24a"),
 		"desc": "Your finisher sends a rolling wave forward."},
-	"hook": {"kind": "rune", "name": "Hook", "trigger": "finisher", "color": Color(0.95, 0.45, 0.3),
+	"hook": {"kind": "rune", "name": "Hook", "trigger": "finisher", "color": Color("#ff9a3c"),
 		"desc": "Your finisher yanks nearby enemies in on chains."},
-	"cleave": {"kind": "rune", "name": "Cleave", "trigger": "hit", "color": Color(1.0, 0.9, 0.55),
+	"cleave": {"kind": "rune", "name": "Cleave", "trigger": "hit", "color": Color("#9fc8ff"),
 		"desc": "Every hit also strikes an enemy behind the target."},
-	"second_wind": {"kind": "rune", "name": "Second Wind", "trigger": "kill", "color": Color(0.5, 1.0, 0.6),
+	"second_wind": {"kind": "rune", "name": "Second Wind", "trigger": "kill", "color": Color("#8ff0c0"),
 		"desc": "Every kill refills a dodge charge (up to 2)."},
-	"twice": {"kind": "band", "name": "Twice", "color": Color(0.45, 0.95, 0.9),
+	"twice": {"kind": "band", "name": "Twice", "color": Color("#6fd6cb"),
 		"desc": "The rune above happens twice."},
-	"wider": {"kind": "band", "name": "Wider", "color": Color(0.55, 0.75, 1.0),
+	"wider": {"kind": "band", "name": "Wider", "color": Color("#6fd6cb"),
 		"desc": "The rune above is bigger."},
 }
 const FITTING_ORDER := ["shockwave", "hook", "cleave", "second_wind", "twice", "wider"]
 
 ## The test swords from the 3 November notes, bottom to top.
 const TEST_SWORDS := {
-	"A": {"blade": "iron_longblade", "grip": "wrapped_grip", "line": ["twice", "shockwave", "wider", "hook"]},
-	"B": {"blade": "iron_longblade", "grip": "wrapped_grip", "line": ["shockwave", "twice", "wider", "hook"]},
+	"A": {"blade": "iron_blade", "grip": "wrapped_grip", "line": ["twice", "shockwave", "wider", "hook"]},
+	"B": {"blade": "iron_blade", "grip": "wrapped_grip", "line": ["shockwave", "twice", "wider", "hook"]},
 }
 
-var blade := "wooden_blade"
-var grip := "short_grip"
+var blade := "iron_shortblade"
+var grip := "wooden_grip"
 ## Slot contents bottom to top: grip slots first, then blade slots. "" is empty.
 var line: Array = [""]
 
@@ -178,6 +175,9 @@ func compute() -> Dictionary:
 	for m in b["chain"]:
 		steps.append({"move": m, "from": b["name"]})
 	var r := resolve(line)
+	if g.get("built_in", "") == "wider":
+		for e in r["effects"]:
+			e["size"] = float(e["size"]) * 1.3
 	var element: String = b["element"]
 	var hit_color := Color.WHITE
 	if element != "":

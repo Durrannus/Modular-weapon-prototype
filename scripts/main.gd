@@ -71,6 +71,7 @@ func _ready() -> void:
 	build_menu = BuildMenuScript.new()
 	add_child(build_menu)
 	build_menu.setup(build)
+	build_menu.try_at_dummy.connect(_on_try_at_dummy)
 
 
 func _on_build_changed() -> void:
@@ -120,9 +121,18 @@ func _spawn_enemy() -> void:
 	e.died.connect(_on_enemy_died)
 
 
-func _on_enemy_died(_enemy) -> void:
+## "Try at the dummy" in the forge: stand next to the dummy, facing it.
+func _on_try_at_dummy() -> void:
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if e.kind == "dummy":
+			player.global_position = e.global_position + Vector2(-110, 0)
+			player.aim_dir = Vector2.RIGHT
+			player.camera.reset_smoothing()
+
+
+func _on_enemy_died(enemy) -> void:
 	kills += 1
-	player.on_kill()
+	player.on_kill(enemy.global_position)
 
 
 func _make_walls() -> void:

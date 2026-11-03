@@ -11,6 +11,7 @@ const SwingBuild := preload("res://scripts/weapon/swing_build.gd")
 const SwordArt := preload("res://scripts/weapon/sword_art.gd")
 const RuneFx := preload("res://scripts/fx/rune_fx.gd")
 const Sfx := preload("res://scripts/sfx.gd")
+const SpriteOnce := preload("res://scripts/fx/sprite_once.gd")
 
 const MOVE_SPEED := 250.0
 const RADIUS := 16.0
@@ -73,6 +74,8 @@ const MAX_DODGES_WIND := 2    # Second Wind can top dodges up past the normal 1
 var game_time := 0.0
 var rune_queue: Array = []    # [{at, effect, size, power, hits}]
 var slot_flash := {}          # slot index -> game_time it last fired
+var last_kill_pos := Vector2.ZERO
+var sweep_flash := {}         # slot index -> game_time the swing passes it
 
 ## Where the body sprite's feet sit, relative to the player's centre.
 const FEET := Vector2(0, 14)
@@ -128,6 +131,7 @@ func set_weapon(stats: Dictionary) -> void:
 	weapon = stats
 	rune_queue.clear()
 	slot_flash.clear()
+	sweep_flash.clear()
 	_reset_combo()
 
 
@@ -254,6 +258,9 @@ func _start_step() -> void:
 	queued = false
 	anim_move = move
 	anim_dir = aim_dir
+	# The swing travels up the sword: each slot lights for a moment, grip to tip.
+	for i in weapon.get("line", []).size():
+		sweep_flash[i] = game_time + float(i) * 0.04
 	if info.has("dash"):
 		lunge_dir = aim_dir
 		lunge_timer = hit_time
@@ -374,7 +381,8 @@ func _run_rune_queue() -> void:
 
 
 ## Called by main whenever an enemy dies.
-func on_kill() -> void:
+func on_kill(where: Vector2 = Vector2.INF) -> void:
+	last_kill_pos = where if where != Vector2.INF else global_position
 	_trigger("kill", [])
 
 
@@ -383,6 +391,10 @@ func _flash_effect(effect: int) -> void:
 	slot_flash[int(e["slot"])] = game_time
 	for s in e["band_slots"]:
 		slot_flash[int(s)] = game_time
+		var spark := _strip("band_spark", _slot_world(int(s)))
+		if spark != null:
+			spark.follow = self
+			spark.follow_offset = spark.global_position - global_position
 
 
 func _fire_rune(q: Dictionary) -> void:
@@ -408,6 +420,7 @@ func _fire_rune(q: Dictionary) -> void:
 			w.knock = 380.0 * size
 			_fx_root().add_child(w)
 			w.global_position = global_position + aim_dir * 30.0
+			_strip("shockwave_burst", global_position + aim_dir * 40.0, 0.0, size)
 			shake = maxf(shake, 9.0 * size)
 			Sfx.play(self, "shockwave", -2.0, 1.0 / sqrt(size))
 		"hook":
@@ -419,6 +432,7 @@ func _fire_rune(q: Dictionary) -> void:
 			ring.life = 0.3
 			_fx_root().add_child(ring)
 			ring.global_position = global_position
+			var tip := _tip_world()
 			for e in get_tree().get_nodes_in_group("enemies"):
 				if not is_instance_valid(e) or e.dead:
 					continue
@@ -433,13 +447,20 @@ func _fire_rune(q: Dictionary) -> void:
 				var chain := RuneFx.new()
 				chain.kind = "chain"
 				chain.from_node = self
+				chain.from_offset = tip - global_position
 				chain.to_node = e
 				chain.color = col
-				chain.life = 0.35
+				chain.life = 0.4
 				_fx_root().add_child(chain)
+				_strip("hook_snag", e.global_position)
+				var yank := _strip("hook_yank", e.global_position, (rel / d).angle())
+				if yank != null:
+					yank.follow = e
+					yank.life = 0.35
 			Sfx.play(self, "hook", -4.0)
 		"cleave":
 			var hits: Array = q["hits"]
+			_strip("cleave_arc", global_position + aim_dir * 12.0, aim_dir.angle(), size)
 			for h in hits:
 				if not is_instance_valid(h):
 					continue
@@ -458,31 +479,18 @@ func _fire_rune(q: Dictionary) -> void:
 				if best == null:
 					continue
 				best.take_hit(dmg * 0.8 * power, away, 220.0, false, col)
-				var mark := RuneFx.new()
-				mark.kind = "slash"
-				mark.color = col
-				mark.size = size
-				mark.life = 0.3
-				_fx_root().add_child(mark)
-				mark.global_position = best.global_position
-				var link := Fx.new()
-				link.kind = "line"
-				link.dir = (best.global_position - h.global_position).normalized()
-				link.radius = h.global_position.distance_to(best.global_position)
-				link.color = col
-				link.life = 0.2
-				_fx_root().add_child(link)
-				link.global_position = h.global_position
+				_strip("cleave_echo", best.global_position, 0.0, size)
 			Sfx.play(self, "cleave", -6.0)
 		"second_wind":
 			dodge_charges = mini(dodge_charges + int(power), MAX_DODGES_WIND)
-			var pulse := RuneFx.new()
-			pulse.kind = "pulse"
-			pulse.color = col
-			pulse.size = size
-			pulse.life = 0.4
-			_fx_root().add_child(pulse)
-			pulse.global_position = global_position
+			var wisp := _strip("wind_wisp", last_kill_pos)
+			if wisp != null:
+				wisp.life = 0.35
+				wisp.velocity = (global_position - last_kill_pos) / 0.35
+			var swirl := _strip("wind_swirl", global_position + FEET, 0.0, size)
+			if swirl != null:
+				swirl.follow = self
+				swirl.follow_offset = FEET
 			_label("+DODGE", col)
 			if size > 1.0:
 				for e in get_tree().get_nodes_in_group("enemies"):
@@ -492,6 +500,26 @@ func _fire_rune(q: Dictionary) -> void:
 	# Name what fired above the player, so it's obvious which rune did what.
 	if id != "second_wind":
 		_label(str(SwingBuild.FITTINGS[id]["name"]).to_upper() + ("!" if power <= 1.0 else " x%d!" % int(power)), col)
+
+
+## Plays one of the art's effect strips (art/swing/fx/) at a world position.
+func _strip(name: String, where: Vector2, angle := 0.0, size := 1.0) -> Node2D:
+	var info: Dictionary = SwordArt.data().get("fx", {}).get(name, {})
+	var tex := Art.texture("swing/fx/%s.png" % name)
+	if tex == null or info.is_empty():
+		return null
+	var n := SpriteOnce.new()
+	n.texture = tex
+	n.frames = int(info.get("frames", 1))
+	n.fps = float(info.get("fps", 12))
+	var o: Array = info.get("origin", [0, 0])
+	n.origin = Vector2(o[0], o[1])
+	n.angle = angle
+	n.size = size
+	n.additive = true
+	_fx_root().add_child(n)
+	n.global_position = where
+	return n
 
 
 ## Rune effects go on their own layer above the lighting, so they stay bright.
@@ -728,19 +756,50 @@ func _draw_weapon() -> void:
 	var hand := _hand_point() + d * float(pose[1])
 	# Art space: x right, y down, tip at the top. Rotate so "up" points along d.
 	weapon_layer.draw_set_transform(hand, angle + PI * 0.5, Vector2(Art.PIXEL, Art.PIXEL))
-	var c := HAND_CELL
+	var blade: String = weapon["blade"]
 	var grip: String = weapon["grip"]
-	var lit := {}
-	for s in slot_flash:
-		var k := 1.0 - (game_time - float(slot_flash[s])) / 0.45
-		if k > 0.0:
-			lit[s] = k
-	SwordArt.draw(weapon_layer, weapon["blade"], grip, weapon["line"], weapon["slot_info"], c, false, lit, -SwordArt.pivot(grip) * c)
+	SwordArt.draw(weapon_layer, blade, grip, weapon["line"], "hand", _slot_glow(), -SwordArt.pivot(blade, grip, "hand"))
 	# The fist goes on the grip, on top of the sword.
 	var fist := Art.texture("body/hand.png")
 	if fist != null:
 		weapon_layer.draw_texture(fist, -fist.get_size() * 0.5)
 	weapon_layer.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+
+
+## How lit each slot is: a rune firing (and its bands), or the swing passing up the sword.
+func _slot_glow() -> Dictionary:
+	var lit := {}
+	for s in slot_flash:
+		var since := game_time - float(slot_flash[s])
+		if since >= 0.0 and since < 0.45:
+			lit[s] = 1.0 - since / 0.45
+	for s in sweep_flash:
+		var since := game_time - float(sweep_flash[s])
+		if since >= 0.0 and since < 0.1:
+			lit[s] = maxf(float(lit.get(s, 0.0)), 1.0)
+	return lit
+
+
+## A slot's position in the world, following the sword in hand.
+func _slot_world(i: int) -> Vector2:
+	var pose := _sword_pose()
+	var angle: float = pose[0]
+	var d := Vector2.RIGHT.rotated(angle)
+	var hand := _hand_point() + d * float(pose[1])
+	var blade: String = weapon["blade"]
+	var grip: String = weapon["grip"]
+	var local := (SwordArt.slot_center(blade, grip, "hand", i) - SwordArt.pivot(blade, grip, "hand")) * Art.PIXEL
+	return global_position + hand + local.rotated(angle + PI * 0.5)
+
+
+## The sword's tip in the world.
+func _tip_world() -> Vector2:
+	var pose := _sword_pose()
+	var d := Vector2.RIGHT.rotated(float(pose[0]))
+	var blade: String = weapon.get("blade", "iron_blade")
+	var grip: String = weapon.get("grip", "wooden_grip")
+	var length_px := SwordArt.pivot(blade, grip, "hand").y * Art.PIXEL
+	return global_position + _hand_point() + d * (float(pose[1]) + length_px)
 
 
 static func _layer_rank(t: int) -> int:

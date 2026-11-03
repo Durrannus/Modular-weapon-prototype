@@ -7,6 +7,8 @@ extends Node2D
 ##   "pulse"  Second Wind: a green ring bursting out from the player
 ##   "text"   floating label, like "+DODGE"
 
+const Art := preload("res://scripts/art.gd")
+
 var kind := "wave"
 var color := Color(1.0, 0.72, 0.25)
 var dir := Vector2.RIGHT
@@ -22,6 +24,7 @@ var knock := 380.0
 var _hit := {}
 # chain
 var from_node: Node2D
+var from_offset := Vector2.ZERO
 var to_node: Node2D
 
 
@@ -29,6 +32,10 @@ func _ready() -> void:
 	z_index = 20
 	if kind == "wave":
 		rotation = dir.angle()
+	if kind in ["wave", "chain"]:
+		var m := CanvasItemMaterial.new()
+		m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD if kind == "wave" else CanvasItemMaterial.BLEND_MODE_MIX
+		material = m
 
 
 func _physics_process(delta: float) -> void:
@@ -60,6 +67,28 @@ func _draw() -> void:
 	var k := t / life
 	var fade := 1.0 - k
 	match kind:
+		"wave" when Art.texture("swing/fx/shockwave_wave.png") != null:
+			var tex := Art.texture("swing/fx/shockwave_wave.png")
+			var frame := mini(int(k * 6.0), 5)
+			Art.draw_strip(self, tex, 6, frame, Vector2.ZERO, Vector2(0, 32), false, Color(1, 1, 1, minf(fade * 2.0, 1.0)), Art.PIXEL * size)
+		"chain" when Art.texture("swing/fx/chain_link.png") != null:
+			if not is_instance_valid(from_node) or not is_instance_valid(to_node):
+				return
+			var a := from_node.global_position + from_offset - global_position
+			var b := to_node.global_position - global_position
+			# The chain shoots out over the first 0.08 s, then holds as the enemy is yanked in.
+			var reach := clampf(t / 0.08, 0.0, 1.0)
+			var end := a.lerp(b, reach)
+			var link := Art.texture("swing/fx/chain_link.png")
+			var step := 5.0 * Art.PIXEL
+			var n := int(a.distance_to(end) / step)
+			var ang := (b - a).angle()
+			for i in n + 1:
+				var p := a + (end - a).normalized() * step * i
+				Art.draw_strip(self, link, 2, i % 2, p, Vector2(3, 2), false, Color(1, 1, 1, fade * 1.5), Art.PIXEL, ang)
+			var head := Art.texture("swing/fx/hook_head_bite.png" if reach >= 1.0 else "swing/fx/hook_head.png")
+			if head != null:
+				Art.draw_strip(self, head, 1, 0, end, Vector2(2, 1), false, Color(1, 1, 1, fade * 1.5), Art.PIXEL, ang)
 		"wave":
 			# A thick glowing crescent, white-hot at the front edge, with a trail.
 			var w := half_width * size
@@ -75,7 +104,7 @@ func _draw() -> void:
 			var c := color
 			c.a = fade
 			draw_arc(Vector2.ZERO, r, 0.0, TAU, 64, c, 6.0 * fade + 2.0)
-			c.a = fade * 0.15
+			c.a = fade * 0.06
 			draw_circle(Vector2.ZERO, r, c)
 		"chain":
 			if not is_instance_valid(from_node) or not is_instance_valid(to_node):
