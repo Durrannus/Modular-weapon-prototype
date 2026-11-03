@@ -8,7 +8,8 @@ const PartLibrary := preload("res://scripts/parts/part_library.gd")
 const PlayerScript := preload("res://scripts/player.gd")
 const EnemyScript := preload("res://scripts/enemy.gd")
 const HudScript := preload("res://scripts/ui/hud.gd")
-const BuildMenuScript := preload("res://scripts/ui/build_menu.gd")
+const BuildMenuScript := preload("res://scripts/ui/swing_forge.gd")
+const SwingBuild := preload("res://scripts/weapon/swing_build.gd")
 const Art := preload("res://scripts/art.gd")
 
 const ARENA := Rect2(0, 0, 1792, 1088)  # 56 x 34 tiles
@@ -23,7 +24,7 @@ var world: Node2D
 var player
 var hud
 var build_menu
-var build: WeaponBuild
+var build: SwingBuild
 var parts: Array = []
 var spawn_timer := 1.0
 var spawning := true
@@ -39,7 +40,14 @@ func _ready() -> void:
 	_make_walls()
 	_make_props()
 
+	# Rune effects draw on this layer, which follows the camera but isn't darkened.
+	var fx_layer := CanvasLayer.new()
+	fx_layer.layer = 1
+	fx_layer.follow_viewport_enabled = true
+	add_child(fx_layer)
+
 	player = PlayerScript.new()
+	player.fx_parent = fx_layer
 	player.position = ARENA.get_center()
 	world.add_child(player)
 	player.set_camera_limits(ARENA)
@@ -49,24 +57,20 @@ func _ready() -> void:
 	dummy.position = ARENA.get_center() + Vector2(220, -40)
 	world.add_child(dummy)
 
-	# Weapon: starts as the plain wooden sword (slash, slash, slash).
-	parts = PartLibrary.load_all()
-	build = WeaponBuild.new()
-	for start in [["wooden_blade", Vector2i(1, 0)], ["wooden_hilt", Vector2i(0, 3)],
-			["wooden_handle", Vector2i(1, 4)], ["wooden_pommel", Vector2i(1, 6)]]:
-		var part := PartLibrary.find(parts, start[0])
-		if part != null:
-			build.place(part, start[1], 0)
+	# Weapon: starts as test sword A from the swing path notes.
+	build = SwingBuild.new()
+	build.load_test("A")
 	build.changed.connect(_on_build_changed)
 	_on_build_changed()
 
 	hud = HudScript.new()
 	add_child(hud)
 	hud.player = player
+	hud.pause_pressed.connect(func(): spawning = not spawning)
 
 	build_menu = BuildMenuScript.new()
 	add_child(build_menu)
-	build_menu.setup(build, parts)
+	build_menu.setup(build)
 
 
 func _on_build_changed() -> void:
@@ -118,6 +122,7 @@ func _spawn_enemy() -> void:
 
 func _on_enemy_died(_enemy) -> void:
 	kills += 1
+	player.on_kill()
 
 
 func _make_walls() -> void:
@@ -145,7 +150,7 @@ func _make_props() -> void:
 	# Forge-lit look: darken everything, then warm lights on torches and the bench.
 	if Art.texture("tiles/floor.png") != null:
 		var dark := CanvasModulate.new()
-		dark.color = Color(0.7, 0.72, 0.88)
+		dark.color = Color(0.78, 0.79, 0.92)
 		add_child(dark)
 	var bench_pos := ARENA.position + (Vector2(FORGE_TILES.get_center()) + Vector2(0, 0.5)) * TILE
 	_add_prop("props/forge_bench.png", bench_pos, Vector2(23, 30))

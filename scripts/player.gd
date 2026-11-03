@@ -7,6 +7,10 @@ const WeaponBuild := preload("res://scripts/weapon/weapon_build.gd")
 
 const Fx := preload("res://scripts/fx/fx.gd")
 const Art := preload("res://scripts/art.gd")
+const SwingBuild := preload("res://scripts/weapon/swing_build.gd")
+const SwordArt := preload("res://scripts/weapon/sword_art.gd")
+const RuneFx := preload("res://scripts/fx/rune_fx.gd")
+const Sfx := preload("res://scripts/sfx.gd")
 
 const MOVE_SPEED := 250.0
 const RADIUS := 16.0
@@ -63,6 +67,13 @@ var weapon_layer: Node2D
 var weapon_group: CanvasGroup  # holds the sword so it gets one outline
 var anim_time := 0.0
 
+# Swing path runes
+const REPEAT_GAP := 0.16      # Twice: the second go comes this long after the first
+const MAX_DODGES_WIND := 2    # Second Wind can top dodges up past the normal 1
+var game_time := 0.0
+var rune_queue: Array = []    # [{at, effect, size, power, hits}]
+var slot_flash := {}          # slot index -> game_time it last fired
+
 ## Where the body sprite's feet sit, relative to the player's centre.
 const FEET := Vector2(0, 14)
 const OUTLINE_SHADER := preload("res://shaders/outline.gdshader")
@@ -115,6 +126,8 @@ func set_camera_limits(rect: Rect2) -> void:
 
 func set_weapon(stats: Dictionary) -> void:
 	weapon = stats
+	rune_queue.clear()
+	slot_flash.clear()
 	_reset_combo()
 
 
@@ -138,6 +151,8 @@ func _input(event: InputEvent) -> void:
 
 func _physics_process(delta: float) -> void:
 	invuln = maxf(invuln - delta, 0.0)
+	game_time += delta
+	_run_rune_queue()
 
 	var move := Input.get_vector("move_left", "move_right", "move_up", "move_down")
 	_update_aim(move)
@@ -184,6 +199,7 @@ func _update_dodge(delta: float, move: Vector2) -> void:
 			dodge_charges += 1
 	if Input.is_action_just_pressed("dash") and dodge_charges > 0 and dodge_timer <= 0.0:
 		dodge_charges -= 1
+		dodge_refill = 0.0
 		dodge_dir = move.normalized() if move.length() > 0.1 else aim_dir
 		dodge_timer = DODGE_TIME
 		invuln = maxf(invuln, DODGE_TIME + 0.06)
@@ -264,6 +280,7 @@ func _do_move(move: String) -> void:
 	var knock: float = info["knock"]
 	var dir := aim_dir
 	var hits := 0
+	var hit_list: Array = []
 
 	for e in get_tree().get_nodes_in_group("enemies"):
 		if not is_instance_valid(e) or e.dead:
@@ -286,6 +303,7 @@ func _do_move(move: String) -> void:
 		if hit:
 			_hit_enemy(e, dmg, kdir, knock)
 			hits += 1
+			hit_list.append(e)
 
 	var fx := Fx.new()
 	fx.kind = str(info["shape"])
@@ -295,11 +313,22 @@ func _do_move(move: String) -> void:
 	fx.width = float(info.get("width", 16.0)) * area
 	fx.color = weapon.get("hit_color", Color.WHITE)
 	fx.thick = move == "overhead"
-	add_child(fx)
+	_fx_root().add_child(fx)
+	fx.global_position = global_position
 
-	if hits > 0:
+	Sfx.play(self, "swing", -14.0)
+	var finisher := current_step == _steps().size() - 1 and _steps().size() > 1
+	if finisher:
+		# The finisher always lands loud: a freeze-frame, screen shake and a thump.
+		shake = maxf(shake, 12.0)
+		Sfx.play(self, "finisher", -4.0)
+		_hitstop(0.09)
+		_trigger("finisher", hit_list)
+	elif hits > 0:
 		shake = maxf(shake, float(info.get("shake", 4.0)) + hits)
 		_hitstop(0.07 if move == "overhead" else 0.035)
+	if hits > 0:
+		_trigger("hit", hit_list)
 
 
 func _hit_enemy(e, dmg: float, kdir: Vector2, knock: float) -> void:
@@ -307,6 +336,179 @@ func _hit_enemy(e, dmg: float, kdir: Vector2, knock: float) -> void:
 	var final := dmg * (float(weapon.get("crit_damage", 1.5)) if crit else 1.0)
 	e.take_hit(final, kdir, knock, crit, weapon.get("hit_color", Color.WHITE))
 	_apply_elements(e, final)
+
+
+# --- Swing path runes -----------------------------------------------------------
+# A rune fires on its trigger (finisher, hit, kill). Twice queues repeats a beat
+# apart. Identical runes firing at the same moment merge into one bigger effect.
+
+func _trigger(trigger: String, hits: Array) -> void:
+	var effects: Array = weapon.get("effects", [])
+	for i in effects.size():
+		var e: Dictionary = effects[i]
+		if e["trigger"] != trigger:
+			continue
+		for n in int(e["count"]):
+			_queue_rune(i, game_time + n * REPEAT_GAP, float(e["size"]), hits)
+
+
+func _queue_rune(effect: int, at: float, size: float, hits: Array) -> void:
+	var id: String = weapon["effects"][effect]["id"]
+	for q in rune_queue:
+		if q["effect"] != effect and weapon["effects"][q["effect"]]["id"] == id and absf(float(q["at"]) - at) < 0.03:
+			q["size"] = maxf(float(q["size"]), size) * 1.3
+			q["power"] = float(q["power"]) + 1.0
+			q["merged"].append(effect)
+			return
+	rune_queue.append({"at": at, "effect": effect, "size": size, "power": 1.0, "hits": hits.duplicate(), "merged": []})
+
+
+func _run_rune_queue() -> void:
+	var due: Array = []
+	for q in rune_queue:
+		if float(q["at"]) <= game_time:
+			due.append(q)
+	for q in due:
+		rune_queue.erase(q)
+		_fire_rune(q)
+
+
+## Called by main whenever an enemy dies.
+func on_kill() -> void:
+	_trigger("kill", [])
+
+
+func _flash_effect(effect: int) -> void:
+	var e: Dictionary = weapon["effects"][effect]
+	slot_flash[int(e["slot"])] = game_time
+	for s in e["band_slots"]:
+		slot_flash[int(s)] = game_time
+
+
+func _fire_rune(q: Dictionary) -> void:
+	var effect: int = q["effect"]
+	if effect >= weapon.get("effects", []).size():
+		return
+	_flash_effect(effect)
+	for m in q["merged"]:
+		_flash_effect(m)
+	var id: String = weapon["effects"][effect]["id"]
+	var size: float = q["size"]
+	var power: float = q["power"]
+	var col: Color = SwingBuild.FITTINGS[id]["color"]
+	var dmg := float(weapon.get("damage", 8.0))
+	match id:
+		"shockwave":
+			var w := RuneFx.new()
+			w.kind = "wave"
+			w.dir = aim_dir
+			w.size = size
+			w.color = col
+			w.damage = dmg * 1.1 * power
+			w.knock = 380.0 * size
+			_fx_root().add_child(w)
+			w.global_position = global_position + aim_dir * 30.0
+			shake = maxf(shake, 9.0 * size)
+			Sfx.play(self, "shockwave", -2.0, 1.0 / sqrt(size))
+		"hook":
+			var reach := 260.0 * size
+			var ring := RuneFx.new()
+			ring.kind = "ring"
+			ring.size = reach
+			ring.color = col
+			ring.life = 0.3
+			_fx_root().add_child(ring)
+			ring.global_position = global_position
+			for e in get_tree().get_nodes_in_group("enemies"):
+				if not is_instance_valid(e) or e.dead:
+					continue
+				var rel: Vector2 = global_position - e.global_position
+				var d := rel.length()
+				if d > reach + e.radius or d < 40.0:
+					continue
+				var pull := sqrt(2.0 * 1300.0 * maxf(d - 45.0, 0.0))
+				e.take_hit(dmg * 0.3 * power, rel / d, 0.0, false, col)
+				e.knock = rel / d * pull * e.knock_resist
+				e.apply_stun(0.35)
+				var chain := RuneFx.new()
+				chain.kind = "chain"
+				chain.from_node = self
+				chain.to_node = e
+				chain.color = col
+				chain.life = 0.35
+				_fx_root().add_child(chain)
+			Sfx.play(self, "hook", -4.0)
+		"cleave":
+			var hits: Array = q["hits"]
+			for h in hits:
+				if not is_instance_valid(h):
+					continue
+				var away: Vector2 = (h.global_position - global_position).normalized()
+				var best = null
+				var best_d := 140.0 * size
+				for e in get_tree().get_nodes_in_group("enemies"):
+					if not is_instance_valid(e) or e.dead or e == h or e in hits:
+						continue
+					var rel: Vector2 = e.global_position - h.global_position
+					if rel.dot(away) < -10.0:
+						continue  # only enemies behind the target
+					if rel.length() < best_d:
+						best_d = rel.length()
+						best = e
+				if best == null:
+					continue
+				best.take_hit(dmg * 0.8 * power, away, 220.0, false, col)
+				var mark := RuneFx.new()
+				mark.kind = "slash"
+				mark.color = col
+				mark.size = size
+				mark.life = 0.3
+				_fx_root().add_child(mark)
+				mark.global_position = best.global_position
+				var link := Fx.new()
+				link.kind = "line"
+				link.dir = (best.global_position - h.global_position).normalized()
+				link.radius = h.global_position.distance_to(best.global_position)
+				link.color = col
+				link.life = 0.2
+				_fx_root().add_child(link)
+				link.global_position = h.global_position
+			Sfx.play(self, "cleave", -6.0)
+		"second_wind":
+			dodge_charges = mini(dodge_charges + int(power), MAX_DODGES_WIND)
+			var pulse := RuneFx.new()
+			pulse.kind = "pulse"
+			pulse.color = col
+			pulse.size = size
+			pulse.life = 0.4
+			_fx_root().add_child(pulse)
+			pulse.global_position = global_position
+			_label("+DODGE", col)
+			if size > 1.0:
+				for e in get_tree().get_nodes_in_group("enemies"):
+					if is_instance_valid(e) and not e.dead and e.global_position.distance_to(global_position) < 150.0 * size:
+						e.knock = (e.global_position - global_position).normalized() * 420.0 * e.knock_resist
+			Sfx.play(self, "second_wind", -4.0)
+	# Name what fired above the player, so it's obvious which rune did what.
+	if id != "second_wind":
+		_label(str(SwingBuild.FITTINGS[id]["name"]).to_upper() + ("!" if power <= 1.0 else " x%d!" % int(power)), col)
+
+
+## Rune effects go on their own layer above the lighting, so they stay bright.
+var fx_parent: Node = null
+
+func _fx_root() -> Node:
+	return fx_parent if is_instance_valid(fx_parent) else get_parent()
+
+
+func _label(text: String, col: Color) -> void:
+	var l := RuneFx.new()
+	l.kind = "text"
+	l.text = text
+	l.color = col
+	l.life = 0.7
+	_fx_root().add_child(l)
+	l.global_position = global_position + Vector2(randf_range(-20, 20), -70)
 
 
 # --- Elements ---------------------------------------------------------------
@@ -518,8 +720,7 @@ func _sword_pose() -> Array:
 
 
 func _draw_weapon() -> void:
-	var layout: Array = weapon.get("layout", [])
-	if layout.is_empty():
+	if not weapon.has("blade"):
 		return
 	var pose := _sword_pose()
 	var angle: float = pose[0]
@@ -528,20 +729,13 @@ func _draw_weapon() -> void:
 	# Art space: x right, y down, tip at the top. Rotate so "up" points along d.
 	weapon_layer.draw_set_transform(hand, angle + PI * 0.5, Vector2(Art.PIXEL, Art.PIXEL))
 	var c := HAND_CELL
-	var grip := HAND_GRIP * c
-	# Draw handle end first so the blade and guard sit on top.
-	var order := layout.duplicate()
-	order.sort_custom(func(a, b): return _layer_rank(a["type"]) < _layer_rank(b["type"]))
-	for item in order:
-		var cells: Array = item["cells"]
-		var tex := Art.part_hand(item["id"])
-		if tex != null and int(item.get("rotation", 0)) == 0:
-			var top_left := Vector2(cells[0])
-			for cell in cells:
-				top_left = top_left.min(Vector2(cell))
-			weapon_layer.draw_texture(tex, top_left * c - grip)
-			continue
-		_draw_part_shape(item, cells, c, grip)
+	var grip: String = weapon["grip"]
+	var lit := {}
+	for s in slot_flash:
+		var k := 1.0 - (game_time - float(slot_flash[s])) / 0.45
+		if k > 0.0:
+			lit[s] = k
+	SwordArt.draw(weapon_layer, weapon["blade"], grip, weapon["line"], weapon["slot_info"], c, false, lit, -SwordArt.pivot(grip) * c)
 	# The fist goes on the grip, on top of the sword.
 	var fist := Art.texture("body/hand.png")
 	if fist != null:

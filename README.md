@@ -4,6 +4,21 @@ A small Godot prototype that answers one question: **is building a sword from pa
 
 This is **milestone 2, "Real sprites"**, built on milestone 1 ("Sword v2 feels good"): one arena, single player, a sword built from four parts plus charms, three elements, three enemy types and a training dummy that shows damage per second. It's done when you can build three swords that play clearly differently, and the wooden sword feels plain next to them. Milestone 2 swaps the placeholder shapes for real pixel art: Ivy, the slimes, the dummy, a tiled arena with a forge corner and torches, and a sword that's assembled from whatever parts you put on the grid.
 
+## This branch: the swing path
+
+This branch tests the **swing path** (design notes, 3 November). It replaces the part grid; `main` still has the grid sword to compare against.
+
+- A sword is a **blade** plus a **grip**. The blade sets the basic three-hit chain (the last hit is the finisher). Grip and blade both have **slots**.
+- Slots hold **runes** (effects) or **bands** (modifiers). Read the sword as one line from the bottom of the grip to the tip: a band boosts the next rune above it, bands in a row stack, and a band with nothing above it does nothing.
+- Runes: **Shockwave** (finisher: a rolling wave), **Hook** (finisher: chains yank enemies in), **Cleave** (every hit also strikes an enemy behind), **Second Wind** (kills refill a dodge, up to 2).
+- Bands: **Twice** (the rune happens twice, a beat apart) and **Wider** (bigger).
+- Effects are deliberately loud: each rune has its own visual, sound and name pop-up, the slots flash on the sword and in the HUD when they fire, and the finisher gets a freeze-frame and screen shake. Identical runes firing together merge into one bigger effect.
+- **Order test:** the forge has Test sword A (Twice, Shockwave, Wider, Hook: two shockwaves and a wide hook) and Test sword B (Shockwave, Twice, Wider, Hook: one shockwave and a double, wide hook). Keys 1 and 2 switch between them.
+- **Pause enemies:** the button at the top right, or P / Start.
+- Elemental blades are parked for now. Sounds are placeholders made in code (`scripts/sfx.gd`).
+
+Code: `scripts/weapon/swing_build.gd` (blades, grips, fittings, the reading rule), `scripts/weapon/sword_art.gd` (draws the sword with its slots), `scripts/ui/swing_forge.gd` (the forge), `scripts/fx/rune_fx.gd` (rune visuals), and the rune code in `scripts/player.gd`.
+
 ## How to run it
 
 1. Install [Godot 4.7](https://godotengine.org/download) (the standard build, not .NET).
