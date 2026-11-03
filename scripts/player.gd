@@ -314,24 +314,26 @@ func _do_move(move: String) -> void:
 	var hits := 0
 	var hit_list: Array = []
 
+	# Hits follow the drawn sword: every enemy the blade passes over during the
+	# sweep is hit, so reach is the blade's real length.
+	var segs := _blade_sweep()
+	if not segs.is_empty():
+		var tip_len: float = (segs[0][1] - segs[0][0]).length()
+		reach = tip_len + ARM
 	for e in get_tree().get_nodes_in_group("enemies"):
 		if not is_instance_valid(e) or e.dead:
 			continue
 		var rel: Vector2 = e.global_position - global_position
-		var r: float = e.radius
+		var r: float = e.radius + BLADE_HALF_WIDTH
 		var hit := false
+		for sg in segs:
+			var closest := Geometry2D.get_closest_point_to_segment(e.global_position, sg[0], sg[1])
+			if closest.distance_to(e.global_position) <= r:
+				hit = true
+				break
 		var kdir := rel.normalized() if rel.length() > 0.01 else dir
-		match str(info["shape"]):
-			"line":
-				var along := rel.dot(dir)
-				var side := absf(rel.dot(dir.orthogonal()))
-				hit = along > -r and along <= reach + r and side <= float(info["width"]) * area + r
-				kdir = dir
-			"circle":
-				hit = rel.length() <= reach + r
-			_:
-				var half_arc := deg_to_rad(float(info["arc"]) * 0.5 * (1.0 + (area - 1.0) * 0.5))
-				hit = rel.length() <= reach + r and (rel.length() < r + RADIUS or absf(dir.angle_to(rel)) <= half_arc)
+		if str(info["shape"]) == "line":
+			kdir = dir
 		if hit:
 			_hit_enemy(e, dmg, kdir, knock)
 			hits += 1
@@ -760,6 +762,33 @@ const HAND_GRIP := Vector2(1.5, 5.0)        # where the hand holds it, in grid c
 ## The sword's pose: [angle, hand position relative to the player's centre].
 func _sword_pose() -> Array:
 	return [pose_angle, pose_hand]
+
+
+const BLADE_HALF_WIDTH := 6.0   # a little forgiveness either side of the blade
+
+
+## The blade's positions over the whole sweep, as world segments [hand end, tip].
+func _blade_sweep() -> Array:
+	var out: Array = []
+	if not weapon.has("blade"):
+		return out
+	var blade: String = weapon["blade"]
+	var grip: String = weapon["grip"]
+	var length_px := SwordArt.pivot(blade, grip, "hand").y * Art.PIXEL
+	var guard_px := (SwordArt.pivot(blade, grip, "hand").y - SwordArt.blade_size(blade, "hand").y) * Art.PIXEL
+	var info: Dictionary = MOVES.get(anim_move, MOVES["slash"])
+	var hit_at := float(info["windup"]) / _speed()
+	var now := step_elapsed
+	var te := maxf(hit_at - 0.035, 0.0)
+	while te <= hit_at + 0.065:
+		step_elapsed = te
+		var p := _attack_pose()
+		var d := Vector2.RIGHT.rotated(float(p[0]))
+		var hand: Vector2 = global_position + p[1]
+		out.append([hand + d * guard_px * 0.5, hand + d * length_px])
+		te += 0.005
+	step_elapsed = now
+	return out
 
 
 ## The swing curve for each move, as angles relative to the swing direction.
