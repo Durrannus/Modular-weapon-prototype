@@ -1,0 +1,104 @@
+{
+ "base_resolution": [
+  640,
+  360
+ ],
+ "strips": {
+  "hearth": {
+   "frames": 8,
+   "frame": [
+    156,
+    240
+   ],
+   "fps": 10,
+   "origin": null,
+   "note": "loops; an opaque backdrop for the arch behind the sword"
+  },
+  "sparks": {
+   "frames": 6,
+   "frame": [
+    32,
+    32
+   ],
+   "fps": 20,
+   "origin": [
+    16,
+    16
+   ],
+   "note": "when a part goes into a slot, at the slot"
+  },
+  "hammer_strike": {
+   "frames": 8,
+   "frame": [
+    72,
+    64
+   ],
+   "fps": 18,
+   "origin": [
+    36,
+    60
+   ],
+   "note": "on the anvil face when a part goes in; plays sparks at the impact itself"
+  },
+  "steam": {
+   "frames": 10,
+   "frame": [
+    96,
+    96
+   ],
+   "fps": 12,
+   "origin": [
+    48,
+    92
+   ],
+   "note": "quench steam at the blade base when forging completes"
+  },
+  "forged_banner": {
+   "frames": 6,
+   "frame": [
+    132,
+    32
+   ],
+   "fps": 12,
+   "origin": [
+    66,
+    16
+   ],
+   "note": "stamps in over the sword, hold the last frame"
+  },
+  "heat_<blade id>": {
+   "frames": 8,
+   "fps": 10,
+   "frame": "the blade's forge size",
+   "origin": [
+    0,
+    0
+   ],
+   "note": "draw exactly over the blade's forge image: white-hot cooling through orange and red to steel, tip first. Sockets stay clear."
+  },
+  "shine_<blade id>": {
+   "frames": 8,
+   "fps": 16,
+   "frame": "the blade's forge size",
+   "origin": [
+    0,
+    0
+   ],
+   "note": "a glint sweeping from the guard up to the tip, ending in a star; play after the heat strip"
+  }
+ },
+ "heat_halo.png": {
+  "size": [
+   120,
+   300
+  ],
+  "note": "soft warm glow behind the sword while forging; centre it on the sword, slightly above the guard, and pulse its alpha"
+ },
+ "forge_complete_sequence": [
+  "0.00 s: hammer_strike on the anvil (or skip it if a part strike just played)",
+  "0.10 s: heat_<blade> over the blade (8 frames at 10 fps) and steam from the base of the blade (10 frames at 12 fps)",
+  "0.20 s: forged_banner over the sword top (6 frames, hold the last), light screen shake 2 px",
+  "0.90 s: shine_<blade> (8 frames at 16 fps)",
+  "then fade the banner out"
+ ]
+}

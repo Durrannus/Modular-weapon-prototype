@@ -36,10 +36,41 @@ static func frame_size(blade: String, grip: String, scale: String) -> Vector2:
 	return Vector2(15.0 * _k(scale), blade_size(blade, scale).y + float(g[1]))
 
 
-## Where the hand holds the sword, in frame pixels.
+# The grip art runs guard, socket collar, hold, pommel (top to bottom). That put
+# the hand at the far end, under the runes, so the sword looked held by its end.
+# We draw it as guard, hold, socket collar, pommel instead: the hand sits right
+# under the guard and the grip's runes sit below the fist, near the pommel.
+const GUARD_ROWS := 3.0
+const HOLD_ROWS := 5.0
+const POMMEL_ROWS := 3.0
+
+
+static func _grip_height(grip: String, scale: String) -> float:
+	var g: Array = _part("grips", grip, scale).get("size", [15.0 * _k(scale), 19.0 * _k(scale)])
+	return float(g[1])
+
+
+## Where the hand holds the sword, in frame pixels: the middle of the hold.
 static func pivot(blade: String, grip: String, scale: String) -> Vector2:
-	var p: Array = _part("grips", grip, scale).get("pivot", [7.5, 13.5])
-	return grip_origin(blade, scale) + Vector2(p[0], p[1])
+	var k := _k(scale)
+	return grip_origin(blade, scale) + Vector2(7.5 * k, (GUARD_ROWS + HOLD_ROWS * 0.5) * k)
+
+
+## Draws the grip with its hold moved up under the guard (see above).
+static func _draw_grip(ci: CanvasItem, tex: Texture2D, pos: Vector2, scale: String, tint: Color) -> void:
+	var k := _k(scale)
+	var w := float(tex.get_width())
+	var h := float(tex.get_height())
+	var guard := GUARD_ROWS * k
+	var hold := HOLD_ROWS * k
+	var pommel := POMMEL_ROWS * k
+	var collar := h - guard - hold - pommel
+	if collar < 0.0:
+		ci.draw_texture(tex, pos, tint)
+		return
+	# [source y, height, destination y]
+	for seg in [[0.0, guard, 0.0], [guard + collar, hold, guard], [guard, collar, guard + hold], [h - pommel, pommel, h - pommel]]:
+		ci.draw_texture_rect_region(tex, Rect2(pos + Vector2(0, seg[2]), Vector2(w, seg[1])), Rect2(0, seg[0], w, seg[1]), tint)
 
 
 ## Slot i's rect (0 = bottom of the grip), in frame pixels.
@@ -50,7 +81,8 @@ static func slot_rect(blade: String, grip: String, scale: String, i: int) -> Rec
 	var off: Vector2
 	if i < grects.size():
 		r = grects[i]
-		off = grip_origin(blade, scale)
+		# grip sockets sit in the collar, which is drawn below the hold
+		off = grip_origin(blade, scale) + Vector2(0, HOLD_ROWS * _k(scale))
 	elif i - grects.size() < brects.size():
 		r = brects[i - grects.size()]
 		off = Vector2(4.0 * _k(scale), 0)
@@ -72,7 +104,7 @@ static func draw(ci: CanvasItem, blade: String, grip: String, line: Array, scale
 	if blade_tex != null:
 		ci.draw_texture(blade_tex, origin + Vector2(4.0 * _k(scale), 0), tint)
 	if grip_tex != null:
-		ci.draw_texture(grip_tex, origin + grip_origin(blade, scale), tint)
+		_draw_grip(ci, grip_tex, origin + grip_origin(blade, scale), scale, tint)
 	for i in line.size():
 		var id: String = line[i]
 		if id == "":

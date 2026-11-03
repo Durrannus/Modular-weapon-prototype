@@ -49,7 +49,8 @@ var sparks: Array = []
 var steam: Array = []
 var dirty := false         # changed since the forge opened
 var finishing := -1.0      # >= 0 while the "forged" finish plays
-const FINISH_TIME := 1.5
+const FINISH_TIME := 1.75
+var playing: Array = []   # forge fx strips: [name, pos, start time, normal-blend?]
 var sword_top := Vector2.ZERO
 var sword_size := Vector2.ZERO
 var heat_mask: Control     # draws the sword; its child is clipped to the sword's pixels
@@ -117,7 +118,9 @@ func _on_changed() -> void:
 	strike_at = sword_top + SwordArt.slot_center(build.blade, build.grip, "forge", i)
 	if sword_size == Vector2.ZERO:
 		strike_at = Vector2(CENTRE_X, 150)
-	for n in 26:
+	playing.append(["sparks", strike_at, t])
+	playing.append(["hammer_strike", Vector2(CENTRE_X, sword_bottom + 4), t])
+	for n in 12:
 		var a := randf_range(-PI, 0.0)
 		sparks.append([strike_at, Vector2(cos(a), sin(a)) * randf_range(40.0, 150.0), 0.0, randf_range(0.3, 0.7)])
 	Sfx.play(self, "anvil", -6.0, randf_range(0.95, 1.08))
@@ -138,6 +141,9 @@ func close() -> void:
 	if dirty and finishing < 0.0:
 		finishing = 0.0
 		Sfx.play(self, "forged", -4.0)
+		var bh := SwordArt.blade_size(build.blade, "forge").y
+		playing.append(["hammer_strike", Vector2(CENTRE_X, sword_bottom + 4), t])
+		playing.append(["steam", Vector2(CENTRE_X, sword_top.y + bh), t + 0.1])
 		for n in 30:
 			steam.append([sword_top + Vector2(randf_range(0, sword_size.x), randf_range(sword_size.y * 0.1, sword_size.y * 0.9)), Vector2(randf_range(-12, 12), randf_range(-40, -15)), 0.0, randf_range(0.6, 1.2)])
 		return
@@ -510,14 +516,23 @@ func _draw_sword(stats: Dictionary) -> void:
 	sword_size = size
 	# Backdrop: the hearth glows behind the sword, breathing, hotter after a strike.
 	root.draw_rect(Rect2(244, 30, 156, 262), Color(0.05, 0.055, 0.075))
+	var hearth_tex := Art.texture("swing/forge-fx/hearth.png")
+	if hearth_tex != null:
+		var hf := int(t * 10.0) % 8
+		root.draw_texture_rect_region(hearth_tex, Rect2(244, 52, 156, 240), Rect2(hf * 156, 0, 156, 240))
+	var halo := Art.texture("swing/forge-fx/heat_halo.png")
+	if halo != null:
+		var guard_y := top.y + SwordArt.grip_origin(blade, "forge").y
+		var ha := (0.45 + 0.35 * heat) * (0.85 + 0.15 * sin(t * 2.4))
+		root.draw_texture(halo, Vector2(CENTRE_X - 60, guard_y - 170).round(), Color(1, 1, 1, ha))
 	var breathe := 0.5 + 0.5 * sin(t * 2.2) * 0.6 + 0.2 * sin(t * 7.3)
 	var glow_c := Vector2(CENTRE_X, top.y + size.y * 0.45)
-	for i in 7:
+	for i in (0 if halo != null else 7):
 		var r := 30.0 + i * 13.0 + heat * 10.0
 		var c := Color(1.0, 0.45 + i * 0.03, 0.15, (0.05 + heat * 0.05) * breathe * (1.0 - i / 8.0))
 		root.draw_circle(glow_c, r, c)
 	var hearth := Rect2(250, 266, 144, 26)
-	for i in 6:
+	for i in (0 if hearth_tex != null else 6):
 		var c := Color(1.0, 0.35 + 0.08 * i, 0.08, 0.07 * breathe)
 		root.draw_rect(hearth.grow_individual(-i * 6, -i * 2, -i * 6, 0), c)
 	root.draw_rect(Rect2(244, 30, 156, 262), Color(0.12, 0.13, 0.17), false, 1.0)
@@ -527,11 +542,11 @@ func _draw_sword(stats: Dictionary) -> void:
 	SwordArt.draw(root, blade, grip, build.line, "forge", {}, top)
 	# Grip-to-tip arrow up the left.
 	var ax := 262.0
-	for y in range(int(sword_bottom - 30), int(top.y + 14), -4):
+	for y in range(int(sword_bottom - 12), int(top.y + 14), -4):
 		root.draw_rect(Rect2(ax, y, 1, 2), AMBER.darkened(0.3))
 	root.draw_colored_polygon(PackedVector2Array([Vector2(ax + 0.5, top.y + 6), Vector2(ax - 3.5, top.y + 12), Vector2(ax + 4.5, top.y + 12)]), AMBER)
 	_head("Tip", Vector2(ax - 10, top.y + 2), AMBER, 8, 22, HORIZONTAL_ALIGNMENT_CENTER)
-	_head("Grip", Vector2(ax - 12, sword_bottom - 18), AMBER, 8, 26, HORIZONTAL_ALIGNMENT_CENTER)
+	_head("Grip", Vector2(ax - 12, sword_bottom - 4), AMBER, 8, 26, HORIZONTAL_ALIGNMENT_CENTER)
 	# Slots: numbers on the left, clickable sockets, focus corners on the selected one.
 	var info: Dictionary = stats["slot_info"]
 	for i in build.line.size():
@@ -569,13 +584,14 @@ func _draw_sword(stats: Dictionary) -> void:
 	var g: Dictionary = SwingBuild.GRIPS[grip]
 	var bl: Dictionary = SwingBuild.BLADES[blade]
 	var lx := top.x + size.x + 6
-	_head(bl["name"], Vector2(lx, top.y + 50), INK)
-	_head("%d slot%s" % [bl["slots"], "" if bl["slots"] == 1 else "s"], Vector2(lx, top.y + 61), DIM)
+	if finishing < 0.0:  # the "Forged!" banner sits here while it plays
+		_head(bl["name"], Vector2(lx, top.y + 50), INK)
+		_head("%d slot%s" % [bl["slots"], "" if bl["slots"] == 1 else "s"], Vector2(lx, top.y + 61), DIM)
 	var gy := top.y + SwordArt.grip_origin(blade, "forge").y
-	_head(g["name"], Vector2(lx, gy + 60), INK)
+	_head(g["name"], Vector2(lx, gy + 14), INK)
 	var spd := float(stats["speed"])
 	var spd_word := "quick" if spd >= 1.03 else ("steady" if spd >= 0.94 else "slow")
-	_head("%d slot%s" % [g["slots"], "" if g["slots"] == 1 else "s"], Vector2(lx, gy + 71), DIM)
+	_head("%d slot%s" % [g["slots"], "" if g["slots"] == 1 else "s"], Vector2(lx, gy + 25), DIM)
 	_head("Test", Vector2(214, 311), DIM, 8, 56, HORIZONTAL_ALIGNMENT_CENTER)
 	for k in ["A", "B"]:
 		var tt: Dictionary = SwingBuild.TEST_SWORDS[k]
@@ -633,6 +649,8 @@ func _draw_heat_mask() -> void:
 ## and when it's finished, white-hot cooling to steel with a shine sweeping up.
 func _draw_heat_fill() -> void:
 	var r := Rect2(sword_top, sword_size)
+	if finishing >= 0.0 and Art.texture("swing/forge-fx/heat_%s.png" % build.blade) != null:
+		return  # the art's heat and shine strips take over (drawn on the banner layer)
 	if finishing >= 0.0:
 		var k := finishing / FINISH_TIME
 		var white := clampf(1.0 - k * 2.5, 0.0, 1.0)
@@ -652,7 +670,27 @@ func _draw_heat_fill() -> void:
 		heat_fill.draw_rect(r, Color(1, 0.9, 0.7, 0.6 * (1.0 - strike_t / 0.15)))
 
 
+## Draws one frame of a forge-fx strip, or nothing once it has finished.
+func _fx_strip(ci: CanvasItem, name: String, pos: Vector2, start: float, hold := false, alpha := 1.0) -> void:
+	var info: Dictionary = Art.json("swing/forge-fx/forge_fx.json").get("strips", {}).get(name, {})
+	var tex := Art.texture("swing/forge-fx/%s.png" % name)
+	if tex == null or info.is_empty() or t < start:
+		return
+	var frames := int(info["frames"])
+	var frame := int((t - start) * float(info["fps"]))
+	if frame >= frames:
+		if not hold:
+			return
+		frame = frames - 1
+	var o = info.get("origin")
+	var origin := Vector2.ZERO if o == null else Vector2(o[0], o[1])
+	Art.draw_strip(ci, tex, frames, frame, pos, origin, false, Color(1, 1, 1, alpha), 1.0)
+
+
 func _draw_fx() -> void:
+	for p in playing:
+		if p[0] == "sparks":
+			_fx_strip(fx_top, "sparks", p[1], p[2])
 	for p in embers:
 		var k: float = p[2] / p[3]
 		var c := Color(1.0, 0.55 + 0.3 * (1.0 - k), 0.2, (1.0 - k) * 0.9)
@@ -672,7 +710,33 @@ func _draw_fx() -> void:
 
 
 func _draw_banner() -> void:
+	# Hammer strikes and steam (normal blend).
+	var keep: Array = []
+	for p in playing:
+		if t - float(p[2]) < 1.5:
+			keep.append(p)
+		if p[0] != "sparks":
+			_fx_strip(banner, p[0], p[1], p[2])
+	playing = keep
 	if finishing < 0.0:
+		return
+	var heat_tex := Art.texture("swing/forge-fx/heat_%s.png" % build.blade)
+	var banner_tex := Art.texture("swing/forge-fx/forged_banner.png")
+	if heat_tex != null and banner_tex != null:
+		var start := t - finishing
+		var blade_pos := sword_top + Vector2(4.0 * 5.0, 0)
+		var bsize := SwordArt.blade_size(build.blade, "forge")
+		# Heat cools from white-hot to steel, then a glint sweeps up the blade.
+		var heat_k := (finishing - 0.1) * 10.0
+		if finishing >= 0.1 and heat_k < 8.0:
+			var hf := mini(int(heat_k), 7)
+			banner.draw_texture_rect_region(heat_tex, Rect2(blade_pos, bsize), Rect2(hf * bsize.x, 0, bsize.x, bsize.y))
+		var shine_tex := Art.texture("swing/forge-fx/shine_%s.png" % build.blade)
+		var shine_k := (finishing - 0.9) * 16.0
+		if shine_tex != null and finishing >= 0.9 and shine_k < 8.0:
+			banner.draw_texture_rect_region(shine_tex, Rect2(blade_pos, bsize), Rect2(mini(int(shine_k), 7) * bsize.x, 0, bsize.x, bsize.y))
+		var fade := clampf((FINISH_TIME - finishing) / 0.3, 0.0, 1.0)
+		_fx_strip(banner, "forged_banner", Vector2(CENTRE_X, sword_top.y + 40), start + 0.2, true, fade)
 		return
 	var k := finishing / FINISH_TIME
 	var a := clampf(k * 4.0, 0.0, 1.0) * clampf((1.0 - k) * 4.0, 0.0, 1.0)
