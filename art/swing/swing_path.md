@@ -31,7 +31,7 @@ The blade is 5 px of steel in a 7 px wide image (the band rings overhang it). It
 
 ### Grips: `grips/`
 
-Each grip image includes its guard (top), the socket collar, the hold (the wrapped part the hand covers) and the pommel (bottom).
+Each grip image runs, from top to bottom: the guard (3 rows), the hold where the hand goes (5 rows), the socket collar (4 rows per slot) and the pommel (3 rows). The hand sits right under the guard, and the grip slots are below it. (Changed on 3 Nov after Darren saw the sword held at the end.)
 
 | Id | Slots | Kind | Hand size |
 |---|---|---|---|
@@ -52,7 +52,7 @@ Work in a sword frame that is `15 * k` wide, with the tip at the top (k = 1 in h
 3. **Slots:** read them from the bottom up. First the grip's `slot_rects`, then the blade's, each offset by its part's position. JSON lists them bottom-up, so slot 1 is the first grip entry.
 4. **Rune:** put the stone's top-left on the slot rect's top-left. Stones are exactly socket-sized (3 or 15 px).
 5. **Band:** use `bands/<id>_<host>_<scale>.png`, where host is `blade` or `grip`. Centre it on the slot horizontally, and line its top up with the slot's top. Bands are 7 x 3 in hand (35 x 15 on the forge), the same size on a blade and a grip. They overhang the part by one pixel (5 on the forge) on each side, so they read as a ring around it.
-6. **Pivot (the hand):** the grip's `pivot` plus the grip's offset. In hand that's the middle of the hold. Rotate the sword round it with `rotation = aim_angle + PI / 2`, as before.
+6. **Pivot (the hand):** the grip's `pivot` plus the grip's offset. In hand it is at grip y 5.5 (27.5 on the forge), the middle of the hold just under the guard. Rotate the sword round it with `rotation = aim_angle + PI / 2`, as before.
 7. **Draw order and outline:**
    - Draw `body/hand.png` over the pivot.
    - Draw the sword behind the body when facing up.
