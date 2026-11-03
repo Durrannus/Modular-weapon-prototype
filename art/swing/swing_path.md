@@ -23,9 +23,11 @@ Every part comes at two scales:
 
 | Id | Slots | Hand size | Forge size |
 |---|---|---|---|
-| iron_shortblade | 1 | 7 x 15 | 35 x 75 |
-| iron_blade | 2 | 7 x 19 | 35 x 95 |
-| iron_longblade | 3 | 7 x 23 | 35 x 115 |
+| iron_shortblade | 1 | 7 x 29 | 35 x 145 |
+| iron_blade | 2 | 7 x 33 | 35 x 165 |
+| iron_longblade | 3 | 7 x 37 | 35 x 185 |
+
+The blade is 5 px of steel in a 7 px wide image (the band rings overhang it). It has a long taper and a fuller groove. The slots sit low, in a brass-edged rune plate just above the guard. (Redrawn longer on 3 Nov, after Darren found the first version stubby.)
 
 ### Grips: `grips/`
 
@@ -49,7 +51,7 @@ Work in a sword frame that is `15 * k` wide, with the tip at the top (k = 1 in h
 2. **Grip:** place it at `(0, blade height)`. The blade's bottom row then sits on the guard.
 3. **Slots:** read them from the bottom up. First the grip's `slot_rects`, then the blade's, each offset by its part's position. JSON lists them bottom-up, so slot 1 is the first grip entry.
 4. **Rune:** put the stone's top-left on the slot rect's top-left. Stones are exactly socket-sized (3 or 15 px).
-5. **Band:** use `bands/<id>_<host>_<scale>.png`, where host is `blade` or `grip`. Centre it on the slot horizontally, and line its top up with the slot's top. The band overhangs the part by one pixel (5 on the forge), so it reads as a ring around it.
+5. **Band:** use `bands/<id>_<host>_<scale>.png`, where host is `blade` or `grip`. Centre it on the slot horizontally, and line its top up with the slot's top. Bands are 7 x 3 in hand (35 x 15 on the forge), the same size on a blade and a grip. They overhang the part by one pixel (5 on the forge) on each side, so they read as a ring around it.
 6. **Pivot (the hand):** the grip's `pivot` plus the grip's offset. In hand that's the middle of the hold. Rotate the sword round it with `rotation = aim_angle + PI / 2`, as before.
 7. **Draw order and outline:**
    - Draw `body/hand.png` over the pivot.

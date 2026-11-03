@@ -40,6 +40,8 @@ static func _make(kind: String) -> AudioStreamWAV:
 		"finisher": length = 0.2
 		"swing": length = 0.09
 		"click": length = 0.05
+		"anvil": length = 0.45
+		"forged": length = 1.0
 	var n := int(RATE * length)
 	data.resize(n * 2)
 	var phase := 0.0
@@ -68,6 +70,15 @@ static func _make(kind: String) -> AudioStreamWAV:
 			"finisher":  # heavy thump
 				phase += TAU * lerpf(90.0, 45.0, k) / RATE
 				v = sin(phase) * 0.9 * pow(1.0 - k, 2.0)
+			"anvil":  # metal clang: two bright partials ringing out, with a hard hit
+				phase += TAU / RATE
+				var ring := sin(phase * 1250.0) * 0.5 + sin(phase * 1870.0) * 0.35 + sin(phase * 3020.0) * 0.15
+				noise = randf_range(-1, 1)
+				v = ring * pow(1.0 - k, 2.5) * 0.7 + noise * maxf(0.0, 1.0 - t * 60.0) * 0.6
+			"forged":  # quench hiss plus a rising chime
+				noise = lerpf(noise, randf_range(-1, 1), 0.6)
+				phase += TAU * lerpf(520.0, 1040.0, minf(k * 2.0, 1.0)) / RATE
+				v = noise * 0.35 * pow(1.0 - k, 1.5) + sin(phase) * 0.3 * sin(k * PI)
 			"swing":
 				noise = lerpf(noise, randf_range(-1, 1), 0.3)
 				v = noise * 0.25 * sin(k * PI)

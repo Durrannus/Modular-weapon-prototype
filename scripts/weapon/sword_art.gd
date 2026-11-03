@@ -65,14 +65,14 @@ static func slot_center(blade: String, grip: String, scale: String, i: int) -> V
 
 ## lit: slot index -> 0..1. A slot above 0.4 swaps to its _lit image.
 static func draw(ci: CanvasItem, blade: String, grip: String, line: Array, scale: String,
-		lit: Dictionary, origin := Vector2.ZERO) -> void:
+		lit: Dictionary, origin := Vector2.ZERO, tint := Color.WHITE) -> void:
 	var gs := int(SwingBuild.GRIPS[grip]["slots"])
 	var blade_tex := Art.texture(DIR + "blades/%s_%s.png" % [blade, scale])
 	var grip_tex := Art.texture(DIR + "grips/%s_%s.png" % [grip, scale])
 	if blade_tex != null:
-		ci.draw_texture(blade_tex, origin + Vector2(4.0 * _k(scale), 0))
+		ci.draw_texture(blade_tex, origin + Vector2(4.0 * _k(scale), 0), tint)
 	if grip_tex != null:
-		ci.draw_texture(grip_tex, origin + grip_origin(blade, scale))
+		ci.draw_texture(grip_tex, origin + grip_origin(blade, scale), tint)
 	for i in line.size():
 		var id: String = line[i]
 		if id == "":
@@ -84,7 +84,7 @@ static func draw(ci: CanvasItem, blade: String, grip: String, line: Array, scale
 		if f["kind"] == "rune":
 			var tex := Art.texture(DIR + "runes/%s_%s%s.png" % [id, scale, suffix])
 			if tex != null:
-				ci.draw_texture(tex, origin + r.position)
+				ci.draw_texture(tex, origin + r.position, tint)
 			else:
 				ci.draw_rect(Rect2(origin + r.position, r.size), f["color"])
 		else:
@@ -92,6 +92,6 @@ static func draw(ci: CanvasItem, blade: String, grip: String, line: Array, scale
 			var tex := Art.texture(DIR + "bands/%s_%s_%s%s.png" % [id, host, scale, suffix])
 			if tex != null:
 				var pos := Vector2(r.get_center().x - tex.get_width() * 0.5, r.position.y)
-				ci.draw_texture(tex, origin + pos.round())
+				ci.draw_texture(tex, origin + pos.round(), tint)
 			else:
 				ci.draw_rect(Rect2(origin + r.position - Vector2(2, 0) * _k(scale) / 1.0, r.size + Vector2(4, 0)), f["color"])

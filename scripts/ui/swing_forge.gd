@@ -26,7 +26,8 @@ const TABS := ["blades", "grips", "runes", "bands"]
 const LEFT := Rect2(10, 32, 195, 296)
 const RIGHT := Rect2(436, 32, 194, 296)
 const CENTRE_X := 322.0
-const SWORD_BOTTOM := 236.0
+const SWORD_BOTTOM := 298.0  # the pommel sits just above the anvil
+var sword_bottom := SWORD_BOTTOM
 
 var build: SwingBuild
 var root: Control
@@ -38,6 +39,24 @@ var hover := ""
 var buttons := {}          # key -> Rect2, rebuilt every draw
 var _styles := {}
 
+# Forge feel: heat, embers, sparks, the hammer strike and the finish.
+var t := 0.0
+var heat := 0.3            # 0..1, jumps to 1 on a hammer strike, cools back down
+var strike_t := 9.0        # time since the last hammer strike
+var strike_at := Vector2.ZERO
+var embers: Array = []     # [pos, vel, life, max_life]
+var sparks: Array = []
+var steam: Array = []
+var dirty := false         # changed since the forge opened
+var finishing := -1.0      # >= 0 while the "forged" finish plays
+const FINISH_TIME := 1.5
+var sword_top := Vector2.ZERO
+var sword_size := Vector2.ZERO
+var heat_mask: Control     # draws the sword; its child is clipped to the sword's pixels
+var heat_fill: Control
+var fx_top: Control
+var banner: Control
+
 
 func _ready() -> void:
 	layer = 10
@@ -48,20 +67,86 @@ func _ready() -> void:
 	root.visible = false
 	add_child(root)
 	root.draw.connect(_draw_forge)
+	# Heat on the sword itself: a mask that draws the sword, with an additive
+	# fill clipped to it (glowing metal, the shine sweep when it's done).
+	heat_mask = Control.new()
+	heat_mask.size = root.size
+	heat_mask.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	heat_mask.clip_children = CanvasItem.CLIP_CHILDREN_ONLY
+	heat_mask.draw.connect(_draw_heat_mask)
+	root.add_child(heat_mask)
+	heat_fill = Control.new()
+	heat_fill.size = root.size
+	heat_fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	heat_fill.material = _additive()
+	heat_fill.draw.connect(_draw_heat_fill)
+	heat_mask.add_child(heat_fill)
+	# Embers, sparks and flashes on top, glowing.
+	fx_top = Control.new()
+	fx_top.size = root.size
+	fx_top.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	fx_top.material = _additive()
+	fx_top.draw.connect(_draw_fx)
+	root.add_child(fx_top)
+	banner = Control.new()
+	banner.size = root.size
+	banner.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	banner.draw.connect(_draw_banner)
+	root.add_child(banner)
+
+
+func _additive() -> CanvasItemMaterial:
+	var m := CanvasItemMaterial.new()
+	m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	return m
 
 
 func setup(b: SwingBuild) -> void:
 	build = b
+	build.changed.connect(_on_changed)
+
+
+## Every change is a hammer blow: the metal heats up, sparks fly, the anvil rings.
+func _on_changed() -> void:
+	if not is_open:
+		return
+	dirty = true
+	heat = 1.0
+	strike_t = 0.0
+	var i := clampi(selected, 0, build.slot_count() - 1)
+	strike_at = sword_top + SwordArt.slot_center(build.blade, build.grip, "forge", i)
+	if sword_size == Vector2.ZERO:
+		strike_at = Vector2(CENTRE_X, 150)
+	for n in 26:
+		var a := randf_range(-PI, 0.0)
+		sparks.append([strike_at, Vector2(cos(a), sin(a)) * randf_range(40.0, 150.0), 0.0, randf_range(0.3, 0.7)])
+	Sfx.play(self, "anvil", -6.0, randf_range(0.95, 1.08))
 
 
 func open() -> void:
+	dirty = false
+	finishing = -1.0
+	heat = 0.3
 	is_open = true
 	root.visible = true
 	selected = clampi(selected, 0, build.slot_count() - 1)
 	get_tree().paused = true
 
 
+## Leaving after changes plays the "forged" finish first (press again to skip).
 func close() -> void:
+	if dirty and finishing < 0.0:
+		finishing = 0.0
+		Sfx.play(self, "forged", -4.0)
+		for n in 30:
+			steam.append([sword_top + Vector2(randf_range(0, sword_size.x), randf_range(sword_size.y * 0.1, sword_size.y * 0.9)), Vector2(randf_range(-12, 12), randf_range(-40, -15)), 0.0, randf_range(0.6, 1.2)])
+		return
+	_really_close()
+
+
+func _really_close() -> void:
+	finishing = -1.0
+	dirty = false
 	is_open = false
 	root.visible = false
 	get_tree().paused = false
@@ -69,14 +154,26 @@ func close() -> void:
 
 # --- Input ------------------------------------------------------------------
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
+	if is_open:
+		_update_fx(delta)
 	if Input.is_action_just_pressed("build"):
-		if is_open:
+		if finishing >= 0.0:
+			_really_close()
+		elif is_open:
 			close()
 		else:
 			open()
 		return
 	if not is_open:
+		return
+	if finishing >= 0.0:
+		finishing += delta
+		if finishing >= FINISH_TIME:
+			_really_close()
+			if _try_after:
+				_try_after = false
+				try_at_dummy.emit()
 		return
 	if Input.is_action_just_pressed("menu_back"):
 		close()
@@ -102,6 +199,11 @@ func _process(_delta: float) -> void:
 
 func _input(event: InputEvent) -> void:
 	if not is_open:
+		return
+	if finishing >= 0.0:
+		if event is InputEventMouseButton and event.pressed:
+			_really_close()
+			get_viewport().set_input_as_handled()
 		return
 	if event is InputEventKey and event.pressed and not event.echo:
 		match (event as InputEventKey).physical_keycode:
@@ -195,7 +297,13 @@ func _load_test(k: String) -> void:
 	selected = clampi(selected, 0, build.slot_count() - 1)
 
 
+var _try_after := false
+
 func _try() -> void:
+	if dirty:
+		_try_after = true
+		close()
+		return
 	close()
 	try_at_dummy.emit()
 
@@ -396,21 +504,34 @@ func _draw_sword(stats: Dictionary) -> void:
 	var blade := build.blade
 	var grip := build.grip
 	var size := SwordArt.frame_size(blade, grip, "forge")
-	var top := Vector2(CENTRE_X - size.x * 0.5, SWORD_BOTTOM - size.y).round()
-	# Backdrop and anvil.
-	root.draw_rect(Rect2(244, 30, 156, 240), Color(0.05, 0.055, 0.075))
-	root.draw_rect(Rect2(244, 30, 156, 240), Color(0.12, 0.13, 0.17), false, 1.0)
+	sword_bottom = maxf(SWORD_BOTTOM, size.y + 4.0)  # the longest swords push down a little
+	var top := Vector2(CENTRE_X - size.x * 0.5, sword_bottom - size.y).round()
+	sword_top = top
+	sword_size = size
+	# Backdrop: the hearth glows behind the sword, breathing, hotter after a strike.
+	root.draw_rect(Rect2(244, 30, 156, 262), Color(0.05, 0.055, 0.075))
+	var breathe := 0.5 + 0.5 * sin(t * 2.2) * 0.6 + 0.2 * sin(t * 7.3)
+	var glow_c := Vector2(CENTRE_X, top.y + size.y * 0.45)
+	for i in 7:
+		var r := 30.0 + i * 13.0 + heat * 10.0
+		var c := Color(1.0, 0.45 + i * 0.03, 0.15, (0.05 + heat * 0.05) * breathe * (1.0 - i / 8.0))
+		root.draw_circle(glow_c, r, c)
+	var hearth := Rect2(250, 266, 144, 26)
+	for i in 6:
+		var c := Color(1.0, 0.35 + 0.08 * i, 0.08, 0.07 * breathe)
+		root.draw_rect(hearth.grow_individual(-i * 6, -i * 2, -i * 6, 0), c)
+	root.draw_rect(Rect2(244, 30, 156, 262), Color(0.12, 0.13, 0.17), false, 1.0)
 	var anvil := Art.texture("swing/ui/anvil.png")
 	if anvil != null:
-		root.draw_texture(anvil, Vector2(CENTRE_X - 47, SWORD_BOTTOM - 6).round())
+		root.draw_texture(anvil, Vector2(CENTRE_X - 47, sword_bottom - 2).round())
 	SwordArt.draw(root, blade, grip, build.line, "forge", {}, top)
 	# Grip-to-tip arrow up the left.
 	var ax := 262.0
-	for y in range(int(SWORD_BOTTOM - 20), int(top.y + 14), -4):
+	for y in range(int(sword_bottom - 30), int(top.y + 14), -4):
 		root.draw_rect(Rect2(ax, y, 1, 2), AMBER.darkened(0.3))
 	root.draw_colored_polygon(PackedVector2Array([Vector2(ax + 0.5, top.y + 6), Vector2(ax - 3.5, top.y + 12), Vector2(ax + 4.5, top.y + 12)]), AMBER)
 	_head("Tip", Vector2(ax - 10, top.y + 2), AMBER, 8, 22, HORIZONTAL_ALIGNMENT_CENTER)
-	_head("Grip", Vector2(ax - 12, SWORD_BOTTOM - 8), AMBER, 8, 26, HORIZONTAL_ALIGNMENT_CENTER)
+	_head("Grip", Vector2(ax - 12, sword_bottom - 18), AMBER, 8, 26, HORIZONTAL_ALIGNMENT_CENTER)
 	# Slots: numbers on the left, clickable sockets, focus corners on the selected one.
 	var info: Dictionary = stats["slot_info"]
 	for i in build.line.size():
@@ -444,27 +565,129 @@ func _draw_sword(stats: Dictionary) -> void:
 		if float(e["size"]) > 1.0:
 			tags.append("big")
 		_head(" ".join(tags), Vector2(bx + 4, (y0 + y1) * 0.5 + 3), TEAL)
-	# Name, slots, test swords and the dummy.
+	# Labels beside the sword, test swords left of the anvil, the dummy right of it.
 	var g: Dictionary = SwingBuild.GRIPS[grip]
-	_head("%s  +  %s" % [SwingBuild.BLADES[blade]["name"], g["name"]], Vector2(222, 284), INK, 8, 200, HORIZONTAL_ALIGNMENT_CENTER)
+	var bl: Dictionary = SwingBuild.BLADES[blade]
+	var lx := top.x + size.x + 6
+	_head(bl["name"], Vector2(lx, top.y + 50), INK)
+	_head("%d slot%s" % [bl["slots"], "" if bl["slots"] == 1 else "s"], Vector2(lx, top.y + 61), DIM)
+	var gy := top.y + SwordArt.grip_origin(blade, "forge").y
+	_head(g["name"], Vector2(lx, gy + 60), INK)
 	var spd := float(stats["speed"])
 	var spd_word := "quick" if spd >= 1.03 else ("steady" if spd >= 0.94 else "slow")
-	_head("%d slots, speed %s" % [build.slot_count(), spd_word], Vector2(222, 295), DIM, 8, 200, HORIZONTAL_ALIGNMENT_CENTER)
-	_head("Test swords  1 / 2", Vector2(222, 307), DIM, 8, 200, HORIZONTAL_ALIGNMENT_CENTER)
+	_head("%d slot%s" % [g["slots"], "" if g["slots"] == 1 else "s"], Vector2(lx, gy + 71), DIM)
+	_head("Test", Vector2(214, 311), DIM, 8, 56, HORIZONTAL_ALIGNMENT_CENTER)
 	for k in ["A", "B"]:
-		var t: Dictionary = SwingBuild.TEST_SWORDS[k]
-		var r := Rect2(CENTRE_X - 48 + (0 if k == "A" else 50), 310, 46, 13)
+		var tt: Dictionary = SwingBuild.TEST_SWORDS[k]
+		var r := Rect2(214 + (0 if k == "A" else 30), 313, 26, 14)
 		buttons["test:" + k] = r
-		var active: bool = blade == t["blade"] and grip == t["grip"] and build.line == t["line"]
+		var active: bool = blade == tt["blade"] and grip == tt["grip"] and build.line == tt["line"]
 		if active:
 			root.draw_rect(r, AMBER.darkened(0.25))
 		else:
 			_nine("button_hot" if hover == "test:" + k else "button", r)
 		_head(k, r.position + Vector2(0, 10), Color(0.1, 0.07, 0.03) if active else INK, 8, r.size.x, HORIZONTAL_ALIGNMENT_CENTER)
-	var tr := Rect2(CENTRE_X - 60, 326, 120, 14)
+	_head("Dummy", Vector2(372, 310), DIM, 8, 56, HORIZONTAL_ALIGNMENT_CENTER)
+	var tr := Rect2(372, 313, 56, 14)
 	buttons["try"] = tr
 	_nine("button_hot" if hover == "try" else "button", tr)
-	_head("T  Try at the dummy", tr.position + Vector2(0, 10), INK, 8, tr.size.x, HORIZONTAL_ALIGNMENT_CENTER)
+	_head("T  Try", tr.position + Vector2(0, 10), INK, 8, tr.size.x, HORIZONTAL_ALIGNMENT_CENTER)
+
+
+# --- Forge effects -----------------------------------------------------------
+
+func _update_fx(delta: float) -> void:
+	t += delta
+	strike_t += delta
+	heat = move_toward(heat, 0.3, delta * 0.5)
+	if finishing >= 0.0:
+		heat = 0.0
+	# Embers drift up from the hearth all the time; more when hot.
+	if randf() < delta * (10.0 + heat * 30.0):
+		embers.append([Vector2(randf_range(256, 388), randf_range(270, 292)), Vector2(randf_range(-6, 6), randf_range(-45, -20)), 0.0, randf_range(1.2, 2.6)])
+	for list in [embers, sparks, steam]:
+		var keep: Array = []
+		for p in list:
+			p[2] += delta
+			if p[2] < p[3]:
+				if list == sparks:
+					p[1].y += 260.0 * delta  # sparks fall
+				elif list == embers:
+					p[1].x += sin(t * 3.0 + p[0].y) * 8.0 * delta
+				p[0] += p[1] * delta
+				keep.append(p)
+		list.assign(keep)
+	heat_mask.queue_redraw()
+	heat_fill.queue_redraw()
+	fx_top.queue_redraw()
+	banner.queue_redraw()
+	root.queue_redraw()
+
+
+func _draw_heat_mask() -> void:
+	if sword_size != Vector2.ZERO:
+		SwordArt.draw(heat_mask, build.blade, build.grip, build.line, "forge", {}, sword_top)
+
+
+## Additive colour on the sword's own pixels: orange heat, hottest at the blade,
+## and when it's finished, white-hot cooling to steel with a shine sweeping up.
+func _draw_heat_fill() -> void:
+	var r := Rect2(sword_top, sword_size)
+	if finishing >= 0.0:
+		var k := finishing / FINISH_TIME
+		var white := clampf(1.0 - k * 2.5, 0.0, 1.0)
+		heat_fill.draw_rect(r, Color(1.0, 0.75, 0.45, 0.8 * white))
+		var sweep_y := lerpf(r.end.y, r.position.y - 20.0, clampf((k - 0.25) / 0.5, 0.0, 1.0))
+		for i in 10:
+			heat_fill.draw_rect(Rect2(r.position.x, sweep_y + i * 2.0 - 10.0, r.size.x, 2), Color(1, 1, 1, 0.08 * (5.0 - absf(i - 4.5))))
+		return
+	var pulse := 0.85 + 0.15 * sin(t * 5.0)
+	var steps := 24
+	for i in steps:
+		var y0 := r.position.y + r.size.y * i / steps
+		var hotness := 1.0 - float(i) / steps  # the blade end is hottest
+		var a := heat * pulse * (0.12 + 0.5 * hotness * hotness)
+		heat_fill.draw_rect(Rect2(r.position.x, y0, r.size.x, r.size.y / steps + 1), Color(1.0, 0.42 + 0.3 * hotness, 0.12, a))
+	if strike_t < 0.15:
+		heat_fill.draw_rect(r, Color(1, 0.9, 0.7, 0.6 * (1.0 - strike_t / 0.15)))
+
+
+func _draw_fx() -> void:
+	for p in embers:
+		var k: float = p[2] / p[3]
+		var c := Color(1.0, 0.55 + 0.3 * (1.0 - k), 0.2, (1.0 - k) * 0.9)
+		fx_top.draw_rect(Rect2((p[0] as Vector2).round(), Vector2(1, 1)), c)
+	for p in sparks:
+		var k: float = p[2] / p[3]
+		var c := Color(1.0, 0.85 - 0.4 * k, 0.4 - 0.3 * k, 1.0 - k)
+		var tail: Vector2 = p[1] * 0.02
+		fx_top.draw_line(p[0], p[0] - tail, c, 1.0)
+	if strike_t < 0.25:
+		var k := strike_t / 0.25
+		fx_top.draw_circle(strike_at, 4.0 + k * 22.0, Color(1.0, 0.8, 0.5, 0.5 * (1.0 - k)))
+		fx_top.draw_arc(strike_at, 6.0 + k * 30.0, 0.0, TAU, 24, Color(1.0, 0.7, 0.3, 1.0 - k), 1.0)
+	for p in steam:
+		var k: float = p[2] / p[3]
+		fx_top.draw_circle(p[0], 2.0 + k * 7.0, Color(0.6, 0.65, 0.7, 0.18 * (1.0 - k)))
+
+
+func _draw_banner() -> void:
+	if finishing < 0.0:
+		return
+	var k := finishing / FINISH_TIME
+	var a := clampf(k * 4.0, 0.0, 1.0) * clampf((1.0 - k) * 4.0, 0.0, 1.0)
+	var y := 150.0 - 8.0 * (1.0 - clampf(k * 3.0, 0.0, 1.0))
+	banner.draw_rect(Rect2(0, y - 22, 640, 34), Color(0, 0, 0, 0.55 * a))
+	var f := Art.font("Silkscreen-Regular")
+	banner.draw_string_outline(f, Vector2(0, y + 4), "FORGED!", HORIZONTAL_ALIGNMENT_CENTER, 640, 16, 4, Color(0.1, 0.05, 0.02, a))
+	banner.draw_string(f, Vector2(0, y + 4), "FORGED!", HORIZONTAL_ALIGNMENT_CENTER, 640, 16, Color(1.0, 0.75, 0.3, a))
+	var names: Array = []
+	for e in build.compute()["effects"]:
+		names.append(SwingBuild.FITTINGS[e["id"]]["name"])
+	var sub := "%s + %s" % [SwingBuild.BLADES[build.blade]["name"], SwingBuild.GRIPS[build.grip]["name"]]
+	if not names.is_empty():
+		sub += ":  " + ", ".join(names)
+	banner.draw_string(Art.font("PixelifySans-Regular"), Vector2(0, y + 18), sub, HORIZONTAL_ALIGNMENT_CENTER, 640, 11, Color(0.9, 0.86, 0.8, a))
 
 
 func _draw_does(stats: Dictionary) -> void:
