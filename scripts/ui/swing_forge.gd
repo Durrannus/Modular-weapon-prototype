@@ -563,13 +563,17 @@ func _draw_sword(stats: Dictionary) -> void:
 	var bl: Dictionary = SwingBuild.BLADES[blade]
 	var lx := top.x + size.x + 6
 	if finishing < 0.0:  # the "Forged!" banner sits here while it plays
-		_head(bl["name"], Vector2(lx, top.y + 50), INK)
-		_head("%d slot%s" % [bl["slots"], "" if bl["slots"] == 1 else "s"], Vector2(lx, top.y + 61), DIM)
+		_head(bl["name"], Vector2(lx, top.y + 6), INK)
+		_head("%d slot%s" % [bl["slots"], "" if bl["slots"] == 1 else "s"], Vector2(lx, top.y + 17), DIM)
+		var bspd := float(bl["speed"])
+		var bspd_word := "fast" if bspd >= 1.15 else ("slow" if bspd <= 0.85 else "normal speed")
+		_head("damage %d" % int(bl["damage"]), Vector2(lx, top.y + 28), DIM)
+		_head(bspd_word, Vector2(lx, top.y + 39), DIM)
 	var gy := top.y + SwordArt.grip_origin(blade, "forge").y
-	_head(g["name"], Vector2(lx, gy + 14), INK)
+	_head(g["name"], Vector2(lx, gy + 8), INK)
 	var spd := float(stats["speed"])
 	var spd_word := "quick" if spd >= 1.03 else ("steady" if spd >= 0.94 else "slow")
-	_head("%d slot%s" % [g["slots"], "" if g["slots"] == 1 else "s"], Vector2(lx, gy + 25), DIM)
+	_head("%d slot%s" % [g["slots"], "" if g["slots"] == 1 else "s"], Vector2(lx, gy + 19), DIM)
 	_head("Test", Vector2(214, 311), DIM, 8, 56, HORIZONTAL_ALIGNMENT_CENTER)
 	for k in ["A", "B"]:
 		var tt: Dictionary = SwingBuild.TEST_SWORDS[k]
@@ -700,7 +704,7 @@ func _draw_banner() -> void:
 	var banner_tex := Art.texture("swing/forge-fx/forged_banner.png")
 	if heat_tex != null and banner_tex != null:
 		var start := t - finishing
-		var blade_pos := sword_top + Vector2(4.0 * 5.0, 0)
+		var blade_pos := sword_top + Vector2(4.0 * 3.0, 0)
 		var bsize := SwordArt.blade_size(build.blade, "forge")
 		# Heat cools from white-hot to steel, then a glint sweeps up the blade.
 		var heat_k := (finishing - 0.1) * 10.0

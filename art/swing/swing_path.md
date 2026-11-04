@@ -17,15 +17,15 @@ Every part comes at two scales:
 | Scale | Suffix | Slot size | Use |
 |---|---|---|---|
 | hand | `_hand.png` | 3 px socket, 4 px apart | the sword in Ivy's hand |
-| forge | `_forge.png` | 15 px socket, 20 px apart | the forge screen |
+| forge | `_forge.png` | 9 px socket, 12 px apart (3x, so long blade + long grip is 204 px) | the forge screen |
 
 ### Blades: `blades/`
 
 | Id | Slots | Hand size | Forge size |
 |---|---|---|---|
-| iron_shortblade | 1 | 7 x 29 | 35 x 145 |
-| iron_blade | 2 | 7 x 33 | 35 x 165 |
-| iron_longblade | 3 | 7 x 37 | 35 x 185 |
+| iron_shortblade | 1 | 7 x 23 | 21 x 69 |
+| iron_blade | 2 | 7 x 33 | 21 x 99 |
+| iron_longblade | 3 | 7 x 45 | 21 x 135 |
 
 The blade is 5 px of steel in a 7 px wide image (the band rings overhang it). It has a long taper and a fuller groove. The slots sit low, in a brass-edged rune plate just above the guard. (Redrawn longer on 3 Nov, after Darren found the first version stubby.)
 
@@ -45,14 +45,14 @@ A longer grip is a longer sword, which fits "long grip swings slower".
 
 ### Putting it together
 
-Work in a sword frame that is `15 * k` wide, with the tip at the top (k = 1 in hand, 5 on the forge):
+Work in a sword frame that is `15 * k` wide, with the tip at the top (k = 1 in hand, 3 on the forge):
 
 1. **Blade:** place it at `(4 * k, 0)`.
 2. **Grip:** place it at `(0, blade height)`. The blade's bottom row then sits on the guard.
 3. **Slots:** read them from the bottom up. First the grip's `slot_rects`, then the blade's, each offset by its part's position. JSON lists them bottom-up, so slot 1 is the first grip entry.
-4. **Rune:** put the stone's top-left on the slot rect's top-left. Stones are exactly socket-sized (3 or 15 px).
-5. **Band:** use `bands/<id>_<host>_<scale>.png`, where host is `blade` or `grip`. Centre it on the slot horizontally, and line its top up with the slot's top. Bands are 7 x 3 in hand (35 x 15 on the forge), the same size on a blade and a grip. They overhang the part by one pixel (5 on the forge) on each side, so they read as a ring around it.
-6. **Pivot (the hand):** the grip's `pivot` plus the grip's offset. In hand it is at grip y 5.5 (27.5 on the forge), the middle of the hold just under the guard. Rotate the sword round it with `rotation = aim_angle + PI / 2`, as before.
+4. **Rune:** put the stone's top-left on the slot rect's top-left. Stones are exactly socket-sized (3 or 9 px).
+5. **Band:** use `bands/<id>_<host>_<scale>.png`, where host is `blade` or `grip`. Centre it on the slot horizontally, and line its top up with the slot's top. Bands are 7 x 3 in hand (21 x 9 on the forge), the same size on a blade and a grip. They overhang the part by one pixel (3 on the forge) on each side, so they read as a ring around it.
+6. **Pivot (the hand):** the grip's `pivot` plus the grip's offset. In hand it is at grip y 5.5 (16.5 on the forge), the middle of the hold just under the guard. Rotate the sword round it with `rotation = aim_angle + PI / 2`, as before.
 7. **Draw order and outline:**
    - Draw `body/hand.png` over the pivot.
    - Draw the sword behind the body when facing up.
@@ -127,6 +127,7 @@ These make the forge feel like a real forge. Frames, fps and origins are in `for
 
 | File | What |
 |---|---|
+| `hearth_still.png` | One frame of the hearth, 156 x 240. Use this one: Darren wants no moving backgrounds on the forge. |
 | `hearth.png` | 8 frames, 156 x 240, 10 fps, loops. An opaque fire backdrop for the arch behind the sword: firebrick wall, flames, a coal bed with breathing cracks and rising embers. Its top fades dark so it melts into the arch. |
 | `heat_halo.png` | 120 x 300. A soft warm glow to put behind the sword while forging. Pulse its alpha in code. |
 | `sparks.png` | 6 frames, 32 x 32. A spark burst for when a part goes into a slot. |

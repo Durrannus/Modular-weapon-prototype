@@ -15,7 +15,7 @@ static func data() -> Dictionary:
 
 
 static func _k(scale: String) -> float:
-	return 1.0 if scale == "hand" else 5.0
+	return 1.0 if scale == "hand" else 3.0  # forge art is 3x (fits the long blade + long grip)
 
 
 static func _part(kind: String, id: String, scale: String) -> Dictionary:

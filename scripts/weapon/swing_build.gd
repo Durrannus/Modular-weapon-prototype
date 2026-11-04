@@ -11,12 +11,12 @@ extends RefCounted
 signal changed
 
 const BLADES := {
-	"iron_shortblade": {"name": "Iron Shortblade", "chain": ["slash", "slash", "slash"], "damage": 10.0, "speed": 1.08, "reach": 0.9, "slots": 1, "element": "",
-		"desc": "Slash, slash, slash. Quick. 1 slot."},
+	"iron_shortblade": {"name": "Iron Shortblade", "chain": ["slash", "slash", "slash"], "damage": 7.0, "speed": 1.3, "reach": 0.9, "slots": 1, "element": "",
+		"desc": "Slash, slash, slash. Short and fast, light hits. 1 slot."},
 	"iron_blade": {"name": "Iron Blade", "chain": ["slash", "slash", "overhead"], "damage": 11.0, "speed": 1.0, "reach": 1.0, "slots": 2, "element": "",
 		"desc": "Slash, slash, overhead. 2 slots."},
-	"iron_longblade": {"name": "Iron Longblade", "chain": ["slash", "slash", "overhead"], "damage": 9.0, "speed": 0.95, "reach": 1.15, "slots": 3, "element": "",
-		"desc": "Slash, slash, overhead. More reach and slots, softer hits. 3 slots."},
+	"iron_longblade": {"name": "Iron Longblade", "chain": ["slash", "slash", "overhead"], "damage": 16.0, "speed": 0.78, "reach": 1.15, "slots": 3, "element": "",
+		"desc": "Slash, slash, overhead. Long reach, slow, heavy hits. 3 slots."},
 }
 ## Elemental blades are parked for now (Darren, 3 November), so only iron blades.
 const BLADE_ORDER := ["iron_shortblade", "iron_blade", "iron_longblade"]

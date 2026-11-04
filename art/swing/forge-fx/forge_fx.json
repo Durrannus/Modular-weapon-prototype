@@ -87,6 +87,13 @@
    "note": "a glint sweeping from the guard up to the tip, ending in a star; play after the heat strip"
   }
  },
+ "hearth_still.png": {
+  "size": [
+   156,
+   240
+  ],
+  "note": "single frame of the hearth; use this, not the loop, so the forge stays readable"
+ },
  "heat_halo.png": {
   "size": [
    120,
