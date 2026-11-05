@@ -33,6 +33,7 @@ const GRIPS := {
 const GRIP_ORDER := ["wooden_grip", "wrapped_grip", "long_grip", "ringed_grip", "gilded_grip"]
 
 ## Runes do something on their own; bands change the next rune above them.
+## Rule-benders bend the reading rule itself. Only one per sword.
 const FITTINGS := {
 	"shockwave": {"kind": "rune", "name": "Shockwave", "trigger": "finisher", "color": Color("#ffb24a"),
 		"desc": "Your finisher sends a rolling wave forward."},
@@ -42,12 +43,28 @@ const FITTINGS := {
 		"desc": "Every hit also strikes an enemy behind the target."},
 	"second_wind": {"kind": "rune", "name": "Second Wind", "trigger": "kill", "color": Color("#8ff0c0"),
 		"desc": "Every kill refills a dodge charge (up to 2)."},
+	"leap": {"kind": "rune", "name": "Leap", "trigger": "dodge_attack", "color": Color("#f4e07a"),
+		"desc": "Attacking straight after a dodge jumps you to the nearest enemy."},
 	"twice": {"kind": "band", "name": "Twice", "color": Color("#6fd6cb"),
 		"desc": "The rune above happens twice."},
 	"wider": {"kind": "band", "name": "Wider", "color": Color("#6fd6cb"),
 		"desc": "The rune above is bigger."},
+	"every_hit": {"kind": "band", "name": "Every Hit", "color": Color("#6fd6cb"),
+		"desc": "The rune above happens on every hit instead, at half strength."},
+	"saved_up": {"kind": "band", "name": "Saved Up", "color": Color("#6fd6cb"),
+		"desc": "The rune above only happens every third time, but three times as strong."},
+	"on_dodge": {"kind": "band", "name": "On Dodge", "color": Color("#6fd6cb"),
+		"desc": "The rune above also happens when you dodge."},
+	"mirror": {"kind": "bender", "name": "Mirror", "color": Color("#d9a6ff"),
+		"desc": "Rare. Copies the fitting below it. One rule-bender per sword."},
+	"relay": {"kind": "bender", "name": "Relay", "color": Color("#d9a6ff"),
+		"desc": "Rare. The bands on the rune below also boost the next rune above. One rule-bender per sword."},
 }
-const FITTING_ORDER := ["shockwave", "hook", "cleave", "second_wind", "twice", "wider"]
+const FITTING_ORDER := ["shockwave", "hook", "cleave", "second_wind", "leap",
+	"twice", "wider", "every_hit", "saved_up", "on_dodge", "mirror", "relay"]
+const EVERY_HIT_POWER := 0.5
+const SAVED_UP_EVERY := 3
+const SAVED_UP_POWER := 3.0
 
 ## The test swords from the 3 November notes, bottom to top.
 const TEST_SWORDS := {
@@ -126,36 +143,120 @@ static func wider_size(n: int) -> float:
 
 
 ## Reads the line bottom to top. Returns:
-##   effects: one entry per rune: {id, slot, bands (ids), band_slots, trigger, count, size}
-##   slots:   for each slot index: {"rune": effect index} / {"band": effect index} / {"unused": true}
+##   effects: one entry per rune: {id, slot, bands (ids), band_slots, trigger, count, size,
+##            power (strength multiplier), every (fires on every Nth trigger), also (extra triggers),
+##            mirror (true if it's a Mirror's copy)}
+##   slots:   for each slot index: {"rune": effect index} / {"band": effect index} /
+##            {"unused": true, "why": text} / plus "mirror": true or "relay": true on rule-benders
 static func resolve(slots: Array) -> Dictionary:
 	var effects: Array = []
 	var info := {}
-	var pending: Array = []  # band slot indexes waiting for a rune
-	for i in slots.size():
-		var id: String = slots[i]
-		if id == "":
+	var line := _apply_mirror(slots, info)
+	var pending: Array = []   # band slot indexes waiting for a rune
+	var relay_bands: Array = []  # band slots handed on by a Relay
+	var relay_slot := -1
+	for i in line.size():
+		var id: String = line[i]
+		if id == "" or info.get(i, {}).has("unused"):
 			continue
 		var f: Dictionary = FITTINGS[id]
+		if f["kind"] == "bender":  # Relay (Mirror was swapped for its copy above)
+			if effects.is_empty() or not pending.is_empty():
+				info[i] = {"unused": true, "relay": true, "why": "Needs a rune right below it."}
+				continue
+			relay_bands = (effects[-1]["band_slots"] as Array).duplicate()
+			relay_slot = i
+			info[i] = {"relay": true}
+			continue
 		if f["kind"] == "band":
 			pending.append(i)
 			continue
-		var e := {"id": id, "slot": i, "bands": [], "band_slots": pending.duplicate(), "trigger": f["trigger"], "count": 1, "size": 1.0}
-		for s in pending:
-			var band: String = slots[s]
-			e["bands"].append(band)
-			if band == "twice":
-				e["count"] = mini(int(e["count"]) + 1, MAX_COUNT)
-			elif band == "wider":
-				e["wider"] = int(e.get("wider", 0)) + 1
-				e["size"] = wider_size(int(e["wider"]))
-			info[s] = {"band": effects.size()}
-		info[i] = {"rune": effects.size()}
+		var e := {"id": id, "slot": i, "bands": [], "band_slots": pending.duplicate(), "trigger": f["trigger"],
+			"count": 1, "size": 1.0, "power": 1.0, "every": 1, "also": [], "mirror": slots[i] == "mirror"}
+		var idx := effects.size()
+		for s in relay_bands + pending:
+			var why := _apply_band(e, str(line[s]))
+			if s in pending:
+				info[s] = {"band": idx} if why == "" else {"unused": true, "why": why}
+		if relay_slot >= 0:
+			e["relayed"] = relay_bands
+			info[relay_slot]["band"] = idx
+			relay_slot = -1
+			relay_bands = []
+		info[i] = {"rune": idx}
 		effects.append(e)
 		pending = []
 	for s in pending:
-		info[s] = {"unused": true}
+		info[s] = {"unused": true, "why": "No rune above it, so it does nothing."}
+	if relay_slot >= 0:
+		info[relay_slot] = {"unused": true, "relay": true, "why": "Needs a rune above it."}
+	for i in slots.size():
+		if slots[i] == "mirror":
+			info[i] = info.get(i, {})
+			info[i]["mirror"] = true
 	return {"effects": effects, "slots": info}
+
+
+## Mirror becomes a copy of the nearest fitting below it. Only the first
+## rule-bender on the sword counts; any others do nothing.
+static func _apply_mirror(slots: Array, info: Dictionary) -> Array:
+	var line := slots.duplicate()
+	var seen := false
+	for i in line.size():
+		var id: String = line[i]
+		if id == "" or FITTINGS[id]["kind"] != "bender":
+			continue
+		if seen:
+			info[i] = {"unused": true, "why": "Only one rule-bender works on a sword."}
+			continue
+		seen = true
+		if id != "mirror":
+			continue
+		var below := ""
+		for j in range(i - 1, -1, -1):
+			if line[j] != "":
+				below = line[j]
+				break
+		if below == "":
+			info[i] = {"unused": true, "mirror": true, "why": "Nothing below it to copy."}
+		else:
+			line[i] = below
+			info[i] = {"mirror": true}
+	return line
+
+
+## Applies one band to a rune. Returns "" if it worked, or why it does nothing.
+static func _apply_band(e: Dictionary, band: String) -> String:
+	e["bands"].append(band)
+	match band:
+		"twice":
+			e["count"] = mini(int(e["count"]) + 1, MAX_COUNT)
+		"wider":
+			e["wider"] = int(e.get("wider", 0)) + 1
+			e["size"] = wider_size(int(e["wider"]))
+		"every_hit":
+			if e["trigger"] == "hit":
+				return "%s already works on every hit." % FITTINGS[e["id"]]["name"]
+			e["trigger"] = "hit"
+			e["power"] = float(e["power"]) * EVERY_HIT_POWER
+		"saved_up":
+			if int(e["every"]) > 1:
+				return "Saved Up doesn't stack (max)."
+			e["every"] = SAVED_UP_EVERY
+			e["power"] = float(e["power"]) * SAVED_UP_POWER
+		"on_dodge":
+			if "dodge" in e["also"]:
+				return "On Dodge doesn't stack (max)."
+			if e["id"] == "second_wind":
+				return "Second Wind can't refill the dodge you're using."
+			if e["id"] == "cleave":
+				return "Cleave needs a hit to strike behind."
+			e["also"].append("dodge")
+	return ""
+
+
+const WHEN := {"finisher": "Your finisher", "hit": "Every hit", "kill": "Every kill", "dodge_attack": "An attack straight after a dodge"}
+const WHEN_NTH := {"finisher": "Every third finisher", "hit": "Every third hit", "kill": "Every third kill", "dodge_attack": "Every third attack after a dodge"}
 
 
 ## One plain sentence per rune, e.g. "Your finisher sends two shockwaves forward."
@@ -163,17 +264,33 @@ static func sentence(e: Dictionary) -> String:
 	var n: int = e["count"]
 	var big: bool = float(e["size"]) > 1.0
 	var times := "" if n == 1 else (" twice" if n == 2 else " %d times" % n)
+	var trig: String = e["trigger"]
+	var when: String = (WHEN_NTH if int(e.get("every", 1)) > 1 else WHEN).get(trig, "It")
+	var what := ""
 	match str(e["id"]):
 		"shockwave":
-			var what := ("a big shockwave" if big else "a shockwave") if n == 1 else ("%s %sshockwaves" % [_num(n), "big " if big else ""])
-			return "Your finisher sends %s forward." % what
+			what = "sends %s forward" % (("a big shockwave" if big else "a shockwave") if n == 1 else ("%s %sshockwaves" % [_num(n), "big " if big else ""]))
 		"hook":
-			return "Your finisher pulls enemies in%s%s." % [" from further away" if big else "", times]
+			what = "pulls enemies in%s%s" % [" from further away" if big else "", times]
 		"cleave":
-			return "Every hit also strikes %s behind the target%s." % ["one enemy" if n == 1 else _num(n) + " enemies", ", from further away" if big else ""]
+			what = "also strikes %s behind the target%s" % ["one enemy" if n == 1 else _num(n) + " enemies", ", from further away" if big else ""]
 		"second_wind":
-			return "Every kill refills %s%s." % ["a dodge charge" if n == 1 else _num(n) + " dodge charges", " and knocks enemies back" if big else ""]
-	return ""
+			what = "refills %s%s" % ["a dodge charge" if n == 1 else _num(n) + " dodge charges", " and knocks enemies back" if big else ""]
+		"leap":
+			what = "jumps you to the nearest enemy%s%s" % ["" if n == 1 else (", then the next one" if n == 2 else ", then %s more" % _num(n - 1)), ", from further away" if big else ""]
+		_:
+			return ""
+	var power := float(e.get("power", 1.0))
+	if power < 1.0:
+		what += ", at half strength"
+	elif power >= 3.0:
+		what += ", three times as strong"
+	elif power > 1.0:
+		what += ", %sx as strong" % str(snappedf(power, 0.1))
+	var s := "%s %s." % [when, what]
+	if "dodge" in e.get("also", []):
+		s += " Dodging does it too."
+	return s
 
 
 static func _num(n: int) -> String:

@@ -18,6 +18,13 @@ func _init() -> void:
 	test_refit_keeps_grip_and_blade_slots()
 	test_ringed_grip()
 	test_sentences()
+	test_every_hit()
+	test_saved_up()
+	test_on_dodge()
+	test_leap()
+	test_mirror()
+	test_relay()
+	test_one_bender_per_sword()
 	print("%d checks, %d failed" % [checks, failures])
 	quit(1 if failures > 0 else 0)
 
@@ -107,3 +114,79 @@ func test_sentences() -> void:
 			continue
 		var e := effect(SwingBuild.resolve([id]), id)
 		check(SwingBuild.sentence(e) != "", "every rune has a sentence: " + id)
+
+
+# --- New bands ------------------------------------------------------------------
+
+func test_every_hit() -> void:
+	var e := effect(SwingBuild.resolve(["every_hit", "shockwave"]), "shockwave")
+	eq(e["trigger"], "hit", "Every Hit moves Shockwave to every hit")
+	eq(e["power"], 0.5, "Every Hit halves the strength")
+	eq(SwingBuild.sentence(e), "Every hit sends a shockwave forward, at half strength.", "Every Hit sentence")
+	var r := SwingBuild.resolve(["every_hit", "cleave"])
+	check(r["slots"][0].get("unused", false), "Every Hit on Cleave (already every hit) does nothing")
+	eq(effect(r, "cleave")["power"], 1.0, "Cleave keeps full strength")
+
+
+func test_saved_up() -> void:
+	var e := effect(SwingBuild.resolve(["saved_up", "hook"]), "hook")
+	eq(e["every"], 3, "Saved Up fires every third time")
+	eq(e["power"], 3.0, "Saved Up is three times as strong")
+	eq(SwingBuild.sentence(e), "Every third finisher pulls enemies in, three times as strong.", "Saved Up sentence")
+	var r := SwingBuild.resolve(["saved_up", "saved_up", "hook"])
+	eq(effect(r, "hook")["power"], 3.0, "a second Saved Up doesn't stack")
+	check(r["slots"][1].get("unused", false), "the second Saved Up shows as doing nothing")
+	var both := effect(SwingBuild.resolve(["every_hit", "saved_up", "shockwave"]), "shockwave")
+	eq(both["power"], 1.5, "Every Hit then Saved Up: every third hit at 1.5x")
+	eq(both["trigger"], "hit", "Every Hit then Saved Up still on hits")
+
+
+func test_on_dodge() -> void:
+	var e := effect(SwingBuild.resolve(["on_dodge", "shockwave"]), "shockwave")
+	eq(e["also"], ["dodge"], "On Dodge adds the dodge trigger")
+	eq(e["trigger"], "finisher", "On Dodge keeps the finisher trigger")
+	eq(SwingBuild.sentence(e), "Your finisher sends a shockwave forward. Dodging does it too.", "On Dodge sentence")
+	check(SwingBuild.resolve(["on_dodge", "second_wind"])["slots"][0].get("unused", false), "On Dodge can't go on Second Wind")
+	check(SwingBuild.resolve(["on_dodge", "cleave"])["slots"][0].get("unused", false), "On Dodge can't go on Cleave")
+
+
+func test_leap() -> void:
+	var e := effect(SwingBuild.resolve(["leap"]), "leap")
+	eq(e["trigger"], "dodge_attack", "Leap fires on an attack straight after a dodge")
+	eq(SwingBuild.sentence(e), "An attack straight after a dodge jumps you to the nearest enemy.", "Leap sentence")
+	var t := effect(SwingBuild.resolve(["twice", "wider", "leap"]), "leap")
+	eq(SwingBuild.sentence(t), "An attack straight after a dodge jumps you to the nearest enemy, then the next one, from further away.", "Leap x2 wide sentence")
+
+
+# --- Rule-benders ----------------------------------------------------------------
+
+func test_mirror() -> void:
+	var r := SwingBuild.resolve(["twice", "shockwave", "mirror"])
+	eq(r["effects"].size(), 2, "Mirror above a rune makes a second copy of it")
+	eq(r["effects"][1]["id"], "shockwave", "the copy is the same rune")
+	eq(r["effects"][1]["count"], 1, "the copy doesn't get the bands below the original")
+	check(r["effects"][1]["mirror"], "the copy is marked as a Mirror")
+	var b := SwingBuild.resolve(["wider", "mirror", "hook"])
+	eq(effect(b, "hook")["size"], 1.85, "Mirror above a band counts as a second band")
+	check(b["slots"][1].get("mirror", false) and b["slots"][1].has("band"), "a mirrored band is grouped with its rune")
+	check(SwingBuild.resolve(["mirror", "hook"])["slots"][0].get("unused", false), "Mirror with nothing below does nothing")
+	var gap := SwingBuild.resolve(["hook", "", "mirror"])
+	eq(gap["effects"].size(), 2, "Mirror skips empty slots to find what to copy")
+
+
+func test_relay() -> void:
+	var r := SwingBuild.resolve(["twice", "shockwave", "relay", "hook"])
+	eq(effect(r, "shockwave")["count"], 2, "Relay: the rune below keeps its bands")
+	eq(effect(r, "hook")["count"], 2, "Relay: the next rune above gets them too")
+	var s := SwingBuild.resolve(["twice", "shockwave", "relay", "wider", "hook"])
+	eq(effect(s, "hook")["count"], 2, "Relay plus Hook's own band: Twice")
+	eq(effect(s, "hook")["size"], 1.6, "Relay plus Hook's own band: Wider")
+	check(SwingBuild.resolve(["relay", "hook"])["slots"][0].get("unused", false), "Relay with no rune below does nothing")
+	check(SwingBuild.resolve(["hook", "relay"])["slots"][1].get("unused", false), "Relay with no rune above does nothing")
+	check(SwingBuild.resolve(["hook", "twice", "relay", "cleave"])["slots"][2].get("unused", false), "Relay needs the rune right below it")
+
+
+func test_one_bender_per_sword() -> void:
+	var r := SwingBuild.resolve(["hook", "mirror", "relay", "cleave"])
+	check(r["slots"][2].get("unused", false), "a second rule-bender does nothing")
+	eq(r["effects"].size(), 3, "the first rule-bender (Mirror) still works")

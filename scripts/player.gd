@@ -91,6 +91,13 @@ var rune_queue: Array = []    # [{at, effect, size, power, hits}]
 var slot_flash := {}          # slot index -> game_time it last fired
 var last_kill_pos := Vector2.ZERO
 var sweep_flash := {}         # slot index -> game_time the swing passes it
+const LEAP_WINDOW := 0.35     # Leap: an attack this soon after a dodge ends counts
+const LEAP_RANGE := 170.0
+var dodge_started := -9.0     # game_time the last dodge began
+var attack_buffered := false  # attack pressed mid-dodge, swung as the dodge ends
+var rune_counts := {}         # effect index -> triggers seen (Saved Up fires every third)
+var dodge_partial := 0.0      # Second Wind at half strength fills half a dodge
+var leap_targets: Array = []  # enemies already leapt to in this burst
 
 ## Where the body sprite's feet sit, relative to the player's centre.
 const FEET := Vector2(0, 14)
@@ -153,6 +160,8 @@ func set_weapon(stats: Dictionary) -> void:
 	rune_queue.clear()
 	slot_flash.clear()
 	sweep_flash.clear()
+	rune_counts.clear()
+	dodge_partial = 0.0
 	_reset_combo()
 
 
@@ -229,6 +238,8 @@ func _update_dodge(delta: float, move: Vector2) -> void:
 		dodge_timer = DODGE_TIME
 		invuln = maxf(invuln, DODGE_TIME + 0.06)
 		_reset_combo()
+		dodge_started = game_time
+		_trigger("dodge", [])
 
 
 # --- Combo ------------------------------------------------------------------
@@ -242,7 +253,10 @@ func _speed() -> float:
 
 
 func _update_combat(delta: float) -> void:
-	if Input.is_action_just_pressed("attack") and dodge_timer <= 0.0:
+	if Input.is_action_just_pressed("attack") and dodge_timer > 0.0:
+		attack_buffered = true
+	elif (Input.is_action_just_pressed("attack") or attack_buffered) and dodge_timer <= 0.0:
+		attack_buffered = false
 		if current_step < 0:
 			_start_step()
 		else:
@@ -286,6 +300,11 @@ func _start_step() -> void:
 	# The swing travels up the sword: each slot lights for a moment, grip to tip.
 	for i in weapon.get("line", []).size():
 		sweep_flash[i] = game_time + float(i) * 0.04
+	# Leap: the first swing straight after a dodge.
+	if game_time - dodge_started <= DODGE_TIME + LEAP_WINDOW:
+		dodge_started = -9.0
+		leap_targets.clear()
+		_trigger("dodge_attack", [])
 	if info.has("dash"):
 		lunge_dir = aim_dir
 		lunge_timer = hit_time
@@ -382,21 +401,27 @@ func _trigger(trigger: String, hits: Array) -> void:
 	var effects: Array = weapon.get("effects", [])
 	for i in effects.size():
 		var e: Dictionary = effects[i]
-		if e["trigger"] != trigger:
+		if e["trigger"] != trigger and not (trigger in e.get("also", [])):
 			continue
+		# Saved Up: count the triggers and only fire on every third one.
+		var every := int(e.get("every", 1))
+		if every > 1:
+			rune_counts[i] = int(rune_counts.get(i, 0)) + 1
+			if int(rune_counts[i]) % every != 0:
+				continue
 		for n in int(e["count"]):
-			_queue_rune(i, game_time + n * REPEAT_GAP, float(e["size"]), hits)
+			_queue_rune(i, game_time + n * REPEAT_GAP, float(e["size"]), hits, float(e.get("power", 1.0)))
 
 
-func _queue_rune(effect: int, at: float, size: float, hits: Array) -> void:
+func _queue_rune(effect: int, at: float, size: float, hits: Array, power := 1.0) -> void:
 	var id: String = weapon["effects"][effect]["id"]
 	for q in rune_queue:
 		if q["effect"] != effect and weapon["effects"][q["effect"]]["id"] == id and absf(float(q["at"]) - at) < 0.03:
 			q["size"] = minf(maxf(float(q["size"]), size) * 1.3, SwingBuild.MAX_SIZE)
-			q["power"] = float(q["power"]) + 1.0
+			q["power"] = float(q["power"]) + power
 			q["merged"].append(effect)
 			return
-	rune_queue.append({"at": at, "effect": effect, "size": size, "power": 1.0, "hits": hits.duplicate(), "merged": []})
+	rune_queue.append({"at": at, "effect": effect, "size": size, "power": power, "hits": hits.duplicate(), "merged": []})
 
 
 func _run_rune_queue() -> void:
@@ -418,7 +443,7 @@ func on_kill(where: Vector2 = Vector2.INF) -> void:
 func _flash_effect(effect: int) -> void:
 	var e: Dictionary = weapon["effects"][effect]
 	slot_flash[int(e["slot"])] = game_time
-	for s in e["band_slots"]:
+	for s in e["band_slots"] + e.get("relayed", []):
 		slot_flash[int(s)] = game_time
 		var spark := _strip("band_spark", _slot_world(int(s)))
 		if spark != null:
@@ -511,7 +536,11 @@ func _fire_rune(q: Dictionary) -> void:
 				_strip("cleave_echo", best.global_position, 0.0, size)
 			Sfx.play(self, "cleave", -6.0)
 		"second_wind":
-			dodge_charges = mini(dodge_charges + int(power), MAX_DODGES_WIND)
+			dodge_partial += power
+			var add := int(floor(dodge_partial + 0.001))
+			dodge_partial -= add
+			if add > 0:
+				dodge_charges = mini(dodge_charges + add, MAX_DODGES_WIND)
 			var wisp := _strip("wind_wisp", last_kill_pos)
 			if wisp != null:
 				wisp.life = 0.35
@@ -526,9 +555,48 @@ func _fire_rune(q: Dictionary) -> void:
 					if is_instance_valid(e) and not e.dead and e.global_position.distance_to(global_position) < 150.0 * size:
 						e.knock = (e.global_position - global_position).normalized() * 420.0 * e.knock_resist
 			Sfx.play(self, "second_wind", -4.0)
+		"leap":
+			_leap(size, power, dmg, col)
 	# Name what fired above the player, so it's obvious which rune did what.
 	if id != "second_wind":
-		_label(str(SwingBuild.FITTINGS[id]["name"]).to_upper() + ("!" if power <= 1.0 else " x%d!" % int(power)), col)
+		_label(str(SwingBuild.FITTINGS[id]["name"]).to_upper() + ("!" if power <= 1.0 else " x%s!" % str(snappedf(power, 0.5)).trim_suffix(".0")), col)
+
+
+## Leap: jump to the nearest enemy (not one already leapt to in this burst),
+## landing just short of it with a small hit, so the swing lands.
+func _leap(size: float, power: float, dmg: float, col: Color) -> void:
+	var best = null
+	var best_d := LEAP_RANGE * size
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if not is_instance_valid(e) or e.dead or e in leap_targets:
+			continue
+		var d: float = e.global_position.distance_to(global_position)
+		if d < best_d:
+			best_d = d
+			best = e
+	if best == null:
+		return
+	leap_targets.append(best)
+	var rel: Vector2 = best.global_position - global_position
+	var dir := rel.normalized()
+	var travel := maxf(rel.length() - (float(best.radius) + 14.0), 0.0)
+	dodge_timer = 0.0  # a Leap on a dodge takes over the dodge
+	lunge_dir = dir
+	lunge_timer = 0.14
+	lunge_speed = travel / 0.14
+	aim_dir = dir
+	invuln = maxf(invuln, 0.2)
+	best.take_hit(dmg * 0.4 * power, dir, 120.0, false, col)
+	best.apply_stun(0.25)
+	var ring := RuneFx.new()
+	ring.kind = "ring"
+	ring.size = 34.0 * size
+	ring.color = col
+	ring.life = 0.25
+	_fx_root().add_child(ring)
+	ring.global_position = best.global_position
+	shake = maxf(shake, 5.0)
+	Sfx.play(self, "cleave", -6.0, 1.3)
 
 
 ## Plays one of the art's effect strips (art/swing/fx/) at a world position.

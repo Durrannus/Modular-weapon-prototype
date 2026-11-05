@@ -22,7 +22,7 @@ const FOCUS := Color("#fff3c4")
 const PLATE := Color("#14171d")
 const WELL := Color("#0b0d11")
 
-const TABS := ["blades", "grips", "runes", "bands"]
+const TABS := ["blades", "grips", "runes", "bands", "rare"]
 const LEFT := Rect2(10, 32, 195, 296)
 const RIGHT := Rect2(436, 32, 194, 296)
 const CENTRE_X := 322.0
@@ -271,7 +271,10 @@ func _cards() -> Array:
 			for id in SwingBuild.FITTING_ORDER:
 				if SwingBuild.FITTINGS[id]["kind"] == "band":
 					out.append({"id": id, "name": SwingBuild.FITTINGS[id]["name"], "locked": false})
-			out.append({"id": "", "name": "", "locked": true})
+		"rare":
+			for id in SwingBuild.FITTING_ORDER:
+				if SwingBuild.FITTINGS[id]["kind"] == "bender":
+					out.append({"id": id, "name": SwingBuild.FITTINGS[id]["name"], "locked": false})
 	return out
 
 
@@ -291,6 +294,11 @@ func _use_card(i: int) -> void:
 
 
 func _put(id: String) -> void:
+	# One rule-bender per sword: fitting a new one takes the old one off.
+	if SwingBuild.FITTINGS[id]["kind"] == "bender":
+		for i in build.line.size():
+			if i != selected and build.line[i] != "" and SwingBuild.FITTINGS[build.line[i]]["kind"] == "bender":
+				build.line[i] = ""
 	build.set_slot(selected, id)
 
 
@@ -371,10 +379,23 @@ func _wrap(text: String, width: float) -> Array:
 
 func _icon(kind: String, id: String, center: Vector2) -> void:
 	match kind:
-		"runes", "bands":
+		"runes", "bands", "rare":
 			var tex := Art.texture("swing/%s/%s_icon.png" % [kind, id])
 			if tex != null:
 				root.draw_texture(tex, (center - tex.get_size() * 0.5).round())
+			elif SwingBuild.FITTINGS.has(id):
+				# No art yet: a plain stone (rune), ring (band) or gem (rule-bender) in its colour.
+				var f: Dictionary = SwingBuild.FITTINGS[id]
+				var c: Color = f["color"]
+				match f["kind"]:
+					"rune":
+						root.draw_circle(center, 7.0, c.darkened(0.5))
+						root.draw_circle(center, 5.0, c)
+					"band":
+						root.draw_rect(Rect2(center - Vector2(9, 3), Vector2(18, 6)), c.darkened(0.4))
+						root.draw_rect(Rect2(center - Vector2(9, 1), Vector2(18, 2)), c)
+					_:
+						root.draw_colored_polygon(PackedVector2Array([center + Vector2(0, -8), center + Vector2(7, 0), center + Vector2(0, 8), center + Vector2(-7, 0)]), c)
 		"blades", "grips":
 			# The in-hand sprite at 2x, lying on its side, tip to the right.
 			var tex := Art.texture("swing/%s/%s_hand.png" % [kind, id])
@@ -404,7 +425,8 @@ func _draw_tray() -> void:
 	_head("Parts", LEFT.position + Vector2(16, 17))
 	# Tabs
 	for i in TABS.size():
-		var r := Rect2(LEFT.position.x + 6 + i * 46, LEFT.position.y + 26, 44, 14)
+		var pitch := (LEFT.size.x - 12.0) / TABS.size()
+		var r := Rect2(LEFT.position.x + 6 + i * pitch, LEFT.position.y + 26, pitch - 2.0, 14)
 		buttons["tab:%d" % i] = r
 		if i == tab:
 			root.draw_rect(r, Color(0.16, 0.18, 0.23))
@@ -485,7 +507,9 @@ func _kind_line(id: String) -> String:
 	var f: Dictionary = SwingBuild.FITTINGS[id]
 	if f["kind"] == "band":
 		return "Band"
-	return "Rune, " + {"finisher": "on the finisher", "hit": "every hit", "kill": "on a kill"}[f["trigger"]]
+	if f["kind"] == "bender":
+		return "Rule-bender, 1 per sword"
+	return "Rune, " + {"finisher": "on the finisher", "hit": "every hit", "kill": "on a kill", "dodge_attack": "after a dodge"}[f["trigger"]]
 
 
 func _desc(id: String) -> String:
@@ -497,9 +521,35 @@ func _desc(id: String) -> String:
 
 
 func _boost_text(band: String, rune: String) -> String:
-	if band == "twice":
-		return {"shockwave": "two waves", "hook": "hooks twice", "cleave": "two behind", "second_wind": "two dodges"}.get(rune, "twice")
-	return {"shockwave": "a bigger wave", "hook": "reaches further", "cleave": "further back", "second_wind": "pushes enemies away"}.get(rune, "bigger")
+	match band:
+		"twice":
+			return {"shockwave": "two waves", "hook": "hooks twice", "cleave": "two behind", "second_wind": "two dodges", "leap": "two jumps"}.get(rune, "twice")
+		"wider":
+			return {"shockwave": "a bigger wave", "hook": "reaches further", "cleave": "further back", "second_wind": "pushes enemies away", "leap": "jumps further"}.get(rune, "bigger")
+		"every_hit":
+			return "on every hit, half strength"
+		"saved_up":
+			return "every third time, 3x strong"
+		"on_dodge":
+			return "when you dodge too"
+	return ""
+
+
+## What a band does to its rune, as a short sentence for the side panel.
+func _band_line(band: String, rune: String) -> String:
+	var rn: String = SwingBuild.FITTINGS[rune]["name"]
+	match band:
+		"twice":
+			return "%s fires twice." % rn
+		"wider":
+			return "%s %s." % [rn, _boost_text("wider", rune)]
+		"every_hit":
+			return "%s happens on every hit, at half strength." % rn
+		"saved_up":
+			return "%s happens every third time, three times as strong." % rn
+		"on_dodge":
+			return "%s also happens when you dodge." % rn
+	return ""
 
 
 func _draw_sword(stats: Dictionary) -> void:
@@ -556,6 +606,12 @@ func _draw_sword(stats: Dictionary) -> void:
 			tags.append("fires x%d%s" % [int(e["count"]), " max" if int(e["count"]) >= SwingBuild.MAX_COUNT else ""])
 		if float(e["size"]) > 1.0:
 			tags.append("max size" if float(e["size"]) >= SwingBuild.MAX_SIZE else "bigger")
+		if int(e.get("every", 1)) > 1:
+			tags.append("every 3rd")
+		elif float(e.get("power", 1.0)) < 1.0:
+			tags.append("every hit")
+		if "dodge" in e.get("also", []):
+			tags.append("+ dodge")
 		for ti in tags.size():
 			_head(tags[ti], Vector2(bx + 4, (y0 + y1) * 0.5 + 3 + (ti - (tags.size() - 1) * 0.5) * 10), TEAL)
 	# Labels beside the sword, test swords left of the anvil, the dummy right of it.
@@ -753,15 +809,25 @@ func _draw_does(stats: Dictionary) -> void:
 		var bar := FAINT
 		var si: Dictionary = info.get(i, {})
 		if id != "":
-			if SwingBuild.FITTINGS[id]["kind"] == "band":
-				bar = TEAL
-				if si.has("band"):
+			var kind: String = SwingBuild.FITTINGS[id]["kind"]
+			if si.has("unused"):
+				text = str(si.get("why", "It does nothing here."))
+				bar = FAINT
+			elif id == "mirror":
+				bar = SwingBuild.FITTINGS["mirror"]["color"]
+				if si.has("rune"):
+					text = "Copies %s: " % SwingBuild.FITTINGS[effects[int(si["rune"])]["id"]]["name"] + SwingBuild.sentence(effects[int(si["rune"])]).substr(0, 1).to_lower() + SwingBuild.sentence(effects[int(si["rune"])]).substr(1)
+				elif si.has("band"):
 					var e: Dictionary = effects[int(si["band"])]
-					var rn: String = SwingBuild.FITTINGS[e["id"]]["name"]
-					text = ("%s fires twice." % rn) if id == "twice" else ("%s %s." % [rn, _boost_text("wider", e["id"])])
-				else:
-					text = "No rune above it, so it does nothing."
-					bar = FAINT
+					text = "Copies the band below. " + _band_line(str(e["bands"][-1]), e["id"])
+			elif id == "relay":
+				bar = SwingBuild.FITTINGS["relay"]["color"]
+				var e: Dictionary = effects[int(si["band"])]
+				text = "Hands the bands below on to %s too." % SwingBuild.FITTINGS[e["id"]]["name"]
+			elif kind == "band":
+				bar = TEAL
+				var e: Dictionary = effects[int(si["band"])]
+				text = _band_line(id, e["id"])
 			else:
 				bar = AMBER
 				text = SwingBuild.sentence(effects[int(si["rune"])])
