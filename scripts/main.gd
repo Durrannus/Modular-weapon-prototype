@@ -262,3 +262,13 @@ func _draw_tiles() -> void:
 		var py := ARENA.position.y + ty * TILE
 		draw_texture_rect(wall, Rect2(Vector2(ARENA.position.x - TILE, py), size), false)
 		draw_texture_rect(wall, Rect2(Vector2(ARENA.end.x, py), size), false)
+
+
+## F11 or Alt+Enter switches between fullscreen (the default) and a window.
+func _unhandled_input(event: InputEvent) -> void:
+	if event is InputEventKey and event.pressed and not event.echo:
+		var k := event as InputEventKey
+		if k.keycode == KEY_F11 or (k.keycode == KEY_ENTER and k.alt_pressed):
+			var full := DisplayServer.window_get_mode() == DisplayServer.WINDOW_MODE_FULLSCREEN
+			DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED if full else DisplayServer.WINDOW_MODE_FULLSCREEN)
+			get_viewport().set_input_as_handled()
