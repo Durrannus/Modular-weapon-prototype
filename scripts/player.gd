@@ -690,7 +690,7 @@ func _draw() -> void:
 	draw_circle(Vector2.ZERO, 15.0, Color(0, 0, 0, 0.3))  # shadow
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 	var strip := _body_strip()
-	var tex := Art.texture("body/ivy_%s.png" % strip[0])
+	var tex := Art.texture("body/%s_%s.png" % [CHARACTER, strip[0]])
 	if tex != null:
 		var tint := Color(2.0, 2.0, 2.0) if blink else Color.WHITE
 		var fw := tex.get_width() / maxi(int(strip[1]), 1)
@@ -734,15 +734,25 @@ func _body_strip() -> Array:
 	return ["%s_%s" % [anim, facing], frames, frame]
 
 
+## The test character's body strips (art/body/<CHARACTER>_*.png). Change it back to
+## "ivy" to use Ivy; her anchors live in anchors.json.
+const CHARACTER := "crew_a"
+
+
+func _body_data() -> Dictionary:
+	var d: Dictionary = Art.json("body/%s.json" % CHARACTER)
+	return d if not d.is_empty() else Art.anchors().get("body", {})
+
+
 func _body_origin() -> Vector2:
-	var o: Array = Art.anchors().get("body", {}).get("origin_feet", [28, 52])
+	var o: Array = _body_data().get("origin_feet", [28, 52])
 	return Vector2(o[0], o[1])
 
 
 ## Where the hand is (the sword's pivot), relative to the player's centre.
 func _hand_point() -> Vector2:
 	var strip := _body_strip()
-	var strips: Dictionary = Art.anchors().get("body", {}).get("strips", {})
+	var strips: Dictionary = _body_data().get("strips", {})
 	var info: Dictionary = strips.get(strip[0], {})
 	var hands: Array = info.get("hand", [])
 	if hands.is_empty():
