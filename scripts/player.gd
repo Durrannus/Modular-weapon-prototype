@@ -557,6 +557,21 @@ func _fire_rune(q: Dictionary) -> void:
 			Sfx.play(self, "second_wind", -4.0)
 		"leap":
 			_leap(size, power, dmg, col)
+		"whirlwind":
+			var w := RuneFx.new()
+			w.kind = "spin"
+			w.dir = aim_dir
+			w.spin_side = -swing_side
+			w.size = 78.0 * float(weapon.get("reach", 1.0)) * size
+			w.life = 0.26
+			w.color = col
+			w.damage = dmg * 0.9 * power
+			w.knock = 300.0 * size
+			w.from_node = self
+			_fx_root().add_child(w)
+			w.global_position = global_position
+			shake = maxf(shake, 7.0 * size)
+			Sfx.play(self, "cleave", -4.0, 0.8)
 	# Name what fired above the player, so it's obvious which rune did what.
 	if id != "second_wind":
 		_label(str(SwingBuild.FITTINGS[id]["name"]).to_upper() + ("!" if power <= 1.0 else " x%s!" % str(snappedf(power, 0.5)).trim_suffix(".0")), col)

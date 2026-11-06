@@ -3,6 +3,7 @@ extends Node2D
 ##   "wave"   Shockwave: a bright arc that rolls forward and hits everything it passes
 ##   "ring"   Hook's reach: a ring that snaps inwards
 ##   "chain"  Hook: a chain from the player to an enemy, following the enemy
+##   "spin"   Whirlwind: a blade arc that sweeps a full circle round from_node, hitting as it passes
 ##   "slash"  Cleave: a cross-slash on the enemy behind
 ##   "pulse"  Second Wind: a green ring bursting out from the player
 ##   "text"   floating label, like "+DODGE"
@@ -26,6 +27,7 @@ var _hit := {}
 var from_node: Node2D
 var from_offset := Vector2.ZERO
 var to_node: Node2D
+var spin_side := 1.0  # Whirlwind: +1 clockwise, -1 the other way
 
 
 func _ready() -> void:
@@ -46,6 +48,10 @@ func _physics_process(delta: float) -> void:
 	if kind == "wave":
 		position += dir * speed * delta
 		_wave_hits()
+	elif kind == "spin":
+		if is_instance_valid(from_node):
+			global_position = from_node.global_position + from_offset
+		_spin_hits()
 	elif kind == "text":
 		position.y -= 60.0 * delta
 	queue_redraw()
@@ -61,6 +67,22 @@ func _wave_hits() -> void:
 		if along > -30.0 - e.radius and along < 24.0 + e.radius and side < half_width * size + e.radius:
 			_hit[e.get_instance_id()] = true
 			e.take_hit(damage, dir, knock, false, color)
+
+
+## Whirlwind: everything the sweeping arc has passed over (inside the circle) gets hit once.
+func _spin_hits() -> void:
+	var swept := TAU * minf(t / life * 1.15, 1.0)
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if not is_instance_valid(e) or e.dead or _hit.has(e.get_instance_id()):
+			continue
+		var rel: Vector2 = e.global_position - global_position
+		if rel.length() > size + e.radius:
+			continue
+		if fposmod((rel.angle() - dir.angle()) * spin_side, TAU) > swept:
+			continue
+		_hit[e.get_instance_id()] = true
+		var away := rel.normalized() if rel.length() > 1.0 else dir
+		e.take_hit(damage, away, knock, false, color)
 
 
 func _draw() -> void:
@@ -99,6 +121,17 @@ func _draw() -> void:
 				_crescent(-back, w * (1.0 - i * 0.08), 24.0 - i * 4.0, c)
 			var hot := Color(1, 1, 0.9, fade)
 			_crescent(6.0, w * 0.92, 8.0, hot)
+		"spin":
+			# The leading edge sweeps once round; a fading trail follows it.
+			var lead := dir.angle() + spin_side * TAU * minf(k * 1.15, 1.0)
+			var trail := 2.4
+			for i in 6:
+				var a0 := lead - spin_side * trail * (float(i) / 6.0)
+				var a1 := lead - spin_side * trail * (float(i + 1) / 6.0)
+				var c := color
+				c.a = fade * (0.9 - i * 0.14)
+				draw_arc(Vector2.ZERO, size * 0.82, minf(a0, a1), maxf(a0, a1), 10, c, size * 0.32 * (1.0 - i * 0.1))
+			draw_arc(Vector2.ZERO, size, lead - spin_side * 0.5 if spin_side > 0 else lead, lead if spin_side > 0 else lead + 0.5, 6, Color(1, 1, 0.92, fade), 3.0)
 		"ring":
 			var r := lerpf(size, size * 0.2, ease(k, 0.5))
 			var c := color

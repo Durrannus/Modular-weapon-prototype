@@ -26,6 +26,7 @@ func _init() -> void:
 	test_relay()
 	test_one_bender_per_sword()
 	test_gilded_ruby()
+	test_whirlwind()
 	print("%d checks, %d failed" % [checks, failures])
 	quit(1 if failures > 0 else 0)
 
@@ -214,3 +215,13 @@ func test_gilded_ruby() -> void:
 	b.line = ["", "saved_up", "hook", ""]
 	eq(b.compute()["effects"][0]["power"], 3.0, "Saved Up in the ruby slot doesn't go past its max")
 	check(b.compute()["slot_info"][1].has("band"), "Saved Up in the ruby slot still works")
+
+
+# --- Whirlwind replaces Second Wind (Darren, 6 November) -----------------------------
+
+func test_whirlwind() -> void:
+	var e := effect(SwingBuild.resolve(["twice", "wider", "whirlwind"]), "whirlwind")
+	eq(e["trigger"], "finisher", "Whirlwind fires on the finisher")
+	eq(SwingBuild.sentence(e), "Your finisher spins two times round, cutting everything around you, in a bigger circle.", "Whirlwind x2 wide sentence")
+	eq(SwingBuild.sentence(effect(SwingBuild.resolve(["on_dodge", "whirlwind"]), "whirlwind")), "Your finisher spins a full circle, cutting everything around you. Dodging does it too.", "Whirlwind on dodge")
+	check(SwingBuild.FITTINGS["second_wind"].get("parked", false), "Second Wind is parked")

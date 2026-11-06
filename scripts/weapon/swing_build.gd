@@ -41,10 +41,13 @@ const FITTINGS := {
 		"desc": "Your finisher yanks nearby enemies in on chains."},
 	"cleave": {"kind": "rune", "name": "Cleave", "trigger": "hit", "color": Color("#9fc8ff"),
 		"desc": "Every hit also strikes an enemy behind the target."},
-	"second_wind": {"kind": "rune", "name": "Second Wind", "trigger": "kill", "color": Color("#8ff0c0"),
+	# Second Wind is parked (Darren, 6 November: "meh"); Whirlwind replaces it in the tray.
+	"second_wind": {"kind": "rune", "name": "Second Wind", "trigger": "kill", "color": Color("#8ff0c0"), "parked": true,
 		"desc": "Every kill refills a dodge charge (up to 2)."},
 	"leap": {"kind": "rune", "name": "Leap", "trigger": "dodge_attack", "color": Color("#f4e07a"),
 		"desc": "Attacking straight after a dodge jumps you to the nearest enemy."},
+	"whirlwind": {"kind": "rune", "name": "Whirlwind", "trigger": "finisher", "color": Color("#ff7ad9"),
+		"desc": "Your finisher spins a full circle, cutting everything around you."},
 	"twice": {"kind": "band", "name": "Twice", "color": Color("#6fd6cb"),
 		"desc": "The rune above happens twice."},
 	"wider": {"kind": "band", "name": "Wider", "color": Color("#6fd6cb"),
@@ -61,7 +64,7 @@ const FITTINGS := {
 	"relay": {"kind": "bender", "name": "Relay", "color": Color("#d9a6ff"),
 		"desc": "Rare. The bands on the rune below also boost the next rune above. One rule-bender per sword."},
 }
-const FITTING_ORDER := ["shockwave", "hook", "cleave", "second_wind", "leap",
+const FITTING_ORDER := ["shockwave", "hook", "cleave", "whirlwind", "leap", "second_wind",
 	"twice", "wider", "every_hit", "saved_up", "on_dodge", "mirror", "relay"]
 const EVERY_HIT_POWER := 0.5
 const SAVED_UP_EVERY := 3
@@ -284,6 +287,8 @@ static func sentence(e: Dictionary) -> String:
 			what = "also strikes %s behind the target%s" % ["one enemy" if n == 1 else _num(n) + " enemies", ", from further away" if big else ""]
 		"second_wind":
 			what = "refills %s%s" % ["a dodge charge" if n == 1 else _num(n) + " dodge charges", " and knocks enemies back" if big else ""]
+		"whirlwind":
+			what = "spins %s, cutting everything around you%s" % ["a full circle" if n == 1 else _num(n) + " times round", ", in a bigger circle" if big else ""]
 		"leap":
 			what = "jumps you to the nearest enemy%s%s" % ["" if n == 1 else (", then the next one" if n == 2 else ", then %s more" % _num(n - 1)), ", from further away" if big else ""]
 		_:
