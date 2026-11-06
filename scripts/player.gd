@@ -443,7 +443,7 @@ func on_kill(where: Vector2 = Vector2.INF) -> void:
 func _flash_effect(effect: int) -> void:
 	var e: Dictionary = weapon["effects"][effect]
 	slot_flash[int(e["slot"])] = game_time
-	for s in e["band_slots"] + e.get("relayed", []):
+	for s in e["band_slots"] + e.get("relayed", []) + e.get("copied_slots", []):
 		slot_flash[int(s)] = game_time
 		var spark := _strip("band_spark", _slot_world(int(s)))
 		if spark != null:
