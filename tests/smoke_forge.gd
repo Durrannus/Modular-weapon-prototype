@@ -24,7 +24,7 @@ func _init() -> void:
 		["on_dodge", "leap", "mirror", "cleave"],
 		["relay", "mirror", "wider", ""],
 	]
-	forge.build.set_grip("wrapped_grip")
+	forge.build.set_grip("gilded_grip")
 	forge.build.set_blade("iron_blade")
 	for l in lines:
 		forge.build.line = l.duplicate()

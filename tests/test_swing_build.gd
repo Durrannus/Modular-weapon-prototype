@@ -25,6 +25,7 @@ func _init() -> void:
 	test_mirror()
 	test_relay()
 	test_one_bender_per_sword()
+	test_gilded_ruby()
 	print("%d checks, %d failed" % [checks, failures])
 	quit(1 if failures > 0 else 0)
 
@@ -190,3 +191,26 @@ func test_one_bender_per_sword() -> void:
 	var r := SwingBuild.resolve(["hook", "mirror", "relay", "cleave"])
 	check(r["slots"][2].get("unused", false), "a second rule-bender does nothing")
 	eq(r["effects"].size(), 3, "the first rule-bender (Mirror) still works")
+
+
+# --- Gilded grip: the ruby slot doubles what's in it (Darren, 6 November) ----------
+
+func test_gilded_ruby() -> void:
+	var b = SwingBuild.new()
+	b.set_grip("gilded_grip")
+	b.set_blade("iron_blade")
+	check(not SwingBuild.GRIPS["gilded_grip"].get("locked", false), "the Gilded grip is unlocked")
+	b.line = ["", "shockwave", "", ""]
+	eq(b.compute()["effects"][0]["count"], 2, "a rune in the ruby slot fires twice")
+	b.line = ["twice", "shockwave", "", ""]
+	eq(b.compute()["effects"][0]["count"], 3, "ruby plus Twice: three fires (the cap)")
+	b.line = ["twice", "twice", "shockwave", ""]
+	eq(b.compute()["effects"][0]["count"], SwingBuild.MAX_COUNT, "a band in the ruby slot still respects the Twice cap")
+	b.line = ["", "wider", "hook", ""]
+	eq(b.compute()["effects"][0]["size"], 1.85, "Wider in the ruby slot counts as two Widers")
+	b.line = ["shockwave", "", "hook", ""]
+	eq(b.compute()["effects"][0]["count"], 1, "a rune in the bottom (plain) slot is not doubled")
+	eq(b.compute()["effects"][1]["count"], 1, "blade slots are not doubled")
+	b.line = ["", "saved_up", "hook", ""]
+	eq(b.compute()["effects"][0]["power"], 3.0, "Saved Up in the ruby slot doesn't go past its max")
+	check(b.compute()["slot_info"][1].has("band"), "Saved Up in the ruby slot still works")

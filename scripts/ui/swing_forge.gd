@@ -606,6 +606,8 @@ func _draw_sword(stats: Dictionary) -> void:
 			tags.append("fires x%d%s" % [int(e["count"]), " max" if int(e["count"]) >= SwingBuild.MAX_COUNT else ""])
 		if float(e["size"]) > 1.0:
 			tags.append("max size" if float(e["size"]) >= SwingBuild.MAX_SIZE else "bigger")
+		if e.get("ruby", false):
+			tags.append("ruby x2")
 		if int(e.get("every", 1)) > 1:
 			tags.append("every 3rd")
 		elif float(e.get("power", 1.0)) < 1.0:

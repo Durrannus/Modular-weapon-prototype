@@ -27,8 +27,8 @@ const GRIPS := {
 	"long_grip": {"name": "Long Grip", "slots": 3, "speed": 0.88, "desc": "3 slots. Slower swings."},
 	"ringed_grip": {"name": "Ringed Grip", "slots": 2, "speed": 0.95, "built_in": "wider",
 		"desc": "2 slots. Special: a band in the pommel makes every rune a bit bigger."},
-	"gilded_grip": {"name": "Gilded Grip", "slots": 2, "speed": 0.95, "locked": true,
-		"desc": "Special: its top slot is an odd slot. Not designed yet."},
+	"gilded_grip": {"name": "Gilded Grip", "slots": 2, "speed": 0.95, "ruby_slot": 1,
+		"desc": "2 slots. Special: the ruby top slot doubles what's in it. A rune fires twice, a band counts as two (caps still apply)."},
 }
 const GRIP_ORDER := ["wooden_grip", "wrapped_grip", "long_grip", "ringed_grip", "gilded_grip"]
 
@@ -148,7 +148,9 @@ static func wider_size(n: int) -> float:
 ##            mirror (true if it's a Mirror's copy)}
 ##   slots:   for each slot index: {"rune": effect index} / {"band": effect index} /
 ##            {"unused": true, "why": text} / plus "mirror": true or "relay": true on rule-benders
-static func resolve(slots: Array) -> Dictionary:
+## ruby: the Gilded grip's ruby slot index (-1 if none). A rune there fires one more
+## time, and a band there counts as two bands, both within the caps.
+static func resolve(slots: Array, ruby := -1) -> Dictionary:
 	var effects: Array = []
 	var info := {}
 	var line := _apply_mirror(slots, info)
@@ -176,8 +178,13 @@ static func resolve(slots: Array) -> Dictionary:
 		var idx := effects.size()
 		for s in relay_bands + pending:
 			var why := _apply_band(e, str(line[s]))
+			if s == ruby and why == "":
+				_apply_band(e, str(line[s]))  # the ruby counts it twice
 			if s in pending:
 				info[s] = {"band": idx} if why == "" else {"unused": true, "why": why}
+		if i == ruby:
+			e["count"] = mini(int(e["count"]) + 1, MAX_COUNT)
+			e["ruby"] = true
 		if relay_slot >= 0:
 			e["relayed"] = relay_bands
 			info[relay_slot]["band"] = idx
@@ -304,7 +311,7 @@ func compute() -> Dictionary:
 	var steps: Array = []
 	for m in b["chain"]:
 		steps.append({"move": m, "from": b["name"]})
-	var r := resolve(line)
+	var r := resolve(line, int(g.get("ruby_slot", -1)))
 	if g.get("built_in", "") == "wider":
 		for e in r["effects"]:
 			e["size"] = minf(float(e["size"]) * 1.3, MAX_SIZE)
