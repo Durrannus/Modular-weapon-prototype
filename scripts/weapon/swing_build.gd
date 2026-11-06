@@ -39,8 +39,9 @@ const FITTINGS := {
 		"desc": "Your finisher sends a rolling wave forward."},
 	"hook": {"kind": "rune", "name": "Hook", "trigger": "finisher", "color": Color("#ff9a3c"),
 		"desc": "Your finisher yanks nearby enemies in on chains."},
-	"cleave": {"kind": "rune", "name": "Cleave", "trigger": "hit", "color": Color("#9fc8ff"),
-		"desc": "Every hit also strikes an enemy behind the target."},
+	# Shards replaced Cleave (Darren, 6 November).
+	"shards": {"kind": "rune", "name": "Shards", "trigger": "hit", "color": Color("#c9d4e0"),
+		"desc": "Every hit sends metal shards jumping to the closest enemy, then the next."},
 	# Second Wind is parked (Darren, 6 November: "meh"); Whirlwind replaces it in the tray.
 	"second_wind": {"kind": "rune", "name": "Second Wind", "trigger": "kill", "color": Color("#8ff0c0"), "parked": true,
 		"desc": "Every kill refills a dodge charge (up to 2)."},
@@ -64,7 +65,7 @@ const FITTINGS := {
 	"relay": {"kind": "bender", "name": "Relay", "color": Color("#d9a6ff"),
 		"desc": "Rare. The bands on the rune below also boost the next rune above. One rule-bender per sword."},
 }
-const FITTING_ORDER := ["shockwave", "hook", "cleave", "whirlwind", "leap", "second_wind",
+const FITTING_ORDER := ["shockwave", "hook", "shards", "whirlwind", "leap", "second_wind",
 	"twice", "wider", "every_hit", "saved_up", "on_dodge", "mirror", "relay"]
 const EVERY_HIT_POWER := 0.5
 const SAVED_UP_EVERY := 3
@@ -260,8 +261,6 @@ static func _apply_band(e: Dictionary, band: String) -> String:
 				return "On Dodge doesn't stack (max)."
 			if e["id"] == "second_wind":
 				return "Second Wind can't refill the dodge you're using."
-			if e["id"] == "cleave":
-				return "Cleave needs a hit to strike behind."
 			e["also"].append("dodge")
 	return ""
 
@@ -283,8 +282,8 @@ static func sentence(e: Dictionary) -> String:
 			what = "sends %s forward" % (("a big shockwave" if big else "a shockwave") if n == 1 else ("%s %sshockwaves" % [_num(n), "big " if big else ""]))
 		"hook":
 			what = "pulls enemies in%s%s" % [" from further away" if big else "", times]
-		"cleave":
-			what = "also strikes %s behind the target%s" % ["one enemy" if n == 1 else _num(n) + " enemies", ", from further away" if big else ""]
+		"shards":
+			what = "sends shards jumping to the closest enemies%s%s" % [times, ", from further away" if big else ""]
 		"second_wind":
 			what = "refills %s%s" % ["a dodge charge" if n == 1 else _num(n) + " dodge charges", " and knocks enemies back" if big else ""]
 		"whirlwind":

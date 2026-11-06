@@ -512,29 +512,18 @@ func _fire_rune(q: Dictionary) -> void:
 					yank.follow = e
 					yank.life = 0.35
 			Sfx.play(self, "hook", -4.0)
-		"cleave":
-			var hits: Array = q["hits"]
-			_strip("cleave_arc", global_position + aim_dir * 12.0, aim_dir.angle(), size)
-			for h in hits:
-				if not is_instance_valid(h):
-					continue
-				var away: Vector2 = (h.global_position - global_position).normalized()
-				var best = null
-				var best_d := 140.0 * size
-				for e in get_tree().get_nodes_in_group("enemies"):
-					if not is_instance_valid(e) or e.dead or e == h or e in hits:
-						continue
-					var rel: Vector2 = e.global_position - h.global_position
-					if rel.dot(away) < -10.0:
-						continue  # only enemies behind the target
-					if rel.length() < best_d:
-						best_d = rel.length()
-						best = e
-				if best == null:
-					continue
-				best.take_hit(dmg * 0.8 * power, away, 220.0, false, col)
-				_strip("cleave_echo", best.global_position, 0.0, size)
-			Sfx.play(self, "cleave", -6.0)
+		"shards":
+			# From each hit enemy (or from you, on a dodge), metal shards jump to the
+			# closest enemy, then on to the next closest.
+			var starts: Array = []
+			for h in q["hits"]:
+				if is_instance_valid(h):
+					starts.append(h)
+			if starts.is_empty():
+				starts.append(self)
+			for s in starts:
+				_shards(s, size, power, dmg, col)
+			Sfx.play(self, "cleave", -6.0, 1.2)
 		"second_wind":
 			dodge_partial += power
 			var add := int(floor(dodge_partial + 0.001))
@@ -575,6 +564,38 @@ func _fire_rune(q: Dictionary) -> void:
 	# Name what fired above the player, so it's obvious which rune did what.
 	if id != "second_wind":
 		_label(str(SwingBuild.FITTINGS[id]["name"]).to_upper() + ("!" if power <= 1.0 else " x%s!" % str(snappedf(power, 0.5)).trim_suffix(".0")), col)
+
+
+## Shards: a chain of metal shards from `from` to the closest enemy, then the next.
+const SHARD_JUMPS := 2
+const SHARD_RANGE := 130.0
+func _shards(from: Node2D, size: float, power: float, dmg: float, col: Color) -> void:
+	var hit := {from.get_instance_id(): true}
+	var current: Node2D = from
+	for i in SHARD_JUMPS:
+		var best = null
+		var best_d := SHARD_RANGE * size
+		for e in get_tree().get_nodes_in_group("enemies"):
+			if not is_instance_valid(e) or e.dead or hit.has(e.get_instance_id()):
+				continue
+			var d: float = e.global_position.distance_to(current.global_position)
+			if d < best_d:
+				best_d = d
+				best = e
+		if best == null:
+			return
+		hit[best.get_instance_id()] = true
+		var line := Fx.new()
+		line.kind = "chain"
+		line.to = best.global_position - current.global_position
+		line.color = col
+		line.life = 0.16
+		_fx_root().add_child(line)
+		line.global_position = current.global_position
+		var dir: Vector2 = (best.global_position - current.global_position).normalized()
+		best.take_hit(dmg * 0.6 * power, dir, 140.0, false, col)
+		_strip("cleave_echo", best.global_position, 0.0, size)
+		current = best
 
 
 ## Leap: jump to the nearest enemy (not one already leapt to in this burst),

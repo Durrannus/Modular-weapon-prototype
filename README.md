@@ -10,7 +10,7 @@ This branch tests the **swing path** (design notes, 3 November). It replaces the
 
 - A sword is a **blade** plus a **grip**. The blade sets the basic three-hit chain (the last hit is the finisher). Grip and blade both have **slots**.
 - Slots hold **runes** (effects) or **bands** (modifiers). Read the sword as one line from the bottom of the grip to the tip: a band boosts the next rune above it, bands in a row stack, and a band with nothing above it does nothing.
-- Runes: **Shockwave** (finisher: a rolling wave), **Hook** (finisher: chains yank enemies in), **Cleave** (every hit also strikes an enemy behind), **Second Wind** (kills refill a dodge, up to 2), **Leap** (an attack straight after a dodge jumps you to the nearest enemy).
+- Runes: **Shockwave** (finisher: a rolling wave), **Hook** (finisher: chains yank enemies in), **Shards** (every hit sends metal shards jumping to the closest enemy, then the next), **Whirlwind** (finisher: a full spin cutting everything around you), **Leap** (an attack straight after a dodge jumps you to the nearest enemy).
 - Bands: **Twice** (the rune happens twice, a beat apart), **Wider** (bigger), **Every Hit** (on every hit instead, at half strength), **Saved Up** (every third time, three times as strong) and **On Dodge** (also when you dodge).
 - Rule-benders (the "rare" tab, one per sword): **Relay** hands the bands on the rune below on to the next rune above too. Mirror is parked (it overlapped Twice).
 - New parts without art yet show as plain coloured stones, rings and gems.

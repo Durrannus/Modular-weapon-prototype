@@ -523,9 +523,9 @@ func _desc(id: String) -> String:
 func _boost_text(band: String, rune: String) -> String:
 	match band:
 		"twice":
-			return {"shockwave": "two waves", "hook": "hooks twice", "cleave": "two behind", "second_wind": "two dodges", "leap": "two jumps", "whirlwind": "two spins"}.get(rune, "twice")
+			return {"shockwave": "two waves", "hook": "hooks twice", "shards": "two chains", "second_wind": "two dodges", "leap": "two jumps", "whirlwind": "two spins"}.get(rune, "twice")
 		"wider":
-			return {"shockwave": "a bigger wave", "hook": "reaches further", "cleave": "further back", "second_wind": "pushes enemies away", "leap": "jumps further", "whirlwind": "a bigger circle"}.get(rune, "bigger")
+			return {"shockwave": "a bigger wave", "hook": "reaches further", "shards": "jumps further", "second_wind": "pushes enemies away", "leap": "jumps further", "whirlwind": "a bigger circle"}.get(rune, "bigger")
 		"every_hit":
 			return "on every hit, half strength"
 		"saved_up":

@@ -21,7 +21,7 @@ func _init() -> void:
 	var lines := [
 		["twice", "shockwave", "relay", "hook"],
 		["every_hit", "shockwave", "mirror", "saved_up"],
-		["on_dodge", "leap", "mirror", "cleave"],
+		["on_dodge", "leap", "mirror", "shards"],
 		["relay", "mirror", "wider", ""],
 	]
 	forge.build.set_grip("gilded_grip")

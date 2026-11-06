@@ -27,6 +27,7 @@ func _init() -> void:
 	test_one_bender_per_sword()
 	test_gilded_ruby()
 	test_whirlwind()
+	test_shards()
 	print("%d checks, %d failed" % [checks, failures])
 	quit(1 if failures > 0 else 0)
 
@@ -72,8 +73,8 @@ func test_band_with_no_rune_does_nothing() -> void:
 	var r := SwingBuild.resolve(["hook", "twice"])
 	eq(effect(r, "hook")["count"], 1, "a band below nothing does not boost the rune under it")
 	check(r["slots"][1].get("unused", false), "a band with no rune above is marked unused")
-	var empty := SwingBuild.resolve(["twice", "", "cleave"])
-	eq(effect(empty, "cleave")["count"], 2, "an empty slot between band and rune is skipped")
+	var empty := SwingBuild.resolve(["twice", "", "shards"])
+	eq(effect(empty, "shards")["count"], 2, "an empty slot between band and rune is skipped")
 
 
 func test_caps() -> void:
@@ -125,9 +126,9 @@ func test_every_hit() -> void:
 	eq(e["trigger"], "hit", "Every Hit moves Shockwave to every hit")
 	eq(e["power"], 0.5, "Every Hit halves the strength")
 	eq(SwingBuild.sentence(e), "Every hit sends a shockwave forward, at half strength.", "Every Hit sentence")
-	var r := SwingBuild.resolve(["every_hit", "cleave"])
-	check(r["slots"][0].get("unused", false), "Every Hit on Cleave (already every hit) does nothing")
-	eq(effect(r, "cleave")["power"], 1.0, "Cleave keeps full strength")
+	var r := SwingBuild.resolve(["every_hit", "shards"])
+	check(r["slots"][0].get("unused", false), "Every Hit on Shards (already every hit) does nothing")
+	eq(effect(r, "shards")["power"], 1.0, "Shards keep full strength")
 
 
 func test_saved_up() -> void:
@@ -149,7 +150,7 @@ func test_on_dodge() -> void:
 	eq(e["trigger"], "finisher", "On Dodge keeps the finisher trigger")
 	eq(SwingBuild.sentence(e), "Your finisher sends a shockwave forward. Dodging does it too.", "On Dodge sentence")
 	check(SwingBuild.resolve(["on_dodge", "second_wind"])["slots"][0].get("unused", false), "On Dodge can't go on Second Wind")
-	check(SwingBuild.resolve(["on_dodge", "cleave"])["slots"][0].get("unused", false), "On Dodge can't go on Cleave")
+	eq(effect(SwingBuild.resolve(["on_dodge", "shards"]), "shards")["also"], ["dodge"], "On Dodge works on Shards (they fly from you)")
 
 
 func test_leap() -> void:
@@ -185,11 +186,11 @@ func test_relay() -> void:
 	eq(effect(s, "hook")["size"], 1.6, "Relay plus Hook's own band: Wider")
 	check(SwingBuild.resolve(["relay", "hook"])["slots"][0].get("unused", false), "Relay with no rune below does nothing")
 	check(SwingBuild.resolve(["hook", "relay"])["slots"][1].get("unused", false), "Relay with no rune above does nothing")
-	check(SwingBuild.resolve(["hook", "twice", "relay", "cleave"])["slots"][2].get("unused", false), "Relay needs the rune right below it")
+	check(SwingBuild.resolve(["hook", "twice", "relay", "shards"])["slots"][2].get("unused", false), "Relay needs the rune right below it")
 
 
 func test_one_bender_per_sword() -> void:
-	var r := SwingBuild.resolve(["hook", "mirror", "relay", "cleave"])
+	var r := SwingBuild.resolve(["hook", "mirror", "relay", "shards"])
 	check(r["slots"][2].get("unused", false), "a second rule-bender does nothing")
 	eq(r["effects"].size(), 3, "the first rule-bender (Mirror) still works")
 
@@ -225,3 +226,10 @@ func test_whirlwind() -> void:
 	eq(SwingBuild.sentence(e), "Your finisher spins two times round, cutting everything around you, in a bigger circle.", "Whirlwind x2 wide sentence")
 	eq(SwingBuild.sentence(effect(SwingBuild.resolve(["on_dodge", "whirlwind"]), "whirlwind")), "Your finisher spins a full circle, cutting everything around you. Dodging does it too.", "Whirlwind on dodge")
 	check(SwingBuild.FITTINGS["second_wind"].get("parked", false), "Second Wind is parked")
+
+
+func test_shards() -> void:
+	var e := effect(SwingBuild.resolve(["twice", "wider", "shards"]), "shards")
+	eq(e["trigger"], "hit", "Shards fire on every hit")
+	eq(SwingBuild.sentence(e), "Every hit sends shards jumping to the closest enemies twice, from further away.", "Shards x2 wide sentence")
+	check(not SwingBuild.FITTINGS.has("cleave"), "Cleave is gone")
