@@ -56,7 +56,7 @@ const FITTINGS := {
 	"on_dodge": {"kind": "band", "name": "On Dodge", "color": Color("#6fd6cb"),
 		"desc": "The rune above also happens when you dodge."},
 	"mirror": {"kind": "bender", "name": "Mirror", "color": Color("#d9a6ff"),
-		"desc": "Rare. Copies the fitting below it. A rune is copied with its bands. One rule-bender per sword."},
+		"desc": "Rare. Copies the fitting below it. One rule-bender per sword."},
 	"relay": {"kind": "bender", "name": "Relay", "color": Color("#d9a6ff"),
 		"desc": "Rare. The bands on the rune below also boost the next rune above. One rule-bender per sword."},
 }
@@ -176,12 +176,6 @@ static func resolve(slots: Array, ruby := -1) -> Dictionary:
 		var e := {"id": id, "slot": i, "bands": [], "band_slots": pending.duplicate(), "trigger": f["trigger"],
 			"count": 1, "size": 1.0, "power": 1.0, "every": 1, "also": [], "mirror": slots[i] == "mirror"}
 		var idx := effects.size()
-		# Mirror copies the rune below together with its bands.
-		if slots[i] == "mirror" and not effects.is_empty() and effects[-1]["id"] == id:
-			for band in effects[-1]["bands"]:
-				_apply_band(e, str(band))
-			e["bands"] = []
-			e["copied_slots"] = (effects[-1]["band_slots"] as Array).duplicate()
 		for s in relay_bands + pending:
 			var why := _apply_band(e, str(line[s]))
 			if s == ruby and why == "":
