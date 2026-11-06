@@ -46,7 +46,7 @@ func _init() -> void:
 	print("one bender kept: ", forge.build.line)
 	forge.close()
 	var player = main.find_children("*", "CharacterBody2D", true, false)[0]
-	forge.build.line = ["shatter", "leap", "every_hit", "shatter"]
+	forge.build.line = ["on_dodge", "leap", "saved_up", "shockwave"]
 	player.set_weapon(forge.build.compute())
 	for trig in ["dodge", "dodge_attack", "finisher", "finisher", "finisher", "hit", "kill"]:
 		player._trigger(trig, [])

@@ -45,8 +45,6 @@ const FITTINGS := {
 		"desc": "Every kill refills a dodge charge (up to 2)."},
 	"leap": {"kind": "rune", "name": "Leap", "trigger": "dodge_attack", "color": Color("#f4e07a"),
 		"desc": "Attacking straight after a dodge jumps you to the nearest enemy."},
-	"shatter": {"kind": "rune", "name": "Shatter", "trigger": "kill", "color": Color("#ff5f7a"),
-		"desc": "Every kill bursts, hitting the enemies around it. In a crowd it can chain."},
 	"twice": {"kind": "band", "name": "Twice", "color": Color("#6fd6cb"),
 		"desc": "The rune above happens twice."},
 	"wider": {"kind": "band", "name": "Wider", "color": Color("#6fd6cb"),
@@ -63,7 +61,7 @@ const FITTINGS := {
 	"relay": {"kind": "bender", "name": "Relay", "color": Color("#d9a6ff"),
 		"desc": "Rare. The bands on the rune below also boost the next rune above. One rule-bender per sword."},
 }
-const FITTING_ORDER := ["shockwave", "hook", "cleave", "second_wind", "leap", "shatter",
+const FITTING_ORDER := ["shockwave", "hook", "cleave", "second_wind", "leap",
 	"twice", "wider", "every_hit", "saved_up", "on_dodge", "mirror", "relay"]
 const EVERY_HIT_POWER := 0.5
 const SAVED_UP_EVERY := 3
@@ -261,8 +259,6 @@ static func _apply_band(e: Dictionary, band: String) -> String:
 				return "Second Wind can't refill the dodge you're using."
 			if e["id"] == "cleave":
 				return "Cleave needs a hit to strike behind."
-			if e["id"] == "shatter":
-				return "Shatter needs a kill or a hit to burst from."
 			e["also"].append("dodge")
 	return ""
 
@@ -288,8 +284,6 @@ static func sentence(e: Dictionary) -> String:
 			what = "also strikes %s behind the target%s" % ["one enemy" if n == 1 else _num(n) + " enemies", ", from further away" if big else ""]
 		"second_wind":
 			what = "refills %s%s" % ["a dodge charge" if n == 1 else _num(n) + " dodge charges", " and knocks enemies back" if big else ""]
-		"shatter":
-			what = "makes %s%s" % ["a burst that hits the enemies around it" if n == 1 else _num(n) + " bursts that hit the enemies around it", ", in a wider blast" if big else ""]
 		"leap":
 			what = "jumps you to the nearest enemy%s%s" % ["" if n == 1 else (", then the next one" if n == 2 else ", then %s more" % _num(n - 1)), ", from further away" if big else ""]
 		_:
