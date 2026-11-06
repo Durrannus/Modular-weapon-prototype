@@ -266,7 +266,6 @@ func _cards() -> Array:
 			for id in SwingBuild.FITTING_ORDER:
 				if SwingBuild.FITTINGS[id]["kind"] == "rune":
 					out.append({"id": id, "name": SwingBuild.FITTINGS[id]["name"], "locked": false})
-			out.append({"id": "lunge", "name": "Lunge", "locked": true})
 		"bands":
 			for id in SwingBuild.FITTING_ORDER:
 				if SwingBuild.FITTINGS[id]["kind"] == "band":
@@ -523,9 +522,9 @@ func _desc(id: String) -> String:
 func _boost_text(band: String, rune: String) -> String:
 	match band:
 		"twice":
-			return {"shockwave": "two waves", "hook": "hooks twice", "cleave": "two behind", "second_wind": "two dodges", "leap": "two jumps"}.get(rune, "twice")
+			return {"shockwave": "two waves", "hook": "hooks twice", "cleave": "two behind", "second_wind": "two dodges", "leap": "two jumps", "shatter": "two bursts"}.get(rune, "twice")
 		"wider":
-			return {"shockwave": "a bigger wave", "hook": "reaches further", "cleave": "further back", "second_wind": "pushes enemies away", "leap": "jumps further"}.get(rune, "bigger")
+			return {"shockwave": "a bigger wave", "hook": "reaches further", "cleave": "further back", "second_wind": "pushes enemies away", "leap": "jumps further", "shatter": "a wider blast"}.get(rune, "bigger")
 		"every_hit":
 			return "on every hit, half strength"
 		"saved_up":

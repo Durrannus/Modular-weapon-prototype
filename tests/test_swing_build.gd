@@ -26,6 +26,7 @@ func _init() -> void:
 	test_relay()
 	test_one_bender_per_sword()
 	test_gilded_ruby()
+	test_shatter()
 	print("%d checks, %d failed" % [checks, failures])
 	quit(1 if failures > 0 else 0)
 
@@ -214,3 +215,11 @@ func test_gilded_ruby() -> void:
 	b.line = ["", "saved_up", "hook", ""]
 	eq(b.compute()["effects"][0]["power"], 3.0, "Saved Up in the ruby slot doesn't go past its max")
 	check(b.compute()["slot_info"][1].has("band"), "Saved Up in the ruby slot still works")
+
+
+func test_shatter() -> void:
+	var e := effect(SwingBuild.resolve(["wider", "shatter"]), "shatter")
+	eq(e["trigger"], "kill", "Shatter fires on a kill")
+	eq(SwingBuild.sentence(e), "Every kill makes a burst that hits the enemies around it, in a wider blast.", "Shatter sentence")
+	check(SwingBuild.resolve(["on_dodge", "shatter"])["slots"][0].get("unused", false), "On Dodge can't go on Shatter")
+	eq(effect(SwingBuild.resolve(["every_hit", "shatter"]), "shatter")["trigger"], "hit", "Every Hit makes hits burst")

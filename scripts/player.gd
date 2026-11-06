@@ -409,19 +409,22 @@ func _trigger(trigger: String, hits: Array) -> void:
 			rune_counts[i] = int(rune_counts.get(i, 0)) + 1
 			if int(rune_counts[i]) % every != 0:
 				continue
+		var where := last_kill_pos if trigger == "kill" or hits.is_empty() or not is_instance_valid(hits[0]) else (hits[0] as Node2D).global_position
 		for n in int(e["count"]):
-			_queue_rune(i, game_time + n * REPEAT_GAP, float(e["size"]), hits, float(e.get("power", 1.0)))
+			_queue_rune(i, game_time + n * REPEAT_GAP, float(e["size"]), hits, float(e.get("power", 1.0)), where)
 
 
-func _queue_rune(effect: int, at: float, size: float, hits: Array, power := 1.0) -> void:
+func _queue_rune(effect: int, at: float, size: float, hits: Array, power := 1.0, where := Vector2.ZERO) -> void:
 	var id: String = weapon["effects"][effect]["id"]
 	for q in rune_queue:
+		if id == "shatter" and (q["pos"] as Vector2).distance_to(where) > 8.0:
+			continue  # bursts in different places stay separate
 		if q["effect"] != effect and weapon["effects"][q["effect"]]["id"] == id and absf(float(q["at"]) - at) < 0.03:
 			q["size"] = minf(maxf(float(q["size"]), size) * 1.3, SwingBuild.MAX_SIZE)
 			q["power"] = float(q["power"]) + power
 			q["merged"].append(effect)
 			return
-	rune_queue.append({"at": at, "effect": effect, "size": size, "power": power, "hits": hits.duplicate(), "merged": []})
+	rune_queue.append({"at": at, "effect": effect, "size": size, "power": power, "hits": hits.duplicate(), "merged": [], "pos": where})
 
 
 func _run_rune_queue() -> void:
@@ -557,9 +560,35 @@ func _fire_rune(q: Dictionary) -> void:
 			Sfx.play(self, "second_wind", -4.0)
 		"leap":
 			_leap(size, power, dmg, col)
+		"shatter":
+			_shatter(q["pos"], size, power, dmg, col)
 	# Name what fired above the player, so it's obvious which rune did what.
 	if id != "second_wind":
 		_label(str(SwingBuild.FITTINGS[id]["name"]).to_upper() + ("!" if power <= 1.0 else " x%s!" % str(snappedf(power, 0.5)).trim_suffix(".0")), col)
+
+
+## Shatter: a burst where the enemy died (or was hit) that hurts everyone nearby.
+## Enemies it kills burst too, so a crowd can chain.
+func _shatter(where: Vector2, size: float, power: float, dmg: float, col: Color) -> void:
+	var radius := 64.0 * size
+	var ring := RuneFx.new()
+	ring.kind = "ring"
+	ring.size = radius
+	ring.color = col
+	ring.life = 0.22
+	_fx_root().add_child(ring)
+	ring.global_position = where
+	_strip("shockwave_burst", where, 0.0, size * 0.8)
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if not is_instance_valid(e) or e.dead:
+			continue
+		var rel: Vector2 = e.global_position - where
+		if rel.length() > radius + float(e.radius):
+			continue
+		var away := rel.normalized() if rel.length() > 1.0 else aim_dir
+		e.take_hit(dmg * 0.7 * power, away, 300.0 * size, false, col)
+	shake = maxf(shake, 6.0 * size)
+	Sfx.play(self, "shockwave", -6.0, 1.4)
 
 
 ## Leap: jump to the nearest enemy (not one already leapt to in this burst),
