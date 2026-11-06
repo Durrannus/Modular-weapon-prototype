@@ -849,10 +849,10 @@ func _attack_pose() -> Array:
 
 ## Resting pose: the sword lowered at the side, by the hand on the body sprite.
 func _rest_pose() -> Array:
-	var a := 0.95
+	var a := 1.3
 	match facing:
 		"left":
-			a = PI - 0.95
+			a = PI - 1.3
 		"down":
 			a = 2.2
 		"up":
