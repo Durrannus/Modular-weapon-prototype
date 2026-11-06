@@ -55,7 +55,8 @@ const FITTINGS := {
 		"desc": "The rune above only happens every third time, but three times as strong."},
 	"on_dodge": {"kind": "band", "name": "On Dodge", "color": Color("#6fd6cb"),
 		"desc": "The rune above also happens when you dodge."},
-	"mirror": {"kind": "bender", "name": "Mirror", "color": Color("#d9a6ff"),
+	# Mirror is parked (Darren, 6 November): it overlapped Twice too much. The rules stay, but it's kept out of the forge.
+	"mirror": {"kind": "bender", "name": "Mirror", "color": Color("#d9a6ff"), "parked": true,
 		"desc": "Rare. Copies the fitting below it. One rule-bender per sword."},
 	"relay": {"kind": "bender", "name": "Relay", "color": Color("#d9a6ff"),
 		"desc": "Rare. The bands on the rune below also boost the next rune above. One rule-bender per sword."},
