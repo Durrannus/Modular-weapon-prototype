@@ -804,8 +804,8 @@ func _blade_sweep() -> Array:
 ## The swing curve for each move, as angles relative to the swing direction.
 ## [start, end, arm at start, arm at end]. Slashes are mirrored on every other step.
 const SWING_CURVES := {
-	"slash": [-1.75, 1.5, 12.0, 16.0],
-	"overhead": [-2.7, 0.6, 8.0, 18.0],
+	"slash": [-0.9, 0.9, 13.0, 16.0],
+	"overhead": [-1.4, 0.45, 10.0, 18.0],
 	"stab": [0.0, 0.0, 4.0, 26.0],
 	"lunge": [0.0, 0.0, 4.0, 26.0],
 	"spin": [0.0, TAU, 14.0, 14.0],
@@ -886,10 +886,10 @@ func _update_pose(delta: float) -> void:
 			# Wind up: crouch into it.
 			squash = squash.lerp(Vector2(1.1, 0.9) if anim_move == "overhead" else Vector2(1.04, 0.96), 1.0 - exp(-30.0 * delta))
 	else:
+		# Back at rest: snap to the side, no spinning round (on turning too).
 		var r := _rest_pose()
-		var k := 1.0 - exp(-14.0 * delta)
-		pose_angle = lerp_angle(pose_angle, r[0], k)
-		pose_hand = pose_hand.lerp(r[1], k)
+		pose_angle = r[0]
+		pose_hand = r[1]
 		lean = lerpf(lean, 0.0, 1.0 - exp(-12.0 * delta))
 	squash = squash.lerp(Vector2.ONE, 1.0 - exp(-12.0 * delta))
 	while not trail.is_empty() and game_time - float(trail[0][2]) > 0.12:
