@@ -528,7 +528,7 @@ func _draw_tray() -> void:
 		var r := Rect2(14 + (i % 3) * 44, 60 + (i / 3) * 44, 38, 38)
 		if c.has("row"):
 			var ri: int = c["row"]
-			var w := 48 if ri == 0 else 34
+			var w := 60 if ri == 0 else 34
 			r = Rect2(14 + row_n[ri] * w, 70 + ri * 44, w - 3, 31)
 			row_n[ri] += 1
 		buttons["card:%d" % i] = r
@@ -537,7 +537,7 @@ func _draw_tray() -> void:
 		root.draw_rect(r, edge, false, 1.0)
 		if c["locked"]:
 			continue
-		_icon(c.get("kind", TABS[tab]), c["id"], r.get_center(), 1.0 if c.has("row") else 2.0)
+		_icon(c.get("kind", TABS[tab]), c["id"], r.get_center(), 2.0)
 		if _on_sword(c["id"]):
 			root.draw_rect(Rect2(r.end.x - 6, r.position.y + 2, 4, 4), AMBER)
 	var di := card

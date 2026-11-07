@@ -180,3 +180,22 @@ Pommels are now their own pieces. They have no slots and only change stats. The 
 - **Placing it:** each grip in the JSON has `pommel_at` per scale, in the grip's own pixels. Draw the pommel at the grip's offset plus `pommel_at`, after the grip. It overlaps the grip's empty pommel rows and hangs 1 row lower (3 on the forge).
 - **Code:** `sp_parts.py` (`POMMELS`, `pommel()`, `pommel_at()`, `grip(..., pommel=False)`). Export with `sp_export_pommels.py`.
 - **Preview:** `pommels_nov7.png`. The top row shows a wrapped grip in hand at 4x and on the forge, the middle row shows the Ringed Grip, and the icons are at the bottom.
+
+## Smaller in-hand swords (7 November)
+
+Darren found the sword too big for the crew_a chibi, who is 46 px tall: the guard and grip looked as big as his body. Every `_hand.png` was redrawn on its own smaller layout. **The forge art is unchanged.** Hand scale is no longer the forge scale divided by 3. Read the sizes from `hand_frame` and each part's `hand` entry in the JSON.
+
+- **Sword frame:** 9 px wide.
+  - The blade is a 5 px image with 3 px of steel. Place it at (2, 0).
+  - The grip goes at (0, blade height).
+  - The pommel goes at the grip's offset plus `pommel_at`.
+- **Guard:** 9 px wide and 2 rows. The hold is 3 rows, right under the guard, and the pivot is (4.5, 3.5). Each grip slot adds 2 rows. The grips are 7, 9 and 11 px; the Ringed Grip is 2 rows longer for its band. Pommels are 9x2.
+- **Blades:** 17, 21 and 27 px, for 1, 2 and 3 slots.
+- **Whole sword**, with the matching grip and a pommel:
+  - short: 26 px;
+  - normal: 32 px;
+  - long: 40 px.
+- **Slots in hand** are 1x1 dots, 2 px apart. Runes and Relay are 1x1 dots: amber for runes, violet for Relay, brighter when `_lit`.
+- **Bands in hand** are 5x1 teal rings, each with its own tone pattern. Centre them on the slot (slot x − 2) on the same row.
+- **Preview:** `hand_swords_nov7.png` shows crew_a next to the short, normal and long swords, then the Ringed and Gilded grips.
+- **Code:** `sp_mini.py`. Export with `sp_export_mini.py`.

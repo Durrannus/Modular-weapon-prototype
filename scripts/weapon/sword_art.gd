@@ -18,6 +18,24 @@ static func _k(scale: String) -> float:
 	return 1.0 if scale == "hand" else 3.0  # forge art is 3x (fits the long blade + long grip)
 
 
+## Frame layout. Hand art has its own smaller layout (swing_path.json "hand_frame"):
+## 9 px wide, blade at x 2, pommel 2 px tall. Forge art is 15*k wide, blade at x 4k.
+static func frame_w(scale: String) -> float:
+	if scale == "hand":
+		return float(data().get("hand_frame", {}).get("frame_w", 9))
+	return 15.0 * _k(scale)
+
+
+static func blade_x(scale: String) -> float:
+	if scale == "hand":
+		return float(data().get("hand_frame", {}).get("blade_x", 2))
+	return 4.0 * _k(scale)
+
+
+static func _pommel_h(scale: String) -> float:
+	return 2.0 if scale == "hand" else 4.0 * _k(scale)
+
+
 static func _part(kind: String, id: String, scale: String) -> Dictionary:
 	return data().get(kind, {}).get(id, {}).get(scale, {})
 
@@ -32,18 +50,18 @@ static func grip_origin(blade: String, scale: String) -> Vector2:
 
 
 static func frame_size(blade: String, grip: String, scale: String) -> Vector2:
-	var g: Array = _part("grips", grip, scale).get("size", [15.0 * _k(scale), 19.0 * _k(scale)])
+	var g: Array = _part("grips", grip, scale).get("size", [frame_w(scale), 19.0 * _k(scale)])
 	# The pommel hangs a little below the grip (more on the Ringed grip).
 	var pa: Array = _part("grips", grip, scale).get("pommel_at", [0, g[1]])
-	var ph: float = 4.0 * _k(scale)
+	var ph := _pommel_h(scale)
 	var below := maxf(float(pa[1]) + ph - float(g[1]), 0.0)
-	return Vector2(15.0 * _k(scale), blade_size(blade, scale).y + float(g[1]) + below)
+	return Vector2(frame_w(scale), blade_size(blade, scale).y + float(g[1]) + below)
 
 
 ## Where the hand holds the sword, in frame pixels: the middle of the grip's hold,
 ## which sits right under the guard (grip art runs guard, hold, socket collar, pommel).
 static func pivot(blade: String, grip: String, scale: String) -> Vector2:
-	var p: Array = _part("grips", grip, scale).get("pivot", [7.5, 5.5])
+	var p: Array = _part("grips", grip, scale).get("pivot", [frame_w(scale) * 0.5, 3.5])
 	return grip_origin(blade, scale) + Vector2(p[0], p[1])
 
 
@@ -58,9 +76,9 @@ static func slot_rect(blade: String, grip: String, scale: String, i: int) -> Rec
 		off = grip_origin(blade, scale)
 	elif i - grects.size() < brects.size():
 		r = brects[i - grects.size()]
-		off = Vector2(4.0 * _k(scale), 0)
+		off = Vector2(blade_x(scale), 0)
 	else:
-		return Rect2(Vector2(7, 0) * _k(scale), Vector2(3, 3) * _k(scale))
+		return Rect2(Vector2(frame_w(scale) * 0.5 - 1.0, 0), Vector2(1, 1) * (1.0 if scale == "hand" else 3.0 * _k(scale)))
 	return Rect2(off + Vector2(r[0], r[1]), Vector2(r[2], r[3]))
 
 
@@ -75,7 +93,7 @@ static func draw(ci: CanvasItem, blade: String, grip: String, line: Array, scale
 	var blade_tex := Art.texture(DIR + "blades/%s_%s.png" % [blade, scale])
 	var grip_tex := Art.texture(DIR + "grips/%s_%s.png" % [grip, scale])
 	if blade_tex != null:
-		ci.draw_texture(blade_tex, origin + Vector2(4.0 * _k(scale), 0), tint)
+		ci.draw_texture(blade_tex, origin + Vector2(blade_x(scale), 0), tint)
 	if grip_tex != null:
 		ci.draw_texture(grip_tex, origin + grip_origin(blade, scale), tint)
 	var pommel_tex := Art.texture(DIR + "pommels/%s_%s.png" % [pommel, scale])
