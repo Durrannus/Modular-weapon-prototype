@@ -319,7 +319,7 @@ func _do_move(move: String) -> void:
 	# One arc in front, tested once on the hit frame (like Core Keeper): reach is
 	# the blade's length plus a little margin, so it matches the sword you hold.
 	if weapon.has("blade"):
-		reach = SwordArt.pivot(weapon["blade"], weapon["grip"], "hand").y * Art.PIXEL + 18.0
+		reach = _reach_px() + 18.0
 	for e in get_tree().get_nodes_in_group("enemies"):
 		if not is_instance_valid(e) or e.dead:
 			continue
@@ -827,6 +827,21 @@ func _blade_sweep() -> Array:
 	return out
 
 
+## Blade lengths that set the hit range, in art pixels. Darren (7 Nov): the drawn
+## blades are a third shorter to suit the small crew, but the range stays as it was.
+const RANGE_BLADE_LEN := {"iron_shortblade": 23.0, "iron_blade": 33.0, "iron_longblade": 45.0}
+
+
+## How far the sword reaches from the hand, in world units: the drawn sword plus
+## the gap between the drawn blade and its range length. The smear shows this reach.
+func _reach_px() -> float:
+	var blade: String = weapon.get("blade", "iron_blade")
+	var grip: String = weapon.get("grip", "wooden_grip")
+	var drawn := SwordArt.blade_size(blade, "hand").y
+	var extra := maxf(float(RANGE_BLADE_LEN.get(blade, drawn)) - drawn, 0.0)
+	return (SwordArt.pivot(blade, grip, "hand").y + extra) * Art.PIXEL
+
+
 ## The swing curve for each move, as angles relative to the swing direction.
 ## [start, end, arm at start, arm at end]. Slashes are mirrored on every other step.
 const SWING_CURVES := {
@@ -950,7 +965,7 @@ func _draw_trail() -> void:
 	var age := (game_time - smear_t0) / SMEAR_LIFE
 	if age >= 1.0:
 		return
-	var length_px := SwordArt.pivot(weapon["blade"], weapon["grip"], "hand").y * Art.PIXEL
+	var length_px := _reach_px()
 	var r_in := 3.0 + length_px * 0.45
 	var r_out := 3.0 + length_px
 	var col: Color = weapon.get("hit_color", Color.WHITE).lerp(Color(0.8, 0.9, 1.0), 0.5)

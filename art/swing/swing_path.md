@@ -190,11 +190,11 @@ Darren found the sword too big for the crew_a chibi, who is 46 px tall: the guar
   - The grip goes at (0, blade height).
   - The pommel goes at the grip's offset plus `pommel_at`.
 - **Guard:** 9 px wide and 2 rows. The hold is 3 rows, right under the guard, and the pivot is (4.5, 3.5). Each grip slot adds 2 rows. The grips are 7, 9 and 11 px; the Ringed Grip is 2 rows longer for its band. Pommels are 9x2.
-- **Blades:** 17, 21 and 27 px, for 1, 2 and 3 slots.
+- **Blades:** 23, 33 and 45 px, for 1, 2 and 3 slots. Darren wanted the old lengths back with the small hilt kept.
 - **Whole sword**, with the matching grip and a pommel:
-  - short: 26 px;
-  - normal: 32 px;
-  - long: 40 px.
+  - short: 32 px;
+  - normal: 44 px;
+  - long: 58 px.
 - **Slots in hand** are 1x1 dots, 2 px apart. Runes and Relay are 1x1 dots: amber for runes, violet for Relay, brighter when `_lit`.
 - **Bands in hand** are 5x1 teal rings, each with its own tone pattern. Centre them on the slot (slot x − 2) on the same row.
 - **Preview:** `hand_swords_nov7.png` shows crew_a next to the short, normal and long swords, then the Ringed and Gilded grips.
