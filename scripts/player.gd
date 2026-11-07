@@ -666,7 +666,7 @@ func _process(delta: float) -> void:
 	camera.offset = Vector2(randf_range(-1, 1), randf_range(-1, 1)) * shake
 	facing = _facing_of(aim_dir if current_step < 0 else anim_dir)
 	# Behind the body when facing away, or when the hand is above the body's centre.
-	weapon_group.show_behind_parent = facing == "up" or pose_hand.y < SWING_PIVOT.y - 3.0
+	weapon_group.show_behind_parent = facing == "up" or facing == "left"
 	anim_time += delta
 	_update_pose(delta)
 	trail_layer.queue_redraw()
@@ -854,7 +854,8 @@ func _attack_pose() -> Array:
 	else:
 		radius = SWING_RADIUS * (1.6 if thrust else 1.0)
 	var angle := anim_dir.angle() + rel
-	var hand := SWING_PIVOT + Vector2.RIGHT.rotated(angle) * radius
+	# The sword stays in his right hand: the hand only reaches a little toward the swing.
+	var hand := _hand_point() + Vector2.RIGHT.rotated(angle) * (radius - SWING_RADIUS + 3.0)
 	# After holding the end pose (~65 ms), ease back to the resting pose.
 	var settle := clampf((te - sweep_end - 0.065) / 0.13, 0.0, 1.0)
 	if settle > 0.0:
@@ -865,17 +866,14 @@ func _attack_pose() -> Array:
 	return [angle, hand, sweeping]
 
 
-## Ready stance: the sword held up just in front of him, by facing (not the mouse).
-## [angle, hand]. Angles: 0 = right, -PI/2 = straight up.
-const READY := {
-	"right": [-0.85, Vector2(9, -9)],
-	"left": [-(PI - 0.85), Vector2(-9, -9)],
-	"down": [-1.2, Vector2(9, -7)],
-	"up": [-1.95, Vector2(-8, -12)],
-}
+## Ready stance: the sword held up just in front of him, always in his right hand
+## (the body sprite's hand anchor), by facing (not the mouse). Angle: -PI/2 = up.
+## Facing down his right hand is on screen-left; facing up it is on screen-right;
+## facing left it is on his far side, so the sword is drawn behind him.
+const READY_ANGLE := {"right": -0.85, "left": -(PI - 0.85), "down": -1.85, "up": -1.3}
 
 func _rest_pose() -> Array:
-	return READY.get(facing, READY["down"])
+	return [READY_ANGLE.get(facing, -1.85), _hand_point()]
 
 
 func _update_pose(delta: float) -> void:
@@ -917,7 +915,7 @@ func _start_smear() -> void:
 	smear_t0 = game_time
 	smear_a0 = anim_dir.angle() + float(curve[0]) * side
 	smear_a1 = anim_dir.angle() + float(curve[1]) * side
-	smear_center = SWING_PIVOT
+	smear_center = _hand_point()
 
 
 func _draw_trail() -> void:
@@ -927,8 +925,8 @@ func _draw_trail() -> void:
 	if age >= 1.0:
 		return
 	var length_px := SwordArt.pivot(weapon["blade"], weapon["grip"], "hand").y * Art.PIXEL
-	var r_in := SWING_RADIUS + length_px * 0.45
-	var r_out := SWING_RADIUS + length_px
+	var r_in := 3.0 + length_px * 0.45
+	var r_out := 3.0 + length_px
 	var col: Color = weapon.get("hit_color", Color.WHITE).lerp(Color(0.8, 0.9, 1.0), 0.5)
 	var fade := 1.0 - age
 	if absf(smear_a1 - smear_a0) < 0.05:
