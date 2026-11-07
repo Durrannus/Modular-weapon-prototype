@@ -31,9 +31,34 @@ static func grip_origin(blade: String, scale: String) -> Vector2:
 	return Vector2(0, blade_size(blade, scale).y)
 
 
+## Sword frame width and where the blade sits in it. The hand scale has its own
+## smaller layout (hand_frame in the JSON); the forge is 15 x k wide, blade at 4 x k.
+static func _frame_w(scale: String) -> float:
+	if scale == "hand":
+		return float(data().get("hand_frame", {}).get("frame_w", 15))
+	return 15.0 * _k(scale)
+
+
+static func _blade_x(scale: String) -> float:
+	if scale == "hand":
+		return float(data().get("hand_frame", {}).get("blade_x", 4))
+	return 4.0 * _k(scale)
+
+
+const POMMEL := "plain_pommel"  # pommels aren't a choosable part yet
+
+
+## Where the pommel goes, in frame pixels (below the grip), and its height.
+static func _pommel_pos(blade: String, grip: String, scale: String) -> Vector2:
+	var g: Dictionary = _part("grips", grip, scale)
+	var at: Array = g.get("pommel_at", [0, g.get("size", [0, 0])[1]])
+	return grip_origin(blade, scale) + Vector2(at[0], at[1])
+
+
 static func frame_size(blade: String, grip: String, scale: String) -> Vector2:
-	var g: Array = _part("grips", grip, scale).get("size", [15.0 * _k(scale), 19.0 * _k(scale)])
-	return Vector2(15.0 * _k(scale), blade_size(blade, scale).y + float(g[1]))
+	var tex := Art.texture(DIR + "pommels/%s_%s.png" % [POMMEL, scale])
+	var bottom: float = _pommel_pos(blade, grip, scale).y + (float(tex.get_height()) if tex != null else 0.0)
+	return Vector2(_frame_w(scale), bottom)
 
 
 ## Where the hand holds the sword, in frame pixels: the middle of the grip's hold,
@@ -54,7 +79,7 @@ static func slot_rect(blade: String, grip: String, scale: String, i: int) -> Rec
 		off = grip_origin(blade, scale)
 	elif i - grects.size() < brects.size():
 		r = brects[i - grects.size()]
-		off = Vector2(4.0 * _k(scale), 0)
+		off = Vector2(_blade_x(scale), 0)
 	else:
 		return Rect2(Vector2(7, 0) * _k(scale), Vector2(3, 3) * _k(scale))
 	return Rect2(off + Vector2(r[0], r[1]), Vector2(r[2], r[3]))
@@ -71,9 +96,12 @@ static func draw(ci: CanvasItem, blade: String, grip: String, line: Array, scale
 	var blade_tex := Art.texture(DIR + "blades/%s_%s.png" % [blade, scale])
 	var grip_tex := Art.texture(DIR + "grips/%s_%s.png" % [grip, scale])
 	if blade_tex != null:
-		ci.draw_texture(blade_tex, origin + Vector2(4.0 * _k(scale), 0), tint)
+		ci.draw_texture(blade_tex, origin + Vector2(_blade_x(scale), 0), tint)
 	if grip_tex != null:
 		ci.draw_texture(grip_tex, origin + grip_origin(blade, scale), tint)
+	var pommel_tex := Art.texture(DIR + "pommels/%s_%s.png" % [POMMEL, scale])
+	if pommel_tex != null:
+		ci.draw_texture(pommel_tex, origin + _pommel_pos(blade, grip, scale), tint)
 	for i in line.size():
 		var id: String = line[i]
 		if id == "":

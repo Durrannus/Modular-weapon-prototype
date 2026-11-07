@@ -138,3 +138,64 @@ These make the forge feel like a real forge. Frames, fps and origins are in `for
 | `forged_banner.png` | 6 frames, 132 x 32. A "FORGED!" plate stamps in over the top of the sword. Hold the last frame, then fade it. |
 
 The forge-complete order is in the JSON: hammer strike, then heat and steam, then the banner with a small shake, then the shine. `mockup_forge_complete.png` shows the middle of it.
+
+## New fittings (6 November)
+
+These are for the sword parts on the prototype branch. They follow the same rules as above. Runes are amber stones with a carved glyph, bands are teal rings, and each effect has its own colour.
+
+| Kind | Id | Files | Glyph / look |
+|---|---|---|---|
+| rune | `shards` | `runes/shards_*` | two little shard stars. It replaces Cleave. |
+| rune | `leap` | `runes/leap_*` | an arrow jumping up-right |
+| rune | `whirlwind` | `runes/whirlwind_*` | a spiral |
+| band | `every_hit` | `bands/every_hit_*` | a grid of dots. In hand it shows 3 dots. |
+| band | `saved_up` | `bands/saved_up_*` | stairs that build up. In hand it shows 1 dot. |
+| band | `on_dodge` | `bands/on_dodge_*` | a double chevron (>>). In hand it shows 2 dots side by side. |
+| rule-bender | `relay` | `rare/relay_hand.png`, `_forge`, `_lit`, `_icon` | a violet cut gem (#d9a6ff) with an up arrow. It is socket-sized like a rune stone, so place it the same way. |
+
+The runes and bands have the same file set as the old ones: `_hand`, `_forge`, `_lit` and `_icon`, and for bands both `blade` and `grip` hosts.
+
+**Effects** (in `fx/`; frames, fps and origins are in the JSON):
+
+| Rune | Files | What |
+|---|---|---|
+| Whirlwind (#ff7ad9) | `whirlwind_spin` (6 frames, 72x72) | A pink blade edge sweeps one full turn round the player with a fading trail. Its origin is the player. |
+| Leap (#f4e07a) | `leap_trail` (4 frames, 40x16), `leap_land` (6 frames, 48x48) | Gold streaks along the jump; it faces right, so rotate it to the jump. A flat gold ring bursts out where you land. |
+| Shards (#c9d4e0) | `shards_shard` (4 frames, 9x9, loop), `shards_hit` (4 frames, 24x24) | A spinning steel shard that the game flies from enemy to enemy, plus a white-steel splinter burst on each enemy it hits. |
+
+Parked, so they have no new art: Second Wind, Mirror and Lunge. The code is in `sp_parts.py`, with the new glyphs, `BENDERS` and `bender_gem`, and in `sp_fx.py` under `STRIPS_NEW`. Export with `python3 sp_export_nov6.py`, which only writes these files and merges their entries into swing_path.json. There is a preview sheet: `new_fittings_nov6.png`.
+
+## Pommels (7 November)
+
+Pommels are now their own pieces. They have no slots and only change stats. The grips in `grips/` were re-exported **without** the baked-in knob, so the pommel rows are empty. The Ringed Grip keeps its built-in band, and its pommel hangs below that band.
+
+| Id | Look | Bonus |
+|---|---|---|
+| `plain_pommel` | an iron knob (the old default look) | none |
+| `keen_pommel` | a steel spike with a white glint at the tip | crit chance |
+| `heavy_pommel` | a big dark iron ball with a cast seam | crit damage |
+| `light_pommel` | a small open brass ring | swing speed |
+
+- **Files:** `pommels/<id>_hand.png` is 15x4. `pommels/<id>_forge.png` is 45x12. `pommels/<id>_icon.png` is the tray icon.
+- **Placing it:** each grip in the JSON has `pommel_at` per scale, in the grip's own pixels. Draw the pommel at the grip's offset plus `pommel_at`, after the grip. It overlaps the grip's empty pommel rows and hangs 1 row lower (3 on the forge).
+- **Code:** `sp_parts.py` (`POMMELS`, `pommel()`, `pommel_at()`, `grip(..., pommel=False)`). Export with `sp_export_pommels.py`.
+- **Preview:** `pommels_nov7.png`. The top row shows a wrapped grip in hand at 4x and on the forge, the middle row shows the Ringed Grip, and the icons are at the bottom.
+
+## Smaller in-hand swords (7 November)
+
+Darren found the sword too big for the crew_a chibi, who is 46 px tall: the guard and grip looked as big as his body. Every `_hand.png` was redrawn on its own smaller layout. **The forge art is unchanged.** Hand scale is no longer the forge scale divided by 3. Read the sizes from `hand_frame` and each part's `hand` entry in the JSON.
+
+- **Sword frame:** 9 px wide.
+  - The blade is a 5 px image with 3 px of steel. Place it at (2, 0).
+  - The grip goes at (0, blade height).
+  - The pommel goes at the grip's offset plus `pommel_at`.
+- **Guard:** 9 px wide and 2 rows. The hold is 3 rows, right under the guard, and the pivot is (4.5, 3.5). Each grip slot adds 2 rows. The grips are 7, 9 and 11 px; the Ringed Grip is 2 rows longer for its band. Pommels are 9x2.
+- **Blades:** 17, 21 and 27 px, for 1, 2 and 3 slots.
+- **Whole sword**, with the matching grip and a pommel:
+  - short: 26 px;
+  - normal: 32 px;
+  - long: 40 px.
+- **Slots in hand** are 1x1 dots, 2 px apart. Runes and Relay are 1x1 dots: amber for runes, violet for Relay, brighter when `_lit`.
+- **Bands in hand** are 5x1 teal rings, each with its own tone pattern. Centre them on the slot (slot x − 2) on the same row.
+- **Preview:** `hand_swords_nov7.png` shows crew_a next to the short, normal and long swords, then the Ringed and Gilded grips.
+- **Code:** `sp_mini.py`. Export with `sp_export_mini.py`.

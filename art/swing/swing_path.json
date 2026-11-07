@@ -9,7 +9,7 @@
  },
  "note": "Sizes and pivots at forge scale are hand x3, but use each scale's own slot_rects. Slots are listed bottom-up (read order). Every rect is [x, y, w, h] in that part's own image.",
  "socket_px": {
-  "hand": 3,
+  "hand": 1,
   "forge": 9
  },
  "blades": {
@@ -18,15 +18,15 @@
    "slots": 1,
    "hand": {
     "size": [
-     7,
-     23
+     5,
+     17
     ],
     "slot_rects": [
      [
       2,
-      19,
-      3,
-      3
+      15,
+      1,
+      1
      ]
     ]
    },
@@ -50,21 +50,21 @@
    "slots": 2,
    "hand": {
     "size": [
-     7,
-     33
+     5,
+     21
     ],
     "slot_rects": [
      [
       2,
-      29,
-      3,
-      3
+      19,
+      1,
+      1
      ],
      [
       2,
-      25,
-      3,
-      3
+      17,
+      1,
+      1
      ]
     ]
    },
@@ -94,27 +94,27 @@
    "slots": 3,
    "hand": {
     "size": [
-     7,
-     45
+     5,
+     27
     ],
     "slot_rects": [
      [
       2,
-      41,
-      3,
-      3
+      25,
+      1,
+      1
      ],
      [
       2,
-      37,
-      3,
-      3
+      23,
+      1,
+      1
      ],
      [
       2,
-      33,
-      3,
-      3
+      21,
+      1,
+      1
      ]
     ]
    },
@@ -154,20 +154,24 @@
    "special": null,
    "hand": {
     "size": [
-     15,
-     15
+     9,
+     7
     ],
     "slot_rects": [
      [
+      4,
       6,
-      9,
-      3,
-      3
+      1,
+      1
      ]
     ],
     "pivot": [
-     7.5,
-     5.5
+     4.5,
+     3.5
+    ],
+    "pommel_at": [
+     0,
+     7
     ]
    },
    "forge": {
@@ -186,6 +190,10 @@
     "pivot": [
      22.5,
      16.5
+    ],
+    "pommel_at": [
+     0,
+     36
     ]
    }
   },
@@ -196,26 +204,30 @@
    "special": null,
    "hand": {
     "size": [
-     15,
-     19
+     9,
+     9
     ],
     "slot_rects": [
      [
-      6,
-      13,
-      3,
-      3
+      4,
+      8,
+      1,
+      1
      ],
      [
+      4,
       6,
-      9,
-      3,
-      3
+      1,
+      1
      ]
     ],
     "pivot": [
-     7.5,
-     5.5
+     4.5,
+     3.5
+    ],
+    "pommel_at": [
+     0,
+     9
     ]
    },
    "forge": {
@@ -240,6 +252,10 @@
     "pivot": [
      22.5,
      16.5
+    ],
+    "pommel_at": [
+     0,
+     48
     ]
    }
   },
@@ -250,32 +266,36 @@
    "special": null,
    "hand": {
     "size": [
-     15,
-     23
+     9,
+     11
     ],
     "slot_rects": [
      [
-      6,
-      17,
-      3,
-      3
+      4,
+      10,
+      1,
+      1
      ],
      [
-      6,
-      13,
-      3,
-      3
+      4,
+      8,
+      1,
+      1
      ],
      [
+      4,
       6,
-      9,
-      3,
-      3
+      1,
+      1
      ]
     ],
     "pivot": [
-     7.5,
-     5.5
+     4.5,
+     3.5
+    ],
+    "pommel_at": [
+     0,
+     11
     ]
    },
    "forge": {
@@ -306,6 +326,10 @@
     "pivot": [
      22.5,
      16.5
+    ],
+    "pommel_at": [
+     0,
+     60
     ]
    }
   },
@@ -316,26 +340,30 @@
    "special": "built-in band in the pommel (boosts the whole sword)",
    "hand": {
     "size": [
-     15,
-     19
+     9,
+     11
     ],
     "slot_rects": [
      [
-      6,
-      13,
-      3,
-      3
+      4,
+      8,
+      1,
+      1
      ],
      [
+      4,
       6,
-      9,
-      3,
-      3
+      1,
+      1
      ]
     ],
     "pivot": [
-     7.5,
-     5.5
+     4.5,
+     3.5
+    ],
+    "pommel_at": [
+     0,
+     11
     ]
    },
    "forge": {
@@ -360,6 +388,10 @@
     "pivot": [
      22.5,
      16.5
+    ],
+    "pommel_at": [
+     0,
+     57
     ]
    }
   },
@@ -370,26 +402,30 @@
    "special": "top slot is the odd (gilded) slot",
    "hand": {
     "size": [
-     15,
-     19
+     9,
+     9
     ],
     "slot_rects": [
      [
-      6,
-      13,
-      3,
-      3
+      4,
+      8,
+      1,
+      1
      ],
      [
+      4,
       6,
-      9,
-      3,
-      3
+      1,
+      1
      ]
     ],
     "pivot": [
-     7.5,
-     5.5
+     4.5,
+     3.5
+    ],
+    "pommel_at": [
+     0,
+     9
     ]
    },
    "forge": {
@@ -414,6 +450,10 @@
     "pivot": [
      22.5,
      16.5
+    ],
+    "pommel_at": [
+     0,
+     48
     ]
    }
   }
@@ -438,6 +478,21 @@
    "name": "Second Wind",
    "trigger": "on a kill",
    "text": "Kills refill a dodge."
+  },
+  "shards": {
+   "name": "Shards",
+   "trigger": "every hit",
+   "text": "Every hit sends metal shards jumping to the closest enemy, then the next."
+  },
+  "leap": {
+   "name": "Leap",
+   "trigger": "dodge attack",
+   "text": "Attacking straight after a dodge jumps you to the nearest enemy."
+  },
+  "whirlwind": {
+   "name": "Whirlwind",
+   "trigger": "finisher",
+   "text": "Your finisher spins a full circle, cutting everything around you."
   }
  },
  "bands": {
@@ -445,16 +500,16 @@
    "name": "Twice",
    "text": "The rune above happens twice.",
    "blade_hand_size": [
-    7,
-    3
+    5,
+    1
    ],
    "blade_forge_size": [
     21,
     9
    ],
    "grip_hand_size": [
-    7,
-    3
+    5,
+    1
    ],
    "grip_forge_size": [
     21,
@@ -465,16 +520,76 @@
    "name": "Wider",
    "text": "The rune above is bigger.",
    "blade_hand_size": [
-    7,
-    3
+    5,
+    1
    ],
    "blade_forge_size": [
     21,
     9
    ],
    "grip_hand_size": [
-    7,
-    3
+    5,
+    1
+   ],
+   "grip_forge_size": [
+    21,
+    9
+   ]
+  },
+  "every_hit": {
+   "name": "Every Hit",
+   "text": "The rune above happens on every hit instead, at half strength.",
+   "blade_hand_size": [
+    5,
+    1
+   ],
+   "blade_forge_size": [
+    21,
+    9
+   ],
+   "grip_hand_size": [
+    5,
+    1
+   ],
+   "grip_forge_size": [
+    21,
+    9
+   ]
+  },
+  "saved_up": {
+   "name": "Saved Up",
+   "text": "The rune above only happens every third time, but three times as strong.",
+   "blade_hand_size": [
+    5,
+    1
+   ],
+   "blade_forge_size": [
+    21,
+    9
+   ],
+   "grip_hand_size": [
+    5,
+    1
+   ],
+   "grip_forge_size": [
+    21,
+    9
+   ]
+  },
+  "on_dodge": {
+   "name": "On Dodge",
+   "text": "The rune above also happens when you dodge.",
+   "blade_hand_size": [
+    5,
+    1
+   ],
+   "blade_forge_size": [
+    21,
+    9
+   ],
+   "grip_hand_size": [
+    5,
+    1
    ],
    "grip_forge_size": [
     21,
@@ -631,6 +746,71 @@
     5
    ],
    "note": "flies from the kill to the player"
+  },
+  "whirlwind_spin": {
+   "frames": 6,
+   "frame": [
+    72,
+    72
+   ],
+   "fps": 18,
+   "origin": [
+    36,
+    36
+   ],
+   "note": "centred on the player; one full turn, plays once"
+  },
+  "leap_trail": {
+   "frames": 4,
+   "frame": [
+    40,
+    16
+   ],
+   "fps": 16,
+   "origin": [
+    39,
+    8
+   ],
+   "note": "points along the jump (faces right); right end on the player"
+  },
+  "leap_land": {
+   "frames": 6,
+   "frame": [
+    48,
+    48
+   ],
+   "fps": 18,
+   "origin": [
+    24,
+    24
+   ],
+   "note": "at the player's feet where the leap lands"
+  },
+  "shards_hit": {
+   "frames": 4,
+   "frame": [
+    24,
+    24
+   ],
+   "fps": 20,
+   "origin": [
+    12,
+    12
+   ],
+   "note": "on each enemy a shard hits"
+  },
+  "shards_shard": {
+   "frames": 4,
+   "frame": [
+    9,
+    9
+   ],
+   "fps": 20,
+   "origin": [
+    4,
+    4
+   ],
+   "note": "loop while the shard flies from enemy to enemy"
   }
  },
  "ui": {
@@ -701,5 +881,79 @@
    "headings": "Silkscreen 8 px (16 px for the title), Google Fonts, OFL",
    "body": "Pixelify Sans 11 px, Google Fonts, OFL; turn ligatures off"
   }
+ },
+ "rare": {
+  "relay": {
+   "name": "Relay",
+   "kind": "rule-bender",
+   "text": "Rare. The bands on the rune below also boost the next rune above. One rule-bender per sword.",
+   "note": "socket-sized like a rune stone; a violet cut gem"
+  }
+ },
+ "pommels": {
+  "plain_pommel": {
+   "name": "Plain Pommel",
+   "text": "No bonus.",
+   "hand_size": [
+    9,
+    2
+   ],
+   "forge_size": [
+    45,
+    12
+   ]
+  },
+  "keen_pommel": {
+   "name": "Keen Pommel",
+   "text": "Crit chance.",
+   "hand_size": [
+    9,
+    2
+   ],
+   "forge_size": [
+    45,
+    12
+   ]
+  },
+  "heavy_pommel": {
+   "name": "Heavy Pommel",
+   "text": "Crit damage.",
+   "hand_size": [
+    9,
+    2
+   ],
+   "forge_size": [
+    45,
+    12
+   ]
+  },
+  "light_pommel": {
+   "name": "Light Pommel",
+   "text": "Swing speed.",
+   "hand_size": [
+    9,
+    2
+   ],
+   "forge_size": [
+    45,
+    12
+   ]
+  }
+ },
+ "note_pommels": "Grips no longer have a knob baked in. Draw pommels/<id>_<scale>.png at the grip's pommel_at (plus the grip's offset in the sword frame), after the grip. The Ringed Grip keeps its band and its pommel hangs below it.",
+ "hand_frame": {
+  "frame_w": 9,
+  "blade_x": 2,
+  "blade_w": 5,
+  "band_size": [
+   5,
+   1
+  ],
+  "socket": [
+   1,
+   1
+  ],
+  "pitch": 2,
+  "note": "7 Nov: hand scale is its own smaller layout (not forge / 3). Sword frame 9 px wide, blade at (2, 0), grip at (0, blade height), pommel at the grip's pommel_at. Runes and benders are 1x1 dots; bands 5x1, centred on the slot (x - 2), same row."
  }
 }

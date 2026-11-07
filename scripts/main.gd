@@ -73,6 +73,7 @@ func _ready() -> void:
 	add_child(build_menu)
 	pause_menu = preload("res://scripts/ui/pause_menu.gd").new()
 	pause_menu.build_menu = build_menu
+	_set_cursor()
 	add_child(pause_menu)
 	build_menu.setup(build)
 	build_menu.try_at_dummy.connect(_on_try_at_dummy)
@@ -276,3 +277,30 @@ func _unhandled_input(event: InputEvent) -> void:
 			var full := DisplayServer.window_get_mode() == DisplayServer.WINDOW_MODE_FULLSCREEN
 			DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED if full else DisplayServer.WINDOW_MODE_FULLSCREEN)
 			get_viewport().set_input_as_handled()
+
+
+## A small pixel crosshair as the mouse cursor, scaled to match the pixel art.
+func _set_cursor() -> void:
+	var px := 9
+	var img := Image.create(px, px, false, Image.FORMAT_RGBA8)
+	var ink := Color("#fff3c4")
+	var edge := Color(0.05, 0.04, 0.06)
+	for i in px:
+		for j in px:
+			var on := (i == 4 and (j <= 2 or j >= 6)) or (j == 4 and (i <= 2 or i >= 6))
+			var dot := i == 4 and j == 4
+			if on or dot:
+				img.set_pixel(i, j, ink)
+	# A dark outline so it reads on any floor.
+	var out := img.duplicate()
+	for i in px:
+		for j in px:
+			if img.get_pixel(i, j).a > 0.0:
+				continue
+			for o in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+				var q: Vector2i = Vector2i(i, j) + o
+				if q.x >= 0 and q.y >= 0 and q.x < px and q.y < px and img.get_pixelv(q).a > 0.0:
+					out.set_pixel(i, j, edge)
+	var scale := maxi(int(DisplayServer.screen_get_size().y / 360), 1)
+	out.resize(px * scale, px * scale, Image.INTERPOLATE_NEAREST)
+	Input.set_custom_mouse_cursor(ImageTexture.create_from_image(out), Input.CURSOR_ARROW, Vector2(px * scale / 2, px * scale / 2))
