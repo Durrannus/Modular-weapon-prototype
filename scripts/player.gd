@@ -64,6 +64,7 @@ var anim_move := ""
 var anim_dir := Vector2.RIGHT
 var knocked_out_timer := 0.0
 var facing := "down"       # nearest of 4 directions to the aim: up, down, left, right
+var facing8 := "down"      # nearest of 8: adds down_right, up_right, down_left, up_left
 var weapon_layer: Node2D
 var weapon_group: CanvasGroup  # holds the sword so it gets one outline
 var anim_time := 0.0
@@ -668,7 +669,9 @@ func _process(delta: float) -> void:
 	knocked_out_timer = maxf(knocked_out_timer - delta, 0.0)
 	shake = move_toward(shake, 0.0, 40.0 * delta)
 	camera.offset = Vector2(randf_range(-1, 1), randf_range(-1, 1)) * shake
-	facing = _facing_of(aim_dir if current_step < 0 else anim_dir)
+	var face_dir := aim_dir if current_step < 0 else anim_dir
+	facing = _facing_of(face_dir)
+	facing8 = _facing8_of(face_dir)
 	# Behind the body when facing away, or when the hand is above the body's centre.
 	weapon_group.show_behind_parent = facing == "up" or facing == "left"
 	anim_time += delta
@@ -679,6 +682,13 @@ func _process(delta: float) -> void:
 	(weapon_group.material as ShaderMaterial).set_shader_parameter("px", scale_px)
 	queue_redraw()
 	weapon_layer.queue_redraw()
+
+
+## The nearest of 8 directions. Diagonals cover the middle 45 degrees between axes.
+static func _facing8_of(d: Vector2) -> String:
+	var a := fposmod(d.angle(), TAU)
+	var i := int(roundf(a / (PI / 4.0))) % 8
+	return ["right", "down_right", "down", "down_left", "left", "up_left", "up", "up_right"][i]
 
 
 static func _facing_of(d: Vector2) -> String:
@@ -700,7 +710,8 @@ func _draw() -> void:
 		var tint := Color(2.0, 2.0, 2.0) if blink else Color.WHITE
 		var fw := tex.get_width() / maxi(int(strip[1]), 1)
 		var src := Rect2(float(posmod(int(strip[2]), int(strip[1])) * fw), 0.0, float(fw), float(tex.get_height()))
-		draw_set_transform(FEET, lean, Vector2(Art.PIXEL * squash.x, Art.PIXEL * squash.y))
+		var sx := -1.0 if strip[3] else 1.0
+		draw_set_transform(FEET, lean, Vector2(Art.PIXEL * squash.x * sx, Art.PIXEL * squash.y))
 		draw_texture_rect_region(tex, Rect2(-_body_origin(), src.size), src, tint)
 		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 		return
@@ -721,7 +732,9 @@ func _draw() -> void:
 			draw_rect(Rect2(Vector2(x, -3), Vector2(3, 5)), eye)
 
 
-## [animation name, frame count, current frame] for the body sprite.
+## [animation name, frame count, current frame, mirrored] for the body sprite.
+## Diagonals use the *_down_right / *_up_right strips (mirrored for the left side)
+## when the art has them, otherwise the nearest of the 4 main directions.
 func _body_strip() -> Array:
 	var anim := "idle"
 	var frame := 0
@@ -736,7 +749,11 @@ func _body_strip() -> Array:
 		frame = int(anim_time * 10.0) % frames
 	else:
 		frame = int(anim_time * 6.0) % frames
-	return ["%s_%s" % [anim, facing], frames, frame]
+	if "_" in facing8:
+		var base := facing8.replace("left", "right")
+		if Art.texture("body/%s_%s_%s.png" % [CHARACTER, anim, base]) != null:
+			return ["%s_%s" % [anim, base], frames, frame, facing8.ends_with("left")]
+	return ["%s_%s" % [anim, facing], frames, frame, false]
 
 
 ## The test character's body strips (art/body/<CHARACTER>_*.png). Change it back to
@@ -763,7 +780,10 @@ func _hand_point() -> Vector2:
 	if hands.is_empty():
 		return FEET + Vector2(0, -12)
 	var h: Array = hands[posmod(int(strip[2]), hands.size())]
-	return FEET + (Vector2(h[0], h[1]) - _body_origin()) * Art.PIXEL
+	var off := (Vector2(h[0], h[1]) - _body_origin()) * Art.PIXEL
+	if strip[3]:
+		off.x = -off.x
+	return FEET + off
 
 
 # --- Weapon layer --------------------------------------------------------------
