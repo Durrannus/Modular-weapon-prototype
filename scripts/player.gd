@@ -1068,7 +1068,7 @@ func _draw_weapon() -> void:
 	weapon_layer.draw_set_transform(hand, angle + PI * 0.5, Vector2(Art.PIXEL, Art.PIXEL))
 	var blade: String = weapon["blade"]
 	var grip: String = weapon["grip"]
-	SwordArt.draw(weapon_layer, blade, grip, weapon["line"], "hand", _slot_glow(), -SwordArt.pivot(blade, grip, "hand"))
+	SwordArt.draw(weapon_layer, blade, grip, weapon["line"], "hand", _slot_glow(), -SwordArt.pivot(blade, grip, "hand"), Color.WHITE, str(weapon.get("pommel", "plain_pommel")))
 	# The fist goes on the grip, on top of the sword.
 	var fist := Art.texture("body/hand.png")
 	if fist != null:

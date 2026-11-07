@@ -399,7 +399,11 @@ func _icon(kind: String, id: String, center: Vector2, part_scale := 2.0) -> void
 					_:
 						root.draw_colored_polygon(PackedVector2Array([center + Vector2(0, -8), center + Vector2(7, 0), center + Vector2(0, 8), center + Vector2(-7, 0)]), c)
 		"pommels":
-			# No pommel art yet: a round knob in the pommel's colour.
+			var ptex := Art.texture("swing/pommels/%s_icon.png" % id)
+			if ptex != null:
+				root.draw_texture(ptex, (center - ptex.get_size() * 0.5).round())
+				return
+			# No art: a round knob in the pommel's colour.
 			var pc: Color = SwingBuild.POMMELS[id]["color"]
 			root.draw_circle(center, 8.0, pc.darkened(0.55))
 			root.draw_circle(center, 6.5, pc)
@@ -571,7 +575,7 @@ func _draw_sword(stats: Dictionary) -> void:
 	if anvil != null:
 		root.draw_texture(anvil, Vector2(CENTRE_X - anvil.get_width() * 0.5, sword_bottom - 2).round())
 	root.draw_set_transform(top, 0.0, Vector2(zoom, zoom))
-	SwordArt.draw(root, blade, grip, build.line, "forge", {}, Vector2.ZERO)
+	SwordArt.draw(root, blade, grip, build.line, "forge", {}, Vector2.ZERO, Color.WHITE, build.pommel)
 	root.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 	# Group outlines.
 	var info: Dictionary = stats["slot_info"]
@@ -634,7 +638,7 @@ func _update_fx(delta: float) -> void:
 func _draw_heat_mask() -> void:
 	if sword_size != Vector2.ZERO:
 		heat_mask.draw_set_transform(sword_top, 0.0, Vector2(zoom, zoom))
-		SwordArt.draw(heat_mask, build.blade, build.grip, build.line, "forge", {}, Vector2.ZERO)
+		SwordArt.draw(heat_mask, build.blade, build.grip, build.line, "forge", {}, Vector2.ZERO, Color.WHITE, build.pommel)
 		heat_mask.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 

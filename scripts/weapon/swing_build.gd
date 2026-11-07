@@ -37,7 +37,7 @@ const GRIP_ORDER := ["wooden_grip", "wrapped_grip", "long_grip", "ringed_grip", 
 const POMMELS := {
 	"plain_pommel": {"name": "Plain Pommel", "desc": "No bonus.", "color": Color("#8a8f99")},
 	"keen_pommel": {"name": "Keen Pommel", "crit": 0.08, "desc": "+8% crit chance.", "color": Color("#7fd0ff")},
-	"heavy_pommel": {"name": "Heavy Pommel", "crit_damage": 0.4, "desc": "Crits deal +40% more damage.", "color": Color("#c98a4a")},
+	"heavy_pommel": {"name": "Heavy Pommel", "crit_damage": 0.4, "desc": "+40% crit damage.", "color": Color("#c98a4a")},
 	"light_pommel": {"name": "Light Pommel", "speed": 0.1, "desc": "+10% swing speed.", "color": Color("#e8e2b0")},
 }
 const POMMEL_ORDER := ["plain_pommel", "keen_pommel", "heavy_pommel", "light_pommel"]

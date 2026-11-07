@@ -33,7 +33,11 @@ static func grip_origin(blade: String, scale: String) -> Vector2:
 
 static func frame_size(blade: String, grip: String, scale: String) -> Vector2:
 	var g: Array = _part("grips", grip, scale).get("size", [15.0 * _k(scale), 19.0 * _k(scale)])
-	return Vector2(15.0 * _k(scale), blade_size(blade, scale).y + float(g[1]))
+	# The pommel hangs a little below the grip (more on the Ringed grip).
+	var pa: Array = _part("grips", grip, scale).get("pommel_at", [0, g[1]])
+	var ph: float = 4.0 * _k(scale)
+	var below := maxf(float(pa[1]) + ph - float(g[1]), 0.0)
+	return Vector2(15.0 * _k(scale), blade_size(blade, scale).y + float(g[1]) + below)
 
 
 ## Where the hand holds the sword, in frame pixels: the middle of the grip's hold,
@@ -66,7 +70,7 @@ static func slot_center(blade: String, grip: String, scale: String, i: int) -> V
 
 ## lit: slot index -> 0..1. A slot above 0.4 swaps to its _lit image.
 static func draw(ci: CanvasItem, blade: String, grip: String, line: Array, scale: String,
-		lit: Dictionary, origin := Vector2.ZERO, tint := Color.WHITE) -> void:
+		lit: Dictionary, origin := Vector2.ZERO, tint := Color.WHITE, pommel := "plain_pommel") -> void:
 	var gs := int(SwingBuild.GRIPS[grip]["slots"])
 	var blade_tex := Art.texture(DIR + "blades/%s_%s.png" % [blade, scale])
 	var grip_tex := Art.texture(DIR + "grips/%s_%s.png" % [grip, scale])
@@ -74,6 +78,10 @@ static func draw(ci: CanvasItem, blade: String, grip: String, line: Array, scale
 		ci.draw_texture(blade_tex, origin + Vector2(4.0 * _k(scale), 0), tint)
 	if grip_tex != null:
 		ci.draw_texture(grip_tex, origin + grip_origin(blade, scale), tint)
+	var pommel_tex := Art.texture(DIR + "pommels/%s_%s.png" % [pommel, scale])
+	var pa: Array = _part("grips", grip, scale).get("pommel_at", [])
+	if pommel_tex != null and not pa.is_empty():
+		ci.draw_texture(pommel_tex, origin + grip_origin(blade, scale) + Vector2(pa[0], pa[1]), tint)
 	for i in line.size():
 		var id: String = line[i]
 		if id == "":

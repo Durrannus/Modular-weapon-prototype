@@ -168,6 +168,10 @@
     "pivot": [
      7.5,
      5.5
+    ],
+    "pommel_at": [
+     0,
+     12
     ]
    },
    "forge": {
@@ -186,6 +190,10 @@
     "pivot": [
      22.5,
      16.5
+    ],
+    "pommel_at": [
+     0,
+     36
     ]
    }
   },
@@ -216,6 +224,10 @@
     "pivot": [
      7.5,
      5.5
+    ],
+    "pommel_at": [
+     0,
+     16
     ]
    },
    "forge": {
@@ -240,6 +252,10 @@
     "pivot": [
      22.5,
      16.5
+    ],
+    "pommel_at": [
+     0,
+     48
     ]
    }
   },
@@ -276,6 +292,10 @@
     "pivot": [
      7.5,
      5.5
+    ],
+    "pommel_at": [
+     0,
+     20
     ]
    },
    "forge": {
@@ -306,6 +326,10 @@
     "pivot": [
      22.5,
      16.5
+    ],
+    "pommel_at": [
+     0,
+     60
     ]
    }
   },
@@ -336,6 +360,10 @@
     "pivot": [
      7.5,
      5.5
+    ],
+    "pommel_at": [
+     0,
+     19
     ]
    },
    "forge": {
@@ -360,6 +388,10 @@
     "pivot": [
      22.5,
      16.5
+    ],
+    "pommel_at": [
+     0,
+     57
     ]
    }
   },
@@ -390,6 +422,10 @@
     "pivot": [
      7.5,
      5.5
+    ],
+    "pommel_at": [
+     0,
+     16
     ]
    },
    "forge": {
@@ -414,6 +450,10 @@
     "pivot": [
      22.5,
      16.5
+    ],
+    "pommel_at": [
+     0,
+     48
     ]
    }
   }
@@ -849,5 +889,56 @@
    "text": "Rare. The bands on the rune below also boost the next rune above. One rule-bender per sword.",
    "note": "socket-sized like a rune stone; a violet cut gem"
   }
- }
+ },
+ "pommels": {
+  "plain_pommel": {
+   "name": "Plain Pommel",
+   "text": "No bonus.",
+   "hand_size": [
+    15,
+    4
+   ],
+   "forge_size": [
+    45,
+    12
+   ]
+  },
+  "keen_pommel": {
+   "name": "Keen Pommel",
+   "text": "Crit chance.",
+   "hand_size": [
+    15,
+    4
+   ],
+   "forge_size": [
+    45,
+    12
+   ]
+  },
+  "heavy_pommel": {
+   "name": "Heavy Pommel",
+   "text": "Crit damage.",
+   "hand_size": [
+    15,
+    4
+   ],
+   "forge_size": [
+    45,
+    12
+   ]
+  },
+  "light_pommel": {
+   "name": "Light Pommel",
+   "text": "Swing speed.",
+   "hand_size": [
+    15,
+    4
+   ],
+   "forge_size": [
+    45,
+    12
+   ]
+  }
+ },
+ "note_pommels": "Grips no longer have a knob baked in. Draw pommels/<id>_<scale>.png at the grip's pommel_at (plus the grip's offset in the sword frame), after the grip. The Ringed Grip keeps its band and its pommel hangs below it."
 }

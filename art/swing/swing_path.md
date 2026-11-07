@@ -164,3 +164,19 @@ The runes and bands have the same file set as the old ones: `_hand`, `_forge`, `
 | Shards (#c9d4e0) | `shards_shard` (4 frames, 9x9, loop), `shards_hit` (4 frames, 24x24) | A spinning steel shard that the game flies from enemy to enemy, plus a white-steel splinter burst on each enemy it hits. |
 
 Parked, so they have no new art: Second Wind, Mirror and Lunge. The code is in `sp_parts.py`, with the new glyphs, `BENDERS` and `bender_gem`, and in `sp_fx.py` under `STRIPS_NEW`. Export with `python3 sp_export_nov6.py`, which only writes these files and merges their entries into swing_path.json. There is a preview sheet: `new_fittings_nov6.png`.
+
+## Pommels (7 November)
+
+Pommels are now their own pieces. They have no slots and only change stats. The grips in `grips/` were re-exported **without** the baked-in knob, so the pommel rows are empty. The Ringed Grip keeps its built-in band, and its pommel hangs below that band.
+
+| Id | Look | Bonus |
+|---|---|---|
+| `plain_pommel` | an iron knob (the old default look) | none |
+| `keen_pommel` | a steel spike with a white glint at the tip | crit chance |
+| `heavy_pommel` | a big dark iron ball with a cast seam | crit damage |
+| `light_pommel` | a small open brass ring | swing speed |
+
+- **Files:** `pommels/<id>_hand.png` is 15x4. `pommels/<id>_forge.png` is 45x12. `pommels/<id>_icon.png` is the tray icon.
+- **Placing it:** each grip in the JSON has `pommel_at` per scale, in the grip's own pixels. Draw the pommel at the grip's offset plus `pommel_at`, after the grip. It overlaps the grip's empty pommel rows and hangs 1 row lower (3 on the forge).
+- **Code:** `sp_parts.py` (`POMMELS`, `pommel()`, `pommel_at()`, `grip(..., pommel=False)`). Export with `sp_export_pommels.py`.
+- **Preview:** `pommels_nov7.png`. The top row shows a wrapped grip in hand at 4x and on the forge, the middle row shows the Ringed Grip, and the icons are at the bottom.
