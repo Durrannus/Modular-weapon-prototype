@@ -673,7 +673,7 @@ func _process(delta: float) -> void:
 	facing = _facing_of(face_dir)
 	facing8 = _facing8_of(face_dir)
 	# Behind the body when facing away, or when the hand is above the body's centre.
-	weapon_group.show_behind_parent = facing == "up" or facing == "left"
+	weapon_group.show_behind_parent = facing8 in ["up", "up_left", "up_right", "left"]
 	anim_time += delta
 	_update_pose(delta)
 	trail_layer.queue_redraw()
@@ -780,9 +780,10 @@ func _hand_point() -> Vector2:
 	if hands.is_empty():
 		return FEET + Vector2(0, -12)
 	var h: Array = hands[posmod(int(strip[2]), hands.size())]
-	var off := (Vector2(h[0], h[1]) - _body_origin()) * Art.PIXEL
+	var hx: float = float(h[0])
 	if strip[3]:
-		off.x = -off.x
+		hx = float(_body_data().get("frame", [56, 56])[0]) - 1.0 - hx  # mirrored strip
+	var off := (Vector2(hx, h[1]) - _body_origin()) * Art.PIXEL
 	return FEET + off
 
 
@@ -894,10 +895,11 @@ func _attack_pose() -> Array:
 ## (the body sprite's hand anchor), by facing (not the mouse). Angle: -PI/2 = up.
 ## Facing down his right hand is on screen-left; facing up it is on screen-right;
 ## facing left it is on his far side, so the sword is drawn behind him.
-const READY_ANGLE := {"right": -0.85, "left": -(PI - 0.85), "down": -1.85, "up": -1.3}
+const READY_ANGLE := {"right": -0.85, "left": -(PI - 0.85), "down": -1.85, "up": -1.3,
+	"down_right": -1.5, "down_left": -(PI - 1.5), "up_right": -1.1, "up_left": -(PI - 1.1)}
 
 func _rest_pose() -> Array:
-	return [READY_ANGLE.get(facing, -1.85), _hand_point()]
+	return [READY_ANGLE.get(facing8, READY_ANGLE.get(facing, -1.85)), _hand_point()]
 
 
 func _update_pose(delta: float) -> void:
