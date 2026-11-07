@@ -24,6 +24,7 @@ var world: Node2D
 var player
 var hud
 var build_menu
+var pause_menu
 var build: SwingBuild
 var parts: Array = []
 var spawn_timer := 1.0
@@ -70,6 +71,9 @@ func _ready() -> void:
 
 	build_menu = BuildMenuScript.new()
 	add_child(build_menu)
+	pause_menu = preload("res://scripts/ui/pause_menu.gd").new()
+	pause_menu.build_menu = build_menu
+	add_child(pause_menu)
 	build_menu.setup(build)
 	build_menu.try_at_dummy.connect(_on_try_at_dummy)
 
