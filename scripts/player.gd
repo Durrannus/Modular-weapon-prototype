@@ -282,7 +282,7 @@ func _start_step() -> void:
 	swing_side = 1.0 if current_step % 2 == 0 else -1.0
 	pose_from_angle = wrapf(pose_angle - anim_dir.angle(), -PI, PI)
 	stepped = false
-	trail_te = 0.0
+	smear_t0 = -1.0
 	# The swing travels up the sword: each slot lights for a moment, grip to tip.
 	for i in weapon.get("line", []).size():
 		sweep_flash[i] = game_time + float(i) * 0.04
@@ -665,7 +665,8 @@ func _process(delta: float) -> void:
 	shake = move_toward(shake, 0.0, 40.0 * delta)
 	camera.offset = Vector2(randf_range(-1, 1), randf_range(-1, 1)) * shake
 	facing = _facing_of(aim_dir if current_step < 0 else anim_dir)
-	weapon_group.show_behind_parent = facing == "up"
+	# Behind the body when facing away, or when the hand is above the body's centre.
+	weapon_group.show_behind_parent = facing == "up" or pose_hand.y < SWING_PIVOT.y - 3.0
 	anim_time += delta
 	_update_pose(delta)
 	trail_layer.queue_redraw()
@@ -813,41 +814,55 @@ const SWING_CURVES := {
 
 
 ## Where the sword should be right now, during a swing. Returns [angle, hand, sweeping].
-func _attack_pose() -> Array:
+## Snappy, like comparable top-down games: hold the wind-up, jump across in ~30 ms
+## (the sword is hidden and a crescent smear shows the arc), hold the end, ease to rest.
+## The hand moves on a short arc round the body's centre, sword pointing outward.
+const SWING_PIVOT := Vector2(0, -14)
+const SWING_RADIUS := 9.0
+const SWEEP_TIME := 0.03
+
+func _swing_times() -> Array:
 	var info: Dictionary = MOVES.get(anim_move, MOVES["slash"])
+	var hit_at := float(info["windup"]) / _speed()
+	var sweep_start := maxf(hit_at - SWEEP_TIME * 0.5, 0.0)
+	return [sweep_start, sweep_start + SWEEP_TIME]
+
+
+func _attack_pose() -> Array:
 	var curve: Array = SWING_CURVES.get(anim_move, SWING_CURVES["slash"])
 	var side := swing_side if anim_move == "slash" else 1.0
-	var hit_at := float(info["windup"]) / _speed()
-	var sweep_start := maxf(hit_at - 0.035, 0.0)
-	var sweep_end := hit_at + 0.065
+	var times := _swing_times()
+	var sweep_start: float = times[0]
+	var sweep_end: float = times[1]
 	var start_a: float = float(curve[0]) * side
 	var end_a: float = float(curve[1]) * side
-	var rel := 0.0
-	var arm := 0.0
-	var sweeping := false
+	var thrust := anim_move == "stab" or anim_move == "lunge"
 	var te := step_elapsed
+	var rel := end_a
+	var radius := SWING_RADIUS
+	var sweeping := false
 	if te < sweep_start:
-		# Wind up: pull back from wherever the sword was to the start of the swing.
-		var k := ease(clampf(te / maxf(sweep_start, 0.001), 0.0, 1.0), 0.4)
+		# Wind up: get to the start pose quickly, then hold it.
+		var k := clampf(te / maxf(sweep_start * 0.4, 0.001), 0.0, 1.0)
 		rel = lerp_angle(pose_from_angle, start_a, k)
-		arm = lerpf(14.0, float(curve[2]), k)
+		radius = SWING_RADIUS * (0.4 if thrust else 1.0)
 	elif te < sweep_end:
-		# The swing itself: fast out, slowing at the end.
-		var k := clampf((te - sweep_start) / (sweep_end - sweep_start), 0.0, 1.0)
-		var e := 1.0 - pow(1.0 - k, 3.0)
-		rel = lerpf(start_a, end_a, e)
-		arm = lerpf(float(curve[2]), float(curve[3]), e)
+		var k := (te - sweep_start) / SWEEP_TIME
+		rel = lerpf(start_a, end_a, k)
+		radius = SWING_RADIUS * (lerpf(0.4, 1.6, k) if thrust else 1.0)
 		sweeping = true
 	else:
-		# Follow through: a small overshoot that settles.
-		var k := te - sweep_end
-		rel = end_a + side * 0.18 * sin(minf(k / 0.12, 1.0) * PI) * (1.0 if anim_move != "stab" and anim_move != "lunge" else 0.0)
-		arm = lerpf(float(curve[3]), 14.0, clampf(k / 0.2, 0.0, 1.0))
+		radius = SWING_RADIUS * (1.6 if thrust else 1.0)
 	var angle := anim_dir.angle() + rel
-	# The hand stays at the body's own hand (there's no arm art): it only reaches
-	# a little toward the swing, and the sword turns at the wrist.
-	var reach := clampf((arm - 12.0) * 0.6, -2.0, 8.0)
-	return [angle, _hand_point() + anim_dir * reach, sweeping]
+	var hand := SWING_PIVOT + Vector2.RIGHT.rotated(angle) * radius
+	# After holding the end pose (~65 ms), ease back to the resting pose.
+	var settle := clampf((te - sweep_end - 0.065) / 0.13, 0.0, 1.0)
+	if settle > 0.0:
+		var r := _rest_pose()
+		var e := settle * settle * (3.0 - 2.0 * settle)
+		angle = lerp_angle(angle, r[0], e)
+		hand = hand.lerp(r[1], e)
+	return [angle, hand, sweeping]
 
 
 ## Resting pose: the sword lowered at the side, by the hand on the body sprite.
@@ -868,19 +883,9 @@ func _update_pose(delta: float) -> void:
 		var p := _attack_pose()
 		pose_angle = p[0]
 		pose_hand = p[1]
-		if p[2] or (trail_te >= 0.0 and trail_te < step_elapsed):
-			# Fill the trail at small time steps so it stays a smooth arc at any frame rate.
-			var now := step_elapsed
-			var te := trail_te if trail_te >= 0.0 else now
-			while te < now:
-				step_elapsed = te
-				var q := _attack_pose()
-				if q[2]:
-					trail.append([q[1], q[0], game_time - (now - te)])
-				te += 0.006
-			step_elapsed = now
-			trail.append([pose_hand, pose_angle, game_time])
-			trail_te = now if p[2] else -1.0
+		if p[2] or (smear_t0 < 0.0 and step_elapsed >= float(_swing_times()[1]) and not stepped):
+			if smear_t0 < 0.0 or not stepped:
+				_start_smear()
 			if not stepped:
 				# No step forward: swinging never moves you (it pushed you into enemies).
 				stepped = true
@@ -895,25 +900,58 @@ func _update_pose(delta: float) -> void:
 		pose_hand = r[1]
 		lean = lerpf(lean, 0.0, 1.0 - exp(-12.0 * delta))
 	squash = squash.lerp(Vector2.ONE, 1.0 - exp(-12.0 * delta))
-	while not trail.is_empty() and game_time - float(trail[0][2]) > 0.12:
-		trail.pop_front()
 
 
-## The swing's smear: a fading band between the hand end and the tip.
+
+## The swing's smear: one solid crescent over the whole arc, brightest at the
+## leading edge, fading out over ~100 ms.
+var smear_t0 := -1.0
+var smear_a0 := 0.0
+var smear_a1 := 0.0
+var smear_center := Vector2.ZERO
+const SMEAR_LIFE := 0.1
+
+func _start_smear() -> void:
+	var curve: Array = SWING_CURVES.get(anim_move, SWING_CURVES["slash"])
+	var side := swing_side if anim_move == "slash" else 1.0
+	smear_t0 = game_time
+	smear_a0 = anim_dir.angle() + float(curve[0]) * side
+	smear_a1 = anim_dir.angle() + float(curve[1]) * side
+	smear_center = SWING_PIVOT
+
+
 func _draw_trail() -> void:
-	if trail.size() < 2 or not weapon.has("blade"):
+	if smear_t0 < 0.0 or not weapon.has("blade"):
+		return
+	var age := (game_time - smear_t0) / SMEAR_LIFE
+	if age >= 1.0:
 		return
 	var length_px := SwordArt.pivot(weapon["blade"], weapon["grip"], "hand").y * Art.PIXEL
-	var col: Color = weapon.get("hit_color", Color.WHITE).lerp(Color(0.75, 0.88, 1.0), 0.5)
-	for i in range(1, trail.size()):
-		var a: Array = trail[i - 1]
-		var b: Array = trail[i]
-		var age := (game_time - float(b[2])) / 0.12
-		var alpha := clampf(1.0 - age, 0.0, 1.0) * 0.55
-		var da := Vector2.RIGHT.rotated(float(a[1]))
-		var db := Vector2.RIGHT.rotated(float(b[1]))
-		var pts := PackedVector2Array([a[0] + da * length_px * 0.45, a[0] + da * length_px, b[0] + db * length_px, b[0] + db * length_px * 0.45])
-		draw_colored_polygon_on(trail_layer, pts, Color(col.r, col.g, col.b, alpha))
+	var r_in := SWING_RADIUS + length_px * 0.45
+	var r_out := SWING_RADIUS + length_px
+	var col: Color = weapon.get("hit_color", Color.WHITE).lerp(Color(0.8, 0.9, 1.0), 0.5)
+	var fade := 1.0 - age
+	if absf(smear_a1 - smear_a0) < 0.05:
+		# A thrust: a straight streak along the blade instead of an arc.
+		var d := Vector2.RIGHT.rotated(smear_a0)
+		var n := d.orthogonal() * 4.0
+		var c := smear_center
+		draw_colored_polygon_on(trail_layer, PackedVector2Array([c + d * r_in - n, c + d * (r_out + 10.0) - n, c + d * (r_out + 10.0) + n, c + d * r_in + n]), Color(col.r, col.g, col.b, 0.8 * fade))
+		return
+	var steps := 16
+	for i in steps:
+		var s0 := float(i) / steps
+		var s1 := float(i + 1) / steps
+		var a0 := lerpf(smear_a0, smear_a1, s0)
+		var a1 := lerpf(smear_a0, smear_a1, s1)
+		var d0 := Vector2.RIGHT.rotated(a0)
+		var d1 := Vector2.RIGHT.rotated(a1)
+		# Thin at the trailing end, full width and opaque at the leading edge.
+		var w0 := lerpf(r_out - 4.0, r_in, s0)
+		var w1 := lerpf(r_out - 4.0, r_in, s1)
+		var alpha := (0.15 + 0.85 * s1 * s1) * fade
+		var c := smear_center
+		draw_colored_polygon_on(trail_layer, PackedVector2Array([c + d0 * w0, c + d0 * r_out, c + d1 * r_out, c + d1 * w1]), Color(col.r, col.g, col.b, alpha))
 
 
 func draw_colored_polygon_on(ci: CanvasItem, pts: PackedVector2Array, c: Color) -> void:
@@ -928,14 +966,21 @@ func _draw_weapon() -> void:
 	var pose := _sword_pose()
 	var angle: float = pose[0]
 	var hand: Vector2 = pose[1]
-	# Art space: x right, y down, tip at the top. Rotate so "up" points along d.
-	weapon_layer.draw_set_transform(hand, angle + PI * 0.5, Vector2(Art.PIXEL, Art.PIXEL))
-	var blade: String = weapon["blade"]
-	var grip: String = weapon["grip"]
-	SwordArt.draw(weapon_layer, blade, grip, weapon["line"], "hand", _slot_glow(), -SwordArt.pivot(blade, grip, "hand"))
-	# The fist goes on the grip, on top of the sword.
+	# Mid-sweep the sword is hidden: the smear shows the swing (reads as a fast blur).
+	var hidden := false
+	if current_step >= 0:
+		var times := _swing_times()
+		hidden = step_elapsed >= float(times[0]) and step_elapsed < float(times[1])
+	if not hidden:
+		# Art space: x right, y down, tip at the top. Rotate so "up" points along d.
+		weapon_layer.draw_set_transform(hand, angle + PI * 0.5, Vector2(Art.PIXEL, Art.PIXEL))
+		var blade: String = weapon["blade"]
+		var grip: String = weapon["grip"]
+		SwordArt.draw(weapon_layer, blade, grip, weapon["line"], "hand", _slot_glow(), -SwordArt.pivot(blade, grip, "hand"))
+	# The fist sits on the grip but is drawn upright, never spun with the sword.
 	var fist := Art.texture("body/hand.png")
 	if fist != null:
+		weapon_layer.draw_set_transform(hand, 0.0, Vector2(Art.PIXEL, Art.PIXEL))
 		weapon_layer.draw_texture(fist, -fist.get_size() * 0.5)
 	weapon_layer.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
