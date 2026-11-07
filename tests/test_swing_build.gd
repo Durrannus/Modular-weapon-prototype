@@ -127,8 +127,11 @@ func test_every_hit() -> void:
 	eq(e["power"], 0.5, "Every Hit halves the strength")
 	eq(SwingBuild.sentence(e), "Every hit sends a shockwave forward, at half strength.", "Every Hit sentence")
 	var r := SwingBuild.resolve(["every_hit", "shards"])
-	check(r["slots"][0].get("unused", false), "Every Hit on Shards (already every hit) does nothing")
-	eq(effect(r, "shards")["power"], 1.0, "Shards keep full strength")
+	check(r["slots"][0].has("band"), "Every Hit on Shards works: they splinter")
+	check(effect(r, "shards").get("splinter", false), "Every Hit makes Shards splinter")
+	eq(effect(r, "shards")["power"], 0.5, "splintered Shards are half strength")
+	check(SwingBuild.resolve(["every_hit", "every_hit", "shards"])["slots"][1].get("unused", false), "a second Every Hit on Shards does nothing")
+	eq(SwingBuild.sentence(effect(r, "shards")), "Every hit sends shards jumping to the closest enemies, splitting in two at each jump, at half strength.", "Splinter sentence")
 
 
 func test_saved_up() -> void:

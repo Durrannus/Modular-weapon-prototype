@@ -544,6 +544,8 @@ func _band_line(band: String, rune: String) -> String:
 		"wider":
 			return "%s %s." % [rn, _boost_text("wider", rune)]
 		"every_hit":
+			if rune == "shards":
+				return "Shards split in two at each jump, at half strength."
 			return "%s happens on every hit, at half strength." % rn
 		"saved_up":
 			return "%s happens every third time, three times as strong." % rn

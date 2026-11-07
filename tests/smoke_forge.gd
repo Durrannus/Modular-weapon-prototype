@@ -46,10 +46,18 @@ func _init() -> void:
 	print("one bender kept: ", forge.build.line)
 	forge.close()
 	var player = main.find_children("*", "CharacterBody2D", true, false)[0]
-	forge.build.line = ["on_dodge", "whirlwind", "saved_up", "leap"]
+	forge.build.line = ["every_hit", "shards", "on_dodge", "leap"]
 	player.set_weapon(forge.build.compute())
 	for k in 6:
 		main._spawn_enemy()
+	for e in player.get_tree().get_nodes_in_group("enemies"):
+		e.global_position = player.global_position + Vector2(50, 0).rotated(randf() * TAU)
+	for trig in ["dodge", "dodge_attack", "finisher", "finisher", "finisher", "hit", "kill"]:
+		player._trigger(trig, [])
+		for f in 12:
+			await physics_frame
+	forge.build.line = ["on_dodge", "whirlwind", "wider", "leap"]
+	player.set_weapon(forge.build.compute())
 	for e in player.get_tree().get_nodes_in_group("enemies"):
 		e.global_position = player.global_position + Vector2(50, 0).rotated(randf() * TAU)
 	for trig in ["dodge", "dodge_attack", "finisher", "finisher", "finisher", "hit", "kill"]:

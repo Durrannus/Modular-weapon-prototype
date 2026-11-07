@@ -27,7 +27,8 @@ var _hit := {}
 var from_node: Node2D
 var from_offset := Vector2.ZERO
 var to_node: Node2D
-var spin_side := 1.0  # Whirlwind: +1 clockwise, -1 the other way
+var spin_side := 1.0
+var drawn := true     # false when a sprite strip draws the effect instead  # Whirlwind: +1 clockwise, -1 the other way
 
 
 func _ready() -> void:
@@ -121,6 +122,8 @@ func _draw() -> void:
 				_crescent(-back, w * (1.0 - i * 0.08), 24.0 - i * 4.0, c)
 			var hot := Color(1, 1, 0.9, fade)
 			_crescent(6.0, w * 0.92, 8.0, hot)
+		"spin" when not drawn:
+			pass
 		"spin":
 			# The leading edge sweeps once round; a fading trail follows it.
 			var lead := dir.angle() + spin_side * TAU * minf(k * 1.15, 1.0)

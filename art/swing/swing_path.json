@@ -438,6 +438,21 @@
    "name": "Second Wind",
    "trigger": "on a kill",
    "text": "Kills refill a dodge."
+  },
+  "shards": {
+   "name": "Shards",
+   "trigger": "every hit",
+   "text": "Every hit sends metal shards jumping to the closest enemy, then the next."
+  },
+  "leap": {
+   "name": "Leap",
+   "trigger": "dodge attack",
+   "text": "Attacking straight after a dodge jumps you to the nearest enemy."
+  },
+  "whirlwind": {
+   "name": "Whirlwind",
+   "trigger": "finisher",
+   "text": "Your finisher spins a full circle, cutting everything around you."
   }
  },
  "bands": {
@@ -464,6 +479,66 @@
   "wider": {
    "name": "Wider",
    "text": "The rune above is bigger.",
+   "blade_hand_size": [
+    7,
+    3
+   ],
+   "blade_forge_size": [
+    21,
+    9
+   ],
+   "grip_hand_size": [
+    7,
+    3
+   ],
+   "grip_forge_size": [
+    21,
+    9
+   ]
+  },
+  "every_hit": {
+   "name": "Every Hit",
+   "text": "The rune above happens on every hit instead, at half strength.",
+   "blade_hand_size": [
+    7,
+    3
+   ],
+   "blade_forge_size": [
+    21,
+    9
+   ],
+   "grip_hand_size": [
+    7,
+    3
+   ],
+   "grip_forge_size": [
+    21,
+    9
+   ]
+  },
+  "saved_up": {
+   "name": "Saved Up",
+   "text": "The rune above only happens every third time, but three times as strong.",
+   "blade_hand_size": [
+    7,
+    3
+   ],
+   "blade_forge_size": [
+    21,
+    9
+   ],
+   "grip_hand_size": [
+    7,
+    3
+   ],
+   "grip_forge_size": [
+    21,
+    9
+   ]
+  },
+  "on_dodge": {
+   "name": "On Dodge",
+   "text": "The rune above also happens when you dodge.",
    "blade_hand_size": [
     7,
     3
@@ -631,6 +706,71 @@
     5
    ],
    "note": "flies from the kill to the player"
+  },
+  "whirlwind_spin": {
+   "frames": 6,
+   "frame": [
+    72,
+    72
+   ],
+   "fps": 18,
+   "origin": [
+    36,
+    36
+   ],
+   "note": "centred on the player; one full turn, plays once"
+  },
+  "leap_trail": {
+   "frames": 4,
+   "frame": [
+    40,
+    16
+   ],
+   "fps": 16,
+   "origin": [
+    39,
+    8
+   ],
+   "note": "points along the jump (faces right); right end on the player"
+  },
+  "leap_land": {
+   "frames": 6,
+   "frame": [
+    48,
+    48
+   ],
+   "fps": 18,
+   "origin": [
+    24,
+    24
+   ],
+   "note": "at the player's feet where the leap lands"
+  },
+  "shards_hit": {
+   "frames": 4,
+   "frame": [
+    24,
+    24
+   ],
+   "fps": 20,
+   "origin": [
+    12,
+    12
+   ],
+   "note": "on each enemy a shard hits"
+  },
+  "shards_shard": {
+   "frames": 4,
+   "frame": [
+    9,
+    9
+   ],
+   "fps": 20,
+   "origin": [
+    4,
+    4
+   ],
+   "note": "loop while the shard flies from enemy to enemy"
   }
  },
  "ui": {
@@ -700,6 +840,14 @@
   "fonts": {
    "headings": "Silkscreen 8 px (16 px for the title), Google Fonts, OFL",
    "body": "Pixelify Sans 11 px, Google Fonts, OFL; turn ligatures off"
+  }
+ },
+ "rare": {
+  "relay": {
+   "name": "Relay",
+   "kind": "rule-bender",
+   "text": "Rare. The bands on the rune below also boost the next rune above. One rule-bender per sword.",
+   "note": "socket-sized like a rune stone; a violet cut gem"
   }
  }
 }

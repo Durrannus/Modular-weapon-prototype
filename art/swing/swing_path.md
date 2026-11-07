@@ -138,3 +138,29 @@ These make the forge feel like a real forge. Frames, fps and origins are in `for
 | `forged_banner.png` | 6 frames, 132 x 32. A "FORGED!" plate stamps in over the top of the sword. Hold the last frame, then fade it. |
 
 The forge-complete order is in the JSON: hammer strike, then heat and steam, then the banner with a small shake, then the shine. `mockup_forge_complete.png` shows the middle of it.
+
+## New fittings (6 November)
+
+These are for the sword parts on the prototype branch. They follow the same rules as above. Runes are amber stones with a carved glyph, bands are teal rings, and each effect has its own colour.
+
+| Kind | Id | Files | Glyph / look |
+|---|---|---|---|
+| rune | `shards` | `runes/shards_*` | two little shard stars. It replaces Cleave. |
+| rune | `leap` | `runes/leap_*` | an arrow jumping up-right |
+| rune | `whirlwind` | `runes/whirlwind_*` | a spiral |
+| band | `every_hit` | `bands/every_hit_*` | a grid of dots. In hand it shows 3 dots. |
+| band | `saved_up` | `bands/saved_up_*` | stairs that build up. In hand it shows 1 dot. |
+| band | `on_dodge` | `bands/on_dodge_*` | a double chevron (>>). In hand it shows 2 dots side by side. |
+| rule-bender | `relay` | `rare/relay_hand.png`, `_forge`, `_lit`, `_icon` | a violet cut gem (#d9a6ff) with an up arrow. It is socket-sized like a rune stone, so place it the same way. |
+
+The runes and bands have the same file set as the old ones: `_hand`, `_forge`, `_lit` and `_icon`, and for bands both `blade` and `grip` hosts.
+
+**Effects** (in `fx/`; frames, fps and origins are in the JSON):
+
+| Rune | Files | What |
+|---|---|---|
+| Whirlwind (#ff7ad9) | `whirlwind_spin` (6 frames, 72x72) | A pink blade edge sweeps one full turn round the player with a fading trail. Its origin is the player. |
+| Leap (#f4e07a) | `leap_trail` (4 frames, 40x16), `leap_land` (6 frames, 48x48) | Gold streaks along the jump; it faces right, so rotate it to the jump. A flat gold ring bursts out where you land. |
+| Shards (#c9d4e0) | `shards_shard` (4 frames, 9x9, loop), `shards_hit` (4 frames, 24x24) | A spinning steel shard that the game flies from enemy to enemy, plus a white-steel splinter burst on each enemy it hits. |
+
+Parked, so they have no new art: Second Wind, Mirror and Lunge. The code is in `sp_parts.py`, with the new glyphs, `BENDERS` and `bender_gem`, and in `sp_fx.py` under `STRIPS_NEW`. Export with `python3 sp_export_nov6.py`, which only writes these files and merges their entries into swing_path.json. There is a preview sheet: `new_fittings_nov6.png`.

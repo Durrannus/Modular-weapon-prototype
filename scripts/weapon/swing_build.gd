@@ -248,6 +248,10 @@ static func _apply_band(e: Dictionary, band: String) -> String:
 			e["size"] = wider_size(int(e["wider"]))
 		"every_hit":
 			if e["trigger"] == "hit":
+				if e["id"] == "shards" and not e.get("splinter", false):
+					e["splinter"] = true  # each shard splits in two as it jumps, at half strength
+					e["power"] = float(e["power"]) * EVERY_HIT_POWER
+					return ""
 				return "%s already works on every hit." % FITTINGS[e["id"]]["name"]
 			e["trigger"] = "hit"
 			e["power"] = float(e["power"]) * EVERY_HIT_POWER
@@ -283,7 +287,7 @@ static func sentence(e: Dictionary) -> String:
 		"hook":
 			what = "pulls enemies in%s%s" % [" from further away" if big else "", times]
 		"shards":
-			what = "sends shards jumping to the closest enemies%s%s" % [times, ", from further away" if big else ""]
+			what = "sends shards jumping to the closest enemies%s%s%s" % [", splitting in two at each jump" if e.get("splinter", false) else "", times, ", from further away" if big else ""]
 		"second_wind":
 			what = "refills %s%s" % ["a dodge charge" if n == 1 else _num(n) + " dodge charges", " and knocks enemies back" if big else ""]
 		"whirlwind":

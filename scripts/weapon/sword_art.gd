@@ -82,8 +82,8 @@ static func draw(ci: CanvasItem, blade: String, grip: String, line: Array, scale
 		var on := float(lit.get(i, 0.0)) > 0.4
 		var suffix := "_lit" if on else ""
 		var f: Dictionary = SwingBuild.FITTINGS[id]
-		if f["kind"] == "rune":
-			var tex := Art.texture(DIR + "runes/%s_%s%s.png" % [id, scale, suffix])
+		if f["kind"] == "rune" or f["kind"] == "bender":
+			var tex := Art.texture(DIR + ("runes/" if f["kind"] == "rune" else "rare/") + "%s_%s%s.png" % [id, scale, suffix])
 			if tex != null:
 				ci.draw_texture(tex, origin + r.position, tint)
 			else:

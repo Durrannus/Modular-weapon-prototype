@@ -521,8 +521,9 @@ func _fire_rune(q: Dictionary) -> void:
 					starts.append(h)
 			if starts.is_empty():
 				starts.append(self)
+			var splinter: bool = weapon["effects"][effect].get("splinter", false)
 			for s in starts:
-				_shards(s, size, power, dmg, col)
+				_shards(s, size, power, dmg, col, splinter)
 			Sfx.play(self, "cleave", -6.0, 1.2)
 		"second_wind":
 			dodge_partial += power
@@ -557,6 +558,11 @@ func _fire_rune(q: Dictionary) -> void:
 			w.damage = dmg * 0.9 * power
 			w.knock = 300.0 * size
 			w.from_node = self
+			var spin := _strip("whirlwind_spin", global_position, aim_dir.angle(), w.size / (36.0 * Art.PIXEL))
+			if spin != null:
+				spin.follow = self
+				spin.flip = swing_side > 0.0
+				w.drawn = false
 			_fx_root().add_child(w)
 			w.global_position = global_position
 			shake = maxf(shake, 7.0 * size)
@@ -569,33 +575,65 @@ func _fire_rune(q: Dictionary) -> void:
 ## Shards: a chain of metal shards from `from` to the closest enemy, then the next.
 const SHARD_JUMPS := 2
 const SHARD_RANGE := 130.0
-func _shards(from: Node2D, size: float, power: float, dmg: float, col: Color) -> void:
+func _shards(from: Node2D, size: float, power: float, dmg: float, col: Color, splinter := false) -> void:
 	var hit := {from.get_instance_id(): true}
-	var current: Node2D = from
-	for i in SHARD_JUMPS:
-		var best = null
-		var best_d := SHARD_RANGE * size
-		for e in get_tree().get_nodes_in_group("enemies"):
-			if not is_instance_valid(e) or e.dead or hit.has(e.get_instance_id()):
+	var fronts: Array = [from]   # where shards are now; each jumps on to the closest enemy
+	for jump in SHARD_JUMPS:
+		var next: Array = []
+		for current in fronts:
+			if not is_instance_valid(current):
 				continue
-			var d: float = e.global_position.distance_to(current.global_position)
-			if d < best_d:
-				best_d = d
-				best = e
-		if best == null:
+			# Every Hit on Shards: each shard splinters in two as it jumps.
+			for k in (2 if splinter else 1):
+				var best = _closest_enemy(current.global_position, SHARD_RANGE * size, hit)
+				if best == null:
+					break
+				hit[best.get_instance_id()] = true
+				_shard_fly(current.global_position, best.global_position, col)
+				next.append(best)
+		if next.is_empty():
 			return
-		hit[best.get_instance_id()] = true
-		var line := Fx.new()
-		line.kind = "chain"
-		line.to = best.global_position - current.global_position
-		line.color = col
-		line.life = 0.16
-		_fx_root().add_child(line)
-		line.global_position = current.global_position
-		var dir: Vector2 = (best.global_position - current.global_position).normalized()
-		best.take_hit(dmg * 0.6 * power, dir, 140.0, false, col)
-		_strip("cleave_echo", best.global_position, 0.0, size)
-		current = best
+		await get_tree().create_timer(SHARD_FLIGHT).timeout
+		for e in next:
+			if not is_instance_valid(e) or e.dead:
+				continue
+			var dir: Vector2 = (e.global_position - global_position).normalized()
+			e.take_hit(dmg * 0.6 * power, dir, 140.0, false, col)
+			if _strip("shards_hit", e.global_position, 0.0, size) == null:
+				_strip("cleave_echo", e.global_position, 0.0, size)
+		fronts = next
+
+
+const SHARD_FLIGHT := 0.09
+
+
+func _closest_enemy(from: Vector2, range_px: float, skip: Dictionary):
+	var best = null
+	var best_d := range_px
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if not is_instance_valid(e) or e.dead or skip.has(e.get_instance_id()):
+			continue
+		var d: float = e.global_position.distance_to(from)
+		if d < best_d:
+			best_d = d
+			best = e
+	return best
+
+
+## A spinning shard sprite flying from a to b (a plain streak if the art is missing).
+func _shard_fly(a: Vector2, b: Vector2, col: Color) -> void:
+	var shard := _strip("shards_shard", a)
+	if shard != null:
+		shard.life = SHARD_FLIGHT
+		shard.velocity = (b - a) / SHARD_FLIGHT
+		return
+	var line := Fx.new()
+	line.kind = "chain"
+	line.to = b - a
+	line.color = col
+	line.life = 0.16
+	_fx_root().add_child(line)
+	line.global_position = a
 
 
 ## Leap: jump to the nearest enemy (not one already leapt to in this burst),
@@ -624,6 +662,13 @@ func _leap(size: float, power: float, dmg: float, col: Color) -> void:
 	invuln = maxf(invuln, 0.2)
 	best.take_hit(dmg * 0.4 * power, dir, 120.0, false, col)
 	best.apply_stun(0.25)
+	var trail := _strip("leap_trail", global_position, dir.angle(), size)
+	if trail != null:
+		trail.follow = self
+	if _strip("leap_land", global_position + dir * travel + FEET, 0.0, size) != null:
+		shake = maxf(shake, 5.0)
+		Sfx.play(self, "cleave", -6.0, 1.3)
+		return
 	var ring := RuneFx.new()
 	ring.kind = "ring"
 	ring.size = 34.0 * size
