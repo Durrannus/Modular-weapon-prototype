@@ -844,7 +844,10 @@ func _attack_pose() -> Array:
 		rel = end_a + side * 0.18 * sin(minf(k / 0.12, 1.0) * PI) * (1.0 if anim_move != "stab" and anim_move != "lunge" else 0.0)
 		arm = lerpf(float(curve[3]), 14.0, clampf(k / 0.2, 0.0, 1.0))
 	var angle := anim_dir.angle() + rel
-	return [angle, SHOULDER + Vector2.RIGHT.rotated(angle) * arm, sweeping]
+	# The hand stays at the body's own hand (there's no arm art): it only reaches
+	# a little toward the swing, and the sword turns at the wrist.
+	var reach := clampf((arm - 12.0) * 0.6, -2.0, 8.0)
+	return [angle, _hand_point() + anim_dir * reach, sweeping]
 
 
 ## Resting pose: the sword lowered at the side, by the hand on the body sprite.
