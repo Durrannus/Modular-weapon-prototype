@@ -865,17 +865,17 @@ func _attack_pose() -> Array:
 	return [angle, hand, sweeping]
 
 
-## Resting pose: the sword lowered at the side, by the hand on the body sprite.
+## Ready stance: the sword held up just in front of him, by facing (not the mouse).
+## [angle, hand]. Angles: 0 = right, -PI/2 = straight up.
+const READY := {
+	"right": [-0.85, Vector2(9, -9)],
+	"left": [-(PI - 0.85), Vector2(-9, -9)],
+	"down": [-1.2, Vector2(9, -7)],
+	"up": [-1.95, Vector2(-8, -12)],
+}
+
 func _rest_pose() -> Array:
-	var a := 1.3
-	match facing:
-		"left":
-			a = PI - 1.3
-		"down":
-			a = 1.72  # hanging almost straight down beside the leg
-		"up":
-			a = 1.42
-	return [a, _hand_point()]
+	return READY.get(facing, READY["down"])
 
 
 func _update_pose(delta: float) -> void:
