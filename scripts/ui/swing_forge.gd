@@ -266,7 +266,6 @@ func _cards() -> Array:
 			for id in SwingBuild.FITTING_ORDER:
 				if SwingBuild.FITTINGS[id]["kind"] == "rune" and not SwingBuild.FITTINGS[id].get("parked", false):
 					out.append({"id": id, "name": SwingBuild.FITTINGS[id]["name"], "locked": false})
-			out.append({"id": "lunge", "name": "Lunge", "locked": true})
 		"bands":
 			for id in SwingBuild.FITTING_ORDER:
 				if SwingBuild.FITTINGS[id]["kind"] == "band":
