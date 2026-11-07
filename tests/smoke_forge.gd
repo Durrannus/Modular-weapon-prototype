@@ -44,6 +44,21 @@ func _init() -> void:
 	forge.selected = 3
 	forge._put("relay")
 	print("one bender kept: ", forge.build.line)
+	# Drag and drop: tray card onto slot 0, slot 0 onto slot 1 (swap), slot 1 off the sword.
+	forge.build.line = ["", "hook", "", ""]
+	forge._set_tab(1)
+	forge.drag_id = forge._drag_source("card:0"); forge.drag_from = -1; forge.drag_key = "card:0"; forge.dragging = true
+	forge._drop("slot:0")
+	print("drag card->slot0: ", forge.build.line)
+	forge.drag_id = forge._drag_source("slot:0"); forge.drag_from = 0; forge.drag_key = "slot:0"; forge.dragging = true
+	forge._drop("slot:1")
+	print("drag slot0->slot1 swap: ", forge.build.line)
+	forge.drag_id = forge._drag_source("slot:1"); forge.drag_from = 1; forge.drag_key = "slot:1"; forge.dragging = true
+	forge._drop("")
+	print("drag slot1 off: ", forge.build.line)
+	forge.drag_id = forge._drag_source("card:2"); forge.drag_from = -1; forge.drag_key = "card:2"; forge.dragging = false
+	forge._drop("")
+	print("press without drag = click, selected card: ", forge.card)
 	forge._set_tab(0)
 	for i in forge._cards().size():
 		forge._use_card(i)

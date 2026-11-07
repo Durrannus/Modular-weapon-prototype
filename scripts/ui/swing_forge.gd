@@ -52,7 +52,12 @@ var finishing := -1.0      # >= 0 while the "forged" finish plays
 const FINISH_TIME := 1.75
 var playing: Array = []   # forge fx strips: [name, pos, start time, normal-blend?]
 var sword_top := Vector2.ZERO
-var zoom := 2.0            # the sword is drawn this many times its forge size
+var zoom := 2.0
+var drag_id := ""          # the fitting being dragged ("" = none)
+var drag_from := -1        # the slot it came from, or -1 from the tray
+var drag_key := ""         # the button the press started on
+var drag_start := Vector2.ZERO
+var dragging := false      # true once the mouse has moved far enough            # the sword is drawn this many times its forge size
 var sword_size := Vector2.ZERO
 var heat_mask: Control     # draws the sword; its child is clipped to the sword's pixels
 var heat_fill: Control
@@ -214,18 +219,81 @@ func _input(event: InputEvent) -> void:
 			KEY_2: _load_test("B")
 			KEY_T: _try()
 	if event is InputEventMouseMotion:
-		hover = _button_at(root.get_local_mouse_position())
+		var m := root.get_local_mouse_position()
+		hover = _button_at(m)
+		if drag_id != "" and not dragging and m.distance_to(drag_start) > 4.0:
+			dragging = true
+		root.queue_redraw()
+	elif event is InputEventMouseButton and (event as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT and not event.pressed:
+		_end_drag()
+		get_viewport().set_input_as_handled()
 		root.queue_redraw()
 	elif event is InputEventMouseButton and (event as InputEventMouseButton).pressed:
 		var mb := event as InputEventMouseButton
 		var key := _button_at(root.get_local_mouse_position())
-		if mb.button_index == MOUSE_BUTTON_LEFT and key != "":
+		if mb.button_index == MOUSE_BUTTON_LEFT and _drag_source(key) != "":
+			# Runes and bands can be dragged from the tray, or from one slot to another.
+			# A press without a drag still acts as a click when the button comes up.
+			drag_id = _drag_source(key)
+			drag_from = int(key.split(":")[1]) if key.begins_with("slot:") else -1
+			drag_key = key
+			drag_start = root.get_local_mouse_position()
+			dragging = false
+		elif mb.button_index == MOUSE_BUTTON_LEFT and key != "":
 			_click(key)
 		elif mb.button_index == MOUSE_BUTTON_RIGHT and key.begins_with("slot:"):
 			selected = int(key.split(":")[1])
 			_put("")
 		get_viewport().set_input_as_handled()
 		root.queue_redraw()
+
+
+## What a press on this button would pick up: a fitting from the tray or a slot, or "".
+func _drag_source(key: String) -> String:
+	if key.begins_with("card:") and TABS[tab] != "sword":
+		var cards := _cards()
+		var i := int(key.split(":")[1])
+		if i < cards.size() and not cards[i]["locked"]:
+			return cards[i]["id"]
+	if key.begins_with("slot:"):
+		var i := int(key.split(":")[1])
+		if i < build.line.size():
+			return build.line[i]
+	return ""
+
+
+func _end_drag() -> void:
+	_drop(_button_at(root.get_local_mouse_position()))
+
+
+## Let go of a dragged part over the button `over` ("" = nowhere).
+func _drop(over: String) -> void:
+	if drag_id == "":
+		return
+	var id := drag_id
+	var key := drag_key
+	var was_drag := dragging
+	drag_id = ""
+	dragging = false
+	if not was_drag:
+		_click(key)
+		return
+	if over.begins_with("slot:"):
+		var to := int(over.split(":")[1])
+		if drag_from >= 0:
+			# Slot to slot: swap the two.
+			var other: String = build.line[to] if to < build.line.size() else ""
+			build.line[drag_from] = other
+			selected = to
+			_put(id)
+		else:
+			selected = to
+			_put(id)
+	elif drag_from >= 0:
+		# Dragged off the sword: take it off.
+		selected = drag_from
+		_put("")
+	Sfx.play(self, "click", -14.0)
 
 
 func _click(key: String) -> void:
@@ -297,7 +365,7 @@ func _use_card(i: int) -> void:
 
 func _put(id: String) -> void:
 	# One rule-bender per sword: fitting a new one takes the old one off.
-	if SwingBuild.FITTINGS[id]["kind"] == "bender":
+	if id != "" and SwingBuild.FITTINGS[id]["kind"] == "bender":
 		for i in build.line.size():
 			if i != selected and build.line[i] != "" and SwingBuild.FITTINGS[build.line[i]]["kind"] == "bender":
 				build.line[i] = ""
@@ -427,6 +495,14 @@ func _draw_forge() -> void:
 	_draw_tray()
 	_draw_sword(stats)
 	_draw_does(stats)
+	if dragging:
+		for i in build.line.size():
+			var r := _slot_screen(i)
+			var on := hover == "slot:%d" % i
+			root.draw_rect(r.grow(5 if on else 3), FOCUS if on else Color(1, 1, 1, 0.35), false, 1.0)
+		var f: Dictionary = SwingBuild.FITTINGS[drag_id]
+		var kind := "runes" if f["kind"] == "rune" else ("bands" if f["kind"] == "band" else "rare")
+		_icon(kind, drag_id, root.get_local_mouse_position())
 
 
 ## Left: tabs and icon-only cards. Details show for the hovered (or keyboard) card.
@@ -477,9 +553,9 @@ func _draw_tray() -> void:
 		for l in _wrap(_desc(id), 136):
 			_body(l, Vector2(14, y))
 			y += 13
-	_body("Click a slot on the sword,", Vector2(14, 300), DIM)
-	_body("then click a part.", Vector2(14, 313), DIM)
-	_body("Right-click: empty a slot", Vector2(14, 332), FAINT)
+	_body("Drag a part onto a slot, or", Vector2(14, 300), DIM)
+	_body("click a slot, then a part.", Vector2(14, 313), DIM)
+	_body("Drag off or right-click: take off", Vector2(14, 332), FAINT)
 	_body("T: try at the dummy   Tab: leave", Vector2(14, 345), FAINT)
 
 
