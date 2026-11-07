@@ -16,7 +16,7 @@ const SpriteOnce := preload("res://scripts/fx/sprite_once.gd")
 const MOVE_SPEED := 250.0
 const RADIUS := 16.0
 const COMBO_WINDOW := 0.5      # stop attacking this long and the combo resets
-const FINISHER_RECOVERY := 0.22  # extra pause after the hilt move
+const FINISHER_RECOVERY := 0.1   # short pause after the finisher, so holding keeps a steady beat
 
 const DODGE_SPEED := 640.0
 const DODGE_TIME := 0.12
@@ -27,11 +27,11 @@ const DODGE_REFILL := 0.9      # seconds per charge
 ## windup: time before the hit lands. time: whole move. reach in pixels (times blade reach).
 ## arc: degrees for arcs. width: half-width for lines. power: damage multiplier.
 const MOVES := {
-	"slash": {"windup": 0.05, "time": 0.28, "shape": "arc", "arc": 120.0, "reach": 74.0, "power": 1.0, "knock": 230.0},
+	"slash": {"windup": 0.035, "time": 0.36, "shape": "arc", "arc": 140.0, "reach": 74.0, "power": 1.0, "knock": 110.0},
 	"stab": {"windup": 0.06, "time": 0.25, "shape": "line", "width": 16.0, "reach": 115.0, "power": 1.15, "knock": 320.0},
 	"lunge": {"windup": 0.15, "time": 0.38, "shape": "line", "width": 24.0, "reach": 85.0, "power": 1.3, "knock": 300.0, "dash": 170.0},
 	"spin": {"windup": 0.07, "time": 0.44, "shape": "circle", "reach": 72.0, "power": 0.85, "knock": 260.0},
-	"overhead": {"windup": 0.24, "time": 0.58, "shape": "arc", "arc": 70.0, "reach": 95.0, "power": 2.1, "knock": 460.0, "shake": 11.0},
+	"overhead": {"windup": 0.12, "time": 0.45, "shape": "arc", "arc": 120.0, "reach": 95.0, "power": 2.1, "knock": 300.0, "shake": 11.0},
 }
 
 var color := Color(0.35, 0.7, 1.0)
@@ -186,7 +186,7 @@ func _physics_process(delta: float) -> void:
 	var speed := MOVE_SPEED * (1.0 + float(weapon.get("move_speed", 0.0)))
 	var vel := move * speed
 	if current_step >= 0:
-		vel *= 0.55  # you slow down while swinging
+		vel *= 0.9  # barely slowed while swinging (like Core Keeper)
 	if dodge_timer > 0.0:
 		dodge_timer -= delta
 		vel = dodge_dir * DODGE_SPEED
@@ -242,7 +242,8 @@ func _speed() -> float:
 
 
 func _update_combat(delta: float) -> void:
-	if Input.is_action_just_pressed("attack") and dodge_timer <= 0.0:
+	# Hold attack to keep swinging.
+	if Input.is_action_pressed("attack") and dodge_timer <= 0.0:
 		if current_step < 0:
 			_start_step()
 		else:
@@ -314,23 +315,26 @@ func _do_move(move: String) -> void:
 	var hits := 0
 	var hit_list: Array = []
 
-	# Hits follow the drawn sword: every enemy the blade passes over during the
-	# sweep is hit, so reach is the blade's real length.
-	var segs := _blade_sweep()
-	if not segs.is_empty():
-		var tip_len: float = (segs[0][1] - segs[0][0]).length()
-		reach = tip_len + ARM
+	# One arc in front, tested once on the hit frame (like Core Keeper): reach is
+	# the blade's length plus a little margin, so it matches the sword you hold.
+	if weapon.has("blade"):
+		reach = SwordArt.pivot(weapon["blade"], weapon["grip"], "hand").y * Art.PIXEL + 18.0
 	for e in get_tree().get_nodes_in_group("enemies"):
 		if not is_instance_valid(e) or e.dead:
 			continue
 		var rel: Vector2 = e.global_position - global_position
-		var r: float = e.radius + BLADE_HALF_WIDTH
+		var r: float = e.radius
 		var hit := false
-		for sg in segs:
-			var closest := Geometry2D.get_closest_point_to_segment(e.global_position, sg[0], sg[1])
-			if closest.distance_to(e.global_position) <= r:
-				hit = true
-				break
+		match str(info["shape"]):
+			"line":
+				var along := rel.dot(dir)
+				var side_d := absf(rel.dot(dir.orthogonal()))
+				hit = along > -r and along <= reach + r and side_d <= float(info["width"]) + r
+			"circle":
+				hit = rel.length() <= reach + r
+			_:
+				var half_arc := deg_to_rad(float(info["arc"]) * 0.5)
+				hit = rel.length() <= reach + r and (rel.length() < r + RADIUS or absf(dir.angle_to(rel)) <= half_arc)
 		var kdir := rel.normalized() if rel.length() > 0.01 else dir
 		if str(info["shape"]) == "line":
 			kdir = dir
@@ -361,8 +365,8 @@ func _do_move(move: String) -> void:
 		_hitstop(0.09)
 		_trigger("finisher", hit_list)
 	elif hits > 0:
-		shake = maxf(shake, float(info.get("shake", 4.0)) + hits)
-		_hitstop(0.07 if move == "overhead" else 0.035)
+		# Normal hits: a tiny freeze, no shake. Shake is for the finisher and runes.
+		_hitstop(0.02 if move == "overhead" else 0.012)
 	if hits > 0:
 		_trigger("hit", hit_list)
 
