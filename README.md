@@ -10,15 +10,19 @@ This branch tests the **swing path** (design notes, 3 November). It replaces the
 
 - A sword is a **blade** plus a **grip**. The blade sets the basic three-hit chain (the last hit is the finisher). Grip and blade both have **slots**.
 - Slots hold **runes** (effects) or **bands** (modifiers). Read the sword as one line from the bottom of the grip to the tip: a band boosts the next rune above it, bands in a row stack, and a band with nothing above it does nothing.
-- Runes: **Shockwave** (finisher: a rolling wave), **Hook** (finisher: chains yank enemies in), **Cleave** (every hit also strikes an enemy behind), **Second Wind** (kills refill a dodge, up to 2).
-- Bands: **Twice** (the rune happens twice, a beat apart) and **Wider** (bigger).
+- Runes: **Shockwave** (finisher: a rolling wave), **Hook** (finisher: chains yank enemies in), **Shards** (every hit sends metal shards jumping to the closest enemy, then the next), **Whirlwind** (finisher: a full spin cutting everything around you), **Leap** (an attack straight after a dodge jumps you to the nearest enemy).
+- Bands: **Twice** (the rune happens twice, a beat apart), **Wider** (bigger), **Every Hit** (on every hit instead, at half strength), **Saved Up** (every third time, three times as strong) and **On Dodge** (also when you dodge).
+- Rule-benders (the "rare" tab, one per sword): **Relay** hands the bands on the rune below on to the next rune above too. Mirror is parked (it overlapped Twice).
+- New parts without art yet show as plain coloured stones, rings and gems.
 - Effects are deliberately loud: each rune has its own visual, sound and name pop-up, the slots flash on the sword and in the HUD when they fire, and the finisher gets a freeze-frame and screen shake. Identical runes firing together merge into one bigger effect.
 - **Order test:** the forge has Test sword A (Twice, Shockwave, Wider, Hook: two shockwaves and a wide hook) and Test sword B (Shockwave, Twice, Wider, Hook: one shockwave and a double, wide hook). Keys 1 and 2 switch between them.
 - **Pause enemies:** the button at the top right, or P / Start.
-- Parts: iron shortblade / blade / longblade (1, 2, 3 slots) and wooden / wrapped / long grips (1, 2, 3 slots). The Ringed Grip is a special grip whose built-in band makes every rune a bit bigger; the Gilded Grip is shown locked until it's designed.
+- Parts: iron shortblade / blade / longblade (1, 2, 3 slots) and wooden / wrapped / long grips (1, 2, 3 slots), and pommels (no slots, stats only: Plain, Keen +8% crit chance, Heavy +40% crit damage, Light +10% swing speed). The Ringed Grip is a special grip whose built-in band makes every rune a bit bigger; the Gilded Grip's ruby top slot doubles whatever is in it (a rune fires twice, a band counts as two, caps still apply).
 - The forge follows the art thread's design: parts tray on the left, the sword over the anvil with slot numbers and band brackets, and "what this sword does" on the right. **T** or the button puts you next to the dummy. The forge glows: the hearth breathes behind the sword, embers drift up, every change is a hammer blow with sparks and a clang, and leaving after changes plays a short "Forged!" finish (white-hot, quench steam, a shine up the blade). Press Tab or click to skip it.
 - Art and numbers for all of this are in `art/swing/` (`swing_path.md` explains how the sword is assembled; `swing_path.json` has every slot, pivot and effect strip). Fonts are Silkscreen and Pixelify Sans (OFL), in `art/fonts/`.
 - Elemental blades are parked for now. Sounds are placeholders made in code (`scripts/sfx.gd`).
+
+Checks: `godot --headless --path . -s tests/test_swing_build.gd` (the sword rules) and `godot --headless --path . -s tests/smoke_forge.gd` (opens the forge and fires every rune). Run both after any change to the sword.
 
 Code: `scripts/weapon/swing_build.gd` (blades, grips, fittings, the reading rule), `scripts/weapon/sword_art.gd` (draws the sword with its slots), `scripts/ui/swing_forge.gd` (the forge), `scripts/fx/rune_fx.gd` (rune visuals), and the rune code in `scripts/player.gd`.
 

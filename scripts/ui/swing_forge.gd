@@ -22,18 +22,18 @@ const FOCUS := Color("#fff3c4")
 const PLATE := Color("#14171d")
 const WELL := Color("#0b0d11")
 
-const TABS := ["blades", "grips", "runes", "bands"]
+const TABS := ["sword", "runes", "bands", "rare"]
 const LEFT := Rect2(10, 32, 195, 296)
 const RIGHT := Rect2(436, 32, 194, 296)
-const CENTRE_X := 322.0
-const SWORD_BOTTOM := 298.0  # the pommel sits just above the anvil
+const CENTRE_X := 300.0
+const SWORD_BOTTOM := 326.0  # the pommel sits just above the anvil
 var sword_bottom := SWORD_BOTTOM
 
 var build: SwingBuild
 var root: Control
 var is_open := false
 var selected := 0          # slot index, 0 = bottom of the grip
-var tab := 2               # runes
+var tab := 1               # runes
 var card := 0              # keyboard cursor in the tray
 var hover := ""
 var buttons := {}          # key -> Rect2, rebuilt every draw
@@ -52,6 +52,12 @@ var finishing := -1.0      # >= 0 while the "forged" finish plays
 const FINISH_TIME := 1.75
 var playing: Array = []   # forge fx strips: [name, pos, start time, normal-blend?]
 var sword_top := Vector2.ZERO
+var zoom := 2.0
+var drag_id := ""          # the fitting being dragged ("" = none)
+var drag_from := -1        # the slot it came from, or -1 from the tray
+var drag_key := ""         # the button the press started on
+var drag_start := Vector2.ZERO
+var dragging := false      # true once the mouse has moved far enough            # the sword is drawn this many times its forge size
 var sword_size := Vector2.ZERO
 var heat_mask: Control     # draws the sword; its child is clipped to the sword's pixels
 var heat_fill: Control
@@ -115,7 +121,7 @@ func _on_changed() -> void:
 	heat = 1.0
 	strike_t = 0.0
 	var i := clampi(selected, 0, build.slot_count() - 1)
-	strike_at = sword_top + SwordArt.slot_center(build.blade, build.grip, "forge", i)
+	strike_at = sword_top + SwordArt.slot_center(build.blade, build.grip, "forge", i) * zoom
 	if sword_size == Vector2.ZERO:
 		strike_at = Vector2(CENTRE_X, 150)
 	playing.append(["sparks", strike_at, t])
@@ -213,18 +219,81 @@ func _input(event: InputEvent) -> void:
 			KEY_2: _load_test("B")
 			KEY_T: _try()
 	if event is InputEventMouseMotion:
-		hover = _button_at(root.get_local_mouse_position())
+		var m := root.get_local_mouse_position()
+		hover = _button_at(m)
+		if drag_id != "" and not dragging and m.distance_to(drag_start) > 4.0:
+			dragging = true
+		root.queue_redraw()
+	elif event is InputEventMouseButton and (event as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT and not event.pressed:
+		_end_drag()
+		get_viewport().set_input_as_handled()
 		root.queue_redraw()
 	elif event is InputEventMouseButton and (event as InputEventMouseButton).pressed:
 		var mb := event as InputEventMouseButton
 		var key := _button_at(root.get_local_mouse_position())
-		if mb.button_index == MOUSE_BUTTON_LEFT and key != "":
+		if mb.button_index == MOUSE_BUTTON_LEFT and _drag_source(key) != "":
+			# Runes and bands can be dragged from the tray, or from one slot to another.
+			# A press without a drag still acts as a click when the button comes up.
+			drag_id = _drag_source(key)
+			drag_from = int(key.split(":")[1]) if key.begins_with("slot:") else -1
+			drag_key = key
+			drag_start = root.get_local_mouse_position()
+			dragging = false
+		elif mb.button_index == MOUSE_BUTTON_LEFT and key != "":
 			_click(key)
 		elif mb.button_index == MOUSE_BUTTON_RIGHT and key.begins_with("slot:"):
 			selected = int(key.split(":")[1])
 			_put("")
 		get_viewport().set_input_as_handled()
 		root.queue_redraw()
+
+
+## What a press on this button would pick up: a fitting from the tray or a slot, or "".
+func _drag_source(key: String) -> String:
+	if key.begins_with("card:") and TABS[tab] != "sword":
+		var cards := _cards()
+		var i := int(key.split(":")[1])
+		if i < cards.size() and not cards[i]["locked"]:
+			return cards[i]["id"]
+	if key.begins_with("slot:"):
+		var i := int(key.split(":")[1])
+		if i < build.line.size():
+			return build.line[i]
+	return ""
+
+
+func _end_drag() -> void:
+	_drop(_button_at(root.get_local_mouse_position()))
+
+
+## Let go of a dragged part over the button `over` ("" = nowhere).
+func _drop(over: String) -> void:
+	if drag_id == "":
+		return
+	var id := drag_id
+	var key := drag_key
+	var was_drag := dragging
+	drag_id = ""
+	dragging = false
+	if not was_drag:
+		_click(key)
+		return
+	if over.begins_with("slot:"):
+		var to := int(over.split(":")[1])
+		if drag_from >= 0:
+			# Slot to slot: swap the two.
+			var other: String = build.line[to] if to < build.line.size() else ""
+			build.line[drag_from] = other
+			selected = to
+			_put(id)
+		else:
+			selected = to
+			_put(id)
+	elif drag_from >= 0:
+		# Dragged off the sword: take it off.
+		selected = drag_from
+		_put("")
+	Sfx.play(self, "click", -14.0)
 
 
 func _click(key: String) -> void:
@@ -256,22 +325,25 @@ func _set_tab(t: int) -> void:
 func _cards() -> Array:
 	var out: Array = []
 	match TABS[tab]:
-		"blades":
+		"sword":  # three rows: blades, grips, pommels
 			for id in SwingBuild.BLADE_ORDER:
-				out.append({"id": id, "name": SwingBuild.BLADES[id]["name"], "locked": false})
-		"grips":
+				out.append({"id": id, "name": SwingBuild.BLADES[id]["name"], "locked": false, "row": 0, "kind": "blades"})
 			for id in SwingBuild.GRIP_ORDER:
-				out.append({"id": id, "name": SwingBuild.GRIPS[id]["name"], "locked": SwingBuild.GRIPS[id].get("locked", false)})
+				out.append({"id": id, "name": SwingBuild.GRIPS[id]["name"], "locked": SwingBuild.GRIPS[id].get("locked", false), "row": 1, "kind": "grips"})
+			for id in SwingBuild.POMMEL_ORDER:
+				out.append({"id": id, "name": SwingBuild.POMMELS[id]["name"], "locked": false, "row": 2, "kind": "pommels"})
 		"runes":
 			for id in SwingBuild.FITTING_ORDER:
-				if SwingBuild.FITTINGS[id]["kind"] == "rune":
+				if SwingBuild.FITTINGS[id]["kind"] == "rune" and not SwingBuild.FITTINGS[id].get("parked", false):
 					out.append({"id": id, "name": SwingBuild.FITTINGS[id]["name"], "locked": false})
-			out.append({"id": "lunge", "name": "Lunge", "locked": true})
 		"bands":
 			for id in SwingBuild.FITTING_ORDER:
 				if SwingBuild.FITTINGS[id]["kind"] == "band":
 					out.append({"id": id, "name": SwingBuild.FITTINGS[id]["name"], "locked": false})
-			out.append({"id": "", "name": "", "locked": true})
+		"rare":
+			for id in SwingBuild.FITTING_ORDER:
+				if SwingBuild.FITTINGS[id]["kind"] == "bender" and not SwingBuild.FITTINGS[id].get("parked", false):
+					out.append({"id": id, "name": SwingBuild.FITTINGS[id]["name"], "locked": false})
 	return out
 
 
@@ -280,17 +352,23 @@ func _use_card(i: int) -> void:
 	if i < 0 or i >= cards.size() or cards[i]["locked"]:
 		return
 	var id: String = cards[i]["id"]
-	match TABS[tab]:
-		"blades":
-			build.set_blade(id)
-		"grips":
-			build.set_grip(id)
-		_:
-			_put(id)
+	if SwingBuild.BLADES.has(id):
+		build.set_blade(id)
+	elif SwingBuild.GRIPS.has(id):
+		build.set_grip(id)
+	elif SwingBuild.POMMELS.has(id):
+		build.set_pommel(id)
+	else:
+		_put(id)
 	selected = clampi(selected, 0, build.slot_count() - 1)
 
 
 func _put(id: String) -> void:
+	# One rule-bender per sword: fitting a new one takes the old one off.
+	if id != "" and SwingBuild.FITTINGS[id]["kind"] == "bender":
+		for i in build.line.size():
+			if i != selected and build.line[i] != "" and SwingBuild.FITTINGS[build.line[i]]["kind"] == "bender":
+				build.line[i] = ""
 	build.set_slot(selected, id)
 
 
@@ -369,17 +447,40 @@ func _wrap(text: String, width: float) -> Array:
 	return lines
 
 
-func _icon(kind: String, id: String, center: Vector2) -> void:
+func _icon(kind: String, id: String, center: Vector2, part_scale := 2.0) -> void:
 	match kind:
-		"runes", "bands":
+		"runes", "bands", "rare":
 			var tex := Art.texture("swing/%s/%s_icon.png" % [kind, id])
 			if tex != null:
 				root.draw_texture(tex, (center - tex.get_size() * 0.5).round())
+			elif SwingBuild.FITTINGS.has(id):
+				# No art yet: a plain stone (rune), ring (band) or gem (rule-bender) in its colour.
+				var f: Dictionary = SwingBuild.FITTINGS[id]
+				var c: Color = f["color"]
+				match f["kind"]:
+					"rune":
+						root.draw_circle(center, 7.0, c.darkened(0.5))
+						root.draw_circle(center, 5.0, c)
+					"band":
+						root.draw_rect(Rect2(center - Vector2(9, 3), Vector2(18, 6)), c.darkened(0.4))
+						root.draw_rect(Rect2(center - Vector2(9, 1), Vector2(18, 2)), c)
+					_:
+						root.draw_colored_polygon(PackedVector2Array([center + Vector2(0, -8), center + Vector2(7, 0), center + Vector2(0, 8), center + Vector2(-7, 0)]), c)
+		"pommels":
+			var ptex := Art.texture("swing/pommels/%s_icon.png" % id)
+			if ptex != null:
+				root.draw_texture(ptex, (center - ptex.get_size() * 0.5).round())
+				return
+			# No art: a round knob in the pommel's colour.
+			var pc: Color = SwingBuild.POMMELS[id]["color"]
+			root.draw_circle(center, 8.0, pc.darkened(0.55))
+			root.draw_circle(center, 6.5, pc)
+			root.draw_circle(center + Vector2(-2, -2), 2.0, pc.lightened(0.5))
 		"blades", "grips":
 			# The in-hand sprite at 2x, lying on its side, tip to the right.
 			var tex := Art.texture("swing/%s/%s_hand.png" % [kind, id])
 			if tex != null:
-				root.draw_set_transform(center, PI * 0.5, Vector2(2, 2))
+				root.draw_set_transform(center, PI * 0.5, Vector2(part_scale, part_scale))
 				root.draw_texture(tex, (-tex.get_size() * 0.5).round())
 				root.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
@@ -389,82 +490,73 @@ func _icon(kind: String, id: String, center: Vector2) -> void:
 func _draw_forge() -> void:
 	buttons.clear()
 	root.draw_rect(Rect2(Vector2.ZERO, root.size), Color(0.035, 0.04, 0.055, 1.0))
-	_head("The forge", Vector2(14, 22), AMBER, 16)
-	_body("Read the sword from the grip up.", Vector2(134, 20), DIM)
+	_head("The forge", Vector2(14, 24), AMBER, 16)
 	var stats := build.compute()
 	_draw_tray()
 	_draw_sword(stats)
 	_draw_does(stats)
-	_draw_keys()
+	if dragging:
+		for i in build.line.size():
+			var r := _slot_screen(i)
+			var on := hover == "slot:%d" % i
+			root.draw_rect(r.grow(5 if on else 3), FOCUS if on else Color(1, 1, 1, 0.35), false, 1.0)
+		var f: Dictionary = SwingBuild.FITTINGS[drag_id]
+		var kind := "runes" if f["kind"] == "rune" else ("bands" if f["kind"] == "band" else "rare")
+		_icon(kind, drag_id, root.get_local_mouse_position())
 
 
+## Left: tabs and icon-only cards. Details show for the hovered (or keyboard) card.
 func _draw_tray() -> void:
-	_nine("panel_titled", LEFT)
-	root.draw_rect(Rect2(LEFT.position + Vector2(10, 9), Vector2(2, 9)), AMBER)
-	_head("Parts", LEFT.position + Vector2(16, 17))
-	# Tabs
+	var x := 14.0
+	var f := Art.font("Silkscreen-Regular")
 	for i in TABS.size():
-		var r := Rect2(LEFT.position.x + 6 + i * 46, LEFT.position.y + 26, 44, 14)
+		var w := f.get_string_size(str(TABS[i]).to_upper(), HORIZONTAL_ALIGNMENT_LEFT, -1, 8).x
+		var r := Rect2(x - 2, 38, w + 4, 14)
 		buttons["tab:%d" % i] = r
+		_head(TABS[i], Vector2(x, 48), INK if i == tab else (FOCUS if hover == "tab:%d" % i else DIM))
 		if i == tab:
-			root.draw_rect(r, Color(0.16, 0.18, 0.23))
-			root.draw_rect(Rect2(r.position, Vector2(r.size.x, 1)), INK)
-		_head(TABS[i], r.position + Vector2(0, 10), INK if i == tab else (FOCUS if hover == "tab:%d" % i else DIM), 8, r.size.x, HORIZONTAL_ALIGNMENT_CENTER)
-	# Cards
+			root.draw_rect(Rect2(x, 51, w, 1), AMBER)
+		x += w + 9
 	var cards := _cards()
 	card = clampi(card, 0, maxi(cards.size() - 1, 0))
+	var row_n := [0, 0, 0]
+	if TABS[tab] == "sword":
+		for ri in 3:
+			_head(["Blade", "Grip", "Pommel"][ri], Vector2(14, 66 + ri * 44), DIM)
 	for i in cards.size():
 		var c: Dictionary = cards[i]
-		var r := Rect2(LEFT.position.x + 6 + (i % 3) * 61, LEFT.position.y + 44 + (i / 3) * 52, 58, 49)
+		var r := Rect2(14 + (i % 3) * 44, 60 + (i / 3) * 44, 38, 38)
+		if c.has("row"):
+			var ri: int = c["row"]
+			var w := 60 if ri == 0 else 34
+			r = Rect2(14 + row_n[ri] * w, 70 + ri * 44, w - 3, 31)
+			row_n[ri] += 1
 		buttons["card:%d" % i] = r
-		var on_sword := _on_sword(c["id"])
-		_nine("well_selected" if i == card else "well", r)
+		root.draw_rect(r, WELL)
+		var edge := AMBER if i == card else (FOCUS if hover == "card:%d" % i else FAINT)
+		root.draw_rect(r, edge, false, 1.0)
 		if c["locked"]:
-			var lock := Art.texture("swing/ui/padlock.png")
-			if lock != null:
-				root.draw_texture(lock, (r.get_center() - Vector2(3.5, 9)).round())
-			if c["name"] != "":
-				_head(c["name"], r.position + Vector2(0, 44), FAINT, 8, r.size.x, HORIZONTAL_ALIGNMENT_CENTER)
 			continue
-		_icon(TABS[tab], c["id"], r.position + Vector2(29, 20))
-		var label_col := AMBER if i == card else (FOCUS if hover == "card:%d" % i else INK)
-		_head(_short(c["name"]), r.position + Vector2(0, 44), label_col, 8, r.size.x, HORIZONTAL_ALIGNMENT_CENTER)
-		if on_sword:
-			root.draw_rect(Rect2(r.end.x - 10, r.position.y + 3, 7, 7), AMBER)
-			root.draw_polyline(PackedVector2Array([r.end - Vector2(8.5, 42), r.end - Vector2(7, 40.5), r.end - Vector2(4.5, 44)]), Color(0.1, 0.07, 0.03), 1.0)
-	# Details for the hovered card, or the keyboard card.
+		_icon(c.get("kind", TABS[tab]), c["id"], r.get_center(), 2.0)
+		if _on_sword(c["id"]):
+			root.draw_rect(Rect2(r.end.x - 6, r.position.y + 2, 4, 4), AMBER)
 	var di := card
 	if hover.begins_with("card:"):
 		di = int(hover.split(":")[1])
-	var box := Rect2(LEFT.position.x + 6, LEFT.position.y + 152, LEFT.size.x - 12, LEFT.size.y - 158)
-	_nine("well", box)
-	if di < cards.size() and not cards[di]["locked"]:
-		var c: Dictionary = cards[di]
-		_icon(TABS[tab], c["id"], box.position + Vector2(18, 18))
-		_head(c["name"], box.position + Vector2(36, 15), AMBER)
-		_head(_kind_line(c["id"]), box.position + Vector2(36, 27), DIM)
-		var y := box.position.y + 48
-		for l in _wrap(_desc(c["id"]), box.size.x - 12):
-			_body(l, Vector2(box.position.x + 6, y))
+	if di < cards.size():
+		var id: String = cards[di]["id"]
+		var y := 216.0 if TABS[tab] == "sword" else 166.0
+		root.draw_string(Art.font("PixelifySans-Regular"), Vector2(14, y), cards[di]["name"], HORIZONTAL_ALIGNMENT_LEFT, -1, 13, AMBER)
+		y += 13
+		_body(_kind_line(id), Vector2(14, y), DIM)
+		y += 16
+		for l in _wrap(_desc(id), 136):
+			_body(l, Vector2(14, y))
 			y += 13
-		if TABS[tab] == "runes":
-			y += 4
-			root.draw_rect(Rect2(box.position.x + 6, y - 6, box.size.x - 12, 1), FAINT)
-			_head("A band below boosts it", Vector2(box.position.x + 6, y + 4), TEAL)
-			y += 16
-			for band in ["twice", "wider"]:
-				root.draw_rect(Rect2(box.position.x + 6, y - 5, 6, 2), TEAL)
-				_body("%s: %s" % [SwingBuild.FITTINGS[band]["name"], _boost_text(band, c["id"])], Vector2(box.position.x + 16, y), INK)
-				y += 13
-		var br := Rect2(box.position.x + 6, box.end.y - 22, box.size.x - 12, 16)
-		buttons["use"] = br
-		_nine("button_hot" if hover == "use" else "button", br)
-		var verb := "Put in slot %d" % (selected + 1)
-		if TABS[tab] == "blades":
-			verb = "Use this blade"
-		elif TABS[tab] == "grips":
-			verb = "Use this grip"
-		_head("Enter  " + verb, br.position + Vector2(0, 11), Color(0.1, 0.07, 0.03) if hover == "use" else INK, 8, br.size.x, HORIZONTAL_ALIGNMENT_CENTER)
+	_body("Drag a part onto a slot, or", Vector2(14, 300), DIM)
+	_body("click a slot, then a part.", Vector2(14, 313), DIM)
+	_body("Drag off or right-click: take off", Vector2(14, 332), FAINT)
+	_body("T: try at the dummy   Tab: leave", Vector2(14, 345), FAINT)
 
 
 func _short(name: String) -> String:
@@ -472,7 +564,7 @@ func _short(name: String) -> String:
 
 
 func _on_sword(id: String) -> bool:
-	return id != "" and (id == build.blade or id == build.grip or id in build.line)
+	return id != "" and (id == build.blade or id == build.grip or id == build.pommel or id in build.line)
 
 
 func _kind_line(id: String) -> String:
@@ -482,13 +574,19 @@ func _kind_line(id: String) -> String:
 	if SwingBuild.GRIPS.has(id):
 		var g: Dictionary = SwingBuild.GRIPS[id]
 		return "Grip, %d slot%s" % [g["slots"], "" if g["slots"] == 1 else "s"]
+	if SwingBuild.POMMELS.has(id):
+		return "Pommel, stats only"
 	var f: Dictionary = SwingBuild.FITTINGS[id]
 	if f["kind"] == "band":
 		return "Band"
-	return "Rune, " + {"finisher": "on the finisher", "hit": "every hit", "kill": "on a kill"}[f["trigger"]]
+	if f["kind"] == "bender":
+		return "Rule-bender, 1 per sword"
+	return "Rune, " + {"finisher": "on the finisher", "hit": "every hit", "kill": "on a kill", "dodge_attack": "after a dodge"}[f["trigger"]]
 
 
 func _desc(id: String) -> String:
+	if SwingBuild.POMMELS.has(id):
+		return SwingBuild.POMMELS[id]["desc"]
 	if SwingBuild.BLADES.has(id):
 		return SwingBuild.BLADES[id]["desc"]
 	if SwingBuild.GRIPS.has(id):
@@ -497,99 +595,93 @@ func _desc(id: String) -> String:
 
 
 func _boost_text(band: String, rune: String) -> String:
-	if band == "twice":
-		return {"shockwave": "two waves", "hook": "hooks twice", "cleave": "two behind", "second_wind": "two dodges"}.get(rune, "twice")
-	return {"shockwave": "a bigger wave", "hook": "reaches further", "cleave": "further back", "second_wind": "pushes enemies away"}.get(rune, "bigger")
+	match band:
+		"twice":
+			return {"shockwave": "two waves", "hook": "hooks twice", "shards": "two chains", "second_wind": "two dodges", "leap": "two jumps", "whirlwind": "two spins"}.get(rune, "twice")
+		"wider":
+			return {"shockwave": "a bigger wave", "hook": "reaches further", "shards": "jumps further", "second_wind": "pushes enemies away", "leap": "jumps further", "whirlwind": "a bigger circle"}.get(rune, "bigger")
+		"every_hit":
+			return "on every hit, half strength"
+		"saved_up":
+			return "every third time, 3x strong"
+		"on_dodge":
+			return "when you dodge too"
+	return ""
 
 
+## What a band does to its rune, as a short sentence for the side panel.
+func _band_line(band: String, rune: String) -> String:
+	var rn: String = SwingBuild.FITTINGS[rune]["name"]
+	match band:
+		"twice":
+			return "%s fires twice." % rn
+		"wider":
+			return "%s %s." % [rn, _boost_text("wider", rune)]
+		"every_hit":
+			if rune == "shards":
+				return "Shards split in two at each jump, at half strength."
+			return "%s happens on every hit, at half strength." % rn
+		"saved_up":
+			return "%s happens every third time, three times as strong." % rn
+		"on_dodge":
+			return "%s also happens when you dodge." % rn
+	return ""
+
+
+## Group colours: a band (or Relay) and the rune it boosts share one outline,
+## and the same colour marks that rune's line on the right.
+const GROUP_COLORS := [Color("#ffb24a"), Color("#7fd0ff"), Color("#d9a6ff"), Color("#9ff07a"), Color("#ff8fb0")]
+
+
+func _group_color(effect_index: int) -> Color:
+	return GROUP_COLORS[effect_index % GROUP_COLORS.size()]
+
+
+## Centre: the sword big over the anvil. Its sockets are the menu.
 func _draw_sword(stats: Dictionary) -> void:
 	var blade := build.blade
 	var grip := build.grip
 	var size := SwordArt.frame_size(blade, grip, "forge")
-	sword_bottom = maxf(SWORD_BOTTOM, size.y + 4.0)  # the longest swords push down a little
-	var top := Vector2(CENTRE_X - size.x * 0.5, sword_bottom - size.y).round()
+	zoom = minf(2.0, (SWORD_BOTTOM - 26.0) / size.y)
+	sword_bottom = SWORD_BOTTOM
+	var top := Vector2(CENTRE_X - size.x * zoom * 0.5, sword_bottom - size.y * zoom).round()
 	sword_top = top
-	sword_size = size
-	# Backdrop: a plain, calm panel so the sword reads clearly. No fire.
-	root.draw_rect(Rect2(244, 30, 156, 262), Color(0.07, 0.075, 0.095))
-	root.draw_rect(Rect2(244, 30, 156, 262), Color(0.16, 0.17, 0.21), false, 1.0)
+	sword_size = size * zoom
 	var anvil := Art.texture("swing/ui/anvil.png")
 	if anvil != null:
-		root.draw_texture(anvil, Vector2(CENTRE_X - 47, sword_bottom - 2).round())
-	SwordArt.draw(root, blade, grip, build.line, "forge", {}, top)
-	# Grip-to-tip arrow up the left.
-	var ax := 262.0
-	for y in range(int(sword_bottom - 12), int(top.y + 14), -4):
-		root.draw_rect(Rect2(ax, y, 1, 2), AMBER.darkened(0.3))
-	root.draw_colored_polygon(PackedVector2Array([Vector2(ax + 0.5, top.y + 6), Vector2(ax - 3.5, top.y + 12), Vector2(ax + 4.5, top.y + 12)]), AMBER)
-	_head("Tip", Vector2(ax - 10, top.y + 2), AMBER, 8, 22, HORIZONTAL_ALIGNMENT_CENTER)
-	_head("Grip", Vector2(ax - 12, sword_bottom - 4), AMBER, 8, 26, HORIZONTAL_ALIGNMENT_CENTER)
-	# Slots: numbers on the left, clickable sockets, focus corners on the selected one.
+		root.draw_texture(anvil, Vector2(CENTRE_X - anvil.get_width() * 0.5, sword_bottom - 2).round())
+	root.draw_set_transform(top, 0.0, Vector2(zoom, zoom))
+	SwordArt.draw(root, blade, grip, build.line, "forge", {}, Vector2.ZERO, Color.WHITE, build.pommel)
+	root.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+	# Group outlines.
 	var info: Dictionary = stats["slot_info"]
+	var effects: Array = stats["effects"]
+	for ei in effects.size():
+		var group: Array = [int(effects[ei]["slot"])]
+		for s2 in info:
+			if int(info[s2].get("band", -1)) == ei:
+				group.append(int(s2))
+		if group.size() < 2:
+			continue
+		var rr := _slot_screen(group[0])
+		for s2 in group:
+			rr = rr.merge(_slot_screen(s2))
+		root.draw_rect(rr.grow(4), _group_color(ei), false, 1.0)
+	# Sockets: clickable, empty ones darkened, focus on the selected one.
 	for i in build.line.size():
-		var r := SwordArt.slot_rect(blade, grip, "forge", i)
-		r.position += top
+		var r := _slot_screen(i)
 		buttons["slot:%d" % i] = r.grow(3)
-		var cy := r.get_center().y
-		_head(str(i + 1), Vector2(ax + 8, cy + 3), INK if i == selected else TEAL.darkened(0.2))
-		for x in range(int(ax + 18), int(r.position.x - 4), 3):
-			root.draw_rect(Rect2(x, cy, 1, 1), FAINT)
 		if build.line[i] == "":
 			root.draw_rect(r.grow(-2), Color(0.02, 0.02, 0.03, 0.9))
 		if hover == "slot:%d" % i:
 			root.draw_rect(r.grow(2), Color(1, 1, 1, 0.5), false, 1.0)
 		if i == selected:
-			_nine("focus_corners", r.grow(4))
-	# Brackets on the right: each band to the rune it boosts.
-	var bx := top.x + size.x + 6
-	for e in stats["effects"]:
-		if (e["band_slots"] as Array).is_empty():
-			continue
-		var y0 := top.y + SwordArt.slot_rect(blade, grip, "forge", int(e["slot"])).position.y
-		var y1 := top.y + SwordArt.slot_rect(blade, grip, "forge", int(e["band_slots"][0])).end.y
-		root.draw_rect(Rect2(bx, y0, 1, y1 - y0), TEAL)
-		root.draw_rect(Rect2(bx - 3, y0, 4, 1), TEAL)
-		root.draw_rect(Rect2(bx - 3, y1 - 1, 4, 1), TEAL)
-		root.draw_rect(Rect2(bx - 6, y0 - 2, 4, 1), TEAL)
-		var tags: Array = []
-		if int(e["count"]) > 1:
-			tags.append("fires x%d%s" % [int(e["count"]), " max" if int(e["count"]) >= SwingBuild.MAX_COUNT else ""])
-		if float(e["size"]) > 1.0:
-			tags.append("max size" if float(e["size"]) >= SwingBuild.MAX_SIZE else "bigger")
-		for ti in tags.size():
-			_head(tags[ti], Vector2(bx + 4, (y0 + y1) * 0.5 + 3 + (ti - (tags.size() - 1) * 0.5) * 10), TEAL)
-	# Labels beside the sword, test swords left of the anvil, the dummy right of it.
-	var g: Dictionary = SwingBuild.GRIPS[grip]
-	var bl: Dictionary = SwingBuild.BLADES[blade]
-	var lx := top.x + size.x + 6
-	if finishing < 0.0:  # the "Forged!" banner sits here while it plays
-		_head(bl["name"], Vector2(lx, top.y + 6), INK)
-		_head("%d slot%s" % [bl["slots"], "" if bl["slots"] == 1 else "s"], Vector2(lx, top.y + 17), DIM)
-		var bspd := float(bl["speed"])
-		var bspd_word := "fast" if bspd >= 1.15 else ("slow" if bspd <= 0.85 else "normal speed")
-		_head("damage %d" % int(bl["damage"]), Vector2(lx, top.y + 28), DIM)
-		_head(bspd_word, Vector2(lx, top.y + 39), DIM)
-	var gy := top.y + SwordArt.grip_origin(blade, "forge").y
-	_head(g["name"], Vector2(lx, gy + 8), INK)
-	var spd := float(stats["speed"])
-	var spd_word := "quick" if spd >= 1.03 else ("steady" if spd >= 0.94 else "slow")
-	_head("%d slot%s" % [g["slots"], "" if g["slots"] == 1 else "s"], Vector2(lx, gy + 19), DIM)
-	_head("Test", Vector2(214, 311), DIM, 8, 56, HORIZONTAL_ALIGNMENT_CENTER)
-	for k in ["A", "B"]:
-		var tt: Dictionary = SwingBuild.TEST_SWORDS[k]
-		var r := Rect2(214 + (0 if k == "A" else 30), 313, 26, 14)
-		buttons["test:" + k] = r
-		var active: bool = blade == tt["blade"] and grip == tt["grip"] and build.line == tt["line"]
-		if active:
-			root.draw_rect(r, AMBER.darkened(0.25))
-		else:
-			_nine("button_hot" if hover == "test:" + k else "button", r)
-		_head(k, r.position + Vector2(0, 10), Color(0.1, 0.07, 0.03) if active else INK, 8, r.size.x, HORIZONTAL_ALIGNMENT_CENTER)
-	_head("Dummy", Vector2(372, 310), DIM, 8, 56, HORIZONTAL_ALIGNMENT_CENTER)
-	var tr := Rect2(372, 313, 56, 14)
-	buttons["try"] = tr
-	_nine("button_hot" if hover == "try" else "button", tr)
-	_head("T  Try", tr.position + Vector2(0, 10), INK, 8, tr.size.x, HORIZONTAL_ALIGNMENT_CENTER)
+			_nine("focus_corners", r.grow(7))
+
+
+func _slot_screen(i: int) -> Rect2:
+	var r := SwordArt.slot_rect(build.blade, build.grip, "forge", i)
+	return Rect2(sword_top + r.position * zoom, r.size * zoom)
 
 
 # --- Forge effects -----------------------------------------------------------
@@ -621,7 +713,9 @@ func _update_fx(delta: float) -> void:
 
 func _draw_heat_mask() -> void:
 	if sword_size != Vector2.ZERO:
-		SwordArt.draw(heat_mask, build.blade, build.grip, build.line, "forge", {}, sword_top)
+		heat_mask.draw_set_transform(sword_top, 0.0, Vector2(zoom, zoom))
+		SwordArt.draw(heat_mask, build.blade, build.grip, build.line, "forge", {}, Vector2.ZERO, Color.WHITE, build.pommel)
+		heat_mask.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 
 ## Additive colour on the sword's own pixels: orange heat, hottest at the blade,
@@ -704,17 +798,18 @@ func _draw_banner() -> void:
 	var banner_tex := Art.texture("swing/forge-fx/forged_banner.png")
 	if heat_tex != null and banner_tex != null:
 		var start := t - finishing
-		var blade_pos := sword_top + Vector2(4.0 * 3.0, 0)
-		var bsize := SwordArt.blade_size(build.blade, "forge")
+		var blade_pos := sword_top + Vector2(4.0 * 3.0, 0) * zoom
+		var bsrc := SwordArt.blade_size(build.blade, "forge")
+		var bsize := bsrc * zoom
 		# Heat cools from white-hot to steel, then a glint sweeps up the blade.
 		var heat_k := (finishing - 0.1) * 10.0
 		if finishing >= 0.1 and heat_k < 8.0:
 			var hf := mini(int(heat_k), 7)
-			banner.draw_texture_rect_region(heat_tex, Rect2(blade_pos, bsize), Rect2(hf * bsize.x, 0, bsize.x, bsize.y))
+			banner.draw_texture_rect_region(heat_tex, Rect2(blade_pos, bsize), Rect2(hf * bsrc.x, 0, bsrc.x, bsrc.y))
 		var shine_tex := Art.texture("swing/forge-fx/shine_%s.png" % build.blade)
 		var shine_k := (finishing - 0.9) * 16.0
 		if shine_tex != null and finishing >= 0.9 and shine_k < 8.0:
-			banner.draw_texture_rect_region(shine_tex, Rect2(blade_pos, bsize), Rect2(mini(int(shine_k), 7) * bsize.x, 0, bsize.x, bsize.y))
+			banner.draw_texture_rect_region(shine_tex, Rect2(blade_pos, bsize), Rect2(mini(int(shine_k), 7) * bsrc.x, 0, bsrc.x, bsrc.y))
 		var fade := clampf((FINISH_TIME - finishing) / 0.3, 0.0, 1.0)
 		_fx_strip(banner, "forged_banner", Vector2(CENTRE_X, sword_top.y + 40), start + 0.2, true, fade)
 		return
@@ -734,90 +829,41 @@ func _draw_banner() -> void:
 	banner.draw_string(Art.font("PixelifySans-Regular"), Vector2(0, y + 18), sub, HORIZONTAL_ALIGNMENT_CENTER, 640, 11, Color(0.9, 0.86, 0.8, a))
 
 
+## Right: one short line per rune, its bar in its group colour; then the
+## fittings that do nothing (and why); then the blade and grip.
 func _draw_does(stats: Dictionary) -> void:
-	_nine("panel_titled", RIGHT)
-	root.draw_rect(Rect2(RIGHT.position + Vector2(10, 9), Vector2(2, 9)), AMBER)
-	_head("What this sword does", RIGHT.position + Vector2(16, 17))
-	_head("From the grip up", RIGHT.position + Vector2(10, 36), AMBER)
+	const X := 420.0
+	const W := 172.0
+	_head("What it does", Vector2(X, 48), DIM)
 	var effects: Array = stats["effects"]
 	var info: Dictionary = stats["slot_info"]
-	var w := RIGHT.size.x - 20
-	var y := RIGHT.position.y + 42
-	var summary := _finisher_summary(effects)
-	var summary_lines := _wrap(summary, w - 4)
-	var bottom := RIGHT.end.y - 22 - summary_lines.size() * 13
-	for i in build.line.size():
-		var id: String = build.line[i]
-		var title := "%d  %s" % [i + 1, "empty" if id == "" else SwingBuild.FITTINGS[id]["name"]]
-		var text := "Empty slot."
-		var bar := FAINT
-		var si: Dictionary = info.get(i, {})
-		if id != "":
-			if SwingBuild.FITTINGS[id]["kind"] == "band":
-				bar = TEAL
-				if si.has("band"):
-					var e: Dictionary = effects[int(si["band"])]
-					var rn: String = SwingBuild.FITTINGS[e["id"]]["name"]
-					text = ("%s fires twice." % rn) if id == "twice" else ("%s %s." % [rn, _boost_text("wider", e["id"])])
-				else:
-					text = "No rune above it, so it does nothing."
-					bar = FAINT
-			else:
-				bar = AMBER
-				text = SwingBuild.sentence(effects[int(si["rune"])])
-		var lines := _wrap(text, w - 14)
-		var h := 15.0 + lines.size() * 12.0
-		if y + h > bottom - 6:
-			lines = [lines[0] + "..."]
-			h = 27.0
-		var r := Rect2(RIGHT.position.x + 8, y, w + 4, h)
-		_nine("well", r)
-		root.draw_rect(Rect2(r.position, Vector2(2, r.size.y)), bar)
-		if i == selected:
-			root.draw_rect(r, FOCUS, false, 1.0)
-		buttons["slot:%d" % i] = buttons.get("slot:%d" % i, r)
-		buttons["row:%d" % i] = r
-		_head(title, r.position + Vector2(8, 10), bar if id != "" else DIM)
-		var ly := r.position.y + 22
+	var y := 62.0
+	if effects.is_empty():
+		for l in _wrap("Nothing fitted yet. Pick a rune on the left, then click a slot.", W):
+			_body(l, Vector2(X, y + 10), DIM)
+			y += 13
+	for ei in effects.size():
+		var e: Dictionary = effects[ei]
+		var lines := _wrap(SwingBuild.sentence(e), W - 36)
+		var h := maxf(28.0, lines.size() * 13.0 + 4.0)
+		root.draw_rect(Rect2(X, y, 3, h), _group_color(ei))
+		_icon("runes", e["id"], Vector2(X + 20, y + 14))
+		var ly := y + 11
 		for l in lines:
-			_body(l, Vector2(r.position.x + 8, ly), INK if id != "" else DIM)
-			ly += 12
-		y += h + 3
-	root.draw_rect(Rect2(RIGHT.position.x + 8, bottom - 4, w + 4, 1), FAINT)
-	_head("On the finisher", Vector2(RIGHT.position.x + 10, bottom + 6), AMBER)
-	var sy := bottom + 19
-	for l in summary_lines:
-		_body(l, Vector2(RIGHT.position.x + 10, sy))
-		sy += 13
-
-
-## One plain line for everything that happens on the finisher, in order.
-func _finisher_summary(effects: Array) -> String:
-	var parts: Array = []
-	for e in effects:
-		if e["trigger"] != "finisher":
-			continue
-		var n: int = e["count"]
-		var big := "big " if float(e["size"]) > 1.0 else ""
-		match str(e["id"]):
-			"shockwave":
-				parts.append(("a %sshockwave rolls out" % big) if n == 1 else ("%s %sshockwaves roll out" % [SwingBuild._num(n), big]))
-			"hook":
-				parts.append(("a %shook yanks enemies in" % big) if n == 1 else ("%s %shooks yank enemies in" % [SwingBuild._num(n), big]))
-	if parts.is_empty():
-		return "Just the heavy hit. Add Shockwave or Hook to make it count."
-	var s := ", then ".join(parts) + "."
-	return s.substr(0, 1).to_upper() + s.substr(1)
-
-
-func _draw_keys() -> void:
-	var x := 22.0
-	for pair in [["LMB", "place"], ["RMB", "take off"], ["W S", "slot up / down"], ["Q E", "tabs"], ["1 2", "test swords"], ["Tab", "leave"]]:
-		var f := Art.font("Silkscreen-Regular")
-		var kw := f.get_string_size(pair[0], HORIZONTAL_ALIGNMENT_LEFT, -1, 8).x + 8
-		var kr := Rect2(x, 343, kw, 12)
-		_nine("button", kr)
-		_head(pair[0], kr.position + Vector2(0, 9), INK, 8, kw, HORIZONTAL_ALIGNMENT_CENTER)
-		x += kw + 4
-		_head(pair[1], Vector2(x, 352), DIM)
-		x += f.get_string_size(pair[1].to_upper(), HORIZONTAL_ALIGNMENT_LEFT, -1, 8).x + 14
+			_body(l, Vector2(X + 38, ly))
+			ly += 13
+		y += h + 10
+	for i in build.line.size():
+		var si: Dictionary = info.get(i, {})
+		if build.line[i] != "" and si.has("unused"):
+			for l in _wrap("%s: %s" % [SwingBuild.FITTINGS[build.line[i]]["name"], si.get("why", "does nothing here.")], W):
+				_body(l, Vector2(X, y + 8), DIM)
+				y += 13
+			y += 6
+	var bl: Dictionary = SwingBuild.BLADES[build.blade]
+	var spd := float(stats["speed"])
+	var spd_word := "fast" if spd >= 1.15 else ("slow" if spd <= 0.85 else "normal")
+	var pm: Dictionary = SwingBuild.POMMELS[build.pommel]
+	_body("%s + %s" % [bl["name"], SwingBuild.GRIPS[build.grip]["name"]], Vector2(X, 298), DIM)
+	_body("%s: %s" % [pm["name"], pm["desc"]], Vector2(X, 312), DIM)
+	_body("Damage %d    Speed %s    Crit %d%%" % [int(bl["damage"]), spd_word, roundi(float(stats["crit"]) * 100.0)], Vector2(X, 326), DIM)
