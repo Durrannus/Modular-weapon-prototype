@@ -872,9 +872,9 @@ func _rest_pose() -> Array:
 		"left":
 			a = PI - 1.3
 		"down":
-			a = 2.2
+			a = 1.72  # hanging almost straight down beside the leg
 		"up":
-			a = 0.95
+			a = 1.42
 	return [a, _hand_point()]
 
 
