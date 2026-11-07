@@ -22,7 +22,7 @@ const FOCUS := Color("#fff3c4")
 const PLATE := Color("#14171d")
 const WELL := Color("#0b0d11")
 
-const TABS := ["blades", "grips", "runes", "bands", "rare"]
+const TABS := ["sword", "runes", "bands", "rare"]
 const LEFT := Rect2(10, 32, 195, 296)
 const RIGHT := Rect2(436, 32, 194, 296)
 const CENTRE_X := 300.0
@@ -33,7 +33,7 @@ var build: SwingBuild
 var root: Control
 var is_open := false
 var selected := 0          # slot index, 0 = bottom of the grip
-var tab := 2               # runes
+var tab := 1               # runes
 var card := 0              # keyboard cursor in the tray
 var hover := ""
 var buttons := {}          # key -> Rect2, rebuilt every draw
@@ -257,12 +257,13 @@ func _set_tab(t: int) -> void:
 func _cards() -> Array:
 	var out: Array = []
 	match TABS[tab]:
-		"blades":
+		"sword":  # three rows: blades, grips, pommels
 			for id in SwingBuild.BLADE_ORDER:
-				out.append({"id": id, "name": SwingBuild.BLADES[id]["name"], "locked": false})
-		"grips":
+				out.append({"id": id, "name": SwingBuild.BLADES[id]["name"], "locked": false, "row": 0, "kind": "blades"})
 			for id in SwingBuild.GRIP_ORDER:
-				out.append({"id": id, "name": SwingBuild.GRIPS[id]["name"], "locked": SwingBuild.GRIPS[id].get("locked", false)})
+				out.append({"id": id, "name": SwingBuild.GRIPS[id]["name"], "locked": SwingBuild.GRIPS[id].get("locked", false), "row": 1, "kind": "grips"})
+			for id in SwingBuild.POMMEL_ORDER:
+				out.append({"id": id, "name": SwingBuild.POMMELS[id]["name"], "locked": false, "row": 2, "kind": "pommels"})
 		"runes":
 			for id in SwingBuild.FITTING_ORDER:
 				if SwingBuild.FITTINGS[id]["kind"] == "rune" and not SwingBuild.FITTINGS[id].get("parked", false):
@@ -283,13 +284,14 @@ func _use_card(i: int) -> void:
 	if i < 0 or i >= cards.size() or cards[i]["locked"]:
 		return
 	var id: String = cards[i]["id"]
-	match TABS[tab]:
-		"blades":
-			build.set_blade(id)
-		"grips":
-			build.set_grip(id)
-		_:
-			_put(id)
+	if SwingBuild.BLADES.has(id):
+		build.set_blade(id)
+	elif SwingBuild.GRIPS.has(id):
+		build.set_grip(id)
+	elif SwingBuild.POMMELS.has(id):
+		build.set_pommel(id)
+	else:
+		_put(id)
 	selected = clampi(selected, 0, build.slot_count() - 1)
 
 
@@ -377,7 +379,7 @@ func _wrap(text: String, width: float) -> Array:
 	return lines
 
 
-func _icon(kind: String, id: String, center: Vector2) -> void:
+func _icon(kind: String, id: String, center: Vector2, part_scale := 2.0) -> void:
 	match kind:
 		"runes", "bands", "rare":
 			var tex := Art.texture("swing/%s/%s_icon.png" % [kind, id])
@@ -396,11 +398,17 @@ func _icon(kind: String, id: String, center: Vector2) -> void:
 						root.draw_rect(Rect2(center - Vector2(9, 1), Vector2(18, 2)), c)
 					_:
 						root.draw_colored_polygon(PackedVector2Array([center + Vector2(0, -8), center + Vector2(7, 0), center + Vector2(0, 8), center + Vector2(-7, 0)]), c)
+		"pommels":
+			# No pommel art yet: a round knob in the pommel's colour.
+			var pc: Color = SwingBuild.POMMELS[id]["color"]
+			root.draw_circle(center, 8.0, pc.darkened(0.55))
+			root.draw_circle(center, 6.5, pc)
+			root.draw_circle(center + Vector2(-2, -2), 2.0, pc.lightened(0.5))
 		"blades", "grips":
 			# The in-hand sprite at 2x, lying on its side, tip to the right.
 			var tex := Art.texture("swing/%s/%s_hand.png" % [kind, id])
 			if tex != null:
-				root.draw_set_transform(center, PI * 0.5, Vector2(2, 2))
+				root.draw_set_transform(center, PI * 0.5, Vector2(part_scale, part_scale))
 				root.draw_texture(tex, (-tex.get_size() * 0.5).round())
 				root.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
@@ -431,14 +439,25 @@ func _draw_tray() -> void:
 		x += w + 9
 	var cards := _cards()
 	card = clampi(card, 0, maxi(cards.size() - 1, 0))
+	var row_n := [0, 0, 0]
+	if TABS[tab] == "sword":
+		for ri in 3:
+			_head(["Blade", "Grip", "Pommel"][ri], Vector2(14, 66 + ri * 44), DIM)
 	for i in cards.size():
 		var c: Dictionary = cards[i]
 		var r := Rect2(14 + (i % 3) * 44, 60 + (i / 3) * 44, 38, 38)
+		if c.has("row"):
+			var ri: int = c["row"]
+			var w := 48 if ri == 0 else 34
+			r = Rect2(14 + row_n[ri] * w, 70 + ri * 44, w - 3, 31)
+			row_n[ri] += 1
 		buttons["card:%d" % i] = r
 		root.draw_rect(r, WELL)
 		var edge := AMBER if i == card else (FOCUS if hover == "card:%d" % i else FAINT)
 		root.draw_rect(r, edge, false, 1.0)
-		_icon(TABS[tab], c["id"], r.get_center())
+		if c["locked"]:
+			continue
+		_icon(c.get("kind", TABS[tab]), c["id"], r.get_center(), 1.0 if c.has("row") else 2.0)
 		if _on_sword(c["id"]):
 			root.draw_rect(Rect2(r.end.x - 6, r.position.y + 2, 4, 4), AMBER)
 	var di := card
@@ -446,7 +465,7 @@ func _draw_tray() -> void:
 		di = int(hover.split(":")[1])
 	if di < cards.size():
 		var id: String = cards[di]["id"]
-		var y := 166.0
+		var y := 216.0 if TABS[tab] == "sword" else 166.0
 		root.draw_string(Art.font("PixelifySans-Regular"), Vector2(14, y), cards[di]["name"], HORIZONTAL_ALIGNMENT_LEFT, -1, 13, AMBER)
 		y += 13
 		_body(_kind_line(id), Vector2(14, y), DIM)
@@ -465,7 +484,7 @@ func _short(name: String) -> String:
 
 
 func _on_sword(id: String) -> bool:
-	return id != "" and (id == build.blade or id == build.grip or id in build.line)
+	return id != "" and (id == build.blade or id == build.grip or id == build.pommel or id in build.line)
 
 
 func _kind_line(id: String) -> String:
@@ -475,6 +494,8 @@ func _kind_line(id: String) -> String:
 	if SwingBuild.GRIPS.has(id):
 		var g: Dictionary = SwingBuild.GRIPS[id]
 		return "Grip, %d slot%s" % [g["slots"], "" if g["slots"] == 1 else "s"]
+	if SwingBuild.POMMELS.has(id):
+		return "Pommel, stats only"
 	var f: Dictionary = SwingBuild.FITTINGS[id]
 	if f["kind"] == "band":
 		return "Band"
@@ -484,6 +505,8 @@ func _kind_line(id: String) -> String:
 
 
 func _desc(id: String) -> String:
+	if SwingBuild.POMMELS.has(id):
+		return SwingBuild.POMMELS[id]["desc"]
 	if SwingBuild.BLADES.has(id):
 		return SwingBuild.BLADES[id]["desc"]
 	if SwingBuild.GRIPS.has(id):
@@ -760,5 +783,7 @@ func _draw_does(stats: Dictionary) -> void:
 	var bl: Dictionary = SwingBuild.BLADES[build.blade]
 	var spd := float(stats["speed"])
 	var spd_word := "fast" if spd >= 1.15 else ("slow" if spd <= 0.85 else "normal")
-	_body("%s  +  %s" % [bl["name"], SwingBuild.GRIPS[build.grip]["name"]], Vector2(X, 312), DIM)
-	_body("Damage %d    Speed %s" % [int(bl["damage"]), spd_word], Vector2(X, 326), DIM)
+	var pm: Dictionary = SwingBuild.POMMELS[build.pommel]
+	_body("%s + %s" % [bl["name"], SwingBuild.GRIPS[build.grip]["name"]], Vector2(X, 298), DIM)
+	_body("%s: %s" % [pm["name"], pm["desc"]], Vector2(X, 312), DIM)
+	_body("Damage %d    Speed %s    Crit %d%%" % [int(bl["damage"]), spd_word, roundi(float(stats["crit"]) * 100.0)], Vector2(X, 326), DIM)

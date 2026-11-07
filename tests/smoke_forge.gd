@@ -36,14 +36,18 @@ func _init() -> void:
 			forge.selected = i
 			forge.root.queue_redraw()
 			await process_frame
-	if not forge.buttons.has("tab:4"):
+	if not forge.buttons.has("tab:3"):
 		print("FAIL: the forge never drew")
-	forge._set_tab(4)
+	forge._set_tab(3)
 	forge.selected = 0
 	forge._put("mirror")
 	forge.selected = 3
 	forge._put("relay")
 	print("one bender kept: ", forge.build.line)
+	forge._set_tab(0)
+	for i in forge._cards().size():
+		forge._use_card(i)
+	print("sword tab used: ", forge.build.blade, " ", forge.build.grip, " ", forge.build.pommel)
 	forge.close()
 	var player = main.find_children("*", "CharacterBody2D", true, false)[0]
 	forge.build.line = ["every_hit", "shards", "on_dodge", "leap"]

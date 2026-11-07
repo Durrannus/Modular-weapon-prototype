@@ -32,6 +32,16 @@ const GRIPS := {
 }
 const GRIP_ORDER := ["wooden_grip", "wrapped_grip", "long_grip", "ringed_grip", "gilded_grip"]
 
+## Pommels (Game Plan, decided 7 November in the prototype): no slots, stats only.
+## These are fixed test rolls; real pommels will roll stats in the rarity tiers.
+const POMMELS := {
+	"plain_pommel": {"name": "Plain Pommel", "desc": "No bonus.", "color": Color("#8a8f99")},
+	"keen_pommel": {"name": "Keen Pommel", "crit": 0.08, "desc": "+8% crit chance.", "color": Color("#7fd0ff")},
+	"heavy_pommel": {"name": "Heavy Pommel", "crit_damage": 0.4, "desc": "Crits deal +40% more damage.", "color": Color("#c98a4a")},
+	"light_pommel": {"name": "Light Pommel", "speed": 0.1, "desc": "+10% swing speed.", "color": Color("#e8e2b0")},
+}
+const POMMEL_ORDER := ["plain_pommel", "keen_pommel", "heavy_pommel", "light_pommel"]
+
 ## Runes do something on their own; bands change the next rune above them.
 ## Rule-benders bend the reading rule itself. Only one per sword.
 const FITTINGS := {
@@ -79,6 +89,7 @@ const TEST_SWORDS := {
 
 var blade := "iron_shortblade"
 var grip := "wooden_grip"
+var pommel := "plain_pommel"
 ## Slot contents bottom to top: grip slots first, then blade slots. "" is empty.
 var line: Array = [""]
 
@@ -123,6 +134,11 @@ func set_slot(i: int, fitting: String) -> void:
 	if i < 0 or i >= line.size():
 		return
 	line[i] = fitting
+	changed.emit()
+
+
+func set_pommel(id: String) -> void:
+	pommel = id
 	changed.emit()
 
 
@@ -337,10 +353,11 @@ func compute() -> Dictionary:
 		"slot_info": r["slots"],
 		"steps": steps,
 		"damage": float(b["damage"]),
-		"speed": float(b["speed"]) * float(g["speed"]),
+		"pommel": pommel,
+		"speed": float(b["speed"]) * float(g["speed"]) * (1.0 + float(POMMELS[pommel].get("speed", 0.0))),
 		"reach": float(b["reach"]),
-		"crit": 0.07,
-		"crit_damage": 1.6,
+		"crit": 0.07 + float(POMMELS[pommel].get("crit", 0.0)),
+		"crit_damage": 1.6 + float(POMMELS[pommel].get("crit_damage", 0.0)),
 		"area": 0.0,
 		"move_speed": 0.0,
 		"elements": [element] if element != "" else [],

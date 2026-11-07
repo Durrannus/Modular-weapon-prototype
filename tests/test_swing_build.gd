@@ -28,6 +28,7 @@ func _init() -> void:
 	test_gilded_ruby()
 	test_whirlwind()
 	test_shards()
+	test_pommels()
 	print("%d checks, %d failed" % [checks, failures])
 	quit(1 if failures > 0 else 0)
 
@@ -236,3 +237,17 @@ func test_shards() -> void:
 	eq(e["trigger"], "hit", "Shards fire on every hit")
 	eq(SwingBuild.sentence(e), "Every hit sends shards jumping to the closest enemies twice, from further away.", "Shards x2 wide sentence")
 	check(not SwingBuild.FITTINGS.has("cleave"), "Cleave is gone")
+
+
+func test_pommels() -> void:
+	var b = SwingBuild.new()
+	eq(b.pommel, "plain_pommel", "swords start with the plain pommel")
+	var base: Dictionary = b.compute()
+	var slots_before: int = b.slot_count()
+	b.set_pommel("keen_pommel")
+	eq(snappedf(b.compute()["crit"] - base["crit"], 0.001), 0.08, "Keen pommel: +8% crit chance")
+	b.set_pommel("heavy_pommel")
+	eq(snappedf(b.compute()["crit_damage"] - base["crit_damage"], 0.001), 0.4, "Heavy pommel: +40% crit damage")
+	b.set_pommel("light_pommel")
+	eq(snappedf(b.compute()["speed"] / base["speed"], 0.001), 1.1, "Light pommel: +10% swing speed")
+	eq(b.slot_count(), slots_before, "pommels add no slots")
