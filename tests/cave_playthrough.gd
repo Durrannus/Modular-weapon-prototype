@@ -7,10 +7,11 @@ extends SceneTree
 ## "wipe" knocks everyone out once in room 2 and once at the boss, to prove both
 ## start over. "down" (two players) knocks player two out in room 1, to prove the
 ## other can finish the room and that player two gets back up.
-## With "shots" (needs a window, e.g. under xvfb) it saves screenshots of each stage.
+## With "shots" (needs a window, so leave out --headless) it saves a screenshot of
+## each stage to the game's user folder, or to the folder in shots=/some/folder.
 
 const PlayerInput := preload("res://scripts/player_input.gd")
-const SHOT_DIR := "/tmp/claude-0/shots/"
+var shot_dir := "user://cave_shots/"   # or shots=/some/folder/
 
 var m
 var n_players := 1
@@ -38,8 +39,10 @@ func _init() -> void:
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("players="):
 			n_players = int(a.split("=")[1])
-		elif a == "shots":
+		elif a == "shots" or a.begins_with("shots="):
 			shots = true
+			if a.begins_with("shots="):
+				shot_dir = a.split("=")[1].rstrip("/") + "/"
 		elif a == "mortal":
 			mortal = true
 		elif a == "wipe":
@@ -55,7 +58,7 @@ func _init() -> void:
 	root.add_child(m)
 	physics_frame.connect(_tick)
 	if shots:
-		DirAccess.make_dir_recursive_absolute(SHOT_DIR)
+		DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(shot_dir))
 
 
 func _shot(name: String) -> void:
@@ -63,7 +66,7 @@ func _shot(name: String) -> void:
 		return
 	stage_seen["shot_" + name] = true
 	await RenderingServer.frame_post_draw
-	root.get_texture().get_image().save_png(SHOT_DIR + name + ".png")
+	root.get_texture().get_image().save_png(shot_dir + name + ".png")
 
 
 ## The halls between rooms are narrow: a bot that's in a room further south than
