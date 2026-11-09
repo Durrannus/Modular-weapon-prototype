@@ -3,14 +3,23 @@ extends CanvasLayer
 
 const Art := preload("res://scripts/art.gd")
 
+signal to_title
+
 var panel: Control
 var build_menu  # Esc closes the forge first if it's open
+var locked := false  # a cutscene or the ending is showing: no pausing
 
 
 ## Esc: close the forge if it's open, otherwise open or close this menu.
 ## Handled here because this node keeps running while the game is paused.
 func _unhandled_input(event: InputEvent) -> void:
-	if event is InputEventKey and event.pressed and not event.echo and (event as InputEventKey).keycode == KEY_ESCAPE:
+	var esc: bool = event is InputEventKey and event.pressed and not event.echo and (event as InputEventKey).keycode == KEY_ESCAPE
+	# Start on a controller pauses too (and B backs out of this menu).
+	var start: bool = event is InputEventJoypadButton and event.pressed and (event as InputEventJoypadButton).button_index == JOY_BUTTON_START and pad_start
+	var back: bool = event is InputEventJoypadButton and event.pressed and (event as InputEventJoypadButton).button_index == JOY_BUTTON_B and is_open()
+	if locked and not is_open():
+		return
+	if esc or start or back:
 		if is_open():
 			resume()
 		elif build_menu != null and build_menu.is_open:
@@ -46,7 +55,7 @@ func _ready() -> void:
 	title.add_theme_font_size_override("font_size", 16)
 	title.add_theme_color_override("font_color", Color("#ffb24a"))
 	box.add_child(title)
-	for item in [["Resume", resume], ["Fullscreen on/off", _toggle_full], ["Quit game", _quit]]:
+	for item in [["Resume", resume], ["Fullscreen on/off", _toggle_full], ["Back to title", _title], ["Quit game", _quit]]:
 		var b := Button.new()
 		b.text = item[0]
 		b.focus_mode = Control.FOCUS_ALL
@@ -75,6 +84,15 @@ func resume() -> void:
 func _toggle_full() -> void:
 	var full := DisplayServer.window_get_mode() == DisplayServer.WINDOW_MODE_FULLSCREEN
 	DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED if full else DisplayServer.WINDOW_MODE_FULLSCREEN)
+
+
+## True where Start should pause (the cave). In the arena Start pauses the enemies.
+var pad_start := false
+
+
+func _title() -> void:
+	resume()
+	to_title.emit()
 
 
 func _quit() -> void:

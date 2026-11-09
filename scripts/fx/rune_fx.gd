@@ -32,6 +32,9 @@ var drawn := true     # false when a sprite strip draws the effect instead  # Wh
 
 
 func _ready() -> void:
+	# Effects place and move themselves every frame, so they skip the smoothing
+	# the engine does between physics ticks.
+	physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 	z_index = 20
 	if kind == "wave":
 		rotation = dir.angle()

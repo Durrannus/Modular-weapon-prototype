@@ -1,31 +1,18 @@
-extends Node2D
+extends "res://scripts/game_base.gd"
 
 const WeaponBuild := preload("res://scripts/weapon/weapon_build.gd")
 const PartLibrary := preload("res://scripts/parts/part_library.gd")
-## Sets up the arena, the player, enemies, the HUD and the crafting table.
+## The test arena: one big room, a training dummy, endless enemies, and a forge
+## you can open anywhere (Tab / Y) with every part unlocked.
 ## Everything is built in code so there are few scene files to merge.
-
-const PlayerScript := preload("res://scripts/player.gd")
-const EnemyScript := preload("res://scripts/enemy.gd")
-const HudScript := preload("res://scripts/ui/hud.gd")
-const BuildMenuScript := preload("res://scripts/ui/swing_forge.gd")
-const SwingBuild := preload("res://scripts/weapon/swing_build.gd")
-const Art := preload("res://scripts/art.gd")
 
 const ARENA := Rect2(0, 0, 1792, 1088)  # 56 x 34 tiles
 const WALL := 32.0  # one wall tile (16 art pixels)
-const TILE := 32.0  # world units per 16 px tile
 ## The paved forge corner, in tiles from the arena's top-left.
 const FORGE_TILES := Rect2i(2, 2, 7, 5)
 const MAX_ENEMIES := 7
 const SPAWN_EVERY := 1.6
 
-var world: Node2D
-var player
-var hud
-var build_menu
-var pause_menu
-var build: SwingBuild
 var parts: Array = []
 var spawn_timer := 1.0
 var spawning := true
@@ -34,56 +21,31 @@ var kills := 0
 
 func _ready() -> void:
 	randomize()
-	world = Node2D.new()
-	world.name = "World"
-	world.y_sort_enabled = true  # things lower on screen draw in front
-	add_child(world)
+	_make_world()
 	_make_walls()
 	_make_props()
-
-	# Rune effects draw on this layer, which follows the camera but isn't darkened.
-	var fx_layer := CanvasLayer.new()
-	fx_layer.layer = 1
-	fx_layer.follow_viewport_enabled = true
-	add_child(fx_layer)
-
-	player = PlayerScript.new()
-	player.fx_parent = fx_layer
-	player.position = ARENA.get_center()
-	world.add_child(player)
-	player.set_camera_limits(ARENA)
+	_add_players(ARENA.get_center())
+	rig.set_limits(ARENA)
 
 	var dummy = EnemyScript.new()
 	dummy.kind = "dummy"
 	dummy.position = ARENA.get_center() + Vector2(220, -40)
 	world.add_child(dummy)
 
-	# Weapon: starts as test sword A from the swing path notes.
-	build = SwingBuild.new()
-	build.load_test("A")
-	build.changed.connect(_on_build_changed)
-	_on_build_changed()
+	# Weapons: everyone starts with test sword A from the swing path notes.
+	for b in builds:
+		b.load_test("A")
 
-	hud = HudScript.new()
-	add_child(hud)
-	hud.player = player
+	_make_ui()
+	hud.mode = "arena"
 	hud.pause_pressed.connect(func(): spawning = not spawning)
-
-	build_menu = BuildMenuScript.new()
-	add_child(build_menu)
-	pause_menu = preload("res://scripts/ui/pause_menu.gd").new()
-	pause_menu.build_menu = build_menu
-	_set_cursor()
-	add_child(pause_menu)
-	build_menu.setup(build)
+	build_menu.hotkey = false  # handled below, so each player opens their own sword
 	build_menu.try_at_dummy.connect(_on_try_at_dummy)
 
 
-func _on_build_changed() -> void:
-	player.set_weapon(build.compute())
-
-
 func _physics_process(delta: float) -> void:
+	if Input.is_action_just_pressed("build") and not build_menu.is_open:
+		open_forge(_forge_hotkey_player())
 	if Input.is_action_just_pressed("toggle_spawning"):
 		spawning = not spawning
 	hud.spawning = spawning
@@ -93,7 +55,7 @@ func _physics_process(delta: float) -> void:
 	spawn_timer -= delta
 	if spawn_timer <= 0.0:
 		spawn_timer = SPAWN_EVERY
-		if _enemy_count() < MAX_ENEMIES:
+		if _enemy_count() < MAX_ENEMIES + (players.size() - 1) * 4:
 			_spawn_enemy()
 
 
@@ -117,7 +79,11 @@ func _spawn_enemy() -> void:
 		pos = Vector2(
 			randf_range(ARENA.position.x + 60.0, ARENA.end.x - 60.0),
 			randf_range(ARENA.position.y + 60.0, ARENA.end.y - 60.0))
-		if pos.distance_to(player.global_position) > 380.0:
+		var clear := true
+		for p in players:
+			if pos.distance_to(p.global_position) < 380.0:
+				clear = false
+		if clear:
 			break
 	var e = EnemyScript.new()
 	e.kind = kind
@@ -128,16 +94,24 @@ func _spawn_enemy() -> void:
 
 ## "Try at the dummy" in the forge: stand next to the dummy, facing it.
 func _on_try_at_dummy() -> void:
+	var who = players[maxi(forging, 0)] if forging < players.size() else player
 	for e in get_tree().get_nodes_in_group("enemies"):
 		if e.kind == "dummy":
-			player.global_position = e.global_position + Vector2(-110, 0)
-			player.aim_dir = Vector2.RIGHT
-			player.camera.reset_smoothing()
+			who.global_position = e.global_position + Vector2(-110, 0)
+			who.aim_dir = Vector2.RIGHT
+			who.face_dir = Vector2.RIGHT
+			who.reset_physics_interpolation()
+			rig.snap()
 
 
 func _on_enemy_died(enemy) -> void:
 	kills += 1
-	player.on_kill(enemy.global_position)
+	# Kill runes go to whoever is closest (the one who most likely struck it).
+	var best = player
+	for p in players:
+		if p.global_position.distance_to(enemy.global_position) < best.global_position.distance_to(enemy.global_position):
+			best = p
+	best.on_kill(enemy.global_position)
 
 
 func _make_walls() -> void:
@@ -200,22 +174,6 @@ func _add_prop(path: String, feet: Vector2, origin: Vector2) -> void:
 	world.add_child(sprite)
 
 
-func _add_light(pos: Vector2, col: Color, energy: float, size: float) -> void:
-	var light := PointLight2D.new()
-	light.texture = Art.light_texture()
-	light.texture_scale = size
-	light.color = col
-	light.energy = energy
-	light.position = pos
-	add_child(light)
-
-
-## A cheap repeatable "random" number per tile, so the floor looks the same every run.
-static func _tile_hash(x: int, y: int) -> float:
-	var h := (x * 73856093) ^ (y * 19349663)
-	return float(posmod(h, 1000)) / 1000.0
-
-
 func _draw() -> void:
 	var floor_tex := Art.texture("tiles/floor.png")
 	if floor_tex != null:
@@ -267,40 +225,3 @@ func _draw_tiles() -> void:
 		var py := ARENA.position.y + ty * TILE
 		draw_texture_rect(wall, Rect2(Vector2(ARENA.position.x - TILE, py), size), false)
 		draw_texture_rect(wall, Rect2(Vector2(ARENA.end.x, py), size), false)
-
-
-## F11 or Alt+Enter switches between fullscreen (the default) and a window.
-func _unhandled_input(event: InputEvent) -> void:
-	if event is InputEventKey and event.pressed and not event.echo:
-		var k := event as InputEventKey
-		if k.keycode == KEY_F11 or (k.keycode == KEY_ENTER and k.alt_pressed):
-			var full := DisplayServer.window_get_mode() == DisplayServer.WINDOW_MODE_FULLSCREEN
-			DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED if full else DisplayServer.WINDOW_MODE_FULLSCREEN)
-			get_viewport().set_input_as_handled()
-
-
-## A small pixel crosshair as the mouse cursor, scaled to match the pixel art.
-func _set_cursor() -> void:
-	var px := 9
-	var img := Image.create(px, px, false, Image.FORMAT_RGBA8)
-	var ink := Color("#fff3c4")
-	var edge := Color(0.05, 0.04, 0.06)
-	for i in px:
-		for j in px:
-			var on := (i == 4 and (j <= 2 or j >= 6)) or (j == 4 and (i <= 2 or i >= 6))
-			var dot := i == 4 and j == 4
-			if on or dot:
-				img.set_pixel(i, j, ink)
-	# A dark outline so it reads on any floor.
-	var out := img.duplicate()
-	for i in px:
-		for j in px:
-			if img.get_pixel(i, j).a > 0.0:
-				continue
-			for o in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
-				var q: Vector2i = Vector2i(i, j) + o
-				if q.x >= 0 and q.y >= 0 and q.x < px and q.y < px and img.get_pixelv(q).a > 0.0:
-					out.set_pixel(i, j, edge)
-	var scale := maxi(int(DisplayServer.screen_get_size().y / 360), 1)
-	out.resize(px * scale, px * scale, Image.INTERPOLATE_NEAREST)
-	Input.set_custom_mouse_cursor(ImageTexture.create_from_image(out), Input.CURSOR_ARROW, Vector2(px * scale / 2, px * scale / 2))

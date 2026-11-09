@@ -24,6 +24,9 @@ var t := 0.0
 
 
 func _ready() -> void:
+	# Effects place and move themselves every frame, so they skip the smoothing
+	# the engine does between physics ticks.
+	physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 	z_index = 30
 	if additive:
 		var m := CanvasItemMaterial.new()

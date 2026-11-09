@@ -144,6 +144,58 @@
      ]
     ]
    }
+  },
+  "wooden_blade": {
+   "name": "Wooden Blade",
+   "slots": 0,
+   "hand": {
+    "size": [
+     5,
+     22
+    ],
+    "slot_rects": []
+   },
+   "forge": {
+    "size": [
+     21,
+     99
+    ],
+    "slot_rects": []
+   },
+   "note": "same size as iron_blade"
+  },
+  "tin_blade": {
+   "name": "Tin Blade",
+   "slots": 1,
+   "hand": {
+    "size": [
+     5,
+     22
+    ],
+    "slot_rects": [
+     [
+      2,
+      20,
+      1,
+      1
+     ]
+    ]
+   },
+   "forge": {
+    "size": [
+     21,
+     99
+    ],
+    "slot_rects": [
+     [
+      6,
+      85,
+      9,
+      9
+     ]
+    ]
+   },
+   "note": "same size as iron_blade"
   }
  },
  "grips": {
@@ -454,6 +506,56 @@
     "pommel_at": [
      0,
      48
+    ]
+   }
+  },
+  "tin_grip": {
+   "name": "Tin Grip",
+   "slots": 1,
+   "kind": "craftable",
+   "special": null,
+   "hand": {
+    "size": [
+     9,
+     7
+    ],
+    "slot_rects": [
+     [
+      4,
+      6,
+      1,
+      1
+     ]
+    ],
+    "pivot": [
+     4.5,
+     3.5
+    ],
+    "pommel_at": [
+     0,
+     7
+    ]
+   },
+   "forge": {
+    "size": [
+     45,
+     45
+    ],
+    "slot_rects": [
+     [
+      18,
+      25,
+      9,
+      9
+     ]
+    ],
+    "pivot": [
+     22.5,
+     16.5
+    ],
+    "pommel_at": [
+     0,
+     36
     ]
    }
   }

@@ -15,6 +15,9 @@ var t := 0.0
 
 
 func _ready() -> void:
+	# Effects place and move themselves every frame, so they skip the smoothing
+	# the engine does between physics ticks.
+	physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 	z_index = 5
 	if thick:
 		life = 0.26

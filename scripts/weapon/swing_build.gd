@@ -11,6 +11,12 @@ extends RefCounted
 signal changed
 
 const BLADES := {
+	# The tutorial cave's blades. Wooden is the training sword from the ship crate
+	# (no slots: its one slot is on the grip). Tin is the first real metal.
+	"wooden_blade": {"name": "Wooden Blade", "chain": ["slash", "slash", "overhead"], "damage": 5.0, "speed": 1.0, "reach": 1.0, "slots": 0, "element": "",
+		"desc": "Slash, slash, overhead. A training sword. No slots."},
+	"tin_blade": {"name": "Tin Blade", "chain": ["slash", "slash", "overhead"], "damage": 8.0, "speed": 1.0, "reach": 1.0, "slots": 1, "element": "",
+		"desc": "Slash, slash, overhead. Soft, but real metal. 1 slot."},
 	"iron_shortblade": {"name": "Iron Shortblade", "chain": ["slash", "slash", "slash"], "damage": 7.0, "speed": 1.3, "reach": 0.9, "slots": 1, "element": "",
 		"desc": "Slash, slash, slash. Short and fast, light hits. 1 slot."},
 	"iron_blade": {"name": "Iron Blade", "chain": ["slash", "slash", "overhead"], "damage": 11.0, "speed": 1.0, "reach": 1.0, "slots": 2, "element": "",
@@ -22,6 +28,7 @@ const BLADES := {
 const BLADE_ORDER := ["iron_shortblade", "iron_blade", "iron_longblade"]
 
 const GRIPS := {
+	"tin_grip": {"name": "Tin Grip", "slots": 1, "speed": 1.0, "desc": "1 slot. Quick."},
 	"wooden_grip": {"name": "Wooden Grip", "slots": 1, "speed": 1.0, "desc": "1 slot. Quick."},
 	"wrapped_grip": {"name": "Wrapped Grip", "slots": 2, "speed": 0.95, "desc": "2 slots. A touch slower."},
 	"long_grip": {"name": "Long Grip", "slots": 3, "speed": 0.88, "desc": "3 slots. Slower swings."},

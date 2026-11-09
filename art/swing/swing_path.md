@@ -199,3 +199,19 @@ Darren found the sword too big for the crew_a chibi, who is 46 px tall: the guar
 - **Bands in hand** are 5x1 teal rings, each with its own tone pattern. Centre them on the slot (slot x − 2) on the same row.
 - **Preview:** `hand_swords_nov7.png` shows crew_a next to the short, normal and long swords, then the Ringed and Gilded grips.
 - **Code:** `sp_mini.py`. Export with `sp_export_mini.py`.
+
+## Wooden and tin parts for the tutorial cave (9 Nov)
+
+Three new parts, each with `_hand` and `_forge` files and entries in `swing_path.json` laid out like the iron parts.
+
+| Part | Slots | Size (hand / forge) | Look |
+|---|---|---|---|
+| `blades/wooden_blade` | 0 | 5x22 / 21x99 | carved wood, blunt rounded tip, cord binding: a training sword |
+| `blades/tin_blade` | 1 | 5x22 / 21x99 | dull pale metal with dents and a nicked edge, plain iron fittings (no brass) |
+| `grips/tin_grip` | 1 | 9x7 / 45x45 | leather hold, pale tin guard and collar |
+
+- Both blades are the same size as `iron_blade`, so the hand anchor, tip and range need no changes. `wooden_blade` has an empty `slot_rects`.
+- `tin_blade`'s one slot is where `iron_blade`'s bottom slot is.
+- `tin_grip` has the same layout, pivot and `pommel_at` as `wooden_grip`.
+- `forge-fx/heat_tin_blade.png` and `shine_tin_blade.png` exist for the forging sequence (also for `wooden_blade`, in case it is ever needed).
+- **Code:** `BLADES`, `GRIPS` and `LEN_AS` in `sp_parts.py`, `blade()` in `sp_mini.py`. Export with `sp_export_tin.py`.

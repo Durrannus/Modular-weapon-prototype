@@ -42,6 +42,16 @@ static func _make(kind: String) -> AudioStreamWAV:
 		"click": length = 0.05
 		"anvil": length = 0.45
 		"forged": length = 1.0
+		"hit": length = 0.07
+		"hurt": length = 0.18
+		"squish": length = 0.16
+		"gate": length = 0.7
+		"pickup": length = 0.45
+		"slam": length = 0.5
+		"talk": length = 0.045
+		"rumble": length = 1.4
+		"warn": length = 0.16
+		"dodge": length = 0.12
 	var n := int(RATE * length)
 	data.resize(n * 2)
 	var phase := 0.0
@@ -82,6 +92,43 @@ static func _make(kind: String) -> AudioStreamWAV:
 			"swing":
 				noise = lerpf(noise, randf_range(-1, 1), 0.3)
 				v = noise * 0.25 * sin(k * PI)
+			"hit":  # a short dull thwack when the blade connects
+				phase += TAU * lerpf(260.0, 120.0, k) / RATE
+				noise = lerpf(noise, randf_range(-1, 1), 0.5)
+				v = (sin(phase) * 0.6 + noise * 0.5) * pow(1.0 - k, 2.0)
+			"hurt":  # you got hit: a low buzz dropping
+				phase += TAU * lerpf(220.0, 90.0, k) / RATE
+				v = signf(sin(phase)) * 0.4 * pow(1.0 - k, 1.5)
+			"squish":  # an enemy dying
+				phase += TAU * lerpf(420.0, 110.0, k) / RATE
+				noise = lerpf(noise, randf_range(-1, 1), 0.25)
+				v = (sin(phase) * 0.5 + noise * 0.35) * pow(1.0 - k, 1.8)
+			"gate":  # stone grinding, then a clunk
+				noise = lerpf(noise, randf_range(-1, 1), 0.12)
+				phase += TAU * 70.0 / RATE
+				var clunk := sin(phase) * maxf(0.0, 1.0 - absf(k - 0.85) * 12.0)
+				v = noise * 0.7 * (1.0 - k * 0.5) * (0.6 + 0.4 * sin(t * 55.0)) + clunk * 0.8
+			"pickup":  # three rising notes
+				var f: float = [523.0, 659.0, 784.0][mini(int(k * 3.0), 2)]
+				phase += TAU * f / RATE
+				v = sin(phase) * 0.4 * (1.0 - fmod(k * 3.0, 1.0) * 0.5) * (1.0 - k * 0.3)
+			"slam":  # a heavy stone impact
+				phase += TAU * lerpf(110.0, 30.0, k) / RATE
+				noise = lerpf(noise, randf_range(-1, 1), 0.2)
+				v = (sin(phase) * 0.9 + noise * 0.6 * (1.0 - k)) * pow(1.0 - k, 1.4)
+			"talk":  # one blip per few letters of speech
+				phase += TAU * 330.0 / RATE
+				v = signf(sin(phase)) * 0.18 * (1.0 - k)
+			"rumble":  # the cave shaking
+				noise = lerpf(noise, randf_range(-1, 1), 0.05)
+				phase += TAU * 42.0 / RATE
+				v = (noise * 1.2 + sin(phase) * 0.4) * sin(k * PI)
+			"warn":  # an enemy about to strike
+				phase += TAU * 880.0 / RATE
+				v = signf(sin(phase)) * 0.22 * (1.0 if int(k * 4.0) % 2 == 0 else 0.0)
+			"dodge":  # a quick whoosh
+				noise = lerpf(noise, randf_range(-1, 1), lerpf(0.5, 0.1, k))
+				v = noise * 0.3 * sin(k * PI)
 			_:
 				phase += TAU * 1200.0 / RATE
 				v = sin(phase) * 0.3 * (1.0 - k)

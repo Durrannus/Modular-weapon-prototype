@@ -16,6 +16,7 @@ func _ready() -> void:
 	_add("attack", [_mouse(MOUSE_BUTTON_LEFT), _btn(JOY_BUTTON_X), _axis(JOY_AXIS_TRIGGER_RIGHT, 1.0)])
 	_add("dash", [_key(KEY_SPACE), _key(KEY_SHIFT), _mouse(MOUSE_BUTTON_RIGHT), _btn(JOY_BUTTON_A), _axis(JOY_AXIS_TRIGGER_LEFT, 1.0)])
 	_add("build", [_key(KEY_TAB), _btn(JOY_BUTTON_Y)])
+	_add("interact", [_key(KEY_E), _key(KEY_F), _btn(JOY_BUTTON_Y)])
 	_add("toggle_spawning", [_key(KEY_P), _btn(JOY_BUTTON_START)])
 
 	# Crafting table controls

@@ -4,6 +4,15 @@ const WeaponBuild := preload("res://scripts/weapon/weapon_build.gd")
 ## The player: movement, dodge, aiming, and running the combo the weapon build
 ## produced. Each combo step is one move (slash, stab, lunge, spin, overhead).
 ## Blade elements add effects on hit (fire, water, lightning, steam, electrified).
+##
+## Feel rules (9 November, measured against Core Keeper and similar games):
+## - You face the way you walk. Attacking turns you to the aim for a moment.
+## - One press is one swing. A press during a swing queues exactly one more.
+##   Holding attack keeps the chain going at a steady beat.
+## - Hits never freeze the game. The enemy freezes for a few frames and is knocked
+##   back; only a finisher that connects plants you for a moment.
+
+signal knocked_out(player)
 
 const Fx := preload("res://scripts/fx/fx.gd")
 const Art := preload("res://scripts/art.gd")
@@ -12,36 +21,69 @@ const SwordArt := preload("res://scripts/weapon/sword_art.gd")
 const RuneFx := preload("res://scripts/fx/rune_fx.gd")
 const Sfx := preload("res://scripts/sfx.gd")
 const SpriteOnce := preload("res://scripts/fx/sprite_once.gd")
+const PlayerInput := preload("res://scripts/player_input.gd")
 
-const MOVE_SPEED := 250.0
+const MOVE_SPEED := 220.0      # about 3.7 body heights a second, like Core Keeper
+const ACCEL := 3000.0          # full speed in about 4 frames
+const DECEL := 4200.0          # stops in about 3
+const TURN := 5200.0           # reversing is quicker than starting
+const SWING_MOVE := 0.9        # barely slowed while swinging
+const FACE_LINGER := 0.28      # keep facing the swing this long after it ends
+const DIAGONAL_GRACE := 0.07   # letting go of two keys a moment apart still ends on the diagonal
 const RADIUS := 16.0
 const COMBO_WINDOW := 0.5      # stop attacking this long and the combo resets
 const FINISHER_RECOVERY := 0.1   # short pause after the finisher, so holding keeps a steady beat
 
-const DODGE_SPEED := 640.0
-const DODGE_TIME := 0.12
+const DODGE_SPEED := 620.0
+const DODGE_TIME := 0.15
 const DODGE_MAX_CHARGES := 1
-const DODGE_REFILL := 0.9      # seconds per charge
+const DODGE_REFILL := 0.8      # seconds per charge
 
 ## The five sword moves. Times are at attack speed 1.0.
 ## windup: time before the hit lands. time: whole move. reach in pixels (times blade reach).
 ## arc: degrees for arcs. width: half-width for lines. power: damage multiplier.
 const MOVES := {
-	"slash": {"windup": 0.035, "time": 0.36, "shape": "arc", "arc": 140.0, "reach": 74.0, "power": 1.0, "knock": 110.0},
+	"slash": {"windup": 0.055, "time": 0.36, "shape": "arc", "arc": 140.0, "reach": 74.0, "power": 1.0, "knock": 240.0, "stun": 0.16, "freeze": 0.05},
 	"stab": {"windup": 0.06, "time": 0.25, "shape": "line", "width": 16.0, "reach": 115.0, "power": 1.15, "knock": 320.0},
 	"lunge": {"windup": 0.15, "time": 0.38, "shape": "line", "width": 24.0, "reach": 85.0, "power": 1.3, "knock": 300.0, "dash": 170.0},
 	"spin": {"windup": 0.07, "time": 0.44, "shape": "circle", "reach": 72.0, "power": 0.85, "knock": 260.0},
-	"overhead": {"windup": 0.12, "time": 0.45, "shape": "arc", "arc": 120.0, "reach": 95.0, "power": 2.1, "knock": 300.0, "shake": 11.0},
+	"overhead": {"windup": 0.14, "time": 0.45, "shape": "arc", "arc": 120.0, "reach": 95.0, "power": 2.1, "knock": 400.0, "stun": 0.3, "freeze": 0.1, "shake": 11.0},
 }
 
 var color := Color(0.35, 0.7, 1.0)
 var max_hp := 100.0
 var hp := 100.0
 var spawn_point := Vector2.ZERO
-var aim_dir := Vector2.RIGHT
-var using_pad := false
-var camera: Camera2D
-var shake := 0.0
+var aim_dir := Vector2.RIGHT   # where an attack goes: the mouse, the right stick, or the way you face
+var face_dir := Vector2.DOWN   # where the body looks
+var input: PlayerInput         # this player's controls (set before adding; defaults to every device)
+var index := 0                 # 0 = player one
+var character := "crew_a"      # body strips: art/body/<character>_*.png
+var rig = null                 # the shared camera (camera_rig.gd)
+var frozen := false            # a dialogue or cutscene has the controls
+var is_down := false           # knocked out and waiting to get back up
+var auto_respawn := true       # get straight back up at spawn_point (the test arena)
+var show_marker := false       # coloured ring under the feet (two players)
+
+## Screen shake goes to the shared camera.
+var shake: float:
+	set(v):
+		if rig != null:
+			rig.shake = v
+	get:
+		return rig.shake if rig != null else 0.0
+
+var walk_vel := Vector2.ZERO
+var hurt_vel := Vector2.ZERO   # knocked back by a hit
+var hit_pause := 0.0           # planted for a moment when a finisher connects
+var hurt_flash := 0.0
+var face_linger := 0.0
+var diag_dir := Vector2.ZERO
+var diag_time := -9.0
+var walk_phase := 0.0
+var settle := 0.0              # 0 = holding the end of the swing, 1 = back at rest
+var return_t := 0.0            # easing the sword back to rest after the last swing
+var return_from: Array = [0.0, Vector2.ZERO]
 
 var weapon: Dictionary = {}
 var step_index := 0        # next combo step
@@ -115,12 +157,10 @@ func _ready() -> void:
 	circle.radius = RADIUS
 	shape.shape = circle
 	add_child(shape)
-	camera = Camera2D.new()
-	camera.position_smoothing_enabled = true
-	camera.position_smoothing_speed = 9.0
-	camera.zoom = Vector2(0.5, 0.5)  # 640x360 screen, world keeps its old units
-	add_child(camera)
-	camera.make_current()
+	if input == null:
+		input = PlayerInput.new()
+	if Art.texture("body/%s_idle_down.png" % character) == null:
+		character = "crew_a"
 	spawn_point = global_position
 	# The sword is its own layer so it can sit behind the body when facing up.
 	# All sword parts and the hand go in one CanvasGroup so the outline shader
@@ -149,13 +189,6 @@ func _ready() -> void:
 	add_child(light)
 
 
-func set_camera_limits(rect: Rect2) -> void:
-	camera.limit_left = int(rect.position.x) - 80
-	camera.limit_top = int(rect.position.y) - 80
-	camera.limit_right = int(rect.end.x) + 80
-	camera.limit_bottom = int(rect.end.y) + 80
-
-
 func set_weapon(stats: Dictionary) -> void:
 	weapon = stats
 	rune_queue.clear()
@@ -176,55 +209,97 @@ func _reset_combo() -> void:
 
 
 func _input(event: InputEvent) -> void:
-	if event is InputEventMouseMotion:
-		using_pad = false
-	elif event is InputEventJoypadButton:
-		using_pad = true
-	elif event is InputEventJoypadMotion and absf((event as InputEventJoypadMotion).axis_value) > 0.4:
-		using_pad = true
+	input.feed(event)
 
 
 func _physics_process(delta: float) -> void:
+	input.poll()
 	invuln = maxf(invuln - delta, 0.0)
+	hurt_flash = maxf(hurt_flash - delta, 0.0)
 	game_time += delta
 	_run_rune_queue()
+	if is_down:
+		walk_vel = Vector2.ZERO
+		hurt_vel = hurt_vel.move_toward(Vector2.ZERO, 1800.0 * delta)
+		velocity = hurt_vel
+		move_and_slide()
+		return
 
-	var move := Input.get_vector("move_left", "move_right", "move_up", "move_down")
-	_update_aim(move)
+	var move := Vector2.ZERO if frozen else input.move
+	_update_facing(delta, move)
 	_update_dodge(delta, move)
 
+	# Walking: a few frames to get going and to stop, so it has weight without lag.
 	var speed := MOVE_SPEED * (1.0 + float(weapon.get("move_speed", 0.0)))
-	var vel := move * speed
+	var target := move * speed
 	if current_step >= 0:
-		vel *= 0.9  # barely slowed while swinging (like Core Keeper)
+		target *= SWING_MOVE
+	var rate := ACCEL
+	if move == Vector2.ZERO:
+		rate = DECEL
+	elif walk_vel.dot(target) < 0.0:
+		rate = TURN
+	walk_vel = walk_vel.move_toward(target, rate * delta)
+	var vel := walk_vel
+	if hit_pause > 0.0:
+		vel = Vector2.ZERO
 	if dodge_timer > 0.0:
 		dodge_timer -= delta
 		vel = dodge_dir * DODGE_SPEED
+		walk_vel = dodge_dir * speed if move != Vector2.ZERO else Vector2.ZERO
 	elif lunge_timer > 0.0:
 		lunge_timer -= delta
 		vel = lunge_dir * lunge_speed
-	velocity = vel
+	hurt_vel = hurt_vel.move_toward(Vector2.ZERO, 1800.0 * delta)
+	velocity = vel + hurt_vel
 	move_and_slide()
+	if rig != null:
+		var kept: Vector2 = rig.leash(self, global_position)
+		if kept != global_position:
+			global_position = kept
+	walk_phase += delta * 14.0 * clampf(velocity.length() / MOVE_SPEED, 0.55, 1.3)
 
 	_update_combat(delta)
 
 
-func _update_aim(move: Vector2) -> void:
-	if using_pad:
-		var stick := Input.get_vector("aim_left", "aim_right", "aim_up", "aim_down")
-		if stick.length() > 0.3:
-			aim_dir = stick.normalized()
-		elif move.length() > 0.2:
-			aim_dir = move.normalized()
-	else:
+## Where the body looks and where an attack would go.
+## Looking: the way you walk (or the right stick). Attacking: the mouse, the right
+## stick, or straight ahead.
+func _update_facing(delta: float, move: Vector2) -> void:
+	face_linger = maxf(face_linger - delta, 0.0)
+	var stick := input.stick_aim
+	if current_step >= 0:
+		face_dir = anim_dir
+		face_linger = FACE_LINGER
+	elif dodge_timer > 0.0:
+		face_dir = dodge_dir
+	elif not input.uses_mouse() and stick.length() > 0.3:
+		face_dir = stick.normalized()
+	elif move.length() > 0.2 and face_linger <= 0.0:
+		var diagonal := absf(move.x) > 0.3 and absf(move.y) > 0.3
+		if diagonal:
+			diag_dir = move.normalized()
+			diag_time = game_time
+			face_dir = diag_dir
+		elif game_time - diag_time > DIAGONAL_GRACE:
+			face_dir = move.normalized()
+	if frozen:
+		return
+	if input.uses_mouse():
 		var to_mouse := get_global_mouse_position() - global_position
 		if to_mouse.length() > 4.0:
 			aim_dir = to_mouse.normalized()
+	elif stick.length() > 0.3:
+		aim_dir = stick.normalized()
+	elif move.length() > 0.2:
+		aim_dir = move.normalized()
+	elif current_step < 0:
+		aim_dir = face_dir
 
 
 # --- Dodge ------------------------------------------------------------------
 # Everyone has a short step. One charge that refills. Cancels the swing and
-# resets the combo.
+# resets the combo. It goes the way you're pushing, or the way you face.
 
 func _update_dodge(delta: float, move: Vector2) -> void:
 	if dodge_charges < DODGE_MAX_CHARGES:
@@ -232,14 +307,17 @@ func _update_dodge(delta: float, move: Vector2) -> void:
 		if dodge_refill >= DODGE_REFILL:
 			dodge_refill = 0.0
 			dodge_charges += 1
-	if Input.is_action_just_pressed("dash") and dodge_charges > 0 and dodge_timer <= 0.0:
+	if input.dash_pressed and not frozen and dodge_charges > 0 and dodge_timer <= 0.0:
 		dodge_charges -= 1
 		dodge_refill = 0.0
-		dodge_dir = move.normalized() if move.length() > 0.1 else aim_dir
+		dodge_dir = move.normalized() if move.length() > 0.1 else face_dir
 		dodge_timer = DODGE_TIME
 		invuln = maxf(invuln, DODGE_TIME + 0.06)
+		hit_pause = 0.0
+		face_linger = 0.0
 		_reset_combo()
 		dodge_started = game_time
+		_dust(global_position + FEET)
 		_trigger("dodge", [])
 
 
@@ -253,17 +331,36 @@ func _speed() -> float:
 	return maxf(float(weapon.get("speed", 1.0)), 0.2)
 
 
-func _update_combat(delta: float) -> void:
-	# Hold attack to keep swinging; a press during a dodge is buffered.
-	if Input.is_action_just_pressed("attack") and dodge_timer > 0.0:
-		attack_buffered = true
-	elif (Input.is_action_pressed("attack") or attack_buffered) and dodge_timer <= 0.0:
-		attack_buffered = false
-		if current_step < 0:
-			_start_step()
-		else:
-			queued = true
+func armed() -> bool:
+	return weapon.has("blade") and not _steps().is_empty()
 
+
+func _update_combat(delta: float) -> void:
+	if frozen or not armed():
+		attack_buffered = false
+		queued = false
+		if current_step >= 0:
+			_reset_combo()
+		return
+	# One press, one swing. A press during a swing (or a dodge) queues the next one;
+	# holding the button keeps the chain going.
+	if input.attack_pressed:
+		if dodge_timer > 0.0:
+			attack_buffered = true
+		elif current_step >= 0:
+			queued = true
+	var held := input.attack_held
+	if need_release:
+		# A click that closed a menu shouldn't also swing: wait for the button to come up.
+		need_release = held
+		held = false
+	if current_step < 0 and dodge_timer <= 0.0 and (input.attack_pressed or attack_buffered or held):
+		attack_buffered = false
+		_start_step()
+
+	if hit_pause > 0.0:
+		hit_pause -= delta
+		return
 	if current_step >= 0:
 		step_elapsed += delta
 		if hit_time >= 0.0 and step_elapsed >= hit_time:
@@ -275,6 +372,9 @@ func _update_combat(delta: float) -> void:
 		combo_timer -= delta
 		if combo_timer <= 0.0:
 			step_index = 0
+
+
+var need_release := false
 
 
 func _start_step() -> void:
@@ -295,9 +395,13 @@ func _start_step() -> void:
 	queued = false
 	anim_move = move
 	anim_dir = aim_dir
+	face_dir = anim_dir
+	face_linger = FACE_LINGER
 	swing_side = 1.0 if current_step % 2 == 0 else -1.0
 	pose_from_angle = wrapf(pose_angle - anim_dir.angle(), -PI, PI)
 	stepped = false
+	settle = 0.0
+	return_t = 0.0
 	smear_t0 = -1.0
 	# The swing travels up the sword: each slot lights for a moment, grip to tip.
 	for i in weapon.get("line", []).size():
@@ -318,11 +422,17 @@ func _end_step() -> void:
 	var was_last := current_step >= steps.size() - 1
 	step_index = 0 if was_last else current_step + 1
 	current_step = -1
-	if queued:
+	if queued or (input.attack_held and not need_release):
 		queued = false
 		_start_step()
 	else:
 		combo_timer = COMBO_WINDOW
+		# Ease the sword back to rest from wherever the swing left it.
+		return_from = [pose_angle, pose_hand]
+		return_t = RETURN_TIME
+
+
+const RETURN_TIME := 0.12
 
 
 func _do_move(move: String) -> void:
@@ -331,6 +441,8 @@ func _do_move(move: String) -> void:
 	var reach: float = float(info["reach"]) * float(weapon.get("reach", 1.0)) * area
 	var dmg: float = float(weapon.get("damage", 4.0)) * float(info["power"])
 	var knock: float = info["knock"]
+	var stun: float = float(info.get("stun", 0.12))
+	var freeze: float = float(info.get("freeze", 0.05))
 	var dir := anim_dir
 	var hits := 0
 	var hit_list: Array = []
@@ -359,7 +471,7 @@ func _do_move(move: String) -> void:
 		if str(info["shape"]) == "line":
 			kdir = dir
 		if hit:
-			_hit_enemy(e, dmg, kdir, knock)
+			_hit_enemy(e, dmg, kdir, knock, stun, freeze)
 			hits += 1
 			hit_list.append(e)
 
@@ -379,22 +491,28 @@ func _do_move(move: String) -> void:
 	Sfx.play(self, "swing", -14.0)
 	var finisher := current_step == _steps().size() - 1 and _steps().size() > 1
 	if finisher:
-		# The finisher always lands loud: a freeze-frame, screen shake and a thump.
-		shake = maxf(shake, 12.0)
-		Sfx.play(self, "finisher", -4.0)
-		_hitstop(0.09)
+		# A finisher that connects lands loud: you plant for a moment, the screen
+		# shakes and it thumps. A miss is just a swing. Nothing else in the game stops.
+		if hits > 0:
+			shake = maxf(shake, 10.0)
+			hit_pause = FINISHER_PAUSE
+			Sfx.play(self, "finisher", -4.0)
+		else:
+			shake = maxf(shake, 2.5)
+			Sfx.play(self, "finisher", -12.0)
 		_trigger("finisher", hit_list)
-	elif hits > 0:
-		# Normal hits: a tiny freeze, no shake. Shake is for the finisher and runes.
-		_hitstop(0.02 if move == "overhead" else 0.012)
 	if hits > 0:
+		Sfx.play(self, "hit", -8.0)
 		_trigger("hit", hit_list)
 
 
-func _hit_enemy(e, dmg: float, kdir: Vector2, knock: float) -> void:
+const FINISHER_PAUSE := 0.07
+
+
+func _hit_enemy(e, dmg: float, kdir: Vector2, knock: float, stun := 0.12, freeze := 0.05) -> void:
 	var crit := randf() < float(weapon.get("crit", 0.05))
 	var final := dmg * (float(weapon.get("crit_damage", 1.5)) if crit else 1.0)
-	e.take_hit(final, kdir, knock, crit, weapon.get("hit_color", Color.WHITE))
+	e.take_hit(final, kdir, knock, crit, weapon.get("hit_color", Color.WHITE), stun, freeze)
 	_apply_elements(e, final)
 
 
@@ -664,6 +782,7 @@ func _leap(size: float, power: float, dmg: float, col: Color) -> void:
 	lunge_timer = 0.14
 	lunge_speed = travel / 0.14
 	aim_dir = dir
+	face_dir = dir
 	invuln = maxf(invuln, 0.2)
 	best.take_hit(dmg * 0.4 * power, dir, 120.0, false, col)
 	best.apply_stun(0.25)
@@ -792,37 +911,57 @@ func _steam(target, dmg: float) -> void:
 			e.take_hit(dmg, dir, 140.0, false, col)
 
 
-func _hitstop(duration: float) -> void:
-	Engine.time_scale = 0.05
-	await get_tree().create_timer(duration, true, false, true).timeout
-	Engine.time_scale = 1.0
-
-
 # --- Taking damage ------------------------------------------------------------
 
-func take_damage(amount: float) -> void:
-	if invuln > 0.0:
+## from: where the hit came from (you're knocked away from it).
+func take_damage(amount: float, from: Vector2 = Vector2.INF) -> void:
+	if invuln > 0.0 or is_down:
 		return
 	hp -= amount
-	invuln = 0.7
-	shake = maxf(shake, 9.0)
+	invuln = 0.8
+	hurt_flash = 0.12
+	shake = maxf(shake, 7.0)
+	Sfx.play(self, "hurt", -5.0)
+	if from != Vector2.INF and from.distance_to(global_position) > 0.5:
+		hurt_vel = (global_position - from).normalized() * 330.0
 	if hp <= 0.0:
-		hp = max_hp
-		global_position = spawn_point
-		knocked_out_timer = 2.0
-		invuln = 2.0
+		hp = 0.0
 		_reset_combo()
+		dodge_timer = 0.0
+		if auto_respawn:
+			hp = max_hp
+			global_position = spawn_point
+			hurt_vel = Vector2.ZERO
+			reset_physics_interpolation()
+			knocked_out_timer = 2.0
+			invuln = 2.0
+			if rig != null:
+				rig.snap()
+		else:
+			is_down = true
+		knocked_out.emit(self)
+
+
+## Back on your feet (after a room is cleared, or a restart).
+func get_up(at: Vector2 = Vector2.INF, hp_frac := 1.0) -> void:
+	is_down = false
+	hp = maxf(hp, max_hp * hp_frac)
+	invuln = 1.5
+	hurt_vel = Vector2.ZERO
+	walk_vel = Vector2.ZERO
+	_reset_combo()
+	if at != Vector2.INF:
+		global_position = at
+		reset_physics_interpolation()
 
 
 func _process(delta: float) -> void:
 	knocked_out_timer = maxf(knocked_out_timer - delta, 0.0)
-	shake = move_toward(shake, 0.0, 40.0 * delta)
-	camera.offset = Vector2(randf_range(-1, 1), randf_range(-1, 1)) * shake
-	var face_dir := aim_dir if current_step < 0 else anim_dir
 	facing = _facing_of(face_dir)
 	facing8 = _facing8_of(face_dir)
 	# Behind the body when facing away, or when the hand is above the body's centre.
 	weapon_group.show_behind_parent = facing8 in ["up", "up_left", "up_right", "left"]
+	weapon_group.visible = not is_down
 	anim_time += delta
 	_update_pose(delta)
 	trail_layer.queue_redraw()
@@ -831,6 +970,21 @@ func _process(delta: float) -> void:
 	(weapon_group.material as ShaderMaterial).set_shader_parameter("px", scale_px)
 	queue_redraw()
 	weapon_layer.queue_redraw()
+
+
+## A puff of dust at the feet (dodging).
+func _dust(where: Vector2) -> void:
+	var tex := Art.texture("cave/dust_puff.png")
+	if tex == null:
+		return
+	var n := SpriteOnce.new()
+	n.texture = tex
+	n.frames = 4
+	n.fps = 14.0
+	n.origin = Vector2(8, 10)
+	get_parent().add_child(n)
+	n.z_index = 0
+	n.global_position = where
 
 
 ## The nearest of 8 directions. Diagonals cover the middle 45 degrees between axes.
@@ -848,20 +1002,37 @@ static func _facing_of(d: Vector2) -> String:
 
 # --- Drawing ------------------------------------------------------------------
 
+const MARKER_COLORS := [Color("#5fb8ff"), Color("#ff9a4a"), Color("#8fe08a"), Color("#e08ad8")]
+
+
 func _draw() -> void:
 	var blink := invuln > 0.0 and dodge_timer <= 0.0 and int(invuln * 20.0) % 2 == 0
 	draw_set_transform(FEET, 0.0, Vector2(1.0, 0.45))
 	draw_circle(Vector2.ZERO, 15.0, Color(0, 0, 0, 0.3))  # shadow
+	if show_marker:
+		# Two players: a coloured ring under the feet says who is who.
+		var mc: Color = MARKER_COLORS[index % MARKER_COLORS.size()]
+		mc.a = 0.45 if is_down else 0.9
+		draw_arc(Vector2.ZERO, 17.0, 0.0, TAU, 24, mc, 2.0)
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 	var strip := _body_strip()
-	var tex := Art.texture("body/%s_%s.png" % [CHARACTER, strip[0]])
+	var tex := Art.texture("body/%s_%s.png" % [character, strip[0]])
 	if tex != null:
-		var tint := Color(2.0, 2.0, 2.0) if blink else Color.WHITE
+		var tint := Color.WHITE
+		if hurt_flash > 0.0:
+			tint = Color(3.0, 1.2, 1.2)
+		elif blink:
+			tint = Color(2.0, 2.0, 2.0)
 		var fw := tex.get_width() / maxi(int(strip[1]), 1)
 		var src := Rect2(float(posmod(int(strip[2]), int(strip[1])) * fw), 0.0, float(fw), float(tex.get_height()))
 		var sx := -1.0 if strip[3] else 1.0
-		draw_set_transform(FEET, lean, Vector2(Art.PIXEL * squash.x * sx, Art.PIXEL * squash.y))
-		draw_texture_rect_region(tex, Rect2(-_body_origin(), src.size), src, tint)
+		if is_down:
+			# Knocked out: lying on their side, greyed.
+			draw_set_transform(FEET + Vector2(-14, -8), PI * 0.5, Vector2(Art.PIXEL, Art.PIXEL))
+			draw_texture_rect_region(tex, Rect2(-_body_origin(), src.size), src, Color(0.55, 0.55, 0.62))
+		else:
+			draw_set_transform(FEET, lean, Vector2(Art.PIXEL * squash.x * sx, Art.PIXEL * squash.y))
+			draw_texture_rect_region(tex, Rect2(-_body_origin(), src.size), src, tint)
 		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 		return
 	# Stand-in body: a circle with eyes showing which way it faces.
@@ -892,26 +1063,24 @@ func _body_strip() -> Array:
 		anim = "dodge"
 		frames = 3
 		frame = clampi(int((1.0 - dodge_timer / DODGE_TIME) * 3.0), 0, 2)
-	elif velocity.length() > 20.0:
+	elif is_down:
+		frame = 0
+	elif walk_vel.length() > 30.0 and hit_pause <= 0.0:
+		# The legs keep pace with the ground: faster when running, slower when easing off.
 		anim = "walk"
 		frames = 6
-		frame = int(anim_time * 10.0) % frames
+		frame = int(walk_phase) % frames
 	else:
 		frame = int(anim_time * 6.0) % frames
 	if "_" in facing8:
 		var base := facing8.replace("left", "right")
-		if Art.texture("body/%s_%s_%s.png" % [CHARACTER, anim, base]) != null:
+		if Art.texture("body/%s_%s_%s.png" % [character, anim, base]) != null:
 			return ["%s_%s" % [anim, base], frames, frame, facing8.ends_with("left")]
 	return ["%s_%s" % [anim, facing], frames, frame, false]
 
 
-## The test character's body strips (art/body/<CHARACTER>_*.png). Change it back to
-## "ivy" to use Ivy; her anchors live in anchors.json.
-const CHARACTER := "crew_a"
-
-
 func _body_data() -> Dictionary:
-	var d: Dictionary = Art.json("body/%s.json" % CHARACTER)
+	var d: Dictionary = Art.json("body/%s.json" % character)
 	return d if not d.is_empty() else Art.anchors().get("body", {})
 
 
@@ -941,44 +1110,15 @@ func _hand_point() -> Vector2:
 # own grid cells (5 art pixels per cell), the whole thing is rotated to point at
 # the aim and held at the hand. The grid's top row is the tip.
 
-const HAND_CELL := 5.0                      # art pixels per grid cell in hand
-const HAND_GRIP := Vector2(1.5, 5.0)        # where the hand holds it, in grid cells
-
 ## The sword's pose: [angle, hand position relative to the player's centre].
 func _sword_pose() -> Array:
 	return [pose_angle, pose_hand]
 
 
-const BLADE_HALF_WIDTH := 6.0   # a little forgiveness either side of the blade
-
-
-## The blade's positions over the whole sweep, as world segments [hand end, tip].
-func _blade_sweep() -> Array:
-	var out: Array = []
-	if not weapon.has("blade"):
-		return out
-	var blade: String = weapon["blade"]
-	var grip: String = weapon["grip"]
-	var length_px := SwordArt.pivot(blade, grip, "hand").y * Art.PIXEL
-	var guard_px := (SwordArt.pivot(blade, grip, "hand").y - SwordArt.blade_size(blade, "hand").y) * Art.PIXEL
-	var info: Dictionary = MOVES.get(anim_move, MOVES["slash"])
-	var hit_at := float(info["windup"]) / _speed()
-	var now := step_elapsed
-	var te := maxf(hit_at - 0.035, 0.0)
-	while te <= hit_at + 0.065:
-		step_elapsed = te
-		var p := _attack_pose()
-		var d := Vector2.RIGHT.rotated(float(p[0]))
-		var hand: Vector2 = global_position + p[1]
-		out.append([hand + d * guard_px * 0.5, hand + d * length_px])
-		te += 0.005
-	step_elapsed = now
-	return out
-
-
 ## Blade lengths that set the hit range, in art pixels. Darren (7 Nov): the drawn
 ## blades are a third shorter to suit the small crew, but the range stays as it was.
-const RANGE_BLADE_LEN := {"iron_shortblade": 23.0, "iron_blade": 33.0, "iron_longblade": 45.0}
+const RANGE_BLADE_LEN := {"iron_shortblade": 23.0, "iron_blade": 33.0, "iron_longblade": 45.0,
+	"wooden_blade": 33.0, "tin_blade": 33.0}
 
 
 ## How far the sword reaches from the hand, in world units: the drawn sword plus
@@ -1045,8 +1185,8 @@ func _attack_pose() -> Array:
 	var angle := anim_dir.angle() + rel
 	# The sword stays in his right hand: the hand only reaches a little toward the swing.
 	var hand := _hand_point() + Vector2.RIGHT.rotated(angle) * (radius - SWING_RADIUS + 3.0)
-	# After holding the end pose (~65 ms), ease back to the resting pose.
-	var settle := clampf((te - sweep_end - 0.065) / 0.13, 0.0, 1.0)
+	# The end pose is held while the chain keeps going (the next swing starts from
+	# it). If no next swing is coming, it eases back to the resting pose.
 	if settle > 0.0:
 		var r := _rest_pose()
 		var e := settle * settle * (3.0 - 2.0 * settle)
@@ -1068,6 +1208,12 @@ func _rest_pose() -> Array:
 
 func _update_pose(delta: float) -> void:
 	if current_step >= 0:
+		# Settle only when nothing is queued and the button is up.
+		var chaining := queued or (input.attack_held and not need_release)
+		if step_elapsed > float(_swing_times()[1]) + 0.065 and not chaining and hit_pause <= 0.0:
+			settle = minf(settle + delta / 0.13, 1.0)
+		elif chaining:
+			settle = maxf(settle - delta / 0.05, 0.0)
 		var p := _attack_pose()
 		pose_angle = p[0]
 		pose_hand = p[1]
@@ -1082,10 +1228,17 @@ func _update_pose(delta: float) -> void:
 			# Wind up: crouch into it.
 			squash = squash.lerp(Vector2(1.1, 0.9) if anim_move == "overhead" else Vector2(1.04, 0.96), 1.0 - exp(-30.0 * delta))
 	else:
-		# Back at rest: snap to the side, no spinning round (on turning too).
+		# At rest the sword snaps to its place (no spinning round when you turn).
+		# Straight after a swing it eases there from where the swing ended.
 		var r := _rest_pose()
 		pose_angle = r[0]
 		pose_hand = r[1]
+		if return_t > 0.0:
+			return_t = maxf(return_t - delta, 0.0)
+			var k := return_t / RETURN_TIME
+			k = k * k
+			pose_angle = lerp_angle(r[0], float(return_from[0]), k)
+			pose_hand = (r[1] as Vector2).lerp(return_from[1], k)
 		lean = lerpf(lean, 0.0, 1.0 - exp(-12.0 * delta))
 	squash = squash.lerp(Vector2.ONE, 1.0 - exp(-12.0 * delta))
 
@@ -1150,6 +1303,12 @@ func draw_colored_polygon_on(ci: CanvasItem, pts: PackedVector2Array, c: Color) 
 
 func _draw_weapon() -> void:
 	if not weapon.has("blade"):
+		# Empty-handed: just the fist at the side.
+		var bare := Art.texture("body/hand.png")
+		if bare != null:
+			weapon_layer.draw_set_transform(_hand_point(), 0.0, Vector2(Art.PIXEL, Art.PIXEL))
+			weapon_layer.draw_texture(bare, -bare.get_size() * 0.5)
+			weapon_layer.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 		return
 	var pose := _sword_pose()
 	var angle: float = pose[0]
@@ -1206,39 +1365,3 @@ func _tip_world() -> Vector2:
 	var grip: String = weapon.get("grip", "wooden_grip")
 	var length_px := SwordArt.pivot(blade, grip, "hand").y * Art.PIXEL
 	return global_position + pose[1] + d * length_px
-
-
-static func _layer_rank(t: int) -> int:
-	# pommel, handle, charm, blade, hilt (guard over the blade's base)
-	return [0, 1, 4, 3, 2][t]
-
-
-## Stand-in for a part sprite: pixel blocks per cell, pointed tip on blades.
-func _draw_part_shape(item: Dictionary, cells: Array, c: float, grip: Vector2) -> void:
-	var col: Color = item["color"]
-	var dark := col.darkened(0.45)
-	var t: int = item["type"]
-	for cell in cells:
-		var o := Vector2(cell) * c - grip
-		var above := cells.has(cell + Vector2i(0, -1))
-		match t:
-			3:  # blade
-				if not above:
-					weapon_layer.draw_colored_polygon(PackedVector2Array([o + Vector2(c * 0.5, 0), o + Vector2(c - 1, c * 0.6), o + Vector2(c - 1, c), o + Vector2(1, c), o + Vector2(1, c * 0.6)]), dark)
-					weapon_layer.draw_colored_polygon(PackedVector2Array([o + Vector2(c * 0.5, 1), o + Vector2(c - 2, c * 0.65), o + Vector2(c - 2, c), o + Vector2(2, c), o + Vector2(2, c * 0.65)]), col)
-				else:
-					weapon_layer.draw_rect(Rect2(o + Vector2(1, 0), Vector2(c - 2, c)), dark)
-					weapon_layer.draw_rect(Rect2(o + Vector2(2, 0), Vector2(c - 4, c)), col)
-				weapon_layer.draw_rect(Rect2(o + Vector2(c * 0.5 - 0.5, 1.5), Vector2(1, c - 1.5)), col.lightened(0.35))
-			2:  # hilt / guard
-				weapon_layer.draw_rect(Rect2(o + Vector2(0, 1), Vector2(c, c - 2)), dark)
-				weapon_layer.draw_rect(Rect2(o + Vector2(0, 2), Vector2(c, c - 4)), col)
-			1:  # handle / grip
-				weapon_layer.draw_rect(Rect2(o + Vector2(1.5, 0), Vector2(c - 3, c)), dark)
-				weapon_layer.draw_rect(Rect2(o + Vector2(2, 0), Vector2(c - 4, c)), col)
-				weapon_layer.draw_rect(Rect2(o + Vector2(1.5, c * 0.5), Vector2(c - 3, 1)), dark)
-			0:  # pommel
-				weapon_layer.draw_circle(o + Vector2(c * 0.5, c * 0.4), c * 0.4, dark)
-				weapon_layer.draw_circle(o + Vector2(c * 0.5, c * 0.4), c * 0.28, col)
-			_:  # charm: a small gem beside the grip
-				weapon_layer.draw_colored_polygon(PackedVector2Array([o + Vector2(c * 0.5, 0.5), o + Vector2(c - 1, c * 0.5), o + Vector2(c * 0.5, c - 0.5), o + Vector2(1, c * 0.5)]), col)

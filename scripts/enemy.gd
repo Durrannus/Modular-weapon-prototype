@@ -1,9 +1,14 @@
 extends CharacterBody2D
 
 const WeaponBuild := preload("res://scripts/weapon/weapon_build.gd")
-## Simple enemies. Set `kind` before adding to the scene:
+## Enemies. Set `kind` before adding to the scene:
 ## "slime" (chaser), "charger" (winds up and dashes), "brute" (slow and tough),
 ## "dummy" (training dummy: never moves, never dies).
+## The cave's enemies (scripts/cave/) extend this and override _setup, _think,
+## _anim and _on_hit.
+##
+## Being hit: the enemy freezes for a few frames (the hit "sticks"), is knocked
+## back, and can't act for a moment (hit_stun). Nothing else in the game stops.
 
 signal died(enemy)
 
@@ -11,6 +16,7 @@ const DamageNumber := preload("res://scripts/fx/damage_number.gd")
 const Fx := preload("res://scripts/fx/fx.gd")
 const Art := preload("res://scripts/art.gd")
 const SpriteOnce := preload("res://scripts/fx/sprite_once.gd")
+const Sfx := preload("res://scripts/sfx.gd")
 
 var kind := "slime"
 var max_hp := 30.0
@@ -21,9 +27,14 @@ var color := Color(0.5, 0.9, 0.4)
 var contact_damage := 10.0
 var knock_resist := 1.0
 var dead := false
+var art_set := "enemies"   # "enemies": art/enemies + anchors.json. "cave": art/cave + cave.json
+var show_bar := true       # small health bar over its head once hurt
+var immune := false        # can't be hurt right now (burrowed, a statue)
 
 var knock := Vector2.ZERO
 var flash := 0.0
+var freeze := 0.0          # frozen on the frame it was hit
+var hit_stun := 0.0        # can't move or attack after a hit
 var burn_time := 0.0
 var burn_tick := 0.0
 var burn_damage := 2.0
@@ -33,6 +44,7 @@ var stun_time := 0.0
 var facing := Vector2.RIGHT
 var anim_time := randf() * 2.0
 var hit_anim := 99.0  # time since the last hit, while the hit animation plays
+var target = null     # the player it's after: the nearest one still standing
 
 # Training dummy: damage log for the damage-per-second readout.
 const DPS_WINDOW := 3.0
@@ -46,6 +58,21 @@ var charge_dir := Vector2.RIGHT
 
 func _ready() -> void:
 	add_to_group("enemies")
+	add_to_group("foes")
+	_setup()
+	hp = max_hp
+	motion_mode = CharacterBody2D.MOTION_MODE_FLOATING
+	collision_layer = 2
+	collision_mask = 2 | 4
+	var shape := CollisionShape2D.new()
+	var circle := CircleShape2D.new()
+	circle.radius = radius
+	shape.shape = circle
+	add_child(shape)
+
+
+## Stats for this kind. Cave enemies override this.
+func _setup() -> void:
 	match kind:
 		"charger":
 			max_hp = 22.0
@@ -69,15 +96,26 @@ func _ready() -> void:
 			knock_resist = 0.0
 		_:
 			pass
-	hp = max_hp
-	motion_mode = CharacterBody2D.MOTION_MODE_FLOATING
-	collision_layer = 2
-	collision_mask = 2 | 4
-	var shape := CollisionShape2D.new()
-	var circle := CircleShape2D.new()
-	circle.radius = radius
-	shape.shape = circle
-	add_child(shape)
+
+
+## Everyone still standing.
+func players() -> Array:
+	var out: Array = []
+	for p in get_tree().get_nodes_in_group("player"):
+		if is_instance_valid(p) and not p.is_down:
+			out.append(p)
+	return out
+
+
+func nearest_player():
+	var best = null
+	var best_d := INF
+	for p in players():
+		var d: float = p.global_position.distance_squared_to(global_position)
+		if d < best_d:
+			best_d = d
+			best = p
+	return best
 
 
 func _physics_process(delta: float) -> void:
@@ -85,34 +123,54 @@ func _physics_process(delta: float) -> void:
 		return
 	flash = maxf(flash - delta, 0.0)
 	hit_anim += delta
+	if freeze > 0.0:
+		freeze -= delta
+		return
 	slow_time = maxf(slow_time - delta, 0.0)
 	stun_time = maxf(stun_time - delta, 0.0)
+	hit_stun = maxf(hit_stun - delta, 0.0)
 	_update_burn(delta)
 	if kind == "dummy":
 		return
 
+	target = nearest_player()
 	var desired := Vector2.ZERO
-	var player = get_tree().get_first_node_in_group("player")
-	if player != null:
-		var to_p: Vector2 = player.global_position - global_position
-		if to_p.length() > 0.01:
-			facing = to_p.normalized()
-		if kind == "charger":
-			desired = _charger_ai(to_p, delta)
-		else:
-			desired = facing * speed
-		if to_p.length() < radius + 16.0 + 2.0 and contact_damage > 0.0 and stun_time <= 0.0:
-			player.take_damage(contact_damage)
-
+	if stun_time <= 0.0 and hit_stun <= 0.0:
+		desired = _think(delta)
 	if slow_time > 0.0:
 		desired *= 1.0 - slow_amount
-	if stun_time > 0.0:
-		desired = Vector2.ZERO
 	if knock.length() > 60.0:
 		desired *= 0.2
 	knock = knock.move_toward(Vector2.ZERO, 1300.0 * delta)
 	velocity = desired + knock
 	move_and_slide()
+
+
+## What it wants to do this tick: returns the velocity it wants. Not called while
+## it's stunned or reeling from a hit.
+func _think(delta: float) -> Vector2:
+	if target == null:
+		return Vector2.ZERO
+	var to_p: Vector2 = target.global_position - global_position
+	if to_p.length() > 0.01:
+		facing = to_p.normalized()
+	touch_damage()
+	if kind == "charger":
+		return _charger_ai(to_p, delta)
+	return facing * speed
+
+
+## Hurts any player it's touching.
+func touch_damage(amount := -1.0, extra_reach := 0.0) -> bool:
+	var dmg := contact_damage if amount < 0.0 else amount
+	if dmg <= 0.0:
+		return false
+	var any := false
+	for p in players():
+		if p.global_position.distance_to(global_position) < radius + 16.0 + 2.0 + extra_reach and p.invuln <= 0.0:
+			p.take_damage(dmg, global_position)
+			any = true
+	return any
 
 
 func _charger_ai(to_p: Vector2, delta: float) -> Vector2:
@@ -154,16 +212,24 @@ func _update_burn(delta: float) -> void:
 
 
 ## A hit from the player. num_color colours the damage number (by element).
-func take_hit(dmg: float, dir: Vector2, knockback: float, crit: bool, num_color: Color) -> void:
-	if dead:
+## stun: how long it can't act afterwards. freeze_time: the hit-frame freeze.
+func take_hit(dmg: float, dir: Vector2, knockback: float, crit: bool, num_color: Color, stun := 0.0, freeze_time := 0.0) -> void:
+	if dead or immune:
 		return
-	flash = 0.1
+	flash = maxf(0.1, freeze_time + 0.05)
 	hit_anim = 0.0
 	knock = dir * knockback * knock_resist
-	if kind == "charger" and state == "windup":
-		state = "rest"  # a good hit interrupts the charge
-		state_timer = 0.6
+	hit_stun = maxf(hit_stun, stun * minf(knock_resist * 1.5, 1.0))
+	freeze = maxf(freeze, freeze_time)
+	_on_hit()
 	_apply_damage(dmg, crit, num_color)
+
+
+## Called on every hit that lands. A good hit interrupts a charger's wind-up.
+func _on_hit() -> void:
+	if kind == "charger" and state == "windup":
+		state = "rest"
+		state_timer = 0.6
 
 
 func apply_burn(damage_per_tick: float, duration: float) -> void:
@@ -177,7 +243,7 @@ func apply_slow(amount: float, duration: float) -> void:
 
 
 func apply_stun(duration: float) -> void:
-	if kind == "dummy":
+	if kind == "dummy" or knock_resist <= 0.0:
 		return
 	stun_time = maxf(stun_time, duration)
 
@@ -222,25 +288,63 @@ func _die() -> void:
 	b.life = 0.25
 	get_parent().add_child(b)
 	b.global_position = global_position
-	var info: Dictionary = Art.anchors().get("enemies", {}).get(kind, {})
-	var death := Art.texture("enemies/%s_death.png" % kind)
+	var info := _art_info()
+	var death := _art_tex("death")
 	if death != null and info.get("strips", {}).has("death"):
 		var splat := SpriteOnce.new()
 		splat.texture = death
 		splat.frames = int(info["strips"]["death"]["frames"])
 		splat.fps = float(info["strips"]["death"]["fps"])
 		splat.origin = Vector2(info["origin_feet"][0], info["origin_feet"][1])
-		splat.feet = Vector2(0, radius * 0.7)
+		splat.feet = _feet()
 		splat.flip = facing.x < 0.0
+		splat.z_index = 0
 		get_parent().add_child(splat)
 		splat.global_position = global_position
+	Sfx.play(self, "squish", -9.0)
 	died.emit(self)
 	queue_free()
 
 
 func _process(delta: float) -> void:
-	anim_time += delta
+	if freeze <= 0.0:
+		anim_time += delta
 	queue_redraw()
+
+
+# --- Drawing ------------------------------------------------------------------
+
+func _art_info() -> Dictionary:
+	if art_set == "cave":
+		return Art.json("cave/cave.json").get("enemies", {}).get(kind, {})
+	return Art.anchors().get("enemies", {}).get(kind, {})
+
+
+func _art_tex(anim: String) -> Texture2D:
+	if anim == "":
+		return Art.texture("%s/%s.png" % [art_set, kind])
+	return Art.texture("%s/%s_%s.png" % [art_set, kind, anim])
+
+
+func _feet() -> Vector2:
+	return Vector2(0, radius * 0.7)
+
+
+## Which strip to show: [name, seconds into it, loops].
+func _anim() -> Array:
+	var strips: Dictionary = _art_info().get("strips", {})
+	var hit_strip: Dictionary = strips.get("hit", {})
+	if not hit_strip.is_empty() and hit_anim < float(hit_strip["frames"]) / float(hit_strip["fps"]):
+		return ["hit", hit_anim, false]
+	if velocity.length() > 15.0 and strips.has("move"):
+		return ["move", anim_time, true]
+	return ["idle", anim_time, true]
+
+
+func _draw_shadow() -> void:
+	draw_set_transform(_feet(), 0.0, Vector2(1.0, 0.4))
+	draw_circle(Vector2.ZERO, radius * 1.1, Color(0, 0, 0, 0.3))
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 
 func _draw() -> void:
@@ -252,44 +356,40 @@ func _draw() -> void:
 	if flash > 0.0:
 		c = Color.WHITE
 
-	var info: Dictionary = Art.anchors().get("enemies", {}).get(kind, {})
-	var still := Art.texture("enemies/%s.png" % kind)
-	var feet := Vector2(0, radius * 0.7)
-	draw_set_transform(feet, 0.0, Vector2(1.0, 0.4))
-	draw_circle(Vector2.ZERO, radius * 1.1, Color(0, 0, 0, 0.3))  # shadow
-	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
-	if still != null and not info.is_empty():
-		# Animated sprite: hit flash, moving or idle. Sprites face right.
-		var anim := "idle"
-		var hit_strip: Dictionary = info["strips"].get("hit", {})
-		if not hit_strip.is_empty() and hit_anim < float(hit_strip["frames"]) / float(hit_strip["fps"]):
-			anim = "hit"
-		elif velocity.length() > 15.0 and info["strips"].has("move"):
-			anim = "move"
-		var strip: Dictionary = info["strips"][anim]
-		var tex := Art.texture("enemies/%s_%s.png" % [kind, anim])
+	var info := _art_info()
+	_draw_shadow()
+	var drawn := false
+	if not info.is_empty() and info.has("strips"):
+		# Animated sprite. Sprites face right; mirrored when looking left.
+		var a := _anim()
+		var anim: String = a[0]
+		if not info["strips"].has(anim):
+			anim = "idle"
+		var strip: Dictionary = info["strips"].get(anim, {})
+		var tex := _art_tex(anim)
 		if tex == null:
-			tex = still
-		var t := anim_time
-		if anim == "hit":
-			t = hit_anim
-		var frame := int(t * float(strip["fps"]))
-		if anim == "hit":
-			frame = mini(frame, int(strip["frames"]) - 1)
-		var tint := Color.WHITE
-		if burn_time > 0.0:
-			tint = Color(1.0, 0.7, 0.55)
-		elif slow_time > 0.0:
-			tint = Color(0.65, 0.8, 1.0)
-		var o: Array = info["origin_feet"]
-		Art.draw_strip(self, tex, int(strip["frames"]), frame, feet, Vector2(o[0], o[1]), facing.x < 0.0, tint)
-	else:
+			tex = _art_tex("")
+		if tex != null and not strip.is_empty():
+			var frame := int(float(a[1]) * float(strip["fps"]))
+			if not a[2]:
+				frame = mini(frame, int(strip["frames"]) - 1)
+			var tint := Color.WHITE
+			if flash > 0.0:
+				tint = Color(3.0, 3.0, 3.0)
+			elif burn_time > 0.0:
+				tint = Color(1.0, 0.7, 0.55)
+			elif slow_time > 0.0:
+				tint = Color(0.65, 0.8, 1.0)
+			var o: Array = info["origin_feet"]
+			Art.draw_strip(self, tex, int(strip["frames"]), frame, _feet(), Vector2(o[0], o[1]), facing.x < 0.0, tint)
+			drawn = true
+	if not drawn:
 		_draw_shape(c)
 
 	if stun_time > 0.0:
 		for i in 3:
-			var a := Time.get_ticks_msec() / 150.0 + i * TAU / 3.0
-			draw_circle(Vector2(cos(a), sin(a) * 0.4) * radius * 0.8 + Vector2(0, -radius - 6.0), 2.5, WeaponBuild.ELEMENT_COLORS["electrified"])
+			var ang := Time.get_ticks_msec() / 150.0 + i * TAU / 3.0
+			draw_circle(Vector2(cos(ang), sin(ang) * 0.4) * radius * 0.8 + Vector2(0, -radius - 6.0), 2.5, WeaponBuild.ELEMENT_COLORS["electrified"])
 
 	if kind == "dummy":
 		var dps := current_dps()
@@ -299,11 +399,12 @@ func _draw() -> void:
 			draw_string_outline(font, Vector2(-50, -radius - 14.0), label, HORIZONTAL_ALIGNMENT_CENTER, 100, 16, 4, Color.BLACK)
 			draw_string(font, Vector2(-50, -radius - 14.0), label, HORIZONTAL_ALIGNMENT_CENTER, 100, 16, Color(1, 0.95, 0.6))
 
-	if hp < max_hp and kind != "dummy":
+	if show_bar and hp < max_hp and kind != "dummy":
 		var w := radius * 2.0
 		var y := -radius - 10.0
 		draw_rect(Rect2(-w * 0.5, y, w, 4.0), Color(0, 0, 0, 0.6))
 		draw_rect(Rect2(-w * 0.5, y, w * clampf(hp / max_hp, 0.0, 1.0), 4.0), Color(0.9, 0.25, 0.25))
+
 
 ## Stand-in shapes until the enemy sprites land.
 func _draw_shape(c: Color) -> void:

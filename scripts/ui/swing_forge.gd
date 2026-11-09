@@ -12,6 +12,14 @@ const Art := preload("res://scripts/art.gd")
 const Sfx := preload("res://scripts/sfx.gd")
 
 signal try_at_dummy
+signal closed
+
+## Which parts show in the tray. null = everything (the test arena). In the cave
+## it's the list of part ids this player owns.
+var owned = null
+var hotkey := true         # Tab / Y opens it anywhere (the test arena)
+var sandbox := true        # test swords (1, 2) and "try at the dummy" (T)
+var whose := ""            # "Player 2" when two players share the forge
 
 const INK := Color("#e6dccb")
 const DIM := Color("#8e877b")
@@ -109,8 +117,16 @@ func _additive() -> CanvasItemMaterial:
 
 
 func setup(b: SwingBuild) -> void:
+	set_build(b)
+
+
+## Whose sword is on the anvil.
+func set_build(b: SwingBuild) -> void:
+	if build != null and build.changed.is_connected(_on_changed):
+		build.changed.disconnect(_on_changed)
 	build = b
 	build.changed.connect(_on_changed)
+	selected = clampi(selected, 0, build.slot_count() - 1)
 
 
 ## Every change is a hammer blow: the metal heats up, sparks fly, the anvil rings.
@@ -139,7 +155,24 @@ func open() -> void:
 	is_open = true
 	root.visible = true
 	selected = clampi(selected, 0, build.slot_count() - 1)
+	opened_at = t
+	if owned != null:
+		# In the cave start on the tab that has something new to fit.
+		tab = 1 if _has_unfitted_rune() else 0
+		card = 0
 	get_tree().paused = true
+
+
+var opened_at := -9.0
+
+
+func _has_unfitted_rune() -> bool:
+	if owned == null:
+		return false
+	for id in owned:
+		if SwingBuild.FITTINGS.has(id) and not (id in build.line):
+			return true
+	return false
 
 
 ## Leaving after changes plays the "forged" finish first (press again to skip).
@@ -158,6 +191,9 @@ func _really_close() -> void:
 	is_open = false
 	root.visible = false
 	get_tree().paused = false
+	drag_id = ""
+	dragging = false
+	closed.emit()
 
 
 # --- Input ------------------------------------------------------------------
@@ -165,7 +201,7 @@ func _really_close() -> void:
 func _process(delta: float) -> void:
 	if is_open:
 		_update_fx(delta)
-	if Input.is_action_just_pressed("build"):
+	if Input.is_action_just_pressed("build") and (hotkey or is_open) and t - opened_at > 0.2:
 		if finishing >= 0.0:
 			_really_close()
 		elif is_open:
@@ -214,10 +250,11 @@ func _input(event: InputEvent) -> void:
 			get_viewport().set_input_as_handled()
 		return
 	if event is InputEventKey and event.pressed and not event.echo:
-		match (event as InputEventKey).physical_keycode:
-			KEY_1: _load_test("A")
-			KEY_2: _load_test("B")
-			KEY_T: _try()
+		if sandbox:
+			match (event as InputEventKey).physical_keycode:
+				KEY_1: _load_test("A")
+				KEY_2: _load_test("B")
+				KEY_T: _try()
 	if event is InputEventMouseMotion:
 		var m := root.get_local_mouse_position()
 		hover = _button_at(m)
@@ -321,28 +358,40 @@ func _set_tab(t: int) -> void:
 	card = 0
 
 
+## Every part id, in tray order (the cave shows the owned ones from this list).
+const ALL_BLADES := ["wooden_blade", "tin_blade", "iron_shortblade", "iron_blade", "iron_longblade"]
+const ALL_GRIPS := ["wooden_grip", "tin_grip", "wrapped_grip", "long_grip", "ringed_grip", "gilded_grip"]
+
+
+func _has(id: String) -> bool:
+	return owned == null or id in owned
+
+
 ## The cards on the current tab: [{id, name, locked}]
 func _cards() -> Array:
 	var out: Array = []
 	match TABS[tab]:
 		"sword":  # three rows: blades, grips, pommels
-			for id in SwingBuild.BLADE_ORDER:
-				out.append({"id": id, "name": SwingBuild.BLADES[id]["name"], "locked": false, "row": 0, "kind": "blades"})
-			for id in SwingBuild.GRIP_ORDER:
-				out.append({"id": id, "name": SwingBuild.GRIPS[id]["name"], "locked": SwingBuild.GRIPS[id].get("locked", false), "row": 1, "kind": "grips"})
+			for id in (SwingBuild.BLADE_ORDER if owned == null else ALL_BLADES):
+				if _has(id):
+					out.append({"id": id, "name": SwingBuild.BLADES[id]["name"], "locked": false, "row": 0, "kind": "blades"})
+			for id in (SwingBuild.GRIP_ORDER if owned == null else ALL_GRIPS):
+				if _has(id):
+					out.append({"id": id, "name": SwingBuild.GRIPS[id]["name"], "locked": SwingBuild.GRIPS[id].get("locked", false), "row": 1, "kind": "grips"})
 			for id in SwingBuild.POMMEL_ORDER:
-				out.append({"id": id, "name": SwingBuild.POMMELS[id]["name"], "locked": false, "row": 2, "kind": "pommels"})
+				if _has(id):
+					out.append({"id": id, "name": SwingBuild.POMMELS[id]["name"], "locked": false, "row": 2, "kind": "pommels"})
 		"runes":
 			for id in SwingBuild.FITTING_ORDER:
-				if SwingBuild.FITTINGS[id]["kind"] == "rune" and not SwingBuild.FITTINGS[id].get("parked", false):
+				if SwingBuild.FITTINGS[id]["kind"] == "rune" and not SwingBuild.FITTINGS[id].get("parked", false) and _has(id):
 					out.append({"id": id, "name": SwingBuild.FITTINGS[id]["name"], "locked": false})
 		"bands":
 			for id in SwingBuild.FITTING_ORDER:
-				if SwingBuild.FITTINGS[id]["kind"] == "band":
+				if SwingBuild.FITTINGS[id]["kind"] == "band" and _has(id):
 					out.append({"id": id, "name": SwingBuild.FITTINGS[id]["name"], "locked": false})
 		"rare":
 			for id in SwingBuild.FITTING_ORDER:
-				if SwingBuild.FITTINGS[id]["kind"] == "bender" and not SwingBuild.FITTINGS[id].get("parked", false):
+				if SwingBuild.FITTINGS[id]["kind"] == "bender" and not SwingBuild.FITTINGS[id].get("parked", false) and _has(id):
 					out.append({"id": id, "name": SwingBuild.FITTINGS[id]["name"], "locked": false})
 	return out
 
@@ -491,6 +540,8 @@ func _draw_forge() -> void:
 	buttons.clear()
 	root.draw_rect(Rect2(Vector2.ZERO, root.size), Color(0.035, 0.04, 0.055, 1.0))
 	_head("The forge", Vector2(14, 24), AMBER, 16)
+	if whose != "":
+		_head(whose, Vector2(150, 24), INK, 8)
 	var stats := build.compute()
 	_draw_tray()
 	_draw_sword(stats)
@@ -520,6 +571,12 @@ func _draw_tray() -> void:
 	var cards := _cards()
 	card = clampi(card, 0, maxi(cards.size() - 1, 0))
 	var row_n := [0, 0, 0]
+	var row_total := [0, 0, 0]
+	for c in cards:
+		if c.has("row"):
+			row_total[int(c["row"])] += 1
+	if cards.is_empty():
+		_body("Nothing here yet.", Vector2(14, 78), DIM)
 	if TABS[tab] == "sword":
 		for ri in 3:
 			_head(["Blade", "Grip", "Pommel"][ri], Vector2(14, 66 + ri * 44), DIM)
@@ -528,7 +585,7 @@ func _draw_tray() -> void:
 		var r := Rect2(14 + (i % 3) * 44, 60 + (i / 3) * 44, 38, 38)
 		if c.has("row"):
 			var ri: int = c["row"]
-			var w := 60 if ri == 0 else 34
+			var w := clampi(186 / maxi(int(row_total[ri]), 1), 30, 60 if ri == 0 else 34)
 			r = Rect2(14 + row_n[ri] * w, 70 + ri * 44, w - 3, 31)
 			row_n[ri] += 1
 		buttons["card:%d" % i] = r
@@ -556,7 +613,7 @@ func _draw_tray() -> void:
 	_body("Drag a part onto a slot, or", Vector2(14, 300), DIM)
 	_body("click a slot, then a part.", Vector2(14, 313), DIM)
 	_body("Drag off or right-click: take off", Vector2(14, 332), FAINT)
-	_body("T: try at the dummy   Tab: leave", Vector2(14, 345), FAINT)
+	_body("T: try at the dummy   Tab: leave" if sandbox else "Tab, Esc or B: done", Vector2(14, 345), FAINT)
 
 
 func _short(name: String) -> String:

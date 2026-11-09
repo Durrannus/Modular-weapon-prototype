@@ -1,0 +1,566 @@
+{
+ "tile": 16,
+ "note": "Unlit base colours. Enemies face right; mirror for left. Strips are one row, frames left to right.",
+ "tiles": {
+  "floor": 4,
+  "floor_wet": 2,
+  "rock_top": 2,
+  "wall_face": 3,
+  "overlays": [
+   "lip_n",
+   "lip_e",
+   "lip_w",
+   "lip_ne",
+   "lip_nw",
+   "shadow_n"
+  ],
+  "note": "wall_face already has its lit top lip. Lips are for rock_top cells next to floor; shadow_n goes on the floor under a wall face."
+ },
+ "props": {
+  "gate": {
+   "size": [
+    48,
+    32
+   ],
+   "files": [
+    "gate_closed",
+    "gate_open",
+    "gate_opening"
+   ],
+   "opening": {
+    "frames": 4,
+    "fps": 10
+   },
+   "note": "fills a 3-tile corridor; draw with its bottom edge on the corridor's floor row. Walk through under the lintel when open."
+  },
+  "collapse": {
+   "size": [
+    82,
+    50
+   ],
+   "origin_feet": [
+    40,
+    46
+   ],
+   "note": "the caved-in entrance, 5 tiles wide; blocks movement"
+  },
+  "rubble_0": {
+   "size": [
+    18,
+    18
+   ],
+   "origin_feet": [
+    8,
+    13
+   ]
+  },
+  "rubble_1": {
+   "size": [
+    18,
+    18
+   ],
+   "origin_feet": [
+    8,
+    13
+   ]
+  },
+  "crate_closed": {
+   "size": [
+    32,
+    32
+   ],
+   "origin_feet": [
+    16,
+    28
+   ]
+  },
+  "crate_open": {
+   "size": [
+    32,
+    32
+   ],
+   "origin_feet": [
+    16,
+    28
+   ]
+  },
+  "planks": {
+   "size": [
+    34,
+    18
+   ],
+   "origin_feet": [
+    16,
+    13
+   ]
+  },
+  "barrel": {
+   "size": [
+    18,
+    26
+   ],
+   "origin_feet": [
+    8,
+    23
+   ]
+  },
+  "sail": {
+   "size": [
+    34,
+    34
+   ],
+   "origin_feet": [
+    16,
+    28
+   ]
+  },
+  "pedestal_rune": {
+   "size": [
+    34,
+    50
+   ],
+   "origin_feet": [
+    16,
+    44
+   ],
+   "light_px": [
+    16,
+    10
+   ]
+  },
+  "pedestal_empty": {
+   "size": [
+    34,
+    50
+   ],
+   "origin_feet": [
+    16,
+    44
+   ]
+  },
+  "stalagmite_small": {
+   "size": [
+    16,
+    32
+   ],
+   "origin_feet": [
+    8,
+    30
+   ],
+   "blocks": true
+  },
+  "stalagmite_large": {
+   "size": [
+    32,
+    48
+   ],
+   "origin_feet": [
+    16,
+    45
+   ],
+   "blocks": true
+  },
+  "mushrooms_0": {
+   "size": [
+    18,
+    18
+   ],
+   "origin_feet": [
+    8,
+    14
+   ],
+   "light_px": [
+    8,
+    6
+   ]
+  },
+  "bones_0": {
+   "size": [
+    18,
+    18
+   ],
+   "origin_feet": [
+    8,
+    13
+   ]
+  },
+  "mushrooms_1": {
+   "size": [
+    18,
+    18
+   ],
+   "origin_feet": [
+    8,
+    14
+   ],
+   "light_px": [
+    8,
+    6
+   ]
+  },
+  "bones_1": {
+   "size": [
+    18,
+    18
+   ],
+   "origin_feet": [
+    8,
+    13
+   ]
+  },
+  "forge_dormant": {
+   "size": [
+    98,
+    66
+   ],
+   "origin_feet": [
+    49,
+    64
+   ]
+  },
+  "forge_awake": {
+   "size": [
+    98,
+    66
+   ],
+   "origin_feet": [
+    49,
+    64
+   ],
+   "light_px": [
+    49,
+    42
+   ]
+  },
+  "stairs_up": {
+   "size": [
+    48,
+    48
+   ],
+   "origin_feet": [
+    24,
+    47
+   ],
+   "light_px": [
+    24,
+    9
+   ],
+   "note": "3 tiles wide, set into the north wall; walk in at the bottom"
+  },
+  "brazier_unlit": {
+   "size": [
+    18,
+    34
+   ],
+   "origin_feet": [
+    9,
+    32
+   ]
+  },
+  "brazier_lit": {
+   "size": [
+    18,
+    34
+   ],
+   "frames": 3,
+   "fps": 6,
+   "origin_feet": [
+    9,
+    32
+   ],
+   "light_px": [
+    9,
+    9
+   ]
+  },
+  "smith": {
+   "frame": [
+    56,
+    56
+   ],
+   "origin_feet": [
+    28,
+    52
+   ],
+   "strips": {
+    "caged": {
+     "frames": 4,
+     "fps": 4
+    },
+    "idle": {
+     "frames": 4,
+     "fps": 6
+    },
+    "talk": {
+     "frames": 2,
+     "fps": 6
+    }
+   },
+   "portrait": "smith_portrait.png (48x48)"
+  },
+  "cage": {
+   "size": [
+    48,
+    56
+   ],
+   "origin_feet": [
+    24,
+    52
+   ],
+   "files": [
+    "cage_back",
+    "cage_front",
+    "cage_broken"
+   ],
+   "note": "draw cage_back, the smith (feet on the same point), then cage_front. cage_broken replaces cage_front once he is freed; keep cage_back."
+  }
+ },
+ "enemies": {
+  "crawler": {
+   "frame": [
+    32,
+    32
+   ],
+   "origin_feet": [
+    16,
+    28
+   ],
+   "strips": {
+    "idle": {
+     "frames": 4,
+     "fps": 6
+    },
+    "move": {
+     "frames": 6,
+     "fps": 8
+    },
+    "hit": {
+     "frames": 2,
+     "fps": 12
+    },
+    "death": {
+     "frames": 4,
+     "fps": 8
+    },
+    "attack": {
+     "frames": 3,
+     "fps": 10
+    }
+   },
+   "note": "attack: rear up, bite (frame 1 is the hit), recover"
+  },
+  "burrower": {
+   "frame": [
+    32,
+    32
+   ],
+   "origin_feet": [
+    16,
+    28
+   ],
+   "strips": {
+    "idle": {
+     "frames": 4,
+     "fps": 6
+    },
+    "move": {
+     "frames": 6,
+     "fps": 10
+    },
+    "warn": {
+     "frames": 2,
+     "fps": 10
+    },
+    "lunge": {
+     "frames": 3,
+     "fps": 14
+    },
+    "stunned": {
+     "frames": 2,
+     "fps": 5
+    },
+    "hit": {
+     "frames": 2,
+     "fps": 12
+    },
+    "death": {
+     "frames": 4,
+     "fps": 8
+    }
+   },
+   "note": "move = burrowed (only the mound shows). warn loops (red flash). lunge: launch, stretched, land. stunned loops: flopped out, open to hits."
+  },
+  "guardian": {
+   "frame": [
+    64,
+    64
+   ],
+   "origin_feet": [
+    32,
+    58
+   ],
+   "strips": {
+    "dormant": {
+     "frames": 1,
+     "fps": 1
+    },
+    "wake": {
+     "frames": 4,
+     "fps": 6
+    },
+    "idle": {
+     "frames": 4,
+     "fps": 5
+    },
+    "move": {
+     "frames": 6,
+     "fps": 7
+    },
+    "telegraph": {
+     "frames": 3,
+     "fps": 6
+    },
+    "slam": {
+     "frames": 4,
+     "fps": 12
+    },
+    "hit": {
+     "frames": 2,
+     "fps": 12
+    },
+    "death": {
+     "frames": 6,
+     "fps": 7
+    },
+    "charge_ready": {
+     "frames": 2,
+     "fps": 6
+    },
+    "charge": {
+     "frames": 2,
+     "fps": 12
+    },
+    "stunned": {
+     "frames": 3,
+     "fps": 6
+    }
+   },
+   "slam_at": [
+    0,
+    -4
+   ],
+   "slam_radius": 26,
+   "note": "dormant = the statue. telegraph: both fists up, last frame flashes. slam frame 0 is the impact. charge_ready, charge and stunned loop. death's last frame stays as rubble."
+  }
+ },
+ "fx": {
+  "slam_impact": {
+   "frames": 5,
+   "frame": [
+    64,
+    64
+   ],
+   "fps": 14,
+   "origin": [
+    32,
+    32
+   ],
+   "note": "at the guardian's feet + slam_at"
+  },
+  "dust_puff": {
+   "frames": 4,
+   "frame": [
+    16,
+    16
+   ],
+   "fps": 12,
+   "origin": [
+    8,
+    10
+   ]
+  }
+ },
+ "ui": {
+  "dialogue_box": {
+   "size": [
+    48,
+    48
+   ],
+   "nine_patch_margins": [
+    8,
+    8,
+    8,
+    8
+   ],
+   "note": "same plate, edge and rivets as swing-path/ui/panel.png, with an amber line under the top edge"
+  },
+  "dialogue_name": {
+   "size": [
+    24,
+    14
+   ],
+   "nine_patch_margins": [
+    4,
+    2,
+    2,
+    3
+   ],
+   "note": "optional name plate; text starts 6 px in"
+  },
+  "dialogue_more": {
+   "frames": 2,
+   "frame": [
+    8,
+    8
+   ],
+   "fps": 3,
+   "note": "optional 'press to continue' arrow for the box's bottom right corner"
+  },
+  "prompt_e": {
+   "size": [
+    16,
+    16
+   ],
+   "down": "prompt_e_down.png"
+  },
+  "prompt_pad_a": {
+   "size": [
+    16,
+    16
+   ],
+   "down": "prompt_pad_a_down.png"
+  },
+  "boss_bar_frame": {
+   "size": [
+    160,
+    12
+   ],
+   "fill_rect": [
+    8,
+    3,
+    144,
+    6
+   ],
+   "note": "draw the frame, then boss_bar_fill cropped to health x 144 px at fill_rect's x,y"
+  },
+  "boss_bar_fill": {
+   "size": [
+    144,
+    6
+   ]
+  },
+  "boss_bar_lost": {
+   "size": [
+    144,
+    6
+   ],
+   "note": "optional: draw under the fill at the old width and shrink it after a hit"
+  },
+  "fonts": "Silkscreen 8 for names and prompts, Pixelify Sans 11 for speech, as on the forge screen (art/concept-art-2/fonts/)",
+  "colours": {
+   "ink": "#e6dccb",
+   "dim": "#8e877b",
+   "rune_amber": "#ffb24a"
+  }
+ }
+}
