@@ -1,8 +1,93 @@
 # Modular Weapon Prototype
 
-A small Godot prototype that answers one question: **is building a sword from parts, and swapping them, fun?**
+A Godot prototype for a co-op top-down game about building weapons from parts.
 
-This is **milestone 2, "Real sprites"**, built on milestone 1 ("Sword v2 feels good"): one arena, single player, a sword built from four parts plus charms, three elements, three enemy types and a training dummy that shows damage per second. It's done when you can build three swords that play clearly differently, and the wooden sword feels plain next to them. Milestone 2 swaps the placeholder shapes for real pixel art: Ivy, the slimes, the dummy, a tiled arena with a forge corner and torches, and a sword that's assembled from whatever parts you put on the grid.
+This branch (`swing-path`) has three things to try:
+
+- **The tutorial cave** (Game Plan milestone 4): four rooms, from a shipwreck crate to a forge guardian, for one or two players.
+- **Two players on one screen.**
+- **The test arena**: the older sandbox with every sword part unlocked.
+
+## How to run it
+
+1. Install [Godot 4.7](https://godotengine.org/download) (the standard build, not .NET).
+2. Open Godot, click **Import**, and pick the `project.godot` file in this folder.
+3. Press **F5** (or the Play button at the top right).
+
+The title screen asks who is playing and what to play.
+
+## Two players
+
+Both players share one screen. One uses the keyboard and mouse and the other a controller, or both use controllers.
+
+1. On the title screen each player presses their own button to join: **Enter** (or a click) for keyboard and mouse, **A** for a controller. The first to press is player one.
+2. Either player then picks **Tutorial cave** or **Test arena**.
+
+Player one is blue and player two is orange (the ring under their feet and the bar by their health). The camera stays between you, and you can't walk further apart than one screen.
+
+To play with someone who isn't in the room, share your screen with a tool that passes their controller through, such as [Parsec](https://parsec.app) or Steam Remote Play Together. To the game they are just a second controller. Real online play is planned for later (after milestone 5 in the Game Plan).
+
+With one player, every device works at once, so you can swap between mouse and controller freely.
+
+## Controls
+
+| Action | Keyboard and mouse | Controller |
+|---|---|---|
+| Move | WASD or arrows | Left stick or d-pad |
+| Attack | Left click (swings toward the mouse) | X or right trigger (swings the way you face, or aim with the right stick) |
+| Keep attacking | Hold left click | Hold X |
+| Dodge | Space, Shift or right click | A or left trigger |
+| Use (crate, rune, forge, talk) | E or F | A or Y, when the prompt shows |
+| Pause menu | Esc | Start (in the cave) |
+| Fullscreen on or off | F11 | |
+| Test arena only: open the forge anywhere | Tab | Y |
+| Test arena only: pause enemy spawning | P | Start |
+
+**At the forge** (the game pauses): drag a part onto a slot, or click a slot and then a part. Right-click or drag off to remove. Keys or controller: up and down pick a slot, left and right pick a part, Q/E or the shoulder buttons change tab, Enter or A fits it, Esc or B leaves.
+
+## The tutorial cave
+
+It follows the "Tutorial opening" in the Game Plan. You shelter from a storm in a sea cave, the entrance collapses, and the only way out is up.
+
+1. **The wreck.** Search the ship's crate for a wooden sword, then fight a few crawlers. They rear up before they bite, and a hit while they rear up stops the bite.
+2. **The burrows.** Burrowers travel underground, come up, flash red and lunge in a straight line. Dodge aside and hit them while they lie stunned.
+3. **The nest.** A mixed fight. Clearing it lets you take your first rune (Shockwave), which your sword can't use yet.
+4. **The forge.** Fit the rune to your sword at the forge and the guardian statue wakes. It slams (a red circle fills first) and charges (a red lane shows the path). A charge that hits a wall stuns it. Below half health it slams three times in a row. Beat it and the old smith is freed: he explains runes and bands and hands over tin parts. Forge the tin sword and the stairs to the surface open.
+
+Rules:
+
+- After each room everyone is healed and anyone knocked out gets back up. There are no revives mid-fight.
+- If everyone is knocked out, that room (or the boss) starts over.
+- With two players there are more enemies, the guardian has more health, and it also brings rocks down after each charge.
+- Only the sword exists so far, so every player takes a sword from the crate (the Game Plan's bow, staff and hammer come later).
+
+## How the movement and sword feel (9 November pass)
+
+Tuned against Core Keeper and similar top-down games:
+
+- You face the way you walk. Attacking turns you to the aim for a moment, then you turn back.
+- One press is one swing. A press during a swing queues exactly one more. Holding attack keeps the chain going at a steady beat.
+- Hits never freeze the game. The enemy freezes for a few frames, flashes, is knocked back and reels. Only a finisher that connects plants you for a moment.
+- Walking has a few frames of acceleration and stopping, and the legs keep pace with the ground.
+- The end of each swing is held while you keep attacking, so slashes flow into each other.
+- A standing dodge goes the way you face.
+- Movement is smoothed between physics ticks, so it looks the same on 60, 120 and 144 Hz screens.
+
+The numbers are at the top of `scripts/player.gd` (`MOVE_SPEED`, `ACCEL`, `MOVES` and so on).
+
+## Checks
+
+Run these after changes (they need no window):
+
+```
+godot --headless --path . -s tests/test_swing_build.gd                         # the sword rules
+godot --headless --path . --fixed-fps 60 -s tests/feel_check.gd                # movement and swing feel
+godot --headless --path . --fixed-fps 60 -s tests/cave_playthrough.gd          # plays the whole cave
+godot --headless --path . --fixed-fps 60 -s tests/cave_playthrough.gd -- players=2 wipe down
+godot --path . -s tests/smoke_forge.gd                                         # opens the forge, fires every rune
+```
+
+To skip the title screen while testing: `godot --path . -- cave` or `godot --path . -- arena`.
 
 ## This branch: the swing path
 
@@ -14,25 +99,47 @@ This branch tests the **swing path** (design notes, 3 November). It replaces the
 - Bands: **Twice** (the rune happens twice, a beat apart), **Wider** (bigger), **Every Hit** (on every hit instead, at half strength), **Saved Up** (every third time, three times as strong) and **On Dodge** (also when you dodge).
 - Rule-benders (the "rare" tab, one per sword): **Relay** hands the bands on the rune below on to the next rune above too. Mirror is parked (it overlapped Twice).
 - New parts without art yet show as plain coloured stones, rings and gems.
-- Effects are deliberately loud: each rune has its own visual, sound and name pop-up, the slots flash on the sword and in the HUD when they fire, and the finisher gets a freeze-frame and screen shake. Identical runes firing together merge into one bigger effect.
-- **Order test:** the forge has Test sword A (Twice, Shockwave, Wider, Hook: two shockwaves and a wide hook) and Test sword B (Shockwave, Twice, Wider, Hook: one shockwave and a double, wide hook). Keys 1 and 2 switch between them.
+- Effects are deliberately loud: each rune has its own visual, sound and name pop-up, the slots flash on the sword and in the HUD when they fire, and a finisher that connects gets a screen shake. Identical runes firing together merge into one bigger effect.
+- **Order test (test arena):** the forge has Test sword A (Twice, Shockwave, Wider, Hook: two shockwaves and a wide hook) and Test sword B (Shockwave, Twice, Wider, Hook: one shockwave and a double, wide hook). Keys 1 and 2 switch between them.
 - **Pause enemies:** the button at the top right, or P / Start.
 - Parts: iron shortblade / blade / longblade (1, 2, 3 slots) and wooden / wrapped / long grips (1, 2, 3 slots), and pommels (no slots, stats only: Plain, Keen +8% crit chance, Heavy +40% crit damage, Light +10% swing speed). The Ringed Grip is a special grip whose built-in band makes every rune a bit bigger; the Gilded Grip's ruby top slot doubles whatever is in it (a rune fires twice, a band counts as two, caps still apply).
 - The forge follows the art thread's design: parts tray on the left, the sword over the anvil with slot numbers and band brackets, and "what this sword does" on the right. **T** or the button puts you next to the dummy. The forge glows: the hearth breathes behind the sword, embers drift up, every change is a hammer blow with sparks and a clang, and leaving after changes plays a short "Forged!" finish (white-hot, quench steam, a shine up the blade). Press Tab or click to skip it.
 - Art and numbers for all of this are in `art/swing/` (`swing_path.md` explains how the sword is assembled; `swing_path.json` has every slot, pivot and effect strip). Fonts are Silkscreen and Pixelify Sans (OFL), in `art/fonts/`.
 - Elemental blades are parked for now. Sounds are placeholders made in code (`scripts/sfx.gd`).
 
-Checks: `godot --headless --path . -s tests/test_swing_build.gd` (the sword rules) and `godot --headless --path . -s tests/smoke_forge.gd` (opens the forge and fires every rune). Run both after any change to the sword.
+Code map:
 
-Code: `scripts/weapon/swing_build.gd` (blades, grips, fittings, the reading rule), `scripts/weapon/sword_art.gd` (draws the sword with its slots), `scripts/ui/swing_forge.gd` (the forge), `scripts/fx/rune_fx.gd` (rune visuals), and the rune code in `scripts/player.gd`.
+```
+scenes/boot.tscn, scripts/boot.gd    Title screen, then the mode you pick
+scripts/ui/title.gd                  Who is playing, what to play
+scripts/game_base.gd                 What both modes share: players, swords, camera, HUD, forge
+scripts/cave/cave.gd                 The tutorial cave: map, rooms, stages
+scripts/cave/crawler.gd, burrower.gd, guardian.gd   The cave's enemies and boss
+scripts/cave/hazard.gd               Red warning circles and lanes
+scripts/cave/cave_ui.gd              Objective, prompts, boss bar, speech box, cards
+scripts/main.gd                      The test arena
+scripts/player.gd                    Movement, dodge, the swing chain, runes
+scripts/player_input.gd              One player's controls (any device, keyboard, or one controller)
+scripts/camera_rig.gd                The shared camera
+scripts/enemy.gd                     Enemy base: being hit, knockback, the arena's enemies
+scripts/weapon/swing_build.gd        Blades, grips, fittings and the reading rule
+scripts/weapon/sword_art.gd          Draws the sword with its slots
+scripts/ui/swing_forge.gd            The forge screen
+scripts/fx/rune_fx.gd                Rune visuals
+art/cave/                            Cave art (cave.md lists every file, cave.json has the numbers)
+```
 
-## How to run it
+## Older notes: the grid sword on `main`
+
+Everything below describes the first prototype (the part grid), which is still on the `main` branch. It is kept for reference.
+
+### Running it
 
 1. Install [Godot 4.7](https://godotengine.org/download) (the standard build, not .NET).
 2. Open Godot, click **Import**, and pick the `project.godot` file in this folder.
 3. Press **F5** (or the Play button at the top right).
 
-## Controls
+### Controls (grid sword)
 
 | Action | Keyboard and mouse | Controller |
 |---|---|---|
@@ -50,7 +157,7 @@ Code: `scripts/weapon/swing_build.gd` (blades, grips, fittings, the reading rule
 
 Swapping is free.
 
-## The sword
+### The sword
 
 The grid is drawn in the shape of a sword, tip at the top:
 
@@ -125,7 +232,7 @@ You start with the wooden sword: wooden pommel, handle, hilt and blade, so slash
 
 Some builds to try: Spin Hilt + Wrapped Handle + fire and water shards (steam); Iron Longblade + Cross Hilt + Long Handle + Curved Pommel (big slow hits); three shards (every element, both combos).
 
-## Adding a part
+### Adding a part
 
 Parts are data files in `parts/`. Every `.tres` file in that folder is loaded automatically.
 
@@ -139,7 +246,7 @@ Then check it still fits its spot on the sword:
 godot --headless --script res://tests/check_parts.gd
 ```
 
-## Project layout
+### Project layout (grid sword)
 
 ```
 project.godot            Godot project settings
@@ -163,7 +270,7 @@ tests/check_parts.gd     Checks every part fits its spot
 
 The weapon's stats come out of `WeaponBuild.compute()` as one plain dictionary, so online play can send it across later without a rewrite.
 
-## Art
+### Art
 
 The game runs at **640x360**, doubled to a 1280x720 window (integer scaling). The HUD and forge are laid out at 1280x720 and drawn at half size, so text stays sharp.
 
@@ -179,6 +286,6 @@ Sprites live in `art/` and are named by what they show. `art/sprites.md` lists e
 
 When you're knocked out you respawn at the start point.
 
-## Not in this prototype yet
+### Not in the grid prototype
 
 Online co-op, the mini boss and part drop, rarity and affixes, a second weapon type.

@@ -92,6 +92,7 @@ func _make_ui() -> void:
 	pause_menu.build_menu = build_menu
 	add_child(pause_menu)
 	pause_menu.to_title.connect(func(): exit_to_title.emit())
+	pause_menu.resumed.connect(_swallow_presses)
 	_set_cursor()
 
 
@@ -106,11 +107,15 @@ func open_forge(i: int) -> void:
 
 
 func _on_forge_closed() -> void:
-	# The click or key that closed the forge shouldn't also swing or dodge.
+	_swallow_presses()
+	forging = -1
+
+
+## The click or button that closed a menu shouldn't also swing or dodge.
+func _swallow_presses() -> void:
 	for p in players:
 		p.need_release = true
 		p.input.clear()
-	forging = -1
 
 
 ## A player's health reached zero.

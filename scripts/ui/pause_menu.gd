@@ -1,9 +1,10 @@
 extends CanvasLayer
-## Esc pause menu: Resume, Fullscreen on/off, Quit. Pauses the whole game.
+## Esc pause menu: Resume, Fullscreen on/off, Back to title, Quit. Pauses the whole game.
 
 const Art := preload("res://scripts/art.gd")
 
 signal to_title
+signal resumed
 
 var panel: Control
 var build_menu  # Esc closes the forge first if it's open
@@ -79,6 +80,7 @@ func open() -> void:
 func resume() -> void:
 	panel.visible = false
 	get_tree().paused = false
+	resumed.emit()
 
 
 func _toggle_full() -> void:

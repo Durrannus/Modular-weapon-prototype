@@ -64,6 +64,7 @@ var frozen := false            # a dialogue or cutscene has the controls
 var is_down := false           # knocked out and waiting to get back up
 var auto_respawn := true       # get straight back up at spawn_point (the test arena)
 var show_marker := false       # coloured ring under the feet (two players)
+var interact_ready := false    # standing at something usable: A on a controller uses it and doesn't dodge
 
 ## Screen shake goes to the shared camera.
 var shake: float:
@@ -307,6 +308,8 @@ func _update_dodge(delta: float, move: Vector2) -> void:
 		if dodge_refill >= DODGE_REFILL:
 			dodge_refill = 0.0
 			dodge_charges += 1
+	if input.dash_pressed and interact_ready and input.using_pad:
+		return
 	if input.dash_pressed and not frozen and dodge_charges > 0 and dodge_timer <= 0.0:
 		dodge_charges -= 1
 		dodge_refill = 0.0
@@ -318,6 +321,7 @@ func _update_dodge(delta: float, move: Vector2) -> void:
 		_reset_combo()
 		dodge_started = game_time
 		_dust(global_position + FEET)
+		Sfx.play(self, "dodge", -12.0)
 		_trigger("dodge", [])
 
 

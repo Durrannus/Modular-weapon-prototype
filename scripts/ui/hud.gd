@@ -141,7 +141,10 @@ func _draw_path(p, i: int, right: bool) -> void:
 	var title := "Swing path (grip to tip)"
 	if players.size() > 1:
 		title = "P%d swing path" % (i + 1)
-	panel.draw_string(font, Vector2(x, y - 8), title, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(0.75, 0.78, 0.85))
+	var title_x := x
+	if right:
+		title_x = minf(x, panel.size.x - 20.0 - font.get_string_size(title, HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x)
+	panel.draw_string(font, Vector2(title_x, y - 8), title, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(0.75, 0.78, 0.85))
 	for s in line.size():
 		var id: String = line[s]
 		var label: String = cells[s][0]
