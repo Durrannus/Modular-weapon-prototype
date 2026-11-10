@@ -51,11 +51,20 @@ const POMMEL_ORDER := ["plain_pommel", "keen_pommel", "heavy_pommel", "light_pom
 
 ## Runes do something on their own; bands change the next rune above them.
 ## Rule-benders bend the reading rule itself. Only one per sword.
+##
+## Runes are passive or active (Darren, 10 November). A passive rune fires by
+## itself on a moment of the chain (its "trigger"). An active rune (trigger
+## "active") waits for its ability button:
+##   use       "press": one press uses it, and it needs its whole recharge again
+##             "hold":  it keeps going, turn after turn, while the button is down
+##   recharge  seconds from used up to ready
+##   turns     hold only: how many turns a full meter holds
+##   turn      hold only: how long one turn takes, in seconds
 const FITTINGS := {
 	"shockwave": {"kind": "rune", "name": "Shockwave", "trigger": "finisher", "color": Color("#ffc850"),
-		"desc": "Your finisher sends a rolling wave forward."},
-	"hook": {"kind": "rune", "name": "Hook", "trigger": "finisher", "color": Color("#ff9c32"),
-		"desc": "Your finisher yanks nearby enemies in on chains."},
+		"desc": "Your finisher sends a rolling wave forward: a light hit that shoves enemies back."},
+	"hook": {"kind": "rune", "name": "Hook", "trigger": "active", "use": "press", "recharge": 4.0, "color": Color("#ff9c32"),
+		"desc": "Press its button to yank nearby enemies in on chains. Then it has to recharge."},
 	# Shards replaced Cleave (Darren, 6 November).
 	"shards": {"kind": "rune", "name": "Shards", "trigger": "hit", "color": Color("#d0dcd8"),
 		"desc": "Every hit sends metal shards jumping to the closest enemy, then the next."},
@@ -64,16 +73,16 @@ const FITTINGS := {
 		"desc": "Every kill refills a dodge charge (up to 2)."},
 	"leap": {"kind": "rune", "name": "Leap", "trigger": "dodge_attack", "color": Color("#f0c070"),
 		"desc": "Attacking straight after a dodge jumps you to the nearest enemy."},
-	"whirlwind": {"kind": "rune", "name": "Whirlwind", "trigger": "finisher", "color": Color("#f078b4"),
-		"desc": "Your finisher spins a full circle, cutting everything around you."},
+	"whirlwind": {"kind": "rune", "name": "Whirlwind", "trigger": "active", "use": "hold", "recharge": 5.0, "turns": 3, "turn": 0.28, "color": Color("#f078b4"),
+		"desc": "Hold its button to spin, cutting everything around you, until its meter runs out."},
 	"twice": {"kind": "band", "name": "Twice", "color": Color("#86d4a4"),
 		"desc": "The rune above happens twice."},
 	"wider": {"kind": "band", "name": "Wider", "color": Color("#86d4a4"),
 		"desc": "The rune above is bigger."},
 	"every_hit": {"kind": "band", "name": "Every Hit", "color": Color("#86d4a4"),
-		"desc": "The rune above happens on every hit instead, at half strength."},
+		"desc": "The rune above happens by itself on every hit instead, at half strength."},
 	"saved_up": {"kind": "band", "name": "Saved Up", "color": Color("#86d4a4"),
-		"desc": "The rune above only happens every third time, but three times as strong."},
+		"desc": "The rune above only happens every third time, but three times as strong. An active rune takes three times as long to recharge instead."},
 	"on_dodge": {"kind": "band", "name": "On Dodge", "color": Color("#86d4a4"),
 		"desc": "The rune above also happens when you dodge."},
 	# Mirror is parked (Darren, 6 November): it overlapped Twice too much. The rules stay, but it's kept out of the forge.
@@ -88,10 +97,20 @@ const EVERY_HIT_POWER := 0.5
 const SAVED_UP_EVERY := 3
 const SAVED_UP_POWER := 3.0
 
+## Active runes take the ability buttons in the order they sit on the sword, grip
+## to tip. Two of the same rune share a button. What the buttons are called and
+## which prompt pictures show them (art/cave/ui/prompt_<name>.png):
+const ACTIVE_BUTTONS := 2
+const ABILITY_KEYS := {"kbm": ["right mouse", "Q"], "pad": ["RB", "LB"]}
+const ABILITY_PROMPTS := {"kbm": ["mouse_right", "q"], "pad": ["pad_rb", "pad_lb"]}
+
 ## The test swords from the 3 November notes, bottom to top.
 const TEST_SWORDS := {
 	"A": {"blade": "iron_blade", "grip": "wrapped_grip", "line": ["twice", "shockwave", "wider", "hook"]},
 	"B": {"blade": "iron_blade", "grip": "wrapped_grip", "line": ["shockwave", "twice", "wider", "hook"]},
+	# 10 November: both active runes and a passive one. Whirlwind sits lowest, so it
+	# gets the first ability button (right mouse or RB), which is the easy one to hold.
+	"C": {"blade": "iron_blade", "grip": "wrapped_grip", "line": ["whirlwind", "hook", "twice", "shockwave"]},
 }
 
 var blade := "iron_shortblade"
@@ -203,7 +222,7 @@ static func wider_size(n: int) -> float:
 ## Reads the line bottom to top. Returns:
 ##   effects: one entry per rune: {id, slot, bands (ids), band_slots, trigger, count, size,
 ##            power (strength multiplier), every (fires on every Nth trigger), also (extra triggers),
-##            mirror (true if it's a Mirror's copy)}
+##            mirror (true if it's a Mirror's copy), button (active runes: 0 or 1)}
 ##   slots:   for each slot index: {"rune": effect index} / {"band": effect index} /
 ##            {"unused": true, "why": text} / plus "mirror": true or "relay": true on rule-benders
 ## ruby: the Gilded grip's ruby slot index (-1 if none). A rune there fires one more
@@ -215,6 +234,7 @@ static func resolve(slots: Array, ruby := -1) -> Dictionary:
 	var pending: Array = []   # band slot indexes waiting for a rune
 	var relay_bands: Array = []  # band slots handed on by a Relay
 	var relay_slot := -1
+	var buttons: Array = []   # the active runes' ids, in button order
 	for i in line.size():
 		var id: String = line[i]
 		if id == "" or info.get(i, {}).has("unused"):
@@ -231,6 +251,22 @@ static func resolve(slots: Array, ruby := -1) -> Dictionary:
 		if f["kind"] == "band":
 			pending.append(i)
 			continue
+		if f["trigger"] == "active" and not (id in buttons) and buttons.size() >= ACTIVE_BUTTONS:
+			# A third kind of active rune has no button left, unless an Every Hit
+			# band below makes it fire by itself.
+			var automatic := false
+			for s in relay_bands + pending:
+				automatic = automatic or str(line[s]) == "every_hit"
+			if not automatic:
+				info[i] = {"unused": true, "why": "Only two active runes work on one sword."}
+				for s in pending:
+					info[s] = {"unused": true, "why": "The rune above it has no button."}
+				if relay_slot >= 0:
+					info[relay_slot] = {"unused": true, "relay": true, "why": "The rune above it has no button."}
+					relay_slot = -1
+					relay_bands = []
+				pending = []
+				continue
 		var e := {"id": id, "slot": i, "bands": [], "band_slots": pending.duplicate(), "trigger": f["trigger"],
 			"count": 1, "size": 1.0, "power": 1.0, "every": 1, "also": [], "mirror": slots[i] == "mirror"}
 		var idx := effects.size()
@@ -243,6 +279,10 @@ static func resolve(slots: Array, ruby := -1) -> Dictionary:
 		if i == ruby:
 			e["count"] = mini(int(e["count"]) + 1, MAX_COUNT)
 			e["ruby"] = true
+		if e["trigger"] == "active":
+			if not (id in buttons):
+				buttons.append(id)
+			e["button"] = buttons.find(id)
 		if relay_slot >= 0:
 			e["relayed"] = relay_bands
 			info[relay_slot]["band"] = idx
@@ -306,11 +346,13 @@ static func _apply_band(e: Dictionary, band: String) -> String:
 					e["power"] = float(e["power"]) * EVERY_HIT_POWER
 					return ""
 				return "%s already works on every hit." % FITTINGS[e["id"]]["name"]
-			e["trigger"] = "hit"
+			e["trigger"] = "hit"  # an active rune stops needing its button
 			e["power"] = float(e["power"]) * EVERY_HIT_POWER
 		"saved_up":
 			if int(e["every"]) > 1:
 				return "Saved Up doesn't stack (max)."
+			# A passive rune fires on every third trigger. An active rune takes three
+			# times as long to recharge instead (see abilities()).
 			e["every"] = SAVED_UP_EVERY
 			e["power"] = float(e["power"]) * SAVED_UP_POWER
 		"on_dodge":
@@ -327,11 +369,15 @@ const WHEN_NTH := {"finisher": "Every third finisher", "hit": "Every third hit",
 
 
 ## One plain sentence per rune, e.g. "Your finisher sends two shockwaves forward."
-static func sentence(e: Dictionary) -> String:
+## keys: what this player's two ability buttons are called (ABILITY_KEYS), for
+## active runes: "Press Q: pulls enemies in."
+static func sentence(e: Dictionary, keys: Array = ABILITY_KEYS["kbm"]) -> String:
 	var n: int = e["count"]
 	var big: bool = float(e["size"]) > 1.0
 	var times := "" if n == 1 else (" twice" if n == 2 else " %d times" % n)
 	var trig: String = e["trigger"]
+	if trig == "active":
+		return _active_sentence(e, keys)
 	var when: String = (WHEN_NTH if int(e.get("every", 1)) > 1 else WHEN).get(trig, "It")
 	var what := ""
 	match str(e["id"]):
@@ -362,8 +408,58 @@ static func sentence(e: Dictionary) -> String:
 	return s
 
 
+## The sentence for a rune on an ability button: what to press, what it does, and
+## how long it takes to come back.
+static func _active_sentence(e: Dictionary, keys: Array) -> String:
+	var f: Dictionary = FITTINGS[e["id"]]
+	var n: int = e["count"]
+	var big: bool = float(e["size"]) > 1.0
+	var key: String = str(keys[clampi(int(e.get("button", 0)), 0, keys.size() - 1)])
+	var what := ""
+	match str(e["id"]):
+		"hook":
+			what = "pulls enemies in%s%s" % [" from further away" if big else "", "" if n == 1 else (" twice" if n == 2 else " %d times" % n)]
+		"whirlwind":
+			what = "spins for up to %s turns, cutting everything around you%s" % [_num(int(f["turns"]) * n), ", in a bigger circle" if big else ""]
+		_:
+			return ""
+	var slow := int(e.get("every", 1))
+	if float(e.get("power", 1.0)) >= 3.0:
+		what += ", three times as strong"
+	var s := "%s %s: %s. Recharges in %d seconds." % ["Hold" if f["use"] == "hold" else "Press", key, what, roundi(float(f["recharge"]) * slow)]
+	if "dodge" in e.get("also", []):
+		s += " Every third dodge does it too." if slow > 1 else " Dodging does it too."
+	return s
+
+
 static func _num(n: int) -> String:
-	return ["zero", "one", "two", "three", "four", "five", "six"][clampi(n, 0, 6)]
+	return ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine"][clampi(n, 0, 9)]
+
+
+## The sword's active runes, one entry per ability button, in button order:
+##   {id, use, effects (indexes into `effects`), recharge (seconds), turns, turn, slot}
+## Twice gives a hold rune that many times the turns; a press rune fires that
+## many times. Saved Up makes the recharge three times as long.
+static func abilities(effects: Array) -> Array:
+	var out: Array = []
+	for i in effects.size():
+		var e: Dictionary = effects[i]
+		if e["trigger"] != "active":
+			continue
+		var f: Dictionary = FITTINGS[e["id"]]
+		var b := int(e["button"])
+		var recharge := float(f["recharge"]) * float(e.get("every", 1))
+		var turns := int(f.get("turns", 1)) * int(e["count"])
+		while out.size() <= b:
+			out.append({})
+		if out[b].is_empty():
+			out[b] = {"id": e["id"], "use": f["use"], "effects": [i], "recharge": recharge,
+				"turns": turns, "turn": float(f.get("turn", 0.0)), "slot": int(e["slot"])}
+		else:
+			out[b]["effects"].append(i)
+			out[b]["recharge"] = maxf(float(out[b]["recharge"]), recharge)
+			out[b]["turns"] = maxi(int(out[b]["turns"]), turns)
+	return out
 
 
 ## Everything the player needs, as one plain dictionary.
@@ -387,6 +483,7 @@ func compute() -> Dictionary:
 		"line": line.duplicate(),
 		"grip_slots": grip_slots(),
 		"effects": r["effects"],
+		"abilities": abilities(r["effects"]),
 		"slot_info": r["slots"],
 		"steps": steps,
 		"damage": float(b["damage"]),

@@ -34,7 +34,7 @@ const Art := preload("res://scripts/art.gd")
 
 const PROTOCOL := 1                # change when the messages below change
 const PORT := 24565
-const INPUT_BYTES := 13            # one player's controls for one tick
+const INPUT_BYTES := 14            # one player's controls for one tick
 const HASH_EVERY := 20             # ticks between checksums
 const MIN_DELAY := 2
 const MAX_DELAY := 12
@@ -638,6 +638,8 @@ func _menu_open() -> bool:
 ##   bytes 1-2   move (x, y) from -127 to 127
 ##   bytes 3-4   right stick the same way
 ##   bytes 5-12  the mouse, as an offset from the player (two 32-bit floats)
+##   byte 13     the ability buttons: 1 first held, 2 first pressed, 4 second held,
+##               8 second pressed
 ##   then, if bit 32 is set, the menu choices made since the last tick
 func _sample() -> PackedByteArray:
 	local.poll()
@@ -649,13 +651,21 @@ func _sample() -> PackedByteArray:
 	else:
 		var held := local.attack_held
 		var pressed := [local.attack_pressed, local.dash_pressed, local.interact_pressed]
+		var ability := 0
+		for k in 2:
+			if local.ability_held[k]:
+				ability |= 1 << (k * 2)
+			if local.ability_pressed[k]:
+				ability |= 2 << (k * 2)
 		if _need_release:
 			# The click or button that closed a menu shouldn't also swing or dodge.
 			pressed = [false, false, false]
+			ability = 0
 			if held:
 				held = false
 			else:
 				_need_release = false
+		b[13] = ability
 		if held:
 			flags |= 1
 		if pressed[0]:
@@ -697,6 +707,8 @@ func _apply(i: int, b: PackedByteArray) -> void:
 	inp.move = (Vector2(b.decode_s8(1), b.decode_s8(2)) / 127.0).limit_length(1.0)
 	inp.stick_aim = (Vector2(b.decode_s8(3), b.decode_s8(4)) / 127.0).limit_length(1.0)
 	inp.aim_offset = Vector2(b.decode_float(5), b.decode_float(9))
+	inp.ability_held = [b[13] & 1 != 0, b[13] & 4 != 0]
+	inp.ability_pressed = [b[13] & 2 != 0, b[13] & 8 != 0]
 	if flags & 32 != 0 and b.size() > INPUT_BYTES:
 		var cmds = bytes_to_var(b.slice(INPUT_BYTES))
 		if cmds is Array:

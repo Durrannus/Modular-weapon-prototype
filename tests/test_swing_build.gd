@@ -27,6 +27,7 @@ func _init() -> void:
 	test_one_bender_per_sword()
 	test_gilded_ruby()
 	test_whirlwind()
+	test_active_runes()
 	test_shards()
 	test_pommels()
 	print("%d checks, %d failed" % [checks, failures])
@@ -112,7 +113,7 @@ func test_ringed_grip() -> void:
 func test_sentences() -> void:
 	var r := SwingBuild.resolve(["twice", "shockwave", "wider", "hook"])
 	eq(SwingBuild.sentence(effect(r, "shockwave")), "Your finisher sends two shockwaves forward.", "Shockwave x2 sentence")
-	eq(SwingBuild.sentence(effect(r, "hook")), "Your finisher pulls enemies in from further away.", "wide Hook sentence")
+	eq(SwingBuild.sentence(effect(r, "hook")), "Press right mouse: pulls enemies in from further away. Recharges in 4 seconds.", "wide Hook sentence")
 	for id in SwingBuild.FITTING_ORDER:
 		if SwingBuild.FITTINGS[id]["kind"] != "rune":
 			continue
@@ -136,10 +137,10 @@ func test_every_hit() -> void:
 
 
 func test_saved_up() -> void:
-	var e := effect(SwingBuild.resolve(["saved_up", "hook"]), "hook")
+	var e := effect(SwingBuild.resolve(["saved_up", "shockwave"]), "shockwave")
 	eq(e["every"], 3, "Saved Up fires every third time")
 	eq(e["power"], 3.0, "Saved Up is three times as strong")
-	eq(SwingBuild.sentence(e), "Every third finisher pulls enemies in, three times as strong.", "Saved Up sentence")
+	eq(SwingBuild.sentence(e), "Every third finisher sends a shockwave forward, three times as strong.", "Saved Up sentence")
 	var r := SwingBuild.resolve(["saved_up", "saved_up", "hook"])
 	eq(effect(r, "hook")["power"], 3.0, "a second Saved Up doesn't stack")
 	check(r["slots"][1].get("unused", false), "the second Saved Up shows as doing nothing")
@@ -226,10 +227,62 @@ func test_gilded_ruby() -> void:
 
 func test_whirlwind() -> void:
 	var e := effect(SwingBuild.resolve(["twice", "wider", "whirlwind"]), "whirlwind")
-	eq(e["trigger"], "finisher", "Whirlwind fires on the finisher")
-	eq(SwingBuild.sentence(e), "Your finisher spins two times round, cutting everything around you, in a bigger circle.", "Whirlwind x2 wide sentence")
-	eq(SwingBuild.sentence(effect(SwingBuild.resolve(["on_dodge", "whirlwind"]), "whirlwind")), "Your finisher spins a full circle, cutting everything around you. Dodging does it too.", "Whirlwind on dodge")
+	eq(e["trigger"], "active", "Whirlwind waits for its button")
+	eq(SwingBuild.sentence(e), "Hold right mouse: spins for up to six turns, cutting everything around you, in a bigger circle. Recharges in 5 seconds.", "Whirlwind x2 wide sentence")
+	eq(SwingBuild.sentence(effect(SwingBuild.resolve(["on_dodge", "whirlwind"]), "whirlwind")), "Hold right mouse: spins for up to three turns, cutting everything around you. Recharges in 5 seconds. Dodging does it too.", "Whirlwind on dodge")
 	check(SwingBuild.FITTINGS["second_wind"].get("parked", false), "Second Wind is parked")
+
+
+# --- Active and passive runes (Darren, 10 November) ----------------------------------
+
+func test_active_runes() -> void:
+	for id in ["shockwave", "shards", "leap"]:
+		check(SwingBuild.FITTINGS[id]["trigger"] != "active", id + " is passive")
+	eq(SwingBuild.FITTINGS["hook"]["use"], "press", "Hook is used with a press")
+	eq(SwingBuild.FITTINGS["whirlwind"]["use"], "hold", "Whirlwind is used by holding")
+	# Buttons go in the order the runes sit on the sword, grip to tip.
+	var r := SwingBuild.resolve(["hook", "shockwave", "whirlwind"])
+	eq(effect(r, "hook")["button"], 0, "the lowest active rune gets button one")
+	eq(effect(r, "whirlwind")["button"], 1, "the next one up gets button two")
+	check(not effect(r, "shockwave").has("button"), "a passive rune has no button")
+	eq(effect(SwingBuild.resolve(["whirlwind", "hook"]), "whirlwind")["button"], 0, "swap them and the buttons swap")
+	var a: Array = SwingBuild.abilities(r["effects"])
+	eq(a.size(), 2, "two active runes, two abilities")
+	eq([a[0]["id"], a[0]["use"], a[0]["recharge"]], ["hook", "press", 4.0], "Hook: a press, 4 seconds")
+	eq([a[1]["id"], a[1]["use"], a[1]["recharge"], a[1]["turns"]], ["whirlwind", "hold", 5.0, 3], "Whirlwind: a hold, 5 seconds, three turns")
+	# Two of the same rune share a button and go off together.
+	var two := SwingBuild.resolve(["hook", "wider", "hook"])
+	eq([two["effects"][0]["button"], two["effects"][1]["button"]], [0, 0], "two Hooks share button one")
+	eq(SwingBuild.abilities(two["effects"])[0]["effects"], [0, 1], "and one press fires both")
+	# Bands still change them.
+	eq(SwingBuild.abilities(SwingBuild.resolve(["twice", "whirlwind"])["effects"])[0]["turns"], 6, "Twice doubles Whirlwind's turns")
+	eq(SwingBuild.abilities(SwingBuild.resolve(["twice", "twice", "twice", "whirlwind"])["effects"])[0]["turns"], 9, "capped at three times")
+	eq(effect(SwingBuild.resolve(["twice", "hook"]), "hook")["count"], 2, "Twice makes a press of Hook fire twice")
+	eq(effect(SwingBuild.resolve(["wider", "whirlwind"]), "whirlwind")["size"], 1.6, "Wider makes Whirlwind bigger")
+	var saved := effect(SwingBuild.resolve(["saved_up", "hook"]), "hook")
+	eq(saved["power"], 3.0, "Saved Up makes Hook three times as strong")
+	eq(SwingBuild.abilities([saved])[0]["recharge"], 12.0, "and three times as slow to recharge")
+	eq(SwingBuild.sentence(saved), "Press right mouse: pulls enemies in, three times as strong. Recharges in 12 seconds.", "Saved Up Hook sentence")
+	var auto := effect(SwingBuild.resolve(["every_hit", "whirlwind"]), "whirlwind")
+	eq(auto["trigger"], "hit", "Every Hit makes Whirlwind fire by itself")
+	check(not auto.has("button"), "so it needs no button")
+	eq(SwingBuild.sentence(auto), "Every hit spins a full circle, cutting everything around you, at half strength.", "Every Hit Whirlwind sentence")
+	check(SwingBuild.abilities([auto]).is_empty(), "and it isn't an ability")
+	var dodge := effect(SwingBuild.resolve(["on_dodge", "hook"]), "hook")
+	eq([dodge["trigger"], dodge["also"]], ["active", ["dodge"]], "On Dodge keeps Hook on its button and adds the dodge")
+	# The Gilded grip's ruby slot and the sentences' button names.
+	var ruby := effect(SwingBuild.resolve(["", "whirlwind"], 1), "whirlwind")
+	eq(SwingBuild.abilities([ruby])[0]["turns"], 6, "the ruby slot doubles Whirlwind's turns")
+	var second := effect(SwingBuild.resolve(["whirlwind", "hook"]), "hook")
+	eq(SwingBuild.sentence(second), "Press Q: pulls enemies in. Recharges in 4 seconds.", "the second active rune names the second button")
+	eq(SwingBuild.sentence(second, SwingBuild.ABILITY_KEYS["pad"]), "Press LB: pulls enemies in. Recharges in 4 seconds.", "and the controller's name for it")
+	# The whole sword.
+	var s = SwingBuild.new()
+	s.load_test("C")
+	var stats: Dictionary = s.compute()
+	eq(stats["abilities"].size(), 2, "test sword C has two abilities")
+	eq(stats["abilities"][0]["id"], "whirlwind", "Whirlwind on button one")
+	eq(effect({"effects": stats["effects"]}, "shockwave")["count"], 2, "and Shockwave twice, by itself")
 
 
 func test_shards() -> void:

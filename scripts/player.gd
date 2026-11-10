@@ -152,6 +152,26 @@ var rune_counts := {}         # effect index -> triggers seen (Saved Up fires ev
 var dodge_partial := 0.0      # Second Wind at half strength fills half a dodge
 var leap_targets: Array = []  # enemies already leapt to in this burst
 
+# Active runes (Hook, Whirlwind) wait for their ability button instead of firing
+# by themselves. Each button has a meter from 0 (used up) to 1 (full) that refills
+# over the rune's recharge time. A press rune needs a full meter and empties it.
+# A hold rune spends one turn's worth of meter for every turn, and keeps going
+# while the button stays down and there is meter left.
+const ABILITY_WAIT := 0.35      # a hold rune's meter starts to refill this long after it stops
+const HOLD_MOVE := 0.75         # walking speed while a hold rune is going
+const HOLD_KNOCK := 0.35        # a held Whirlwind shoves this much as hard, so enemies stay in reach
+var ability_charge: Array = [1.0, 1.0]
+var ability_wait: Array = [0.0, 0.0]
+var ability_denied: Array = [-9.0, -9.0]  # game_time of the last press that wasn't ready
+var ability_used: Array = [-9.0, -9.0]    # game_time it last went off
+var hold_button := -1           # which button's hold rune is going right now (-1: none)
+var hold_left := 0.0            # time left in its current turn
+var hold_turn := 0.28           # how long that turn takes
+var hold_turns := 0             # turns so far in this hold
+var hold_angle := 0.0           # where the spin started (and where every turn starts)
+var hold_side := 1.0            # +1 clockwise, -1 the other way
+var hold_fx: Array = []         # what the current turn put on screen, removed if it's cut short
+
 ## Where the body sprite's feet sit, relative to the player's centre.
 const FEET := Vector2(0, 14)
 const OUTLINE_SHADER := preload("res://shaders/outline.gdshader")
@@ -225,6 +245,9 @@ func set_weapon(stats: Dictionary) -> void:
 	sweep_flash.clear()
 	rune_counts.clear()
 	dodge_partial = 0.0
+	_stop_hold(true)
+	ability_charge = [1.0, 1.0]
+	ability_wait = [0.0, 0.0]
 	_reset_combo()
 
 
@@ -249,6 +272,8 @@ func _physics_process(delta: float) -> void:
 	_run_rune_queue()
 	_run_shards()
 	if is_down:
+		_stop_hold(true)
+		_refill_abilities(delta)
 		walk_vel = Vector2.ZERO
 		hurt_vel = hurt_vel.move_toward(Vector2.ZERO, 1800.0 * delta)
 		velocity = hurt_vel
@@ -258,11 +283,14 @@ func _physics_process(delta: float) -> void:
 	var move := Vector2.ZERO if frozen else input.move
 	_update_facing(delta, move)
 	_update_dodge(delta, move)
+	_update_abilities(delta)
 
 	# Walking: a few frames to get going and to stop, so it has weight without lag.
 	var speed := MOVE_SPEED * (1.0 + float(weapon.get("move_speed", 0.0)))
 	var target := move * speed
-	if current_step >= 0:
+	if hold_button >= 0:
+		target *= HOLD_MOVE
+	elif current_step >= 0:
 		target *= SWING_MOVE
 	var rate := ACCEL
 	if move == Vector2.ZERO:
@@ -298,7 +326,10 @@ func _physics_process(delta: float) -> void:
 func _update_facing(delta: float, move: Vector2) -> void:
 	face_linger = maxf(face_linger - delta, 0.0)
 	var stick := input.stick_aim
-	if current_step >= 0:
+	if hold_button >= 0:
+		face_dir = Vector2.RIGHT.rotated(_hold_angle_now())   # the body turns with the spin
+		face_linger = 0.0
+	elif current_step >= 0:
 		face_dir = anim_dir
 		face_linger = FACE_LINGER
 	elif dodge_timer > 0.0:
@@ -344,7 +375,8 @@ func _update_dodge(delta: float, move: Vector2) -> void:
 	if input.dash_pressed and not frozen and dodge_charges > 0 and dodge_timer <= 0.0:
 		dodge_charges -= 1
 		dodge_refill = 0.0
-		dodge_dir = move.normalized() if move.length() > 0.1 else face_dir
+		# (Mid-spin the body faces anywhere, so a standing dodge goes where you aim.)
+		dodge_dir = move.normalized() if move.length() > 0.1 else (aim_dir if hold_button >= 0 else face_dir)
 		dodge_timer = DODGE_TIME
 		invuln = maxf(invuln, DODGE_TIME + 0.06)
 		hit_pause = 0.0
@@ -380,7 +412,7 @@ func _update_combat(delta: float) -> void:
 	# One press, one swing. A press during a swing (or a dodge) queues the next one;
 	# holding the button keeps the chain going.
 	if input.attack_pressed:
-		if dodge_timer > 0.0:
+		if dodge_timer > 0.0 or hold_button >= 0:
 			attack_buffered = true
 		elif current_step >= 0:
 			queued = true
@@ -389,7 +421,8 @@ func _update_combat(delta: float) -> void:
 		# A click that closed a menu shouldn't also swing: wait for the button to come up.
 		need_release = held
 		held = false
-	if current_step < 0 and dodge_timer <= 0.0 and (input.attack_pressed or attack_buffered or held):
+	# (No swinging in the middle of a Whirlwind: the swing starts as the spin ends.)
+	if current_step < 0 and dodge_timer <= 0.0 and hold_button < 0 and (input.attack_pressed or attack_buffered or held):
 		attack_buffered = false
 		_start_step()
 
@@ -573,15 +606,16 @@ func _trigger(trigger: String, hits: Array) -> void:
 			_queue_rune(i, game_time + n * REPEAT_GAP, float(e["size"]), hits, float(e.get("power", 1.0)))
 
 
-func _queue_rune(effect: int, at: float, size: float, hits: Array, power := 1.0) -> void:
+## held: one turn of a hold rune (it follows the spin, and only the first turn is named).
+func _queue_rune(effect: int, at: float, size: float, hits: Array, power := 1.0, held := false) -> void:
 	var id: String = weapon["effects"][effect]["id"]
 	for q in rune_queue:
-		if q["effect"] != effect and weapon["effects"][q["effect"]]["id"] == id and absf(float(q["at"]) - at) < 0.03:
+		if q["effect"] != effect and weapon["effects"][q["effect"]]["id"] == id and absf(float(q["at"]) - at) < 0.03 and q["held"] == held:
 			q["size"] = minf(maxf(float(q["size"]), size) * 1.3, SwingBuild.MAX_SIZE)
 			q["power"] = float(q["power"]) + power
 			q["merged"].append(effect)
 			return
-	rune_queue.append({"at": at, "effect": effect, "size": size, "power": power, "hits": hits.duplicate(), "merged": []})
+	rune_queue.append({"at": at, "effect": effect, "size": size, "power": power, "hits": hits.duplicate(), "merged": [], "held": held})
 
 
 func _run_rune_queue() -> void:
@@ -611,6 +645,14 @@ func _flash_effect(effect: int) -> void:
 			spark.follow_offset = spark.global_position - global_position
 
 
+## Shockwave is a light hit that shoves (Darren, 10 November: a strong wave would
+## have everyone fighting from range). It was 1.1 times the blade's damage.
+const SHOCKWAVE_DAMAGE := 0.4
+const HOOK_DAMAGE := 0.3
+const HOOK_STUN := 0.5          # long enough to land a swing on what you pulled in
+const WHIRLWIND_DAMAGE := 0.9   # for each turn
+
+
 func _fire_rune(q: Dictionary) -> void:
 	var effect: int = q["effect"]
 	if effect >= weapon.get("effects", []).size():
@@ -630,7 +672,7 @@ func _fire_rune(q: Dictionary) -> void:
 			w.dir = aim_dir
 			w.size = size
 			w.color = col
-			w.damage = dmg * 1.1 * power
+			w.damage = dmg * SHOCKWAVE_DAMAGE * power
 			w.knock = 380.0 * size
 			_fx_root().add_child(w)
 			w.global_position = global_position + aim_dir * 30.0
@@ -655,9 +697,9 @@ func _fire_rune(q: Dictionary) -> void:
 				if d > reach + e.radius or d < 40.0:
 					continue
 				var pull := sqrt(2.0 * 1300.0 * maxf(d - 45.0, 0.0))
-				e.take_hit(dmg * 0.3 * power, rel / d, 0.0, false, col)
+				e.take_hit(dmg * HOOK_DAMAGE * power, rel / d, 0.0, false, col)
 				e.knock = rel / d * pull * e.knock_resist
-				e.apply_stun(0.35)
+				e.apply_stun(HOOK_STUN)
 				var chain := RuneFx.new()
 				chain.kind = "chain"
 				chain.from_node = self
@@ -708,32 +750,159 @@ func _fire_rune(q: Dictionary) -> void:
 		"leap":
 			_leap(size, power, dmg, col)
 		"whirlwind":
+			# One full turn. Held on its button, each turn starts where the spin began
+			# and turns the same way; fired by a band (Every Hit, On Dodge) it starts
+			# at the aim. A held turn shoves less, so enemies stay inside the spin.
+			var held: bool = q.get("held", false)
+			var start := Vector2.RIGHT.rotated(hold_angle) if held else aim_dir
+			var side := hold_side if held else -swing_side
 			var w := RuneFx.new()
 			w.kind = "spin"
-			w.dir = aim_dir
-			w.spin_side = -swing_side
+			w.dir = start
+			w.spin_side = side
 			w.size = 78.0 * float(weapon.get("reach", 1.0)) * size
-			w.life = 0.26
+			w.life = hold_turn if held else 0.26
 			w.color = col
-			w.damage = dmg * 0.9 * power
-			w.knock = 300.0 * size
+			w.damage = dmg * WHIRLWIND_DAMAGE * power
+			w.knock = 300.0 * size * (HOLD_KNOCK if held else 1.0)
 			w.from_node = self
-			var spin := _strip("whirlwind_spin", global_position, aim_dir.angle(), w.size / (36.0 * Art.PIXEL))
+			var spin := _strip("whirlwind_spin", global_position, start.angle(), w.size / (36.0 * Art.PIXEL))
 			if spin != null:
 				spin.follow = self
+				spin.fps = float(spin.frames) / w.life   # the strip takes exactly one turn
 				# Mirrored, the strip would start behind you: turn it half round so it
 				# starts at the aim, the same place the hits start.
-				spin.flip = swing_side > 0.0
+				spin.flip = side < 0.0
 				if spin.flip:
 					spin.angle += PI
 				w.drawn = false
 			_fx_root().add_child(w)
 			w.global_position = global_position
-			shake = maxf(shake, 7.0 * size)
-			Sfx.play(self, "cleave", -4.0, 0.8)
+			if held:
+				hold_fx = [w, spin]
+			shake = maxf(shake, (3.5 if held and hold_turns > 1 else 7.0) * size)
+			Sfx.play(self, "cleave", -4.0 if not held or hold_turns <= 1 else -9.0, 0.8 if not held else 0.8 + 0.06 * minf(float(hold_turns), 6.0))
+			if held and hold_turns > 1:
+				return   # only the first turn of a hold is named
 	# Name what fired above the player, so it's obvious which rune did what.
 	if id != "second_wind":
 		_label(str(SwingBuild.FITTINGS[id]["name"]).to_upper() + ("!" if power <= 1.0 else " x%s!" % str(snappedf(power, 0.5)).trim_suffix(".0")), col)
+
+
+# --- Active runes ---------------------------------------------------------------
+
+func _abilities() -> Array:
+	return weapon.get("abilities", [])
+
+
+## How full a button's meter must be to use its rune: all of it for a press rune,
+## one turn's worth for a hold rune.
+func ability_cost(b: int) -> float:
+	var list := _abilities()
+	if b >= list.size():
+		return 1.0
+	return 1.0 / maxf(float(list[b]["turns"]), 1.0) if list[b]["use"] == "hold" else 1.0
+
+
+func ability_ready(b: int) -> bool:
+	return b < _abilities().size() and float(ability_charge[b]) >= ability_cost(b) - 0.0001
+
+
+## The meters fill back up (not the one whose rune is going, and a hold rune's
+## only after a short wait).
+func _refill_abilities(delta: float) -> void:
+	var list := _abilities()
+	for b in ability_charge.size():
+		if b >= list.size():
+			ability_charge[b] = 1.0
+			ability_wait[b] = 0.0
+		elif b != hold_button:
+			ability_wait[b] = maxf(float(ability_wait[b]) - delta, 0.0)
+			if float(ability_wait[b]) <= 0.0:
+				ability_charge[b] = minf(float(ability_charge[b]) + delta / float(list[b]["recharge"]), 1.0)
+
+
+func _update_abilities(delta: float) -> void:
+	var list := _abilities()
+	_refill_abilities(delta)
+	# The turn that's going: when it ends, the next one starts if the button is
+	# still down and there's meter for it.
+	if hold_button >= 0:
+		if hold_button >= list.size() or frozen or dodge_timer > 0.0 or not armed():
+			_stop_hold(true)
+		else:
+			hold_left -= delta
+			if hold_left <= 0.0:
+				if input.ability_held[hold_button] and ability_ready(hold_button):
+					_start_turn(hold_button)
+				else:
+					_stop_hold(false)
+	if frozen or not armed() or dodge_timer > 0.0:
+		return
+	for b in mini(list.size(), ability_charge.size()):
+		if not input.ability_pressed[b] or hold_button == b:
+			continue
+		if not ability_ready(b):
+			ability_denied[b] = game_time
+			Sfx.play(self, "dodge", -20.0, 0.6)
+			continue
+		var a: Dictionary = list[b]
+		if a["use"] == "hold":
+			# Starting a spin drops the swing you were in the middle of.
+			_stop_hold(true)
+			_reset_combo()
+			hit_pause = 0.0
+			hold_angle = aim_dir.angle()
+			hold_side = -swing_side
+			hold_turns = 0
+			_start_turn(b)
+		else:
+			ability_charge[b] = 0.0
+			ability_used[b] = game_time
+			for i in a["effects"]:
+				var e: Dictionary = weapon["effects"][i]
+				for n in int(e["count"]):
+					_queue_rune(i, game_time + n * REPEAT_GAP, float(e["size"]), [], float(e.get("power", 1.0)))
+
+
+## One more turn of a hold rune: spends a turn's worth of meter and fires its runes once.
+func _start_turn(b: int) -> void:
+	var a: Dictionary = _abilities()[b]
+	ability_charge[b] = maxf(float(ability_charge[b]) - ability_cost(b), 0.0)
+	ability_used[b] = game_time
+	hold_button = b
+	hold_turn = maxf(float(a["turn"]), 0.05)
+	hold_left += hold_turn
+	hold_turns += 1
+	hold_fx = []
+	for i in a["effects"]:
+		var e: Dictionary = weapon["effects"][i]
+		_queue_rune(i, game_time, float(e["size"]), [], float(e.get("power", 1.0)), true)
+	_run_rune_queue()   # this tick, so the blade and the body turn together
+
+
+## Ends a hold rune. cut: it was stopped mid-turn (a dodge, a knock-out, a new
+## sword), so what that turn put on screen goes too.
+func _stop_hold(cut: bool) -> void:
+	if hold_button < 0:
+		return
+	ability_wait[hold_button] = ABILITY_WAIT
+	hold_button = -1
+	hold_left = 0.0
+	hold_turns = 0
+	if cut:
+		for n in hold_fx:
+			if is_instance_valid(n):
+				n.queue_free()
+	hold_fx = []
+	# The sword eases back to rest from wherever the spin left it.
+	return_from = [pose_angle, pose_hand]
+	return_t = RETURN_TIME
+
+
+## Which way the spin points right now, as an angle.
+func _hold_angle_now() -> float:
+	return hold_angle + hold_side * TAU * clampf(1.0 - hold_left / hold_turn, 0.0, 1.0)
 
 
 ## Shards: a chain of metal shards from `from` to the closest enemy, then the next.
@@ -1343,7 +1512,13 @@ func _rest_pose() -> Array:
 
 
 func _update_pose(delta: float) -> void:
-	if current_step >= 0:
+	if hold_button >= 0:
+		# Spinning: the sword is held straight out and goes round with the body.
+		var a := _hold_angle_now()
+		pose_angle = a
+		pose_hand = _hand_point() + Vector2.RIGHT.rotated(a) * 4.0
+		lean = lerpf(lean, 0.0, 1.0 - exp(-12.0 * delta))
+	elif current_step >= 0:
 		# Settle only when nothing is queued and the button is up.
 		var chaining := queued or (input.attack_held and not need_release)
 		if step_elapsed > float(_swing_times()[1]) + 0.065 and not chaining and hit_pause <= 0.0:

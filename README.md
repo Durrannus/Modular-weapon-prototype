@@ -86,7 +86,9 @@ Game code must follow these rules, or the two games drift apart:
 | Move | WASD or arrows | Left stick or d-pad |
 | Attack | Left click (swings toward the mouse) | X or right trigger (swings the way you face, or aim with the right stick) |
 | Keep attacking | Hold left click | Hold X |
-| Dodge | Space, Shift or right click | A or left trigger |
+| Dodge | Space or Shift | A or left trigger |
+| First active rune (hold for Whirlwind) | Right click | RB |
+| Second active rune | Q | LB |
 | Use (crate, rune, forge, talk) | E or F | A or Y, when the prompt shows |
 | Pause menu | Esc | Start (in the cave) |
 | Fullscreen on or off | F11 | |
@@ -134,6 +136,7 @@ Run these after changes (they need no window):
 ```
 godot --headless --path . -s tests/test_swing_build.gd                         # the sword rules
 godot --headless --path . --fixed-fps 60 -s tests/feel_check.gd                # movement and swing feel
+godot --headless --path . --fixed-fps 60 -s tests/active_runes.gd              # Hook and Whirlwind on their buttons, and the bands on them
 godot --headless --path . --fixed-fps 60 -s tests/cave_playthrough.gd          # plays the whole cave
 godot --headless --path . --fixed-fps 60 -s tests/cave_playthrough.gd -- players=2 wipe down
 godot --path . -s tests/smoke_forge.gd                                         # opens the forge, fires every rune
@@ -157,12 +160,19 @@ This branch tests the **swing path** (design notes, 3 November). It replaces the
 
 - A sword is a **blade** plus a **grip**. The blade sets the basic three-hit chain (the last hit is the finisher). Grip and blade both have **slots**.
 - Slots hold **runes** (effects) or **bands** (modifiers). Read the sword as one line from the bottom of the grip to the tip: a band boosts the next rune above it, bands in a row stack, and a band with nothing above it does nothing.
-- Runes: **Shockwave** (finisher: a rolling wave), **Hook** (finisher: chains yank enemies in), **Shards** (every hit sends metal shards jumping to the closest enemy, then the next), **Whirlwind** (finisher: a full spin cutting everything around you), **Leap** (an attack straight after a dodge jumps you to the nearest enemy).
+- Runes are **passive** or **active** (Darren, 10 November).
+  - Passive runes fire by themselves: **Shockwave** (finisher: a rolling wave, a light hit that shoves enemies back), **Shards** (every hit sends metal shards jumping to the closest enemy, then the next), **Leap** (an attack straight after a dodge jumps you to the nearest enemy).
+  - Active runes wait for a button: **Hook** (press: chains yank nearby enemies in and stun them for a moment) and **Whirlwind** (hold: you spin, cutting everything around you once a turn, walking at three quarters speed).
 - Bands: **Twice** (the rune happens twice, a beat apart), **Wider** (bigger), **Every Hit** (on every hit instead, at half strength), **Saved Up** (every third time, three times as strong) and **On Dodge** (also when you dodge).
+- **Active runes, in full.** There are two ability buttons: right click and Q, or RB and LB. The first active rune on the sword, reading from the bottom of the grip, takes the first button and the next takes the second, so the order on the sword picks the buttons. Two of the same rune share a button and go off together. Each button has a meter, drawn under the health bar with the rune's picture and its button: it fills from the bottom as the rune recharges and gets a bright edge when it can be used.
+  - Hook needs a full meter, empties it, and is back in 4 seconds.
+  - Whirlwind's full meter is three turns. Each turn spends a third; a tap is one turn, holding keeps turning until the meter is empty or you let go. It refills in 5 seconds, starting a moment after you stop. A dodge cuts a spin short, and the sword can't swing during one.
+  - Bands on an active rune: **Twice** makes Hook pull twice on one press and gives Whirlwind twice the turns; **Wider** is a bigger reach or circle; **Saved Up** makes it three times as strong and three times as slow to recharge; **On Dodge** makes a dodge do it too (one pull or one turn) without touching the meter; **Every Hit** takes it off its button, so it fires by itself on every hit at half strength, as a passive rune.
+  - The numbers are at the top of the rune's entry in `FITTINGS` (`scripts/weapon/swing_build.gd`: `recharge`, `turns`, `turn`) and in `scripts/player.gd` (`HOLD_MOVE`, `HOOK_STUN`, `SHOCKWAVE_DAMAGE` and their neighbours). To make another rune active, give it `"trigger": "active"` and a `"use"`; a third kind of active rune on one sword does nothing, because there are only two buttons.
 - Rule-benders (the "rare" tab, one per sword): **Relay** hands the bands on the rune below on to the next rune above too. Mirror is parked (it overlapped Twice).
 - New parts without art yet show as plain coloured stones, rings and gems.
 - Effects are deliberately loud: each rune has its own visual, sound and name pop-up, the slots flash on the sword and in the HUD when they fire, and a finisher that connects gets a screen shake. Identical runes firing together merge into one bigger effect.
-- **Order test (test arena):** the forge has Test sword A (Twice, Shockwave, Wider, Hook: two shockwaves and a wide hook) and Test sword B (Shockwave, Twice, Wider, Hook: one shockwave and a double, wide hook). Keys 1 and 2 switch between them.
+- **Test swords (test arena):** you start with Test sword C (Whirlwind, Hook, Twice, Shockwave: Whirlwind on the first button, Hook on the second, and two shockwaves on the finisher). The forge also has Test sword A (Twice, Shockwave, Wider, Hook: two shockwaves and a wide hook) and Test sword B (Shockwave, Twice, Wider, Hook: one shockwave and a double, wide hook). Keys 1, 2 and 3 at the forge load A, B and C.
 - **Pause enemies:** the button at the top right, or P / Start.
 - Parts: iron shortblade / blade / longblade (1, 2, 3 slots) and wooden / wrapped / long grips (1, 2, 3 slots), and pommels (no slots, stats only: Plain, Keen +8% crit chance, Heavy +40% crit damage, Light +10% swing speed). The Ringed Grip is a special grip whose built-in band makes every rune a bit bigger; the Gilded Grip's ruby top slot doubles whatever is in it (a rune fires twice, a band counts as two, caps still apply).
 - The forge follows the art thread's design: parts tray on the left, the sword over the anvil with slot numbers and band brackets, and "what this sword does" on the right. **T** or the button puts you next to the dummy. The forge glows: the hearth breathes behind the sword, embers drift up, every change is a hammer blow with sparks and a clang, and leaving after changes plays a short "Forged!" finish (white-hot, quench steam, a shine up the blade). Press Tab or click to skip it.

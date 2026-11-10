@@ -24,10 +24,14 @@ var attack_pressed := false
 var dash_pressed := false
 var interact_pressed := false
 var pause_pressed := false
+## The two ability buttons, for the sword's active runes (the first active rune
+## on the sword, grip to tip, is on button one). Right mouse and Q, or RB and LB.
+var ability_held: Array = [false, false]
+var ability_pressed: Array = [false, false]
 var aim_offset := Vector2.ZERO   # "net" only: the mouse, as an offset from the player
 
-var _was := {"attack": false, "dash": false, "interact": false, "pause": false}
-var _latched := {"attack": false, "dash": false, "interact": false, "pause": false}
+var _was := {"attack": false, "dash": false, "interact": false, "pause": false, "ability1": false, "ability2": false}
+var _latched := {"attack": false, "dash": false, "interact": false, "pause": false, "ability1": false, "ability2": false}
 
 const STICK_DEAD := 0.25
 const TRIGGER_ON := 0.4
@@ -94,12 +98,13 @@ func feed(event: InputEvent) -> void:
 func _event_is(event: InputEvent, name: String) -> bool:
 	if event is InputEventMouseButton:
 		var b := (event as InputEventMouseButton).button_index
-		return (name == "attack" and b == MOUSE_BUTTON_LEFT) or (name == "dash" and b == MOUSE_BUTTON_RIGHT)
+		return (name == "attack" and b == MOUSE_BUTTON_LEFT) or (name == "ability1" and b == MOUSE_BUTTON_RIGHT)
 	if event is InputEventKey:
 		var k := (event as InputEventKey).physical_keycode
 		match name:
 			"dash": return k == KEY_SPACE or k == KEY_SHIFT
 			"interact": return k == KEY_E or k == KEY_F
+			"ability2": return k == KEY_Q
 		return false
 	if event is InputEventJoypadButton:
 		var j := (event as InputEventJoypadButton).button_index
@@ -108,6 +113,8 @@ func _event_is(event: InputEvent, name: String) -> bool:
 			"dash": return j == JOY_BUTTON_A
 			"interact": return j == JOY_BUTTON_Y
 			"pause": return j == JOY_BUTTON_START
+			"ability1": return j == JOY_BUTTON_RIGHT_SHOULDER
+			"ability2": return j == JOY_BUTTON_LEFT_SHOULDER
 	return false
 
 
@@ -120,14 +127,18 @@ func _held(name: String) -> bool:
 		"kbm":
 			match name:
 				"attack": return Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT)
-				"dash": return Input.is_physical_key_pressed(KEY_SPACE) or Input.is_physical_key_pressed(KEY_SHIFT) or Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT)
+				"dash": return Input.is_physical_key_pressed(KEY_SPACE) or Input.is_physical_key_pressed(KEY_SHIFT)
 				"interact": return Input.is_physical_key_pressed(KEY_E) or Input.is_physical_key_pressed(KEY_F)
+				"ability1": return Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT)
+				"ability2": return Input.is_physical_key_pressed(KEY_Q)
 		"pad":
 			match name:
 				"attack": return Input.is_joy_button_pressed(device, JOY_BUTTON_X) or Input.get_joy_axis(device, JOY_AXIS_TRIGGER_RIGHT) > TRIGGER_ON
 				"dash": return Input.is_joy_button_pressed(device, JOY_BUTTON_A) or Input.get_joy_axis(device, JOY_AXIS_TRIGGER_LEFT) > TRIGGER_ON
 				"interact": return Input.is_joy_button_pressed(device, JOY_BUTTON_Y)
 				"pause": return Input.is_joy_button_pressed(device, JOY_BUTTON_START)
+				"ability1": return Input.is_joy_button_pressed(device, JOY_BUTTON_RIGHT_SHOULDER)
+				"ability2": return Input.is_joy_button_pressed(device, JOY_BUTTON_LEFT_SHOULDER)
 	return false
 
 
@@ -174,6 +185,8 @@ func poll() -> void:
 	dash_pressed = pressed["dash"]
 	interact_pressed = pressed["interact"]
 	pause_pressed = pressed["pause"]
+	ability_held = [_was["ability1"], _was["ability2"]]
+	ability_pressed = [pressed["ability1"], pressed["ability2"]]
 
 
 ## Forget anything held or latched (after a menu closes, so its last click doesn't swing).
@@ -185,3 +198,5 @@ func clear() -> void:
 	dash_pressed = false
 	interact_pressed = false
 	pause_pressed = false
+	ability_held = [false, false]
+	ability_pressed = [false, false]

@@ -135,6 +135,7 @@ func open_forge(i: int) -> void:
 			forging = i
 			build_menu.set_build(draft)
 			build_menu.whose = ""
+			build_menu.keys = _ability_keys(i)
 			build_menu.open()
 		return
 	if build_menu.is_open:
@@ -142,7 +143,13 @@ func open_forge(i: int) -> void:
 	forging = i
 	build_menu.set_build(builds[i])
 	build_menu.whose = "Player %d" % (i + 1) if players.size() > 1 else ""
+	build_menu.keys = _ability_keys(i)
 	build_menu.open()
+
+
+## What player i's two ability buttons are called, for the forge's sentences.
+func _ability_keys(i: int) -> Array:
+	return SwingBuild.ABILITY_KEYS["pad" if players[i].input.on_pad() else "kbm"]
 
 
 var _drafting := false
@@ -218,7 +225,8 @@ func net_command(i: int, cmd: Array) -> bool:
 func net_state() -> Array:
 	var out: Array = [Sim.rng.state]
 	for p in players:
-		out.append_array([p.global_position, p.hp, p.is_down, p.current_step, p.step_index, p.dodge_charges, p.invuln, p.walk_vel, p.aim_dir, p.frozen])
+		out.append_array([p.global_position, p.hp, p.is_down, p.current_step, p.step_index, p.dodge_charges, p.invuln, p.walk_vel, p.aim_dir, p.frozen,
+			p.ability_charge[0], p.ability_charge[1], p.hold_button, p.hold_left])
 	for b in builds:
 		out.append(b.get_data())
 	for e in get_tree().get_nodes_in_group("foes"):

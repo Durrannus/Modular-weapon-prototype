@@ -185,6 +185,11 @@ func _arena_tick() -> void:
 	if me == 0 and frame in [700, 900]:
 		Net.command(["spawning"])
 	_fight(me)
+	# The active runes: a press on each button now and then, the first one held
+	# for a while (a Whirlwind there spins on), at different moments for each player.
+	var beat := (frame + me * 55) % 200
+	session.local.ability_pressed = [beat == 40, beat == 120]
+	session.local.ability_held = [beat >= 40 and beat < 85, beat == 120]
 
 
 func _done(ok: bool) -> void:

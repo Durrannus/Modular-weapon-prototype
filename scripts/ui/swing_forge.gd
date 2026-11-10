@@ -18,7 +18,8 @@ signal closed
 ## it's the list of part ids this player owns.
 var owned = null
 var hotkey := true         # Tab / Y opens it anywhere (the test arena)
-var sandbox := true        # test swords (1, 2) and "try at the dummy" (T)
+var sandbox := true        # test swords (1, 2, 3) and "try at the dummy" (T)
+var keys: Array = SwingBuild.ABILITY_KEYS["kbm"]   # what this player's two ability buttons are called
 var whose := ""            # "Player 2" when two players share the forge
 var pauses := true         # false online: the game can't stop for one player's forge
 
@@ -261,6 +262,7 @@ func _input(event: InputEvent) -> void:
 			match (event as InputEventKey).physical_keycode:
 				KEY_1: _load_test("A")
 				KEY_2: _load_test("B")
+				KEY_3: _load_test("C")
 				KEY_T: _try()
 	if event is InputEventMouseMotion:
 		var m := root.get_local_mouse_position()
@@ -671,7 +673,9 @@ func _kind_line(id: String) -> String:
 		return "Band"
 	if f["kind"] == "bender":
 		return "Rule-bender, 1 per sword"
-	return "Rune, " + {"finisher": "on the finisher", "hit": "every hit", "kill": "on a kill", "dodge_attack": "after a dodge"}[f["trigger"]]
+	if f["trigger"] == "active":
+		return "Active rune: %s a button" % ("hold" if f["use"] == "hold" else "press")
+	return "Passive rune, " + {"finisher": "on the finisher", "hit": "every hit", "kill": "on a kill", "dodge_attack": "after a dodge"}[f["trigger"]]
 
 
 func _desc(id: String) -> String:
@@ -687,7 +691,7 @@ func _desc(id: String) -> String:
 func _boost_text(band: String, rune: String) -> String:
 	match band:
 		"twice":
-			return {"shockwave": "two waves", "hook": "hooks twice", "shards": "two chains", "second_wind": "two dodges", "leap": "two jumps", "whirlwind": "two spins"}.get(rune, "twice")
+			return {"shockwave": "two waves", "hook": "hooks twice", "shards": "two chains", "second_wind": "two dodges", "leap": "two jumps", "whirlwind": "spins twice as long"}.get(rune, "twice")
 		"wider":
 			return {"shockwave": "a bigger wave", "hook": "reaches further", "shards": "jumps further", "second_wind": "pushes enemies away", "leap": "jumps further", "whirlwind": "a bigger circle"}.get(rune, "bigger")
 		"every_hit":
@@ -935,7 +939,7 @@ func _draw_does(stats: Dictionary) -> void:
 			y += 13
 	for ei in effects.size():
 		var e: Dictionary = effects[ei]
-		var lines := _wrap(SwingBuild.sentence(e), W - 36)
+		var lines := _wrap(SwingBuild.sentence(e, keys), W - 36)
 		var h := maxf(28.0, lines.size() * 13.0 + 4.0)
 		root.draw_rect(Rect2(X, y, 3, h), _group_color(ei))
 		_icon("runes", e["id"], Vector2(X + 20, y + 14))

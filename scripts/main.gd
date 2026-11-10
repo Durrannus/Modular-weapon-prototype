@@ -39,9 +39,11 @@ func _ready() -> void:
 	dummy.position = ARENA.get_center() + Vector2(220, -40)
 	world.add_child(dummy)
 
-	# Weapons: everyone starts with test sword A from the swing path notes.
+	# Weapons: everyone starts with test sword C: both active runes (Whirlwind,
+	# Hook) and a passive one (Shockwave, twice). A and B are the 3 November test
+	# swords; keys 1, 2 and 3 at the forge load A, B and C.
 	for b in builds:
-		b.load_test("A")
+		b.load_test("C")
 
 	_make_ui()
 	hud.mode = "arena"

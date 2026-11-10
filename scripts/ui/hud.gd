@@ -1,8 +1,9 @@
 extends CanvasLayer
 ## On-screen info, drawn from the art in art/hud at the game's own 640x360.
-## Each player gets a health bar and dodge pips in a top corner and their swing
-## path in the bottom corner. The test arena also shows kills, the chain and the
-## control hints.
+## Each player gets a health bar and dodge pips in a top corner, their sword's
+## active runes (with the button for each and how full it is) under those, and
+## their swing path in the bottom corner. The test arena also shows kills, the
+## chain and the control hints.
 
 var player = null          # player one
 var players: Array = []
@@ -164,18 +165,80 @@ func _draw_hud() -> void:
 				if d == p.dodge_charges and p.dodge_charges < p.DODGE_MAX_CHARGES:
 					var back: float = clampf(p.dodge_refill / p.DODGE_REFILL, 0.0, 1.0)
 					panel.draw_texture(full_pip, at, Color(1, 1, 1, back * 0.55))
+		_draw_abilities(p, right, x, y + 30.0, lead + BAR.x)
 		_draw_path(p, i, right)
 
 	if mode == "arena":
-		_head("Kills %d" % kills, Vector2(MARGIN, 46), INK)
+		# (Below player one's active runes, when their sword has any.)
+		var down := 26.0 if not players[0].weapon.get("abilities", []).is_empty() else 0.0
+		_head("Kills %d" % kills, Vector2(MARGIN, 46 + down), INK)
 		if not spawning:
-			_head("Enemies paused (P / Start)", Vector2(MARGIN, 58), AMBER)
+			_head("Enemies paused (P / Start)", Vector2(MARGIN, 58 + down), AMBER)
 		if players[mini(Net.me(), players.size() - 1)].knocked_out_timer > 0.0:
 			_head("Knocked out! Back to the start.", Vector2(0, 84), EMBER, 16, SIZE.x, HORIZONTAL_ALIGNMENT_CENTER)
 		if not many:
 			_draw_chain(player)
 			var hint := "Tab / Y: forge    Click / X: attack    Space / A: dodge"
 			panel.draw_string(Art.font("PixelifySans-Regular"), Vector2(0, SIZE.y - 8), hint, HORIZONTAL_ALIGNMENT_RIGHT, SIZE.x - MARGIN, 11, DIM)
+
+
+## The sword's active runes, under the health bar: a slot for each with the rune's
+## glyph, and beside it the button that uses it. The slot fills from the bottom as
+## the rune recharges and gets an ember edge when it can be used. A press that
+## came too early shakes the slot.
+const SLOT := 20.0
+
+func _draw_abilities(p, right: bool, x: float, y: float, block_w: float) -> void:
+	var list: Array = p.weapon.get("abilities", [])
+	if list.is_empty() or p.is_down:
+		return
+	var prompts: Array = SwingBuild.ABILITY_PROMPTS["pad" if p.input.on_pad() else "kbm"]
+	var names: Array = SwingBuild.ABILITY_KEYS["pad" if p.input.on_pad() else "kbm"]
+	# Measure, so the right-hand player's row ends under the end of their bar.
+	var widths: Array = []
+	var total := 0.0
+	for b in list.size():
+		var key := Art.texture("cave/ui/prompt_%s.png" % prompts[b])
+		var w := SLOT + 2.0 + (float(key.get_width()) if key != null else _head_width(names[b]))
+		widths.append(w)
+		total += w + (6.0 if b < list.size() - 1 else 0.0)
+	var at := x + block_w - total if right else x
+	panel.draw_rect(Rect2(at - 4, y - 2, total + 8, SLOT + 4), SHADE)
+	var cool := Art.texture("hud/ability_cool.png")
+	for b in list.size():
+		var a: Dictionary = list[b]
+		var charge := clampf(float(p.ability_charge[b]), 0.0, 1.0)
+		var ready: bool = p.ability_ready(b)
+		var going: bool = p.hold_button == b or p.game_time - float(p.ability_used[b]) < 0.12
+		var since_no: float = p.game_time - float(p.ability_denied[b])
+		var sx := at + (roundf(sin(since_no * 70.0) * 1.5) if since_no < 0.2 else 0.0)
+		var frame := Art.texture("hud/ability_ready.png" if ready else "hud/ability_slot.png")
+		if frame != null:
+			panel.draw_texture(frame, Vector2(sx, y))
+		else:
+			panel.draw_rect(Rect2(sx, y, SLOT, SLOT), PLATE)
+			panel.draw_rect(Rect2(sx + 0.5, y + 0.5, SLOT - 1, SLOT - 1), EMBER if ready else FAINT, false, 1.0)
+		var glyph := Art.texture("hud/glyph_%s.png" % a["id"])
+		var dim := Color.WHITE if ready else Color(0.55, 0.55, 0.6)
+		if glyph != null:
+			panel.draw_texture(glyph, Vector2(sx + 4, y + 4), dim)
+		else:
+			_head(str(a["id"]).substr(0, 1), Vector2(sx + 7, y + 14), AMBER if ready else FAINT)
+		if charge < 1.0:
+			# The art's eight frames: 0 just used, 7 nearly back.
+			if cool != null:
+				var f := clampi(int(charge * 8.0), 0, 7)
+				panel.draw_texture_rect_region(cool, Rect2(sx + 2, y + 2, 16, 16), Rect2(f * 16.0, 0, 16, 16))
+			else:
+				panel.draw_rect(Rect2(sx + 2, y + 2, 16, 16.0 * (1.0 - charge)), Color(PLATE.r, PLATE.g, PLATE.b, 0.75))
+		if going:
+			panel.draw_rect(Rect2(sx + 2, y + 2, 16, 16), Color(1.0, 0.94, 0.7, 0.35))
+		var key := Art.texture("cave/ui/prompt_%s.png" % prompts[b])
+		if key != null:
+			panel.draw_texture(key, Vector2(at + SLOT + 2, y + 2), Color.WHITE if ready else Color(0.7, 0.7, 0.7))
+		else:
+			_head(names[b], Vector2(at + SLOT + 2, y + 13), INK if ready else FAINT)
+		at += float(widths[b]) + 6.0
 
 
 ## The blade's chain above the swing path; the last hit is the finisher. (Arena, one player.)

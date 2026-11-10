@@ -183,3 +183,16 @@ The prototype reported three pieces that read badly. All three keep their file n
 - `cave/ui/hint_plate.png` is a solid dark plate with a thin verdigris line (same 12 x 14 nine-patch, margin 4). Draw it at full alpha.
 
 Preview: `preview/gaps_fixes.png`. Code: `concept-art-3/code/v3_gaps5.py`.
+
+## Added by the prototype for active runes (10 November, late)
+
+Four small stand-ins, made in the same make as their neighbours so the active runes could be shown at once. Redraw any of
+them under the same name and size and it drops in.
+
+- `hud/glyph_whirlwind.png`, 12 x 12, the ability-slot glyph for Whirlwind (a ring with two arrowheads, in the rune's pink). The weakest of the four.
+- `cave/ui/prompt_q.png`, 16 x 16, the Q keycap (prompt_e with a Q).
+- `cave/ui/prompt_pad_rb.png` and `prompt_pad_lb.png`, 24 x 16, the controller's shoulder buttons.
+
+The ability slot (`hud/ability_slot.png`, `ability_ready.png`, `ability_cool.png`, `glyph_hook.png`) is now in use: under each
+player's health bar, one slot per active rune with its button beside it. `ability_cool.png` is drawn as frame
+`int(meter * 8)` while the meter is not full (0 = just used, 7 = nearly back).
