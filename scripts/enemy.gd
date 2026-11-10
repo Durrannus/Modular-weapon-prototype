@@ -19,6 +19,7 @@ const SpriteOnce := preload("res://scripts/fx/sprite_once.gd")
 const Sfx := preload("res://scripts/sfx.gd")
 const Glow := preload("res://scripts/glow.gd")
 const Warn := preload("res://scripts/fx/warn.gd")
+const Sim := preload("res://scripts/sim.gd")
 
 var kind := "slime"
 var max_hp := 30.0

@@ -6,6 +6,9 @@ extends RefCounted
 ##   "kbm"    keyboard and mouse only (two players: the other one has a controller)
 ##   "pad"    one controller (device)
 ##   "script" nothing is read; tests set the fields themselves
+##   "net"    online play: nothing is read here. The session (scripts/net/session.gd)
+##            fills the fields each tick with what this player pressed a few ticks
+##            ago, on both computers at once
 ##
 ## Presses are latched: attack_pressed is true for exactly one poll() per press,
 ## however short the press was, so a quick tap is never lost and never doubled.
@@ -21,6 +24,7 @@ var attack_pressed := false
 var dash_pressed := false
 var interact_pressed := false
 var pause_pressed := false
+var aim_offset := Vector2.ZERO   # "net" only: the mouse, as an offset from the player
 
 var _was := {"attack": false, "dash": false, "interact": false, "pause": false}
 var _latched := {"attack": false, "dash": false, "interact": false, "pause": false}
@@ -43,11 +47,17 @@ func label() -> String:
 		"kbm": return "Keyboard + mouse"
 		"pad": return "Controller %d" % (device + 1)
 		"script": return "Script"
+		"net": return "Online"
 	return "Keyboard, mouse or controller"
 
 
 func uses_mouse() -> bool:
-	return kind == "kbm" or (kind == "any" and not using_pad)
+	return kind == "kbm" or ((kind == "any" or kind == "net") and not using_pad)
+
+
+## True when this player is on a controller right now (for button prompts).
+func on_pad() -> bool:
+	return kind == "pad" or ((kind == "any" or kind == "net") and using_pad)
 
 
 ## True if this event came from one of this player's devices.
@@ -65,7 +75,7 @@ func owns(event: InputEvent) -> bool:
 ## Call from _input: notes which device is in use and latches button taps that
 ## could be shorter than one physics tick.
 func feed(event: InputEvent) -> void:
-	if kind == "script" or not owns(event):
+	if kind == "script" or kind == "net" or not owns(event):
 		return
 	if kind == "any":
 		if event is InputEventMouseMotion or event is InputEventMouseButton or event is InputEventKey:
@@ -131,7 +141,7 @@ func _pad_stick(x_axis: JoyAxis, y_axis: JoyAxis) -> Vector2:
 
 ## Read everything for this tick.
 func poll() -> void:
-	if kind == "script":
+	if kind == "script" or kind == "net":
 		return
 	match kind:
 		"any":
@@ -169,7 +179,7 @@ func poll() -> void:
 ## Forget anything held or latched (after a menu closes, so its last click doesn't swing).
 func clear() -> void:
 	for name in _was:
-		_was[name] = _held(name) if kind != "script" else false
+		_was[name] = _held(name) if kind != "script" and kind != "net" else false
 		_latched[name] = false
 	attack_pressed = false
 	dash_pressed = false

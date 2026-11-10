@@ -9,6 +9,8 @@ const EDGE := 26.0                 # players are kept this far inside the screen
 
 var camera: Camera2D
 var targets: Array = []
+var others: Array = []             # online: the other players, watched only while everyone in `targets` is down
+var leashed := true                # two players on one screen can't walk off it; online each has their own screen
 var shake := 0.0
 var limits := Rect2()
 var has_limits := false
@@ -35,10 +37,13 @@ func set_limits(rect: Rect2, margin := 80.0) -> void:
 func _focus() -> Vector2:
 	var sum := Vector2.ZERO
 	var n := 0
-	for p in targets:
-		if is_instance_valid(p) and not p.is_down:
-			sum += p.global_position
-			n += 1
+	for group in [targets, others]:
+		for p in group:
+			if is_instance_valid(p) and not p.is_down:
+				sum += p.global_position
+				n += 1
+		if n > 0:
+			break
 	if n == 0:
 		for p in targets:
 			if is_instance_valid(p):
@@ -77,6 +82,8 @@ func view_rect() -> Rect2:
 ## from your partner than one screen. Only your own step is stopped, so a partner
 ## walking away never drags you.
 func leash(who: Node2D, pos: Vector2) -> Vector2:
+	if not leashed:
+		return pos
 	var reach := VIEW - Vector2(EDGE, EDGE) * 2.0 - Vector2(0.0, 44.0)
 	for q in targets:
 		if q == who or not is_instance_valid(q) or q.is_down:

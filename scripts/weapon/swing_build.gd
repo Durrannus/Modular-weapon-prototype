@@ -149,6 +149,36 @@ func set_pommel(id: String) -> void:
 	changed.emit()
 
 
+## The whole sword as plain values, to send to the other computer online.
+func get_data() -> Array:
+	return [blade, grip, pommel, line.duplicate()]
+
+
+## True if `data` is a sword get_data() could have made (every part exists and
+## the slots fit), so nothing odd can arrive from the other computer.
+static func valid_data(data) -> bool:
+	if not (data is Array) or data.size() != 4 or not (data[3] is Array):
+		return false
+	if not (data[0] is String and data[1] is String and data[2] is String):
+		return false
+	if not (BLADES.has(data[0]) and GRIPS.has(data[1]) and POMMELS.has(data[2])):
+		return false
+	if data[3].size() != int(GRIPS[data[1]]["slots"]) + int(BLADES[data[0]]["slots"]):
+		return false
+	for id in data[3]:
+		if not (id is String) or (id != "" and not FITTINGS.has(id)):
+			return false
+	return true
+
+
+## Sets the whole sword at once. Doesn't announce it: emit `changed` yourself.
+func set_data(data: Array) -> void:
+	blade = data[0]
+	grip = data[1]
+	pommel = data[2]
+	line = (data[3] as Array).duplicate()
+
+
 func load_test(key: String) -> void:
 	var t: Dictionary = TEST_SWORDS[key]
 	blade = t["blade"]

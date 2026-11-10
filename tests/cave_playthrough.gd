@@ -50,6 +50,16 @@ func _init() -> void:
 			test_wipe = true
 		elif a == "down":
 			test_down = true
+	_begin()
+
+
+## Where bot i's presses go: straight into that player's controls. (The online
+## test sends them through the network session; see tests/online_cave.gd.)
+func _inp(i: int):
+	return m.players[i].input
+
+
+func _begin() -> void:
 	m = load("res://scripts/cave/cave.gd").new()
 	var inputs: Array = []
 	for i in n_players:
@@ -87,7 +97,7 @@ func _via(from: Vector2, target: Vector2) -> Vector2:
 
 func _go(i: int, target: Vector2, stop := 10.0) -> bool:
 	var p = m.players[i]
-	var inp = p.input
+	var inp = _inp(i)
 	var via := _via(p.global_position, target)
 	var to: Vector2 = via - p.global_position
 	if via == target and to.length() <= stop:
@@ -117,7 +127,7 @@ func _go(i: int, target: Vector2, stop := 10.0) -> bool:
 
 
 func _press(i: int, what: String) -> void:
-	var inp = m.players[i].input
+	var inp = _inp(i)
 	match what:
 		"interact": inp.interact_pressed = true
 		"attack": inp.attack_pressed = true
@@ -125,13 +135,14 @@ func _press(i: int, what: String) -> void:
 
 
 func _clear_presses() -> void:
-	for p in m.players:
-		p.input.interact_pressed = false
-		p.input.attack_pressed = false
-		p.input.dash_pressed = false
-		p.input.attack_held = false
-		p.input.stick_aim = Vector2.ZERO
-		p.input.move = Vector2.ZERO
+	for i in m.players.size():
+		var inp = _inp(i)
+		inp.interact_pressed = false
+		inp.attack_pressed = false
+		inp.dash_pressed = false
+		inp.attack_held = false
+		inp.stick_aim = Vector2.ZERO
+		inp.move = Vector2.ZERO
 
 
 func _nearest_foe(from: Vector2):
@@ -151,7 +162,7 @@ func _nearest_foe(from: Vector2):
 
 func _fight(i: int) -> void:
 	var p = m.players[i]
-	var inp = p.input
+	var inp = _inp(i)
 	var foe = _nearest_foe(p.global_position)
 	if foe == null:
 		inp.move = Vector2.ZERO
@@ -271,15 +282,15 @@ func _tick() -> void:
 			_shot("card_%s" % stage)
 		if frame % 24 == 0:
 			_press(0, "attack")
-		for p in m.players:
-			p.input.move = Vector2.ZERO
+		for i in m.players.size():
+			_inp(i).move = Vector2.ZERO
 		return
 	match stage:
 		"crate":
 			_shot("1_crate")
 			for i in m.players.size():
 				if m.armed[i]:
-					m.players[i].input.move = Vector2.ZERO
+					_inp(i).move = Vector2.ZERO
 				elif _go(i, Vector2(14.5, 62.6) * T, 20.0) and frame % 10 == 0:
 					_press(i, "interact")
 		"fight1", "fight2", "fight3", "boss":
@@ -304,22 +315,11 @@ func _tick() -> void:
 			_all_go(Vector2(20.5, 16.0) * T)
 		"forge", "tin":
 			_shot("5_%s" % stage)
-			var who := 0
-			for i in m.players.size():
-				var ok: bool = m._fitted(i) if stage == "forge" else m._tin_done(i)
-				if not ok:
-					who = i
-					break
-			for i in m.players.size():
-				if i != who:
-					m.players[i].input.move = Vector2.ZERO
-			if _go(who, Vector2(20.5, 7.75) * T, 22.0) and frame % 10 == 0:
-				forge_step = 0
-				_press(who, "interact")
+			_forge_stage(stage)
 		"boss_wake", "boss_dead":
 			_shot("6_%s" % stage)
-			for p in m.players:
-				p.input.move = Vector2.ZERO
+			for i in m.players.size():
+				_inp(i).move = Vector2.ZERO
 		"smith":
 			_shot("7_smith")
 			if _go(0, Vector2(31.0, 14.6) * T, 22.0) and frame % 10 == 0:
@@ -331,6 +331,23 @@ func _tick() -> void:
 			_shot("9_end")
 			if frame % 30 == 0:
 				_press(0, "attack")
+
+
+## One shared forge screen: the players take turns, player one first.
+func _forge_stage(stage: String) -> void:
+	var T: float = m.TILE
+	var who := 0
+	for i in m.players.size():
+		var ok: bool = m._fitted(i) if stage == "forge" else m._tin_done(i)
+		if not ok:
+			who = i
+			break
+	for i in m.players.size():
+		if i != who:
+			_inp(i).move = Vector2.ZERO
+	if _go(who, Vector2(20.5, 7.75) * T, 22.0) and frame % 10 == 0:
+		forge_step = 0
+		_press(who, "interact")
 
 
 func _drive_forge() -> void:
@@ -369,7 +386,8 @@ func _drive_forge() -> void:
 
 
 func _done(ok: bool) -> void:
-	physics_frame.disconnect(_tick)
+	if physics_frame.is_connected(_tick):
+		physics_frame.disconnect(_tick)
 	var want := ["crate", "fight1", "walk2", "fight2", "walk3", "fight3", "rune", "walk4", "forge", "boss", "boss_dead", "smith", "tin", "stairs", "end"]
 	var missing: Array = []
 	for s in want:
@@ -388,4 +406,8 @@ func _done(ok: bool) -> void:
 			print("  P%d sword: %s + %s %s" % [i + 1, m.builds[i].blade, m.builds[i].grip, str(m.builds[i].line)])
 	else:
 		print("FAIL: stages never reached: %s" % str(missing))
-	quit(0 if ok and missing.is_empty() else 1)
+	_quit(ok and missing.is_empty())
+
+
+func _quit(ok: bool) -> void:
+	quit(0 if ok else 1)

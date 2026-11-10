@@ -22,6 +22,7 @@ const RuneFx := preload("res://scripts/fx/rune_fx.gd")
 const Sfx := preload("res://scripts/sfx.gd")
 const SpriteOnce := preload("res://scripts/fx/sprite_once.gd")
 const PlayerInput := preload("res://scripts/player_input.gd")
+const Sim := preload("res://scripts/sim.gd")
 
 const MOVE_SPEED := 220.0      # about 3.7 body heights a second, like Core Keeper
 const ACCEL := 3000.0          # full speed in about 4 frames
@@ -69,6 +70,7 @@ var auto_respawn := true       # get straight back up at spawn_point (the test a
 var show_marker := false       # coloured ring under the feet (two players)
 var light: PointLight2D     # the small light the player carries
 var interact_ready := false    # standing at something usable: A on a controller uses it and doesn't dodge
+var note := ""                 # a word over their head ("AT THE FORGE", online, for the other player to read)
 
 ## Screen shake goes to the shared camera.
 var shake: float:
@@ -245,6 +247,7 @@ func _physics_process(delta: float) -> void:
 	hurt_flash = maxf(hurt_flash - delta, 0.0)
 	game_time += delta
 	_run_rune_queue()
+	_run_shards()
 	if is_down:
 		walk_vel = Vector2.ZERO
 		hurt_vel = hurt_vel.move_toward(Vector2.ZERO, 1800.0 * delta)
@@ -313,7 +316,9 @@ func _update_facing(delta: float, move: Vector2) -> void:
 	if frozen:
 		return
 	if input.uses_mouse():
-		var to_mouse := get_global_mouse_position() - global_position
+		# Online the mouse arrives with the rest of this player's controls, as an
+		# offset from the player; here it is read straight from the screen.
+		var to_mouse: Vector2 = input.aim_offset if input.kind == "net" else get_global_mouse_position() - global_position
 		if to_mouse.length() > 4.0:
 			aim_dir = to_mouse.normalized()
 	elif stick.length() > 0.3:
@@ -540,7 +545,7 @@ const FINISHER_PAUSE := 0.07
 
 
 func _hit_enemy(e, dmg: float, kdir: Vector2, knock: float, stun := 0.12, freeze := 0.05) -> void:
-	var crit := randf() < float(weapon.get("crit", 0.05))
+	var crit := Sim.chance() < float(weapon.get("crit", 0.05))
 	var final := dmg * (float(weapon.get("crit_damage", 1.5)) if crit else 1.0)
 	e.take_hit(final, kdir, knock, crit, weapon.get("hit_color", Color.WHITE), stun, freeze)
 	# A spark where the blade lands, thrown the way the hit goes.
@@ -732,35 +737,58 @@ func _fire_rune(q: Dictionary) -> void:
 
 
 ## Shards: a chain of metal shards from `from` to the closest enemy, then the next.
+## Each jump takes SHARD_FLIGHT; the hit lands when the shard arrives. Counted in
+## game ticks (not a timer), so it lands on the same tick on every computer.
 const SHARD_JUMPS := 2
 const SHARD_RANGE := 130.0
+var shard_queue: Array = []   # shards in the air: [{at, next, fronts, hit, jumps, size, power, dmg, col, splinter}]
+
 func _shards(from: Node2D, size: float, power: float, dmg: float, col: Color, splinter := false) -> void:
-	var hit := {from.get_instance_id(): true}
-	var fronts: Array = [from]   # where shards are now; each jumps on to the closest enemy
-	for jump in SHARD_JUMPS:
-		var next: Array = []
-		for current in fronts:
-			if not is_instance_valid(current):
-				continue
-			# Every Hit on Shards: each shard splinters in two as it jumps.
-			for k in (2 if splinter else 1):
-				var best = _closest_enemy(current.global_position, SHARD_RANGE * size, hit)
-				if best == null:
-					break
-				hit[best.get_instance_id()] = true
-				_shard_fly(current.global_position, best.global_position, col)
-				next.append(best)
-		if next.is_empty():
-			return
-		await get_tree().create_timer(SHARD_FLIGHT).timeout
-		for e in next:
+	_shard_jump({"fronts": [from], "hit": {from.get_instance_id(): true}, "jumps": SHARD_JUMPS,
+		"size": size, "power": power, "dmg": dmg, "col": col, "splinter": splinter})
+
+
+## Sends the shards on from where they are now to the closest enemies not hit yet.
+func _shard_jump(s: Dictionary) -> void:
+	if int(s["jumps"]) <= 0:
+		return
+	var next: Array = []
+	for current in s["fronts"]:
+		if not is_instance_valid(current):
+			continue
+		# Every Hit on Shards: each shard splinters in two as it jumps.
+		for k in (2 if s["splinter"] else 1):
+			var best = _closest_enemy(current.global_position, SHARD_RANGE * float(s["size"]), s["hit"])
+			if best == null:
+				break
+			s["hit"][best.get_instance_id()] = true
+			_shard_fly(current.global_position, best.global_position, s["col"])
+			next.append(best)
+	if next.is_empty():
+		return
+	s["next"] = next
+	s["jumps"] = int(s["jumps"]) - 1
+	s["at"] = game_time + SHARD_FLIGHT
+	shard_queue.append(s)
+
+
+## Lands the shards that have arrived, and sends them on.
+func _run_shards() -> void:
+	var due: Array = []
+	for s in shard_queue:
+		if float(s["at"]) <= game_time:
+			due.append(s)
+	for s in due:
+		shard_queue.erase(s)
+		for e in s["next"]:
 			if not is_instance_valid(e) or e.dead:
 				continue
 			var dir: Vector2 = (e.global_position - global_position).normalized()
-			e.take_hit(dmg * 0.6 * power, dir, 140.0, false, col)
-			if _strip("shards_hit", e.global_position, 0.0, size) == null:
-				_strip("cleave_echo", e.global_position, 0.0, size)
-		fronts = next
+			e.take_hit(float(s["dmg"]) * 0.6 * float(s["power"]), dir, 140.0, false, s["col"])
+			if _strip("shards_hit", e.global_position, 0.0, float(s["size"])) == null:
+				_strip("cleave_echo", e.global_position, 0.0, float(s["size"]))
+		s["fronts"] = s["next"]
+		_shard_jump(s)
 
 
 const SHARD_FLIGHT := 0.09
@@ -1108,6 +1136,11 @@ func _draw_ring() -> void:
 
 ## The thin lit edge along the top of the body (the strip's _glow image).
 func _draw_rim() -> void:
+	if note != "":
+		var font := Art.font("Silkscreen-Regular")
+		var at := Vector2(-80.0, -64.0)
+		rim.draw_string_outline(font, at, note, HORIZONTAL_ALIGNMENT_CENTER, 160.0, 16, 8, Color(0.06, 0.04, 0.09))
+		rim.draw_string(font, at, note, HORIZONTAL_ALIGNMENT_CENTER, 160.0, 16, Color("#ffc850"))
 	var b := _body_now()
 	if b.is_empty() or b["glow"] == null or hurt_flash > 0.0 or b.get("grey", false):
 		return

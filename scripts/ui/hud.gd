@@ -15,6 +15,7 @@ var trail: Array = []      # per player: the pale bar that trails behind lost he
 
 signal pause_pressed
 
+const Net := preload("res://scripts/net/net.gd")
 const Art := preload("res://scripts/art.gd")
 const SwingBuild := preload("res://scripts/weapon/swing_build.gd")
 const PLAYER_COLORS := Art.PLAYER_COLORS
@@ -123,6 +124,9 @@ func _draw_hud() -> void:
 			else:
 				panel.draw_rect(Rect2(x, y, 4, 12), who)
 			_head("P%d" % (i + 1), Vector2(x + 9, y + 10), who)
+			# Online each player has their own screen: say which bar is theirs.
+			if Net.online() and i == Net.me():
+				_head("YOU", Vector2(x, y + 22), who)
 		var bar := Vector2(x + lead, y)
 		# Health: the frame, the pale trail of what was just lost, then what's left.
 		var frac := clampf(p.hp / p.max_hp, 0.0, 1.0)
@@ -166,7 +170,7 @@ func _draw_hud() -> void:
 		_head("Kills %d" % kills, Vector2(MARGIN, 46), INK)
 		if not spawning:
 			_head("Enemies paused (P / Start)", Vector2(MARGIN, 58), AMBER)
-		if player.knocked_out_timer > 0.0:
+		if players[mini(Net.me(), players.size() - 1)].knocked_out_timer > 0.0:
 			_head("Knocked out! Back to the start.", Vector2(0, 84), EMBER, 16, SIZE.x, HORIZONTAL_ALIGNMENT_CENTER)
 		if not many:
 			_draw_chain(player)

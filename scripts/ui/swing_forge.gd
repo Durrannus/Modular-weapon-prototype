@@ -20,6 +20,7 @@ var owned = null
 var hotkey := true         # Tab / Y opens it anywhere (the test arena)
 var sandbox := true        # test swords (1, 2) and "try at the dummy" (T)
 var whose := ""            # "Player 2" when two players share the forge
+var pauses := true         # false online: the game can't stop for one player's forge
 
 const INK := Color("#e8e4bc")
 const DIM := Color("#8ba688")
@@ -162,7 +163,8 @@ func open() -> void:
 		# In the cave start on the tab that has something new to fit.
 		tab = 1 if _has_unfitted_rune() else 0
 		card = 0
-	get_tree().paused = true
+	if pauses:
+		get_tree().paused = true
 
 
 var opened_at := -9.0
@@ -194,7 +196,8 @@ func _really_close() -> void:
 	dirty = false
 	is_open = false
 	root.visible = false
-	get_tree().paused = false
+	if pauses:
+		get_tree().paused = false
 	drag_id = ""
 	dragging = false
 	closed.emit()

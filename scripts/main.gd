@@ -22,6 +22,8 @@ var kills := 0
 
 func _ready() -> void:
 	randomize()
+	if not Net.online():
+		Sim.shuffle()
 	var floor_node := Node2D.new()
 	floor_node.z_index = -10
 	floor_node.draw.connect(func(): _draw_floor(floor_node))
@@ -43,16 +45,55 @@ func _ready() -> void:
 
 	_make_ui()
 	hud.mode = "arena"
-	hud.pause_pressed.connect(func(): spawning = not spawning)
+	hud.pause_pressed.connect(_toggle_spawning)
 	build_menu.hotkey = false  # handled below, so each player opens their own sword
 	build_menu.try_at_dummy.connect(_on_try_at_dummy)
 
 
-func _physics_process(delta: float) -> void:
-	if Input.is_action_just_pressed("build") and not build_menu.is_open:
-		open_forge(_forge_hotkey_player())
-	if Input.is_action_just_pressed("toggle_spawning"):
+func _toggle_spawning() -> void:
+	if Net.online():
+		Net.command(["spawning"])
+	else:
 		spawning = not spawning
+
+
+## Online, the forge key and the spawning key are sent to both computers and act
+## on the same tick there (see net_command below).
+func _input(event: InputEvent) -> void:
+	if not Net.online():
+		return
+	if event.is_action_pressed("build") and not build_menu.is_open and not pause_menu.is_open():
+		Net.command(["forge_open"])
+	elif event.is_action_pressed("toggle_spawning"):
+		Net.command(["spawning"])
+
+
+func net_command(i: int, cmd: Array) -> bool:
+	if super.net_command(i, cmd):
+		return true
+	match str(cmd[0]):
+		"forge_open":
+			open_forge(i)
+		"spawning":
+			spawning = not spawning
+		"try_dummy":
+			_stand_at_dummy(i)
+		_:
+			return false
+	return true
+
+
+func net_state() -> Array:
+	return super.net_state() + [kills, spawning, spawn_timer]
+
+
+func _physics_process(delta: float) -> void:
+	_tick_players()
+	if not Net.online():
+		if Input.is_action_just_pressed("build") and not build_menu.is_open:
+			open_forge(_forge_hotkey_player())
+		if Input.is_action_just_pressed("toggle_spawning"):
+			spawning = not spawning
 	hud.spawning = spawning
 	hud.kills = kills
 	if not spawning:
@@ -73,7 +114,7 @@ func _enemy_count() -> int:
 
 
 func _spawn_enemy() -> void:
-	var roll := randf()
+	var roll := Sim.chance()
 	var kind := "slime"
 	if roll > 0.85:
 		kind = "brute"
@@ -82,8 +123,8 @@ func _spawn_enemy() -> void:
 	var pos := Vector2.ZERO
 	for i in 12:
 		pos = Vector2(
-			randf_range(ARENA.position.x + 60.0, ARENA.end.x - 60.0),
-			randf_range(ARENA.position.y + 60.0, ARENA.end.y - 60.0))
+			Sim.between(ARENA.position.x + 60.0, ARENA.end.x - 60.0),
+			Sim.between(ARENA.position.y + 60.0, ARENA.end.y - 60.0))
 		var clear := true
 		for p in players:
 			if pos.distance_to(p.global_position) < 380.0:
@@ -99,14 +140,22 @@ func _spawn_enemy() -> void:
 
 ## "Try at the dummy" in the forge: stand next to the dummy, facing it.
 func _on_try_at_dummy() -> void:
-	var who = players[maxi(forging, 0)] if forging < players.size() else player
+	if Net.online():
+		Net.command(["try_dummy"])
+	else:
+		_stand_at_dummy(last_forging)
+
+
+func _stand_at_dummy(i: int) -> void:
+	var who = players[i] if i < players.size() else player
 	for e in get_tree().get_nodes_in_group("enemies"):
 		if e.kind == "dummy":
 			who.global_position = e.global_position + Vector2(-110, 0)
 			who.aim_dir = Vector2.RIGHT
 			who.face_dir = Vector2.RIGHT
 			who.reset_physics_interpolation()
-			rig.snap()
+			if who in rig.targets:
+				rig.snap()
 
 
 func _on_enemy_died(enemy) -> void:

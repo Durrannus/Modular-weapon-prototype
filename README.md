@@ -2,10 +2,11 @@
 
 A Godot prototype for a co-op top-down game about building weapons from parts.
 
-This branch (`swing-path`) has three things to try:
+This branch (`swing-path`) has four things to try:
 
 - **The tutorial cave** (Game Plan milestone 4): four rooms, from a shipwreck crate to a forge guardian, for one or two players.
 - **Two players on one screen.**
+- **Two players online**, one on each computer (see "Playing online" below).
 - **The test arena**: the older sandbox with every sword part unlocked.
 
 ## How to run it
@@ -25,9 +26,58 @@ Both players share one screen. One uses the keyboard and mouse and the other a c
 
 Player one is blue and player two is orange (the ring under their feet and the bar by their health). The camera stays between you, and you can't walk further apart than one screen.
 
-To play with someone who isn't in the room, share your screen with a tool that passes their controller through, such as [Parsec](https://parsec.app) or Steam Remote Play Together. To the game they are just a second controller. Real online play is planned for later (after milestone 5 in the Game Plan).
+To play with someone who isn't in the room, use **Play online** (next section).
 
 With one player, every device works at once, so you can swap between mouse and controller freely.
+
+## Playing online
+
+Two players, one on each computer. One hosts and the other joins.
+
+**You both need exactly the same copy of the game**, run with the same version of Godot (4.7). The simplest way is to send your friend the same zip you play from. If the two copies differ, the game says so when your friend tries to join, and doesn't start.
+
+1. Both of you start the game and pick **Play online** on the title screen.
+2. One of you picks **Host a game**. The first time, Windows asks whether to let Godot through its firewall: choose **Allow**. After a few seconds the screen shows the address your friend should use.
+3. Tell your friend that address. **Copy the address** puts it on the clipboard so you can paste it into a chat.
+4. Your friend picks **Join a game**, types the address and presses **Join**.
+5. When the host's screen says your friend has joined, the host presses **Start: Tutorial cave** or **Start: Test arena**.
+
+Each player uses their own keyboard and mouse or controller, whichever they touched last.
+
+What is different from sharing a screen:
+
+- Each of you has your own camera, and you can walk as far apart as you like.
+- Each of you has your own forge screen. The game carries on for your friend while you are at the forge. You can't move or be hurt while you are there, and your friend sees "AT THE FORGE" over your head.
+- The pause menu no longer pauses the game. **Leave the game** in it ends the game for both of you.
+- Everything you do happens a moment after you press it (usually 50 to 100 thousandths of a second, depending on the connection). That delay is what keeps the two games identical. The game measures the connection and picks the delay when a game starts.
+- If one computer or connection stalls, both games wait and show "Waiting for your friend...". After 20 seconds of nothing the game gives up and returns to the title screen.
+
+### If your friend can't connect
+
+When you host, the game asks your router to let your friend in. Most routers agree, and the host screen then shows your internet address. If it can't, the screen says so, and one of these fixes it:
+
+- **A free VPN app made for games** is the quickest fix and works on every kind of connection. Both of you install the same one, for example [Tailscale](https://tailscale.com) or [Radmin VPN](https://www.radmin-vpn.com), and join the same network in it. Host again, and the host screen lists the VPN address (it says "Tailscale" or "Radmin VPN" beside it). Your friend joins with that address.
+- **Open the port on the host's router** (called "port forwarding"): forward **UDP port 24565** to the host's computer. The router's manual, or a search for its model and "port forwarding", shows how. This does not work if the host screen says your internet provider shares one address between several homes; use a VPN app then.
+- **On the same Wi-Fi or network** nothing needs opening: use the address the host screen lists as "same Wi-Fi or network".
+
+If joining says the connection timed out even though the address is right, the usual causes are the Windows firewall on the host's computer (check that Godot is allowed on private and public networks) or one of the above.
+
+If a red "Out of sync" message ever appears, the two games have stopped matching, which is a bug. Leave and start again, and send both `out_of_sync_player1.txt` and `out_of_sync_player2.txt` to whoever is working on the code. Each player has one of them, in `%APPDATA%\Godot\app_userdata\Modular Weapon Prototype\`.
+
+### How it works, and the rules it puts on the code
+
+Both computers run the whole game. Only each player's button presses are sent, and each press takes effect a few ticks later on both computers at the same tick ("lockstep"). So the two games must stay identical on their own: every 20 ticks they compare a checksum of the game, and a difference is the "Out of sync" message. The session is `scripts/net/session.gd`.
+
+Game code must follow these rules, or the two games drift apart:
+
+- Anything that changes what happens in the game runs in `_physics_process`, never `_process`, a tween or a timer. (For "do this in two seconds", the cave has `_after(seconds, what)`.)
+- Random numbers that decide what happens come from `scripts/sim.gd` (`Sim.chance()`, `Sim.between()`). Looks and sound may keep using `randf()`.
+- Game code never reads `Input` for a player. It reads `player.input`, which the session fills in for both players.
+- A choice made in a menu (changing the sword, closing the forge) is sent with `Net.command([...])` and applied in `net_command(i, cmd)`, so it happens on the same tick for both.
+- Online, nothing pauses the game except the session.
+- Anything new that affects the game should be added to `net_state()` so the checksum covers it.
+
+`tests/online.sh` runs two copies against each other on one computer and compares every checksum (see "Checks").
 
 ## Controls
 
@@ -87,6 +137,16 @@ godot --headless --path . --fixed-fps 60 -s tests/cave_playthrough.gd -- players
 godot --path . -s tests/smoke_forge.gd                                         # opens the forge, fires every rune
 ```
 
+Online play (needs bash, so Linux, macOS or Git Bash on Windows). Each line runs two copies of the game against each other, plays the whole cave or the arena with scripted players, and checks the two games matched at every checksum:
+
+```
+tests/online.sh /path/to/godot                         # the cave, as fast as the computer can
+tests/online.sh /path/to/godot fast hard drop=0.1      # with knock-outs and 10% of messages lost
+tests/online.sh /path/to/godot fast arena              # the arena: forge, sword changes, pausing enemies
+tests/online.sh /path/to/godot real lag=45 drop=0.05   # at normal speed with a slow, lossy connection
+tests/online.sh /path/to/godot real host:slow=22       # one computer that can't keep up
+```
+
 To skip the title screen while testing: `godot --path . -- cave` or `godot --path . -- arena`.
 
 ## This branch: the swing path
@@ -112,6 +172,11 @@ Code map:
 ```
 scenes/boot.tscn, scripts/boot.gd    Title screen, then the mode you pick
 scripts/ui/title.gd                  Who is playing, what to play
+scripts/ui/online_menu.gd            The "Play online" screen: host, join, start
+scripts/net/session.gd               Online play: connecting, sending controls, keeping both games in step
+scripts/net/net.gd                   Where game code asks "are we online, and which player am I?"
+scripts/net/port_opener.gd           Asks the home router to let the other player in
+scripts/sim.gd                       Random numbers for anything that decides what happens (the same on both computers)
 scripts/game_base.gd                 What both modes share: players, swords, camera, HUD, forge
 scripts/cave/cave.gd                 The tutorial cave: map, rooms, stages
 scripts/cave/crawler.gd, burrower.gd, guardian.gd   The cave's enemies and boss

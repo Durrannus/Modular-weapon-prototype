@@ -23,8 +23,8 @@ func _setup() -> void:
 	radius = 11.0
 	contact_damage = 0.0
 	color = Color("#c9923a")
-	side = 1.0 if randf() < 0.5 else -1.0
-	mode_t = randf_range(0.4, 0.6)
+	side = 1.0 if Sim.chance() < 0.5 else -1.0
+	mode_t = Sim.between(0.4, 0.6)
 	emerge_time = mode_t
 
 

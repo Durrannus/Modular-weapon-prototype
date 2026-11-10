@@ -1,5 +1,7 @@
 extends CanvasLayer
 ## Esc pause menu: Resume, Fullscreen on/off, Back to title, Quit. Pauses the whole game.
+## Online it can't pause (the other player is still playing), so it is just a menu:
+## the game carries on behind it and your character stands still.
 
 const Art := preload("res://scripts/art.gd")
 
@@ -10,6 +12,7 @@ var panel: Control
 var first_button: Button
 var build_menu  # Esc closes the forge first if it's open
 var locked := false  # a cutscene or the ending is showing: no pausing
+var pauses := true   # false online (set before adding it to the scene)
 
 
 ## Esc: close the forge if it's open, otherwise open or close this menu.
@@ -59,7 +62,7 @@ func _ready() -> void:
 	box.add_theme_constant_override("separation", 6)
 	panel.add_child(box)
 	var title := Label.new()
-	title.text = "PAUSED"
+	title.text = "PAUSED" if pauses else "MENU"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.custom_minimum_size = Vector2(0, 20)
 	var f := Art.font("Silkscreen-Regular")
@@ -73,7 +76,7 @@ func _ready() -> void:
 	var hot := Art.nine("swing/ui/button_hot.png", 3)
 	var ink := Color("#e8e4bc")
 	var dark := Color("#19142a")
-	for item in [["Resume", resume], ["Fullscreen on/off", _toggle_full], ["Back to title", _title], ["Quit game", _quit]]:
+	for item in [["Resume", resume], ["Fullscreen on/off", _toggle_full], ["Back to title" if pauses else "Leave the game", _title], ["Quit game", _quit]]:
 		var b := Button.new()
 		b.text = str(item[0]).to_upper()
 		b.focus_mode = Control.FOCUS_ALL
@@ -101,13 +104,15 @@ func is_open() -> bool:
 
 func open() -> void:
 	panel.visible = true
-	get_tree().paused = true
+	if pauses:
+		get_tree().paused = true
 	first_button.grab_focus()
 
 
 func resume() -> void:
 	panel.visible = false
-	get_tree().paused = false
+	if pauses:
+		get_tree().paused = false
 	resumed.emit()
 
 

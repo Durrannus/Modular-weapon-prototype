@@ -245,7 +245,7 @@ func _rock_rain() -> void:
 	var spots: Array = []
 	for p in players():
 		spots.append(p.global_position)
-		spots.append(p.global_position + Vector2(randf_range(-150, 150), randf_range(-110, 110)))
+		spots.append(p.global_position + Vector2(Sim.between(-150, 150), Sim.between(-110, 110)))
 	for i in spots.size():
 		var h := Hazard.new()
 		h.radius = 58.0

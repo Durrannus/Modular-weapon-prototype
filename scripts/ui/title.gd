@@ -20,6 +20,7 @@ const PLAYER_COLORS := Art.PLAYER_COLORS
 const ITEMS := [
 	["cave", "Tutorial cave", "The four-room cave from the Game Plan: find a sword, fight through, fit a rune, beat the guardian."],
 	["arena", "Test arena", "The sandbox: every part unlocked, endless enemies, forge on Tab or Y."],
+	["online", "Play online", "Two players over the internet, one on each computer. One hosts, the other joins."],
 	["quit", "Quit", ""],
 ]
 const MAX_PLAYERS := 2
@@ -31,6 +32,7 @@ var hover := -1
 var rects: Array = []
 var t := 0.0
 var stick_ready := {}     # controller id -> its stick has come back to the middle
+var notice := ""          # one line of news from the last game ("Your friend left the game.")
 
 
 func _ready() -> void:
@@ -136,6 +138,10 @@ func _choose() -> void:
 		get_tree().quit()
 		return
 	Sfx.play(self, "click", -8.0)
+	if mode == "online":
+		# Online, each computer has one player, on any device.
+		start.emit(mode, [])
+		return
 	var inputs: Array = []
 	if joined.size() <= 1:
 		# On your own every device works, so you can swap between mouse and controller.
@@ -159,7 +165,12 @@ func _draw_title() -> void:
 		root.draw_rect(Rect2(0, 0, 640, 360), PLATE)
 	root.draw_string(silk, Vector2(40, 62), "MODULAR WEAPON", HORIZONTAL_ALIGNMENT_LEFT, -1, 24, AMBER)
 	root.draw_string(silk, Vector2(40, 80), "PROTOTYPE", HORIZONTAL_ALIGNMENT_LEFT, -1, 16, INK)
-	for plate in [Rect2(28, 98, 276, 142), Rect2(364, 98, 248, 142)]:
+	if notice != "":
+		var noty := 58.0
+		for l in _wrap(notice, 248.0, pix):
+			root.draw_string(pix, Vector2(364, noty), l, HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Color("#f06a40"))
+			noty += 13.0
+	for plate in [Rect2(28, 98, 276, 168), Rect2(364, 98, 248, 168)]:
 		if not Art.draw_nine(root, "swing/ui/panel.png", plate, 8):
 			root.draw_rect(plate, PLATE)
 

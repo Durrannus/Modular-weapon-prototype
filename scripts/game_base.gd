@@ -5,7 +5,8 @@ extends Node2D
 ## Two players share one screen. `inputs` says who is on which device; leave it
 ## empty for one player on every device.
 
-signal exit_to_title
+signal exit_to_title     # the game is over (the end of the cave)
+signal quit_to_title     # this player chose "Back to title" in the pause menu
 
 const PlayerScript := preload("res://scripts/player.gd")
 const PlayerInput := preload("res://scripts/player_input.gd")
@@ -17,6 +18,8 @@ const PauseMenuScript := preload("res://scripts/ui/pause_menu.gd")
 const SwingBuild := preload("res://scripts/weapon/swing_build.gd")
 const Art := preload("res://scripts/art.gd")
 const Sfx := preload("res://scripts/sfx.gd")
+const Sim := preload("res://scripts/sim.gd")
+const Net := preload("res://scripts/net/net.gd")
 
 const TILE := 32.0  # world units per 16 px tile
 const CHARACTERS := ["crew_a", "crew_b"]
@@ -33,6 +36,14 @@ var hud
 var build_menu
 var pause_menu
 var forging := -1       # which player has the forge open (-1 = nobody)
+var last_forging := 0   # who had it open last (for "try at the dummy")
+## Online each player has their own forge screen, so both can be at the forge at
+## once. at_forge says who is; draft is the sword as this computer's screen shows
+## it, a copy that is sent to both computers every time it changes.
+var at_forge: Array = []
+var draft: SwingBuild
+var min_hp := 0.0       # tests: nobody's health drops below this
+var test_commands := false   # tests: allow the "test_ko" command (knocks everyone out)
 
 
 func _make_world() -> void:
@@ -70,8 +81,16 @@ func _add_players(at: Vector2) -> void:
 		var b := SwingBuild.new()
 		b.changed.connect(_on_build_changed.bind(i))
 		builds.append(b)
+		at_forge.append(false)
 	player = players[0]
 	build = builds[0]
+	if Net.online():
+		# One screen each: the camera follows this computer's player (and watches
+		# their partner while they are down), and nobody is leashed to anybody.
+		var me = players[mini(Net.me(), n - 1)]
+		rig.targets = [me]
+		rig.others = players.filter(func(q): return q != me)
+		rig.leashed = false
 	rig.global_position = at
 	rig.snap()
 
@@ -86,19 +105,38 @@ func _make_ui() -> void:
 	hud.players = players
 	hud.player = player
 	build_menu = BuildMenuScript.new()
+	build_menu.pauses = not Net.online()
 	add_child(build_menu)
 	build_menu.setup(build)
 	build_menu.closed.connect(_on_forge_closed)
 	pause_menu = PauseMenuScript.new()
+	pause_menu.pauses = not Net.online()
 	pause_menu.build_menu = build_menu
 	add_child(pause_menu)
-	pause_menu.to_title.connect(func(): exit_to_title.emit())
+	pause_menu.to_title.connect(func(): quit_to_title.emit())
 	pause_menu.resumed.connect(_swallow_presses)
+	draft = SwingBuild.new()
+	draft.changed.connect(_on_draft_changed)
 	_set_cursor()
 
 
 ## Puts player i's sword on the anvil and opens the forge screen.
 func open_forge(i: int) -> void:
+	if Net.online():
+		# This runs on both computers on the same tick. Only player i's own
+		# computer shows the screen; the other just knows they are at the forge.
+		if at_forge[i]:
+			return
+		at_forge[i] = true
+		if i == Net.me():
+			_drafting = false
+			draft.set_data(builds[i].get_data())
+			_drafting = true
+			forging = i
+			build_menu.set_build(draft)
+			build_menu.whose = ""
+			build_menu.open()
+		return
 	if build_menu.is_open:
 		return
 	forging = i
@@ -107,13 +145,93 @@ func open_forge(i: int) -> void:
 	build_menu.open()
 
 
+var _drafting := false
+
+## Online: the forge screen changed its copy of the sword. Send the whole sword
+## to both computers; it becomes the real one on the tick it arrives.
+func _on_draft_changed() -> void:
+	if _drafting and Net.online():
+		Net.command(["build", draft.get_data()])
+
+
+## The forge screen on this computer closed.
 func _on_forge_closed() -> void:
+	if Net.online():
+		_drafting = false
+		forging = -1
+		Net.command(["forge_close"])
+		return
 	_swallow_presses()
+	last_forging = maxi(forging, 0)
 	forging = -1
+	_forge_done(last_forging)
+
+
+## Player i has finished at the forge. The cave checks its objectives here.
+func _forge_done(_i: int) -> void:
+	pass
+
+
+## True while player i's forge screen is open on their own computer (online).
+func is_forging(i: int) -> bool:
+	return Net.online() and i < at_forge.size() and at_forge[i]
+
+
+## Call every tick: someone working at the forge can't be hurt (online the game
+## doesn't stop for them), and the test hook for health.
+func _tick_players() -> void:
+	for i in players.size():
+		players[i].note = "AT THE FORGE" if is_forging(i) and i != Net.me() else ""
+		if is_forging(i):
+			players[i].invuln = maxf(players[i].invuln, 0.2)
+		if min_hp > 0.0:
+			players[i].hp = maxf(players[i].hp, min_hp)
+
+
+## Online: something player i chose in a menu, arriving on both computers on the
+## same tick (sent with Net.command). Returns true if it was understood.
+func net_command(i: int, cmd: Array) -> bool:
+	if i < 0 or i >= players.size():
+		return false
+	match str(cmd[0]):
+		"build":
+			if cmd.size() == 2 and SwingBuild.valid_data(cmd[1]):
+				builds[i].set_data(cmd[1])
+				builds[i].changed.emit()
+			return true
+		"forge_close":
+			if at_forge[i]:
+				at_forge[i] = false
+				_forge_done(i)
+			return true
+		"test_ko":
+			if test_commands:
+				for p in players:
+					p.invuln = 0.0
+					p.take_damage(9999.0)
+			return true
+	return false
+
+
+## Online: the numbers that must be the same on both computers. They are
+## compared every so often to catch the two games drifting apart.
+func net_state() -> Array:
+	var out: Array = [Sim.rng.state]
+	for p in players:
+		out.append_array([p.global_position, p.hp, p.is_down, p.current_step, p.step_index, p.dodge_charges, p.invuln, p.walk_vel, p.aim_dir, p.frozen])
+	for b in builds:
+		out.append(b.get_data())
+	for e in get_tree().get_nodes_in_group("foes"):
+		if is_instance_valid(e) and not e.is_queued_for_deletion():
+			out.append_array([e.kind, e.global_position, e.hp, e.dead, e.knock])
+	return out
 
 
 ## The click or button that closed a menu shouldn't also swing or dodge.
+## (Online the session does this for this computer's own controls.)
 func _swallow_presses() -> void:
+	if Net.online():
+		return
 	for p in players:
 		p.need_release = true
 		p.input.clear()
@@ -134,6 +252,8 @@ func living_players() -> Array:
 
 ## Lets the forge hotkey (Tab / Y) open the right player's sword.
 func _forge_hotkey_player() -> int:
+	if Net.online():
+		return Net.me()
 	for i in players.size():
 		var inp = players[i].input
 		if inp.kind == "pad" and Input.is_joy_button_pressed(inp.device, JOY_BUTTON_Y):

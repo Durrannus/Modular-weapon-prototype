@@ -83,6 +83,8 @@ var guardian_home := Vector2.ZERO
 
 func _ready() -> void:
 	randomize()
+	if not Net.online():
+		Sim.shuffle()
 	cave_data = Art.json("cave/cave.json")
 	_carve()
 	_make_world()
@@ -491,8 +493,9 @@ func _begin() -> void:
 func _keys(kbm: String, pad: String) -> String:
 	var any_kbm := false
 	var any_pad := false
-	for p in players:
-		if p.input.kind == "pad" or (p.input.kind == "any" and p.input.using_pad):
+	# Online each player reads their own screen, so only their own device counts.
+	for p in ([players[Net.me()]] if Net.online() else players):
+		if p.input.on_pad():
 			any_pad = true
 		else:
 			any_kbm = true
@@ -508,9 +511,12 @@ func _physics_process(delta: float) -> void:
 		if inp.attack_pressed or inp.interact_pressed or (inp.using_pad and inp.dash_pressed):
 			pressed = true
 	ui.advance(pressed, delta)
+	_tick_players()
+	_run_later(delta)
 	var busy: bool = ui.busy() or wiping or stage in ["intro", "end", "boss_wake"]
-	for p in players:
-		p.frozen = busy and stage != "boss_wake"
+	for i in players.size():
+		var p = players[i]
+		p.frozen = (busy and stage != "boss_wake") or is_forging(i)
 		if was_busy and not busy:
 			p.need_release = true
 	was_busy = busy
@@ -520,7 +526,7 @@ func _physics_process(delta: float) -> void:
 		p.interact_ready = false
 	# In the forge room the camera looks a little north, to keep the forge in view.
 	var in_forge_room := false
-	for p in living_players():
+	for p in ([players[Net.me()]] if Net.online() else living_players()):
 		if p.global_position.y < float(ROOMS[3].end.y) * TILE:
 			in_forge_room = true
 	rig.bias = rig.bias.move_toward(Vector2(0, -70.0) if in_forge_room else Vector2.ZERO, 120.0 * delta)
@@ -532,6 +538,26 @@ func _physics_process(delta: float) -> void:
 	_update_stage(delta)
 	if fighting:
 		_update_fight(delta)
+
+
+## Things due in a moment, counted in game ticks (not a timer or a tween), so
+## they happen on the same tick on every computer.
+var later: Array = []   # [[seconds left, what to do]]
+
+func _after(seconds: float, what: Callable) -> void:
+	later.append([seconds, what])
+
+
+func _run_later(delta: float) -> void:
+	for item in later.duplicate():
+		item[0] = float(item[0]) - delta
+		if float(item[0]) <= 0.0:
+			later.erase(item)
+			(item[1] as Callable).call()
+
+
+func net_state() -> Array:
+	return super.net_state() + [stage, room_i, fighting, waves.size(), wave_wait, timer, run_time, knockouts, wiping, armed, at_forge, ui.busy()]
 
 
 func _update_interactions() -> void:
@@ -553,7 +579,8 @@ func _update_interactions() -> void:
 		var it: Dictionary = interactables[best]
 		p.interact_ready = true
 		var pad: bool = p.input.using_pad
-		if not shown.has(best):
+		# (Online the prompt is for this computer's player, with their own button.)
+		if not shown.has(best) and (not Net.online() or i == Net.me()):
 			shown[best] = true
 			ui.prompts.append({"at": it["at"] - Vector2(0, float(it["lift"])), "text": it["text"], "pad": pad})
 		if p.input.interact_pressed or (pad and p.input.dash_pressed):
@@ -664,7 +691,7 @@ func _spawn(kind: String, room: int) -> void:
 	var best := rect.get_center()
 	var best_score := -INF
 	for tries in 24:
-		var pos := Vector2(randf_range(rect.position.x, rect.end.x), randf_range(rect.position.y, rect.end.y))
+		var pos := Vector2(Sim.between(rect.position.x, rect.end.x), Sim.between(rect.position.y, rect.end.y))
 		if not is_floor(int(pos.x / TILE), int(pos.y / TILE)):
 			continue
 		var bad := false
@@ -678,7 +705,7 @@ func _spawn(kind: String, room: int) -> void:
 			nearest = minf(nearest, pos.distance_to(p.global_position))
 		for e in get_tree().get_nodes_in_group("foes"):
 			nearest = minf(nearest, pos.distance_to(e.global_position) * 3.0)
-		var score := minf(nearest, 420.0) + randf() * 20.0
+		var score := minf(nearest, 420.0) + Sim.chance() * 20.0
 		if score > best_score:
 			best_score = score
 			best = pos
@@ -871,12 +898,18 @@ func _forge_objective() -> void:
 
 
 func _use_forge(i: int) -> void:
-	build_menu.owned = owned[i]
+	if not Net.online() or i == Net.me():
+		build_menu.owned = owned[i]
 	open_forge(i)
 
 
-func _on_forge_closed() -> void:
-	super._on_forge_closed()
+## Someone has finished at the forge: has everyone done what the story is waiting for?
+func _forge_done(_i: int) -> void:
+	# Online, wait until nobody is still at the forge before the story moves on.
+	for k in players.size():
+		if is_forging(k):
+			_forge_objective()
+			return
 	if stage == "forge":
 		var all := true
 		for i in players.size():
@@ -1013,9 +1046,7 @@ func _finish() -> void:
 	ui.hint = ""
 	ui.fade_out(1.6, Color(1.0, 0.98, 0.9))
 	var secs := int(run_time)
-	var wait := create_tween()
-	wait.tween_interval(1.9)
-	wait.tween_callback(func():
+	_after(1.9, func():
 		ui.card_picture = "cave/ui/card_daylight.png"
 		ui.card("Daylight", "You climb out into a land you have never seen.\n\nEnd of the tutorial cave.\nTime %d:%02d      Knock-outs %d" % [secs / 60, secs % 60, knockouts], 0.0, func():
 			exit_to_title.emit()))
@@ -1033,9 +1064,7 @@ func _on_player_down(_p) -> void:
 func _wipe() -> void:
 	wiping = true
 	ui.fade_out(0.6)
-	var tw := create_tween()
-	tw.tween_interval(1.0)
-	tw.tween_callback(_restart_room)
+	_after(1.0, _restart_room)
 
 
 func _restart_room() -> void:

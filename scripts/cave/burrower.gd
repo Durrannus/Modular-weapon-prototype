@@ -29,7 +29,7 @@ func _setup() -> void:
 	radius = 12.0
 	contact_damage = 0.0
 	color = Color("#9a5fd0")
-	mode_t = randf_range(0.8, 1.4)
+	mode_t = Sim.between(0.8, 1.4)
 
 
 func _ready() -> void:
@@ -39,7 +39,7 @@ func _ready() -> void:
 
 func _go_under() -> void:
 	mode = "burrowed"
-	mode_t = randf_range(1.0, 1.8)
+	mode_t = Sim.between(1.0, 1.8)
 	immune = true
 	# Underground it isn't a target for swings or runes, and slips past the others.
 	if is_in_group("enemies"):
