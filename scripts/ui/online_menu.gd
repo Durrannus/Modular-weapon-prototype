@@ -89,7 +89,7 @@ func _show(v: String) -> void:
 	var first: Control = null
 	match v:
 		"choose":
-			info.text = "Two players, one on each computer.\n\nOne of you hosts and tells the other the address the game shows. The other joins with that address.\n\nYou both need exactly the same copy of the game."
+			info.text = "Two players, one on each computer.\n\nOne of you hosts and tells the other the address the game shows. The other joins with that address.\n\nYou both need the same version of the game: the number in the bottom-left corner."
 			first = _button("Host a game", _host)
 			_button("Join a game", func(): _show("join"))
 			_button("Back", func(): back.emit())

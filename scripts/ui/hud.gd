@@ -179,7 +179,7 @@ func _draw_hud() -> void:
 		if not many:
 			_draw_chain(player)
 			var hint := "Tab / Y: forge    Click / X: attack    Space / A: dodge"
-			panel.draw_string(Art.font("PixelifySans-Regular"), Vector2(0, SIZE.y - 8), hint, HORIZONTAL_ALIGNMENT_RIGHT, SIZE.x - MARGIN, 11, DIM)
+			panel.draw_string(Art.font("PixelifySans-Regular"), Vector2(0, SIZE.y - 16), hint, HORIZONTAL_ALIGNMENT_RIGHT, SIZE.x - MARGIN, 11, DIM)
 
 
 ## The sword's active runes, under the health bar: a slot for each with the rune's
@@ -245,7 +245,7 @@ func _draw_abilities(p, right: bool, x: float, y: float, block_w: float) -> void
 func _draw_chain(p) -> void:
 	var steps: Array = p.weapon.get("steps", [])
 	var x := MARGIN
-	var y := SIZE.y - 54.0
+	var y := SIZE.y - 62.0
 	_head("Chain", Vector2(x, y - 5), DIM)
 	for i in steps.size():
 		var label: String = steps[i]["move"]
@@ -279,7 +279,7 @@ func _draw_path(p, i: int, right: bool) -> void:
 		cells.append([label, w])
 		total += w + (10.0 if s < line.size() - 1 else 0.0)
 	var x := SIZE.x - MARGIN - total if right else MARGIN
-	var y := SIZE.y - 20.0
+	var y := SIZE.y - 28.0   # room below for the version number
 	var title := "Swing path"
 	if players.size() > 1:
 		title = "P%d swing path" % (i + 1)

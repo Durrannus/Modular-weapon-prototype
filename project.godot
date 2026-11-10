@@ -12,6 +12,7 @@ config/features=PackedStringArray("4.7", "GL Compatibility")
 [autoload]
 
 InputSetup="*res://scripts/input_setup.gd"
+VersionLabel="*res://scripts/ui/version_label.gd"
 
 [display]
 

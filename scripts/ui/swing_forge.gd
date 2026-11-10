@@ -77,6 +77,7 @@ var banner: Control
 
 func _ready() -> void:
 	layer = 10
+	add_to_group("covers_version")   # its plates fill the corner the version number sits in
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	root = Control.new()
 	root.size = Vector2(640, 360)

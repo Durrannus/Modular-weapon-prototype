@@ -296,7 +296,7 @@ func _mismatch(theirs: Dictionary) -> String:
 	if str(theirs.get("engine", "")) != str(mine["engine"]):
 		return "You two are running different versions of Godot (%s and %s). You both need the same one." % [str(theirs.get("engine", "?")), mine["engine"]]
 	if int(theirs.get("protocol", -1)) != PROTOCOL or str(theirs.get("build", "")) != str(mine["build"]):
-		return "Your two copies of the game are different. You both need exactly the same copy (the same download, or the same commit)."
+		return "Your two copies of the game are different. Look at the version number in the bottom-left corner: you both need the same one."
 	return ""
 
 

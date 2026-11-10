@@ -224,7 +224,7 @@ func _draw_title() -> void:
 	for l in _wrap(help, 232.0, pix):
 		root.draw_string(pix, Vector2(px, hy), l, HORIZONTAL_ALIGNMENT_LEFT, -1, 11, DIM)
 		hy += 13.0
-	root.draw_string(pix, Vector2(40, 348), "W / S or stick: choose      Enter or A: select      Backspace or B: leave", HORIZONTAL_ALIGNMENT_LEFT, -1, 11, DIM)
+	root.draw_string(pix, Vector2(40, 340), "W / S or stick: choose      Enter or A: select      Backspace or B: leave", HORIZONTAL_ALIGNMENT_LEFT, -1, 11, DIM)
 
 
 func _wrap(text: String, width: float, f: Font) -> Array:

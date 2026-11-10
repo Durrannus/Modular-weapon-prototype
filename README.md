@@ -17,6 +17,14 @@ This branch (`swing-path`) has four things to try:
 
 The title screen asks who is playing and what to play.
 
+### Which version is this?
+
+The bottom-left corner of every screen says **Version 5** (or whatever the number is now). The number goes up by one with every change that is pushed, so after a pull you can see that you have the new one, and two people can check they have the same one.
+
+If it says **Version 5 + changes**, the files in this folder are no longer exactly version 5's: a script or a picture was changed (or a pull stopped half way) since the number was given.
+
+The number lives in `scripts/version.gd`. Don't edit it by hand: see "Checks" below.
+
 ## Two players
 
 Both players share one screen. One uses the keyboard and mouse and the other a controller, or both use controllers.
@@ -34,7 +42,7 @@ With one player, every device works at once, so you can swap between mouse and c
 
 Two players, one on each computer. One hosts and the other joins.
 
-**You both need exactly the same copy of the game**, run with the same version of Godot (4.7). The simplest way is to send your friend the same zip you play from. If the two copies differ, the game says so when your friend tries to join, and doesn't start.
+**You both need exactly the same copy of the game**, run with the same version of Godot (4.7): the version number in the bottom-left corner of the screen must be the same for both of you. The simplest way is to send your friend the same zip you play from. If the two copies differ, the game says so when your friend tries to join, and doesn't start.
 
 1. Both of you start the game and pick **Play online** on the title screen.
 2. One of you picks **Host a game**. The first time, Windows asks whether to let Godot through its firewall: choose **Allow**. After a few seconds the screen shows the address your friend should use.
@@ -140,6 +148,13 @@ godot --headless --path . --fixed-fps 60 -s tests/active_runes.gd              #
 godot --headless --path . --fixed-fps 60 -s tests/cave_playthrough.gd          # plays the whole cave
 godot --headless --path . --fixed-fps 60 -s tests/cave_playthrough.gd -- players=2 wipe down
 godot --path . -s tests/smoke_forge.gd                                         # opens the forge, fires every rune
+godot --headless --path . -s tests/version_check.gd                            # the version number was raised if anything changed
+```
+
+**Before every push that changes the game**, give it the next version number. This raises the number by one and records which files it belongs to (it does nothing if nothing changed):
+
+```
+godot --headless --path . -s tests/version_check.gd -- stamp
 ```
 
 Online play (needs bash, so Linux, macOS or Git Bash on Windows). Each line runs two copies of the game against each other, plays the whole cave or the arena with scripted players, and checks the two games matched at every checksum:
