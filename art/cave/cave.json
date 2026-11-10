@@ -567,7 +567,8 @@
      "glow": true
     }
    },
-   "note": "The helm crab: a cave crab living in an old bronze helmet. Front view, so it needs no mirroring. attack: rears up with claws open, snaps (frame 1 is the hit), settles. death ends on the empty helmet."
+   "note": "The helm crab: a cave crab living in an old bronze helmet. Front view, so it needs no mirroring. attack: rears up with claws open, snaps (frame 1 is the hit), settles. death ends on the empty helmet.",
+   "note_light": "10 Nov: one palette step brighter, and the top edge is now in the _glow layer as a thin rim. Draw the glow layer unshaded and the 1.7x brightening in code should not be needed."
   },
   "burrower": {
    "frame": [
@@ -582,12 +583,12 @@
     "idle": {
      "frames": 4,
      "fps": 6,
-     "glow": false
+     "glow": true
     },
     "move": {
      "frames": 6,
      "fps": 10,
-     "glow": false
+     "glow": true
     },
     "warn": {
      "frames": 2,
@@ -602,7 +603,7 @@
     "stunned": {
      "frames": 2,
      "fps": 5,
-     "glow": false
+     "glow": true
     },
     "hit": {
      "frames": 2,
@@ -615,7 +616,8 @@
      "glow": true
     }
    },
-   "note": "The pike worm: a pale grub wearing an old bronze spearhead. Faces right. move = burrowed (only the mound). warn loops and its pike glows on frame 1. lunge: launch, stretched in the air, land. stunned loops, flopped out. death ends on the dropped spearhead."
+   "note": "The pike worm: a pale grub wearing an old bronze spearhead. Faces right. move = burrowed (only the mound). warn loops and its pike glows on frame 1. lunge: launch, stretched in the air, land. stunned loops, flopped out. death ends on the dropped spearhead.",
+   "note_light": "10 Nov: one palette step brighter, and the top edge is now in the _glow layer as a thin rim. Draw the glow layer unshaded and the 1.7x brightening in code should not be needed."
   },
   "guardian": {
    "frame": [
@@ -765,7 +767,8 @@
     ],
     0.3
    ]
-  }
+  },
+  "note_in_engine": "From the first in-engine run (prototype thread, 10 Nov): ambient 15% brighter than listed, each player's light r64 at 0.55, stairs and their braziers dark until the way out opens."
  },
  "layout_map_px": {
   "room4": [

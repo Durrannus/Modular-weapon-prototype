@@ -141,7 +141,7 @@ All sprites, effects, menus and the HUD use the art thread's v3 set. Three rules
 - **Glow layers.** A sprite with glowing pixels has a `<name>_glow.png` beside it. `scripts/glow.gd` draws it on top with an unshaded material, so embers, eyes and runes stay bright in the dark. Props (`strip_sprite.gd`), enemies (`enemy.gd`) and one-shot effects (`sprite_once.gd`) pick the glow file up by name.
 - **Verdigris is idle, ember is live.** Menu plates are dark plum with a bronze-green edge; whatever is selected, lit or speaking turns ember. Menu pieces are nine-patches drawn with `Art.draw_nine`.
 
-Readability tweaks made on top of the art's own lighting numbers: the cave's dark tint is 15% brighter (`AMBIENT_LIFT` in cave.gd), each player carries a small cool light, crawlers and burrowers are drawn 1.7 times brighter than the floor (`lift` in enemy.gd), and warnings and damage numbers ignore the lighting.
+Readability tweaks made on top of the art's own lighting numbers: the cave's dark tint is 15% brighter (`AMBIENT_LIFT` in cave.gd), each player carries a small cool light, crawlers and burrowers are drawn 1.4 times brighter than the floor (`lift` in enemy.gd) and carry a lit rim in their glow layer, and warnings and damage numbers ignore the lighting.
 
 ## Older notes: the grid sword on `main`
 

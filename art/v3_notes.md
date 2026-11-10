@@ -116,3 +116,19 @@ The code-drawn pieces that are still code (hook reach ring, "pulse", "slash", fl
 
 `/mnt/project-files/art/concept-art-3/code/`: `core.py` (palette, lighting), `cave_ground.py`, `v3_props.py`, `v3_chars.py`,
 `v3_enemies.py`, `knight.py`, `v3_cave.py` (cave export), `v3_swing.py` (palette remap), `v3_fx.py`, `v3_arena.py`.
+
+## After the first in-engine run (10 November, prototype commit 98d48db on swing-path)
+
+The prototype thread wired both drops in and ran them in Godot 4.7. Screenshots: `/mnt/project-files/proto-shots/v3-style/`.
+What it changed from the numbers above, so the two stay in step:
+
+- Cave ambient is 15% brighter; each player's light is r64 at 0.55.
+- Anvil at tile (22.9, 9.5), trough (18.1, 9.6), ingots (23.9, 10.0) to leave a walkway. Bellows and coal heap at y 6.9 so
+  they draw in front of the forge step.
+- The stairs and their two braziers stay dark until the way out opens.
+- Whirlwind: PI added to the angle on the flipped side.
+- Forge screen blade cards are 61 px wide so the longblade icon fits.
+- Helm crab and pike worm were drawn 1.7x brighter in code because they sank into the floor in rooms 2 and 3. **Art fix,
+  same day:** both are one palette step brighter and their top edge is now in the `_glow` layer as a thin lit rim
+  (`cave/crawler_*`, `cave/burrower_*`, and the arena's `enemies/slime_*`, `charger_*`). With the glow layer drawn unshaded
+  the 1.7x should not be needed.
