@@ -473,7 +473,7 @@ func _draw_over(ci: CanvasItem) -> void:
 	if _starry():
 		var stars := Art.piece("stun_stars")
 		var n := int(stars.get("frames", 6))
-		if not Art.draw_piece(ci, "stun_stars", int(Time.get_ticks_msec() / 1000.0 * float(stars.get("fps", 10))) % maxi(n, 1), Vector2(0, _head_y() - 4.0)):
+		if not Art.draw_piece(ci, "stun_stars", int(Time.get_ticks_msec() / 1000.0 * float(stars.get("fps", 10))) % maxi(n, 1), Vector2(0, _head_y() - 10.0)):
 			for i in 3:
 				var ang := Time.get_ticks_msec() / 150.0 + i * TAU / 3.0
 				ci.draw_circle(Vector2(cos(ang), sin(ang) * 0.4) * radius * 0.8 + Vector2(0, -radius - 6.0), 2.5, Color(1.0, 0.95, 0.5))
@@ -486,7 +486,7 @@ func _draw_bar(ci: CanvasItem) -> void:
 	var fill := Art.piece_texture("enemy_bar_fill")
 	# In art pixels: the frame is a nine-patch with a 2 px edge, the fill sits 2 in and 1 down.
 	var w := clampf(roundf(radius * 1.2), 14.0, 40.0)
-	var at := Vector2(-w, _head_y() - 18.0 - (12.0 if _starry() else 0.0))
+	var at := Vector2(-w, _head_y() - 18.0 - (22.0 if _starry() else 0.0))   # the stars circle between the head and the bar
 	ci.draw_set_transform(at, 0.0, Vector2(Art.PIXEL, Art.PIXEL))
 	if fill != null and Art.draw_nine(ci, "hud/enemy_bar_frame.png", Rect2(0, 0, w, 5), 2):
 		var fw := roundf((w - 4.0) * frac)

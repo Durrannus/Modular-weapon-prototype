@@ -173,3 +173,13 @@ pieces together), `gaps_combat.png`, `gaps_smear.png`, `gaps_cave.png`, `gaps_ca
 
 A title wordmark (the game has no name yet), Mirror and the other parked runes, players 3 and 4, and the bow, staff and
 hammer parts (C2, C3, C5): those wait for the bow to be built, as you asked.
+
+### Fixes after the first run in the engine (10 November, 19:40)
+
+The prototype reported three pieces that read badly. All three keep their file names.
+
+- `swing/pommels/heavy_pommel_icon.png` is now 26 x 26 (was 41 x 26) so it fits its tray card.
+- `fx/stun_stars.png` is now 6 frames of 44 x 22 with origin (22, 11) (was 30 x 14, origin (15, 7)). Four stars, bigger, each with a dark edge. `gaps.json` has the new numbers.
+- `cave/ui/hint_plate.png` is a solid dark plate with a thin verdigris line (same 12 x 14 nine-patch, margin 4). Draw it at full alpha.
+
+Preview: `preview/gaps_fixes.png`. Code: `concept-art-3/code/v3_gaps5.py`.

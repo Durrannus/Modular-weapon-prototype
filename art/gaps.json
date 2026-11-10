@@ -274,16 +274,16 @@
   "stun_stars": {
    "file": "fx/stun_stars.png",
    "frame": [
-    30,
-    14
+    44,
+    22
    ],
    "frames": 6,
    "origin": [
-    15,
-    7
+    22,
+    11
    ],
    "glow": false,
-   "note": "loops; origin = centre of the circle, place it just above the head. Unshaded",
+   "note": "loops; origin = centre of the circle, place it just above the head. Unshaded. Four stars, 44 x 22 since 10 Nov 19:40 (was 30 x 14)",
    "fps": 10
   },
   "hit_spark": {
@@ -550,7 +550,7 @@
     0
    ],
    "glow": false,
-   "note": "nine-patch, margin 4; already see-through, draw at full alpha"
+   "note": "nine-patch, margin 4; solid dark plate with a verdigris line, alpha baked in, draw at full alpha"
   },
   "objective_mark": {
    "file": "hud/objective_mark.png",
