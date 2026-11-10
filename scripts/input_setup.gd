@@ -3,6 +3,7 @@ extends Node
 ## bindings live in one readable place. Loaded as an autoload.
 
 func _ready() -> void:
+	process_mode = Node.PROCESS_MODE_ALWAYS   # so F11 also works while the game is paused
 	_add("move_left", [_key(KEY_A), _key(KEY_LEFT), _axis(JOY_AXIS_LEFT_X, -1.0), _btn(JOY_BUTTON_DPAD_LEFT)])
 	_add("move_right", [_key(KEY_D), _key(KEY_RIGHT), _axis(JOY_AXIS_LEFT_X, 1.0), _btn(JOY_BUTTON_DPAD_RIGHT)])
 	_add("move_up", [_key(KEY_W), _key(KEY_UP), _axis(JOY_AXIS_LEFT_Y, -1.0), _btn(JOY_BUTTON_DPAD_UP)])
@@ -59,3 +60,14 @@ func _axis(axis: JoyAxis, value: float) -> InputEventJoypadMotion:
 	e.axis_value = value
 	e.device = -1
 	return e
+
+
+## F11 or Alt+Enter switches between fullscreen (the default) and a window,
+## on every screen: the title, the online screens and in a game.
+func _unhandled_input(event: InputEvent) -> void:
+	if event is InputEventKey and event.pressed and not event.echo:
+		var k := event as InputEventKey
+		if k.keycode == KEY_F11 or (k.keycode == KEY_ENTER and k.alt_pressed):
+			var full := DisplayServer.window_get_mode() == DisplayServer.WINDOW_MODE_FULLSCREEN
+			DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED if full else DisplayServer.WINDOW_MODE_FULLSCREEN)
+			get_viewport().set_input_as_handled()
