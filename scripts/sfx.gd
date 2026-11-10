@@ -4,6 +4,8 @@ extends Node
 ## Usage: Sfx.play(self, "shockwave")
 
 const RATE := 22050
+## The storm sounds of the opening cutscene, and how long each is in seconds.
+const WEATHER := {"thunder": 2.6, "wave": 1.8, "crash": 1.2, "rockfall": 1.8, "storm": 4.0}
 
 static var _cache := {}
 
@@ -30,6 +32,8 @@ static func stream(kind: String) -> AudioStreamWAV:
 
 
 static func _make(kind: String) -> AudioStreamWAV:
+	if kind in WEATHER:
+		return _weather(kind)
 	var data := PackedByteArray()
 	var length := 0.25
 	match kind:
@@ -138,4 +142,60 @@ static func _make(kind: String) -> AudioStreamWAV:
 	s.mix_rate = RATE
 	s.stereo = false
 	s.data = data
+	return s
+
+
+## The storm in the opening cutscene. These are long, so they have their own
+## short loop instead of going through the big match above for every sample.
+## "storm" (wind and rain) repeats for as long as it is played.
+static func _weather(kind: String) -> AudioStreamWAV:
+	var id: int = WEATHER.keys().find(kind)
+	var length: float = WEATHER[kind]
+	var n := int(RATE * length)
+	var data := PackedByteArray()
+	data.resize(n * 2)
+	var low := 0.0      # slow noise: rumble and wind
+	var mid := 0.0      # quicker noise: water and rain
+	var phase := 0.0
+	for i in n:
+		var t := float(i) / RATE
+		var k := t / length
+		var white := randf_range(-1.0, 1.0)
+		var v := 0.0
+		if id == 0:    # thunder: a crack, then a long roll that comes and goes
+			low = lerpf(low, white, 0.035)
+			mid = lerpf(mid, white, 0.5)
+			phase += TAU * 38.0 / RATE
+			var crack := mid * maxf(0.0, 1.0 - t * 9.0)
+			var roll := (low * 3.2 + sin(phase) * 0.35) * (0.55 + 0.45 * sin(t * 11.0 + sin(t * 3.1) * 2.0)) * pow(1.0 - k, 1.4)
+			v = crack * 0.8 + roll
+		elif id == 1:  # wave: a sea coming aboard, a rush that falls away
+			mid = lerpf(mid, white, lerpf(0.5, 0.12, k))
+			low = lerpf(low, white, 0.04)
+			v = (mid * 0.75 + low * 2.0) * sin(minf(k * 3.5, 1.0) * PI * 0.5) * pow(1.0 - k, 1.3)
+		elif id == 2:  # crash: the hull striking rock, a thump and splintering wood
+			mid = lerpf(mid, white, 0.3)
+			phase += TAU * lerpf(85.0, 32.0, k) / RATE
+			var crackle := 1.0 if int(t * 46.0) % 3 != 1 else 0.15
+			v = sin(phase) * 0.9 * pow(1.0 - k, 2.2) + mid * 0.9 * crackle * pow(1.0 - k, 1.6)
+		elif id == 3:  # rockfall: a rumble with stones landing one after another
+			low = lerpf(low, white, 0.07)
+			mid = lerpf(mid, white, 0.35)
+			phase += TAU * 52.0 / RATE
+			var knock := maxf(0.0, 1.0 - fmod(t, 0.21) * 11.0)
+			v = (low * 2.6 + sin(phase) * 0.3 + mid * 0.5 * knock) * pow(sin(k * PI), 0.7)
+		else:          # storm: wind with one slow gust per loop (so the end meets the start), and rain
+			low = lerpf(low, white, 0.02)
+			mid = lerpf(mid, white, 0.6)
+			v = low * 4.0 * (0.6 + 0.4 * sin(TAU * k)) + mid * 0.16
+		data.encode_s16(i * 2, int(clampf(v, -1.0, 1.0) * 30000.0))
+	var s := AudioStreamWAV.new()
+	s.format = AudioStreamWAV.FORMAT_16_BITS
+	s.mix_rate = RATE
+	s.stereo = false
+	s.data = data
+	if kind == "storm":
+		s.loop_mode = AudioStreamWAV.LOOP_FORWARD
+		s.loop_begin = 0
+		s.loop_end = n
 	return s

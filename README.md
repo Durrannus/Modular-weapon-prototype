@@ -99,6 +99,8 @@ Game code must follow these rules, or the two games drift apart:
 
 It follows the "Tutorial opening" in the Game Plan. You shelter from a storm in a sea cave, the entrance collapses, and the only way out is up.
 
+It opens with a 23 second cutscene: the ship in the storm, the wreck on the rocks, and the cave mouth coming down behind the crew. With two players both are on deck. Press attack or use once and "Press again to skip" appears; press again to skip it. Online, either player's skip skips it for both. The pictures and their numbers (speed, captions, when each sound comes) are in `art/cutscene/intro/`, and `cutscene()` in `scripts/cave/cave_ui.gd` plays them. The wind, thunder and crash are placeholder sounds made in code, like the rest.
+
 1. **The wreck.** Search the ship's crate for a wooden sword, then fight a few crawlers. They rear up before they bite, and a hit while they rear up stops the bite.
 2. **The burrows.** Burrowers travel underground, come up, flash red and lunge in a straight line. Dodge aside and hit them while they lie stunned.
 3. **The nest.** A mixed fight. Clearing it lets you take your first rune (Shockwave), which your sword can't use yet.
@@ -182,7 +184,7 @@ scripts/cave/cave.gd                 The tutorial cave: map, rooms, stages
 scripts/cave/crawler.gd, burrower.gd, guardian.gd   The cave's enemies and boss
 scripts/cave/hazard.gd               Timed danger areas: the knight's slam and charge, falling rocks
 scripts/fx/warn.gd                   Draws the warning lanes and circles on the floor from the art
-scripts/cave/cave_ui.gd              Objective, prompts, boss bar, speech box, cards
+scripts/cave/cave_ui.gd              Objective, prompts, boss bar, speech box, cards, the opening cutscene
 scripts/main.gd                      The test arena
 scripts/player.gd                    Movement, dodge, the swing chain, runes
 scripts/player_input.gd              One player's controls (any device, keyboard, or one controller)
@@ -198,6 +200,7 @@ art/                                 All art, loaded at runtime (art/v3_notes.md
 art/cave/cave.json                   The cave art's numbers: sizes, feet, lights, layout
 art/swing/swing_path.json            The sword, effect and menu art's numbers and colours
 art/gaps.json                        The later pieces' numbers (10 Nov evening): frame size, frames, speed, anchor
+art/cutscene/intro/                  The opening cutscene: 278 pictures, player two's patches in p2/, numbers in intro.json
 ```
 
 ## The look (10 November: "Verdigris & Ember")

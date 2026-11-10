@@ -480,13 +480,17 @@ func _room_entry(i: int) -> Vector2:
 
 func _begin() -> void:
 	stage = "intro"
-	ui.fade = 1.0
-	ui.fade_in(1.4)
-	ui.card_picture = "cave/ui/card_intro.png"
-	ui.card("Shipwrecked", "The storm drove your ship onto the rocks. You sheltered in a sea cave, and the way in came down behind you.\nThe only way out is forward.", 0.0, func():
-		stage = "crate"
-		ui.objective = "Search the ship's crate"
-		ui.hint = _keys("Move with WASD.", "Move with [stick_l]."))
+	# The storm and the wreck (art/cutscene/intro), then the cave fades in from its last, black picture.
+	hud.visible = false
+	ui.cutscene("cutscene/intro", players.size() > 1, func():
+		hud.visible = true
+		ui.fade = 1.0
+		ui.fade_in(1.4)
+		ui.card_picture = "cave/ui/card_intro.png"
+		ui.card("Shipwrecked", "The only way out is forward.", 0.0, func():
+			stage = "crate"
+			ui.objective = "Search the ship's crate"
+			ui.hint = _keys("Move with WASD.", "Move with [stick_l].")))
 
 
 ## The same hint for keyboard and controller players.

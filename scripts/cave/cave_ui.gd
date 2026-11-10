@@ -36,6 +36,19 @@ var card_blocks := true          # false: the game carries on behind it and it g
 var card_picture := ""           # a 200x72 picture above the words (set before card(); cleared with it)
 var on_card: Callable
 
+# Cutscene (full-screen pictures with captions, like the storm before the cave)
+var cut: Dictionary = {}         # its numbers, from the json beside its pictures; empty when none is playing
+var cut_dir := ""                # the folder under art/ that holds it
+var cut_time := 0.0              # seconds in. Counted in game ticks, so two computers online stay on the same picture
+var cut_two := false             # two players: draw player two's patches on top
+var cut_skip := 0.0              # after one press: seconds left to press again and skip
+var on_cut: Callable
+var _cut_frame := -1             # the picture the two textures below hold
+var _cut_tex: ImageTexture
+var _cut_tex2: ImageTexture      # player two's patch for this picture, when there is one
+var _cut_cue := 0                # the next sound to play
+var _cut_bed: AudioStreamPlayer  # wind and rain under the whole thing
+
 # Fade
 var fade := 0.0
 var fade_to := 0.0
@@ -56,7 +69,134 @@ func _ready() -> void:
 
 
 func busy() -> bool:
-	return talking() or (card_title != "" and card_blocks)
+	return talking() or (card_title != "" and card_blocks) or cutting()
+
+
+func cutting() -> bool:
+	return not cut.is_empty()
+
+
+## Plays the pictures in art/<dir>/ full screen, then calls `done`. The json
+## beside them says how fast, what the captions are and when the sounds come.
+## The first press shows "press again to skip"; a second press skips.
+func cutscene(dir: String, two_players: bool, done: Callable) -> void:
+	var info: Dictionary = Art.json(dir + "/intro.json")
+	if int(info.get("frames", 0)) <= 0 or float(info.get("fps", 0)) <= 0.0:
+		# No pictures in this copy of the game: carry straight on.
+		if done.is_valid():
+			done.call()
+		return
+	cut = info
+	cut_dir = dir
+	cut_two = two_players
+	cut_time = 0.0
+	cut_skip = 0.0
+	on_cut = done
+	_cut_frame = -1
+	_cut_cue = 0
+	# Make the sounds now, while the screen is still black, not in the middle of a shot.
+	for c in cut.get("cues", []):
+		if CUT_SOUNDS.has(str(c["sound"])):
+			Sfx.stream(CUT_SOUNDS[str(c["sound"])][0])
+	_cut_bed = AudioStreamPlayer.new()
+	_cut_bed.stream = Sfx.stream("storm")
+	_cut_bed.volume_db = CUT_BED_DB
+	_cut_bed.process_mode = Node.PROCESS_MODE_ALWAYS
+	add_child(_cut_bed)
+	_cut_bed.play()
+
+
+## The json's sound names -> [our sound, loudness, pitch].
+const CUT_SOUNDS := {
+	"thunder_far": ["thunder", -13.0, 0.8],
+	"thunder_near": ["thunder", -4.0, 1.0],
+	"wave_crash": ["wave", -5.0, 1.0],
+	"ship_strikes": ["crash", -2.0, 1.0],
+	"rumble": ["rumble", -6.0, 1.0],
+	"rockfall": ["rockfall", -3.0, 1.0],
+}
+const CUT_BED_DB := -17.0
+
+
+func _advance_cut(pressed: bool, delta: float) -> void:
+	cut_time += delta
+	cut_skip = maxf(cut_skip - delta, 0.0)
+	var frame := int(cut_time * float(cut["fps"]))
+	var cues: Array = cut.get("cues", [])
+	while _cut_cue < cues.size() and frame >= int(cues[_cut_cue]["frame"]):
+		var snd: Array = CUT_SOUNDS.get(str(cues[_cut_cue]["sound"]), [])
+		if not snd.is_empty():
+			Sfx.play(self, snd[0], snd[1], snd[2])
+		_cut_cue += 1
+	var skip := false
+	if pressed and cut_time > 0.6:
+		if cut_skip > 0.0:
+			skip = true
+		else:
+			cut_skip = 3.0
+	if skip or frame >= int(cut["frames"]):
+		cut = {}
+		_cut_tex = null
+		_cut_tex2 = null
+		if is_instance_valid(_cut_bed):
+			# Let the storm die away rather than cut off.
+			var bed := _cut_bed
+			_cut_bed = null
+			var quiet := create_tween()
+			quiet.tween_property(bed, "volume_db", -60.0, 1.2)
+			quiet.tween_callback(bed.queue_free)
+		if on_cut.is_valid():
+			on_cut.call()
+
+
+func _cut_picture(file: String) -> ImageTexture:
+	var path := Art.ART_DIR + cut_dir + "/" + file
+	if not FileAccess.file_exists(path):
+		return null
+	var img := Image.new()
+	if img.load(ProjectSettings.globalize_path(path)) != OK:
+		return null
+	return ImageTexture.create_from_image(img)
+
+
+func _draw_cut() -> void:
+	var silk := Art.font("Silkscreen-Regular")
+	var frame := clampi(int(cut_time * float(cut["fps"])), 0, int(cut["frames"]) - 1)
+	# One picture at a time is read from disk: all of them at once would be a lot of memory.
+	if frame != _cut_frame:
+		_cut_frame = frame
+		_cut_tex = _cut_picture(str(cut.get("pattern", "f_%03d.png")) % frame)
+		_cut_tex2 = _cut_picture(str(cut["p2_pattern"]) % frame) if cut_two and cut.has("p2_pattern") else null
+	var screen := Rect2(0, 0, 640, 360)
+	root.draw_rect(screen, Color.BLACK)
+	if _cut_tex != null:
+		root.draw_texture_rect(_cut_tex, screen, false)
+	if _cut_tex2 != null:
+		root.draw_texture_rect(_cut_tex2, screen, false)
+	# The caption, on a plate at the bottom. It fades in and out over a few pictures.
+	for c in cut.get("captions", []):
+		var from := int(c["from"])
+		var to := int(c["to"])
+		if frame < from or frame > to:
+			continue
+		var a := clampf(minf(float(frame - from + 1), float(to - frame + 1)) / 3.0, 0.0, 1.0)
+		var rows := _wrap(str(c["text"]), 440.0)
+		var widest := 0.0
+		for l in rows:
+			widest = maxf(widest, _line_w(l))
+		var top := 326.0 - rows.size() * 14.0
+		var back := Rect2(roundf(320.0 - widest * 0.5) - 10, top - 4, widest + 20, rows.size() * 14.0 + 9)
+		if not Art.draw_nine(root, "cave/ui/hint_plate.png", back, 4, Color(1, 1, 1, a)):
+			root.draw_rect(back, Color(PLATE.r, PLATE.g, PLATE.b, 0.8 * a))
+		for i in rows.size():
+			_rich(rows[i], Vector2(roundf(320.0 - _line_w(rows[i]) * 0.5), top + 11 + i * 14.0), Color(INK.r, INK.g, INK.b, a))
+	if cut_skip > 0.0:
+		var text := "Press again to skip"
+		var w := silk.get_string_size(text.to_upper(), HORIZONTAL_ALIGNMENT_LEFT, -1, 8).x
+		var back := Rect2(640.0 - w - 22, 8, w + 14, 15)
+		if not Art.draw_nine(root, "cave/ui/hint_plate.png", back, 4):
+			root.draw_rect(back, PLATE)
+		_head(text, Vector2(back.position.x + 7, back.position.y + 11), AMBER)
 
 
 func talking() -> bool:
@@ -98,7 +238,9 @@ func fade_in(time := 0.6) -> void:
 func advance(pressed: bool, delta: float) -> void:
 	t += delta
 	fade = move_toward(fade, fade_to, fade_speed * delta)
-	if talking():
+	if cutting():
+		_advance_cut(pressed, delta)
+	elif talking():
 		var full := float((lines[line_i] as String).length())
 		var before := int(typed)
 		typed = minf(typed + delta * 46.0, full)
@@ -239,6 +381,9 @@ func _to_screen(world: Vector2) -> Vector2:
 
 
 func _draw_ui() -> void:
+	if cutting():
+		_draw_cut()
+		return
 	var silk := Art.font("Silkscreen-Regular")
 	# Prompts over things you can use.
 	for pr in prompts:
