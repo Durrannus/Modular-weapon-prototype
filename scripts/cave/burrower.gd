@@ -158,18 +158,24 @@ func _draw_shadow() -> void:
 
 func _draw() -> void:
 	show_bar = mode != "burrowed"
-	if mode == "warn":
-		# Where the lunge will go: a thin red lane that firms up once the aim locks.
-		var locked := mode_t <= LOCK_TIME
-		var n := lunge_dir.orthogonal() * (radius + 6.0)
-		var b := lunge_dir * LUNGE_DIST
-		var a := 0.5 if locked else 0.22
-		draw_colored_polygon(PackedVector2Array([-n, b - n, b + n, n]), Color(1.6, 0.3, 0.25, a * 0.5))
-		draw_line(-n, b - n, Color(1.6, 0.3, 0.25, a + 0.3), 2.0)
-		draw_line(n, b + n, Color(1.6, 0.3, 0.25, a + 0.3), 2.0)
 	super._draw()
-	if mode == "stunned":
-		# Stars: it's open.
-		for i in 3:
-			var ang := Time.get_ticks_msec() / 150.0 + i * TAU / 3.0
-			draw_circle(Vector2(cos(ang), sin(ang) * 0.4) * radius * 0.9 + Vector2(0, -radius - 8.0), 2.5, Color(1.0, 0.95, 0.5))
+
+
+## Where the lunge will go: a lane that firms up once the aim locks.
+func _draw_ground(ci: CanvasItem) -> void:
+	if mode != "warn":
+		return
+	var locked := mode_t <= LOCK_TIME
+	if Warn.lane(ci, "thin", locked, Vector2.ZERO, lunge_dir, LUNGE_DIST, anim_time):
+		return
+	var n := lunge_dir.orthogonal() * (radius + 6.0)
+	var b := lunge_dir * LUNGE_DIST
+	var a := 0.5 if locked else 0.22
+	ci.draw_colored_polygon(PackedVector2Array([-n, b - n, b + n, n]), Color(Warn.HOT, a * 0.5))
+	ci.draw_line(-n, b - n, Color(Warn.HOT, a + 0.3), 2.0)
+	ci.draw_line(n, b + n, Color(Warn.HOT, a + 0.3), 2.0)
+
+
+## Flopped out after a missed lunge: stars, it's open.
+func _starry() -> bool:
+	return mode == "stunned" or super._starry()

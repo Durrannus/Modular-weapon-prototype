@@ -156,6 +156,8 @@ func open() -> void:
 	root.visible = true
 	selected = clampi(selected, 0, build.slot_count() - 1)
 	opened_at = t
+	_stat_last.clear()
+	_stat_lit.clear()
 	if owned != null:
 		# In the cave start on the tab that has something new to fit.
 		tab = 1 if _has_unfitted_rune() else 0
@@ -164,6 +166,8 @@ func open() -> void:
 
 
 var opened_at := -9.0
+var _stat_last := {}       # stat name -> the value last shown
+var _stat_lit := {}        # stat name -> when it last changed (its icon lights for a moment)
 
 
 func _has_unfitted_rune() -> bool:
@@ -526,7 +530,12 @@ func _icon(kind: String, id: String, center: Vector2, part_scale := 2.0) -> void
 			root.draw_circle(center, 6.5, pc)
 			root.draw_circle(center + Vector2(-2, -2), 2.0, pc.lightened(0.5))
 		"blades", "grips":
-			# The in-hand sprite at 2x, lying on its side, tip to the right.
+			# Its own picture for the tray, lying down with the tip to the right.
+			var card_tex := Art.texture("swing/%s/%s_icon.png" % [kind, id])
+			if card_tex != null:
+				root.draw_texture(card_tex, (center - card_tex.get_size() * 0.5).round())
+				return
+			# No picture: the in-hand sprite at 2x, turned on its side.
 			var tex := Art.texture("swing/%s/%s_hand.png" % [kind, id])
 			if tex != null:
 				root.draw_set_transform(center, PI * 0.5, Vector2(part_scale, part_scale))
@@ -569,12 +578,14 @@ func _draw_tray() -> void:
 	var f := Art.font("Silkscreen-Regular")
 	for i in TABS.size():
 		var w := f.get_string_size(str(TABS[i]).to_upper(), HORIZONTAL_ALIGNMENT_LEFT, -1, 8).x
-		var r := Rect2(x - 2, 38, w + 4, 14)
+		var r := Rect2(x - 5, 38, w + 10, 14)
 		buttons["tab:%d" % i] = r
+		# The chosen tab stands proud (its picture starts 2 px higher than the others').
+		var drawn := Art.draw_nine(root, "swing/ui/tab_selected.png" if i == tab else "swing/ui/tab.png", r, 4)
 		_head(TABS[i], Vector2(x, 48), INK if i == tab else (FOCUS if hover == "tab:%d" % i else DIM))
-		if i == tab:
+		if i == tab and not drawn:
 			root.draw_rect(Rect2(x, 51, w, 1), AMBER)
-		x += w + 9
+		x += w + 13
 	var cards := _cards()
 	card = clampi(card, 0, maxi(cards.size() - 1, 0))
 	var row_n := [0, 0, 0]
@@ -605,10 +616,17 @@ func _draw_tray() -> void:
 		if hover == "card:%d" % i and i != card:
 			root.draw_rect(r, FOCUS, false, 1.0)
 		if c["locked"]:
+			var lock := Art.texture("swing/ui/padlock.png")
+			if lock != null:
+				root.draw_texture(lock, (r.get_center() - lock.get_size() * 0.5).round())
 			continue
 		_icon(c.get("kind", TABS[tab]), c["id"], r.get_center(), icon_scale)
 		if _on_sword(c["id"]):
-			root.draw_rect(Rect2(r.end.x - 6, r.position.y + 2, 4, 4), AMBER)
+			var fitted := Art.texture("swing/ui/fitted_mark.png")
+			if fitted != null:
+				root.draw_texture(fitted, Vector2(r.end.x - 7, r.position.y + 2))
+			else:
+				root.draw_rect(Rect2(r.end.x - 6, r.position.y + 2, 4, 4), AMBER)
 	var di := card
 	if hover.begins_with("card:"):
 		di = int(hover.split(":")[1])
@@ -934,6 +952,27 @@ func _draw_does(stats: Dictionary) -> void:
 	var spd := float(stats["speed"])
 	var spd_word := "fast" if spd >= 1.15 else ("slow" if spd <= 0.85 else "normal")
 	var pm: Dictionary = SwingBuild.POMMELS[build.pommel]
-	_body("%s + %s" % [bl["name"], SwingBuild.GRIPS[build.grip]["name"]], Vector2(X, 298), DIM)
-	_body("%s: %s" % [pm["name"], pm["desc"]], Vector2(X, 312), DIM)
-	_body("Damage %d    Speed %s    Crit %d%%" % [int(bl["damage"]), spd_word, roundi(float(stats["crit"]) * 100.0)], Vector2(X, 326), DIM)
+	_body("%s + %s" % [bl["name"], SwingBuild.GRIPS[build.grip]["name"]], Vector2(X, 284), DIM)
+	_body("%s: %s" % [pm["name"], pm["desc"]], Vector2(X, 298), DIM)
+	# The numbers, each with its icon. An icon lights for a moment when its number changes.
+	var reach := float(stats["reach"])
+	var reach_word := "long" if reach >= 1.1 else ("short" if reach <= 0.95 else "normal")
+	_stat("damage", "Damage %d" % int(bl["damage"]), Vector2(X, 312))
+	_stat("speed", "Speed %s" % spd_word, Vector2(X + 96, 312))
+	_stat("reach", "Reach %s" % reach_word, Vector2(X, 326))
+	_stat("crit", "Crit %d%%" % roundi(float(stats["crit"]) * 100.0), Vector2(X + 96, 326))
+	_stat("crit_damage", "x%s" % str(snappedf(float(stats["crit_damage"]), 0.1)), Vector2(X + 158, 326))
+
+
+## One number in "what it does": its icon, then the words. pos is the text baseline.
+func _stat(name: String, text: String, pos: Vector2) -> void:
+	if _stat_last.has(name) and _stat_last[name] != text:
+		_stat_lit[name] = t
+	_stat_last[name] = text
+	var lit: bool = t - float(_stat_lit.get(name, -9.0)) < 1.2
+	var icon := Art.texture("swing/ui/stat_%s%s.png" % [name, "_hot" if lit else ""])
+	var x := pos.x
+	if icon != null:
+		root.draw_texture(icon, Vector2(x, pos.y - 8))
+		x += icon.get_width() + 3.0
+	_body(text, Vector2(x, pos.y), AMBER if lit else DIM)

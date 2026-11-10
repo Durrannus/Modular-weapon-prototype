@@ -172,7 +172,11 @@ func _draw_title() -> void:
 		if on:
 			if not Art.draw_nine(root, "swing/ui/well_selected.png", r, 3):
 				root.draw_rect(r, AMBER, false, 1.0)
-			root.draw_colored_polygon(PackedVector2Array([Vector2(41, y - 9), Vector2(47, y - 4), Vector2(41, y + 1)]), AMBER)
+			var arrow := Art.texture("swing/ui/cursor.png")
+			if arrow != null:
+				root.draw_texture(arrow, Vector2(41, y - 10))
+			else:
+				root.draw_colored_polygon(PackedVector2Array([Vector2(41, y - 9), Vector2(47, y - 4), Vector2(41, y + 1)]), AMBER)
 		root.draw_string(silk, Vector2(55, y), str(ITEMS[i][1]).to_upper(), HORIZONTAL_ALIGNMENT_LEFT, -1, 16, INK if on else DIM)
 		y += 26.0
 	var note: String = ITEMS[cursor][2]

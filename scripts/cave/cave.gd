@@ -282,9 +282,11 @@ func _mushrooms(tile: Vector2) -> void:
 func _make_props() -> void:
 	# Room 1: the wreck. The way in has come down behind you.
 	_prop("collapse", Vector2(CENTRE_X, 69.06), Vector2(570, 70))
-	crate = _prop("crate_closed", Vector2(14.5, 61.62), Vector2(40, 18))
-	_prop("lantern", Vector2(15.75, 61.5))
-	_prop_lamp("lantern", Vector2(15.75, 61.5), 96, Color(1.0, 0.8, 0.5), 0.95)
+	crate = _prop("crate_closed", Vector2(14.5, 61.62), Vector2(62, 22))
+	_prop("lantern", Vector2(16.12, 61.5))
+	_prop_lamp("lantern", Vector2(16.12, 61.5), 96, Color(1.0, 0.8, 0.5), 0.95)
+	# Cold daylight falls through the crack the giant blade made in the roof.
+	_lamp(Vector2(380, 968), 128, DAY, 0.7, "crack")
 	_prop("giant_blade", Vector2(24.75, 62.75), Vector2(44, 18))
 	_prop("sail", Vector2(12.31, 64.38), Vector2.ZERO, true)
 	_prop("planks", Vector2(16.62, 65.62), Vector2.ZERO, true)
@@ -416,7 +418,7 @@ func _make_props() -> void:
 
 	# Things you can walk up to and use.
 	interactables = [
-		{"at": Vector2(14.5, 61.5) * TILE, "radius": 62.0, "lift": 44.0, "text": "Search the crate",
+		{"at": Vector2(14.5, 61.5) * TILE, "radius": 70.0, "lift": 62.0, "text": "Search the crate",
 			"can": func(i): return not armed[i] and stage in ["crate", "fight1"], "use": _take_sword},
 		{"at": Vector2(CENTRE_X, 29.6) * TILE, "radius": 60.0, "lift": 96.0, "text": "Take the rune",
 			"can": func(_i): return stage == "rune", "use": _take_rune},
@@ -449,8 +451,13 @@ func _close_gate(i: int) -> void:
 		return
 	g["open"] = false
 	(g["shape"] as CollisionShape2D).set_deferred("disabled", false)
-	(g["sprite"] as Node2D).show_strip("cave/gate_closed.png")
-	(g["sprite"] as Node2D).z_index = 0
+	# It comes back up the way it went down: the opening strip, backwards.
+	var s: Node2D = g["sprite"]
+	s.z_index = 0
+	s.show_strip("cave/gate_opening.png", 4, 12.0, false)
+	s.reverse = true
+	s.refresh()
+	s.finished.connect(func(): s.show_strip("cave/gate_closed.png"), CONNECT_ONE_SHOT)
 	Sfx.play(self, "gate", -3.0, 1.3)
 	rig.add_shake(6.0)
 
@@ -473,10 +480,11 @@ func _begin() -> void:
 	stage = "intro"
 	ui.fade = 1.0
 	ui.fade_in(1.4)
+	ui.card_picture = "cave/ui/card_intro.png"
 	ui.card("Shipwrecked", "The storm drove your ship onto the rocks. You sheltered in a sea cave, and the way in came down behind you.\nThe only way out is forward.", 0.0, func():
 		stage = "crate"
 		ui.objective = "Search the ship's crate"
-		ui.hint = _keys("Move with WASD.", "Move with the left stick."))
+		ui.hint = _keys("Move with WASD.", "Move with [stick_l]."))
 
 
 ## The same hint for keyboard and controller players.
@@ -572,13 +580,13 @@ func _update_stage(delta: float) -> void:
 			if all_armed:
 				stage = "fight1"
 				ui.objective = "Fight off the crawlers"
-				ui.hint = _keys("Hold left click to keep swinging. The third swing is the finisher.", "Hold X to keep swinging. The third swing is the finisher.")
+				ui.hint = _keys("Hold [mouse_left] to keep swinging. The third swing is the finisher.", "Hold [pad_x] to keep swinging. The third swing is the finisher.")
 				_start_fight(0, [{"crawler": 3}, {"crawler": 4}])
 		"walk2":
 			if _in_room(1):
 				stage = "fight2"
 				ui.objective = "Burrowers!"
-				ui.hint = _keys("They flash red, then lunge. Dodge aside (Space), then hit them while they're stunned.", "They flash red, then lunge. Dodge aside (A), then hit them while they're stunned.")
+				ui.hint = _keys("They flash red, then lunge. Dodge aside with [space], then hit them while they're stunned.", "They flash red, then lunge. Dodge aside with [pad_a], then hit them while they're stunned.")
 				_start_fight(1, [{"burrower": 1}, {"burrower": 2}])
 		"walk3":
 			if _in_room(2):
@@ -740,12 +748,18 @@ func _take_sword(i: int) -> void:
 	b.line = [""]
 	b.changed.emit()
 	Sfx.play(self, "pickup", -4.0)
+	_given(players[i])
 	var first := true
 	for k in armed.size():
 		if k != i and armed[k]:
 			first = false
 	if first:
-		ui.card("Wooden sword", "A training sword from the ship's crate. (The bow, staff and hammer beside it aren't playable yet, so everyone takes a sword.)\n" + _keys("Left click swings where you point.", "X swings the way you face, or aim with the right stick."))
+		ui.card("Wooden sword", "A training sword from the ship's crate. (The bow, staff and hammer beside it aren't playable yet, so everyone takes a sword.)\n" + _keys("[mouse_left] swings where you point.", "[pad_x] swings the way you face, or aim with [stick_r]."))
+
+
+## A small burst on a player who has just been given something.
+func _given(p: Node2D) -> void:
+	Art.play_piece(p, "pickup_burst", p.global_position + Vector2(0, -16))
 
 
 # --- Room 3: the rune -----------------------------------------------------------
@@ -755,6 +769,10 @@ func _take_rune(_i: int) -> void:
 		if not ("shockwave" in o):
 			o.append("shockwave")
 	pedestal.show_strip("cave/pedestal_empty.png")
+	# The rune brightens, lifts off the pedestal and is gone.
+	Art.play_piece(self, "rune_pickup", Vector2(CENTRE_X, 29.81) * TILE)
+	for p in players:
+		_given(p)
 	var l: PointLight2D = lights.get("rune")
 	if l != null:
 		l.energy = 0.0
@@ -899,7 +917,7 @@ func _wake_guardian() -> void:
 	ui.boss = guardian
 	ui.boss_shown = 1.0
 	ui.objective = "Defeat the forge guardian"
-	ui.hint = _keys("Its charge can't turn. Dodge aside (Space) so it hits a wall, then strike.", "Its charge can't turn. Dodge aside (A) so it hits a wall, then strike.")
+	ui.hint = _keys("Its charge can't turn. Dodge aside with [space] so it hits a wall, then strike.", "Its charge can't turn. Dodge aside with [pad_a] so it hits a wall, then strike.")
 
 
 func _on_guardian_defeated(_g) -> void:
@@ -917,7 +935,13 @@ func _on_guardian_defeated(_g) -> void:
 
 func _free_smith() -> void:
 	stage = "smith"
-	cage_front.show_strip("cave/cage_broken.png")
+	# The lock flares and the bars are thrown out.
+	var broke: Dictionary = Art.piece("cage_break")
+	if Art.piece_texture("cage_break") != null:
+		cage_front.show_strip("cave/cage_break.png", int(broke.get("frames", 4)), float(broke.get("fps", 12)), false)
+		cage_front.finished.connect(func(): cage_front.show_strip("cave/cage_broken.png"), CONNECT_ONE_SHOT)
+	else:
+		cage_front.show_strip("cave/cage_broken.png")
 	Sfx.play(self, "gate", -2.0, 1.5)
 	rig.add_shake(5.0)
 	_set_forge(true)
@@ -926,9 +950,16 @@ func _free_smith() -> void:
 	smith.get_parent().remove_child(smith)
 	world.add_child(smith)
 	smith.global_position = from
-	smith.show_strip("cave/smith_idle.png", 4, 6.0)
+	var walk: Dictionary = Art.piece("smith_walk_down")
+	if Art.piece_texture("smith_walk_down") != null:
+		smith.show_strip("cave/smith_walk_down.png", int(walk.get("frames", 6)), float(walk.get("fps", 8)))
+	else:
+		smith.show_strip("cave/smith_idle.png", 4, 6.0)
 	var tw := create_tween()
 	tw.tween_property(smith, "global_position", Vector2(31.0, 13.2) * TILE - Vector2(0, StripSprite.SORT_BIAS), 0.9)
+	tw.tween_callback(func():
+		if not ui.talking():
+			smith.show_strip("cave/smith_idle.png", 4, 6.0))
 	ui.objective = "Talk to the smith"
 
 
@@ -950,6 +981,8 @@ func _talk_smith(_i: int) -> void:
 					if not (part in o):
 						o.append(part)
 			Sfx.play(self, "pickup", -3.0)
+			for p in players:
+				_given(p)
 			stage = "tin_card"
 			ui.card("Tin blade and tin grip", "Real metal, with a slot of its own. Take them to the forge.", 0.0, func():
 				stage = "tin"
@@ -983,6 +1016,7 @@ func _finish() -> void:
 	var wait := create_tween()
 	wait.tween_interval(1.9)
 	wait.tween_callback(func():
+		ui.card_picture = "cave/ui/card_daylight.png"
 		ui.card("Daylight", "You climb out into a land you have never seen.\n\nEnd of the tutorial cave.\nTime %d:%02d      Knock-outs %d" % [secs / 60, secs % 60, knockouts], 0.0, func():
 			exit_to_title.emit()))
 

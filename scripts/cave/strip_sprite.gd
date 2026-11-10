@@ -19,6 +19,7 @@ var flip := false
 var tint := Color.WHITE
 var fixed_frame := -1        # 0 or more: always show this frame of the strip
 var glow_on := true          # false hides the glowing pixels (an unlit stair, say)
+var reverse := false         # play the strip last frame first (a gate closing)
 var t := 0.0
 var _done := false
 var _glow_tex: Texture2D
@@ -32,6 +33,7 @@ func show_strip(rel: String, frames_ := 1, fps_ := 6.0, loop_ := true) -> void:
 	frames = maxi(frames_, 1)
 	fps = fps_
 	loop = loop_
+	reverse = false
 	t = 0.0
 	_done = false
 	playing = true
@@ -55,7 +57,7 @@ func _frame() -> int:
 	var frame := int(t * fps)
 	if not loop:
 		frame = mini(frame, frames - 1)
-	return frame
+	return frames - 1 - posmod(frame, frames) if reverse else frame
 
 
 func _process(delta: float) -> void:

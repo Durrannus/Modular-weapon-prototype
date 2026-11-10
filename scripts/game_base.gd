@@ -44,6 +44,7 @@ func _make_world() -> void:
 	fx_layer = CanvasLayer.new()
 	fx_layer.layer = 1
 	fx_layer.follow_viewport_enabled = true
+	fx_layer.add_to_group("fx_root")
 	add_child(fx_layer)
 	rig = CameraRig.new()
 	add_child(rig)

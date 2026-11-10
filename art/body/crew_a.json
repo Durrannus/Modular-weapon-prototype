@@ -420,5 +420,6 @@
    ]
   }
  },
- "note": "Verdigris & Ember players, about 27 px tall. Same frame, feet and strip names as before. hand = the character's right hand."
+ "glow": true,
+ "note": "Verdigris & Ember players, about 27 px tall. Same frame, feet and strip names as before. hand = the character's right hand. Every strip has a _glow.png: a thin lit rim along the top edges, draw it unshaded on top."
 }

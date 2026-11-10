@@ -62,6 +62,9 @@ var character := "crew_a"      # body strips: art/body/<character>_*.png
 var rig = null                 # the shared camera (camera_rig.gd)
 var frozen := false            # a dialogue or cutscene has the controls
 var is_down := false           # knocked out and waiting to get back up
+var down_time := 0.0           # how long they've been down (plays the fall)
+var down_flip := false         # fell facing left
+var rise_timer := 0.0          # getting back up: the fall played backwards
 var auto_respawn := true       # get straight back up at spawn_point (the test arena)
 var show_marker := false       # coloured ring under the feet (two players)
 var light: PointLight2D     # the small light the player carries
@@ -123,6 +126,9 @@ var pose_hand := Vector2(10, -14)
 var pose_from_angle := 0.0          # where the current swing started from
 var trail: Array = []               # [hand, angle, time] samples while sweeping
 var trail_layer: Node2D
+var under_lit: Node2D               # the shadow, behind the body
+var under_bright: Node2D            # the who-is-who ring, behind the body and never dimmed
+var rim: Node2D                     # the body's lit rim (its _glow image), never dimmed
 var squash := Vector2.ONE           # body squash and stretch
 var lean := 0.0                     # body lean in radians
 var stepped := false                # has this swing's step forward happened
@@ -167,9 +173,26 @@ func _ready() -> void:
 	# The sword is its own layer so it can sit behind the body when facing up.
 	# All sword parts and the hand go in one CanvasGroup so the outline shader
 	# draws one outline round the assembled sword.
+	# Under the body: its shadow (lit like the floor), then the ring that says who
+	# is who (kept bright). On top of the body: its lit rim, also kept bright.
+	under_lit = Node2D.new()
+	under_lit.show_behind_parent = true
+	add_child(under_lit)
+	under_lit.draw.connect(_draw_shadow)
+	under_bright = Node2D.new()
+	under_bright.show_behind_parent = true
+	under_bright.material = Art.unshaded()
+	add_child(under_bright)
+	under_bright.draw.connect(_draw_ring)
+	rim = Node2D.new()
+	rim.material = Art.unshaded()
+	add_child(rim)
+	rim.draw.connect(_draw_rim)
+	# The swing's smear glows: added on top of the picture and never dimmed.
 	trail_layer = Node2D.new()
 	var add := CanvasItemMaterial.new()
 	add.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	add.light_mode = CanvasItemMaterial.LIGHT_MODE_UNSHADED
 	trail_layer.material = add
 	add_child(trail_layer)
 	trail_layer.draw.connect(_draw_trail)
@@ -520,6 +543,8 @@ func _hit_enemy(e, dmg: float, kdir: Vector2, knock: float, stun := 0.12, freeze
 	var crit := randf() < float(weapon.get("crit", 0.05))
 	var final := dmg * (float(weapon.get("crit_damage", 1.5)) if crit else 1.0)
 	e.take_hit(final, kdir, knock, crit, weapon.get("hit_color", Color.WHITE), stun, freeze)
+	# A spark where the blade lands, thrown the way the hit goes.
+	Art.play_piece(self, "hit_spark_crit" if crit else "hit_spark", e.global_position - kdir * float(e.radius) * 0.4, kdir.angle())
 	_apply_elements(e, final)
 
 
@@ -933,8 +958,11 @@ func take_damage(amount: float, from: Vector2 = Vector2.INF) -> void:
 	hurt_flash = 0.12
 	shake = maxf(shake, 7.0)
 	Sfx.play(self, "hurt", -5.0)
+	var away := Vector2.UP
 	if from != Vector2.INF and from.distance_to(global_position) > 0.5:
-		hurt_vel = (global_position - from).normalized() * 330.0
+		away = (global_position - from).normalized()
+		hurt_vel = away * 330.0
+	Art.play_piece(self, "hurt_burst", global_position + Vector2(0, -8), away.angle())
 	if hp <= 0.0:
 		hp = 0.0
 		_reset_combo()
@@ -950,11 +978,15 @@ func take_damage(amount: float, from: Vector2 = Vector2.INF) -> void:
 				rig.snap()
 		else:
 			is_down = true
+			down_time = 0.0
+			down_flip = face_dir.x < 0.0
 		knocked_out.emit(self)
 
 
 ## Back on your feet (after a room is cleared, or a restart).
 func get_up(at: Vector2 = Vector2.INF, hp_frac := 1.0) -> void:
+	if is_down:
+		rise_timer = 3.0 / 8.0
 	is_down = false
 	hp = maxf(hp, max_hp * hp_frac)
 	invuln = 1.5
@@ -972,8 +1004,11 @@ func _process(delta: float) -> void:
 	facing8 = _facing8_of(face_dir)
 	# Behind the body when facing away, or when the hand is above the body's centre.
 	weapon_group.show_behind_parent = facing8 in ["up", "up_left", "up_right", "left"]
-	weapon_group.visible = not is_down
+	weapon_group.visible = not is_down and rise_timer <= 0.0
 	anim_time += delta
+	if is_down:
+		down_time += delta
+	rise_timer = maxf(rise_timer - delta, 0.0)
 	_update_pose(delta)
 	trail_layer.queue_redraw()
 	# The outline is one game pixel: as many screen pixels as the window's scale.
@@ -981,6 +1016,8 @@ func _process(delta: float) -> void:
 	(weapon_group.material as ShaderMaterial).set_shader_parameter("px", scale_px)
 	queue_redraw()
 	weapon_layer.queue_redraw()
+	under_bright.queue_redraw()
+	rim.queue_redraw()
 
 
 ## A puff of dust at the feet (dodging).
@@ -1017,32 +1054,17 @@ static func _facing_of(d: Vector2) -> String:
 
 func _draw() -> void:
 	var blink := invuln > 0.0 and dodge_timer <= 0.0 and int(invuln * 20.0) % 2 == 0
-	draw_set_transform(FEET, 0.0, Vector2(1.0, 0.45))
-	draw_circle(Vector2.ZERO, 15.0, Color(0, 0, 0, 0.3))  # shadow
-	if show_marker:
-		# Two players: a coloured ring under the feet says who is who.
-		var mc: Color = Art.PLAYER_COLORS[index % Art.PLAYER_COLORS.size()]
-		mc.a = 0.45 if is_down else 0.9
-		draw_arc(Vector2.ZERO, 17.0, 0.0, TAU, 24, mc, 2.0)
-	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
-	var strip := _body_strip()
-	var tex := Art.texture("body/%s_%s.png" % [character, strip[0]])
-	if tex != null:
+	var b := _body_now()
+	if not b.is_empty():
 		var tint := Color.WHITE
-		if hurt_flash > 0.0:
+		if b.get("grey", false):
+			tint = Color(0.55, 0.55, 0.62)
+		elif hurt_flash > 0.0:
 			tint = Color(3.0, 1.2, 1.2)
 		elif blink:
 			tint = Color(2.0, 2.0, 2.0)
-		var fw := tex.get_width() / maxi(int(strip[1]), 1)
-		var src := Rect2(float(posmod(int(strip[2]), int(strip[1])) * fw), 0.0, float(fw), float(tex.get_height()))
-		var sx := -1.0 if strip[3] else 1.0
-		if is_down:
-			# Knocked out: lying on their side, greyed.
-			draw_set_transform(FEET + Vector2(-14, -8), PI * 0.5, Vector2(Art.PIXEL, Art.PIXEL))
-			draw_texture_rect_region(tex, Rect2(-_body_origin(), src.size), src, Color(0.55, 0.55, 0.62))
-		else:
-			draw_set_transform(FEET, lean, Vector2(Art.PIXEL * squash.x * sx, Art.PIXEL * squash.y))
-			draw_texture_rect_region(tex, Rect2(-_body_origin(), src.size), src, tint)
+		draw_set_transform(b["at"], b["angle"], b["scale"])
+		draw_texture_rect_region(b["tex"], Rect2(-_body_origin(), b["src"].size), b["src"], tint)
 		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 		return
 	# Stand-in body: a circle with eyes showing which way it faces.
@@ -1060,6 +1082,77 @@ func _draw() -> void:
 		else:
 			var x := 7.0 if facing == "right" else -10.0
 			draw_rect(Rect2(Vector2(x, -3), Vector2(3, 5)), eye)
+
+
+func _draw_shadow() -> void:
+	if Art.draw_piece(under_lit, "shadow_m", 0, FEET):
+		return
+	under_lit.draw_set_transform(FEET, 0.0, Vector2(1.0, 0.45))
+	under_lit.draw_circle(Vector2.ZERO, 15.0, Color(0, 0, 0, 0.3))
+	under_lit.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+
+
+## Two players: a coloured ring under the feet says who is who.
+func _draw_ring() -> void:
+	if not show_marker:
+		return
+	var fade := Color(1, 1, 1, 0.45 if is_down else 1.0)
+	if Art.draw_piece(under_bright, "ring_%s" % ("a" if index % 2 == 0 else "b"), 0, FEET, 0.0, false, fade):
+		return
+	var mc: Color = Art.PLAYER_COLORS[index % Art.PLAYER_COLORS.size()]
+	mc.a = 0.45 if is_down else 0.9
+	under_bright.draw_set_transform(FEET, 0.0, Vector2(1.0, 0.45))
+	under_bright.draw_arc(Vector2.ZERO, 17.0, 0.0, TAU, 24, mc, 2.0)
+	under_bright.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+
+
+## The thin lit edge along the top of the body (the strip's _glow image).
+func _draw_rim() -> void:
+	var b := _body_now()
+	if b.is_empty() or b["glow"] == null or hurt_flash > 0.0 or b.get("grey", false):
+		return
+	rim.draw_set_transform(b["at"], b["angle"], b["scale"])
+	rim.draw_texture_rect_region(b["glow"], Rect2(-_body_origin(), b["src"].size), b["src"])
+	rim.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+
+
+## What the body looks like right now: {tex, glow, src, at, angle, scale}, or
+## empty when there is no art for this character.
+func _body_now() -> Dictionary:
+	var anim := ""
+	var frames := 1
+	var frame := 0
+	var mirrored := false
+	if (is_down or rise_timer > 0.0) and Art.texture("body/%s_down.png" % character) != null:
+		# Knocked out: reeling, hitting the floor, lying. Getting up is the same strip backwards.
+		anim = "down"
+		frames = 3
+		frame = mini(int(down_time * 8.0), 2) if is_down else clampi(int(rise_timer * 8.0), 0, 2)
+		mirrored = down_flip
+	else:
+		var strip := _body_strip()
+		anim = strip[0]
+		frames = int(strip[1])
+		frame = int(strip[2])
+		mirrored = strip[3]
+	var rel := "body/%s_%s.png" % [character, anim]
+	var tex := Art.texture(rel)
+	if tex == null:
+		return {}
+	var fw := tex.get_width() / maxi(frames, 1)
+	var out := {"tex": tex, "glow": Art.glow_texture(rel),
+		"src": Rect2(float(posmod(frame, frames) * fw), 0.0, float(fw), float(tex.get_height()))}
+	if is_down and anim != "down":
+		# No knocked-out strip for this character: lying on their side, greyed.
+		out["at"] = FEET + Vector2(-14, -8)
+		out["angle"] = PI * 0.5
+		out["scale"] = Vector2(Art.PIXEL, Art.PIXEL)
+		out["grey"] = true
+	else:
+		out["at"] = FEET
+		out["angle"] = lean
+		out["scale"] = Vector2(Art.PIXEL * squash.x * (-1.0 if mirrored else 1.0), Art.PIXEL * squash.y)
+	return out
 
 
 ## [animation name, frame count, current frame, mirrored] for the body sprite.
@@ -1260,6 +1353,9 @@ var smear_t0 := -1.0
 var smear_a0 := 0.0
 var smear_a1 := 0.0
 var smear_center := Vector2.ZERO
+var smear_dir := 0.0          # the swing's direction, as an angle
+var smear_side := 1.0         # -1: the back-hand slash, mirrored
+var smear_move := "slash"
 const SMEAR_LIFE := 0.1
 
 func _start_smear() -> void:
@@ -1269,6 +1365,9 @@ func _start_smear() -> void:
 	smear_a0 = anim_dir.angle() + float(curve[0]) * side
 	smear_a1 = anim_dir.angle() + float(curve[1]) * side
 	smear_center = _hand_point()
+	smear_dir = anim_dir.angle()
+	smear_side = side
+	smear_move = anim_move
 
 
 func _draw_trail() -> void:
@@ -1280,9 +1379,20 @@ func _draw_trail() -> void:
 	var length_px := _reach_px()
 	var r_in := 3.0 + length_px * 0.45
 	var r_out := 3.0 + length_px
+	var thrust := absf(smear_a1 - smear_a0) < 0.05
+	var piece := "overhead_smear" if smear_move == "overhead" else "slash_smear"
+	if not thrust and Art.piece_texture(piece) != null:
+		# The art's crescent reaches 40 px from the hand: scale it to this blade.
+		# The back-hand slash is the same picture mirrored across the aim (flipped
+		# left to right, then turned half round).
+		var n := int(Art.piece(piece).get("frames", 4))
+		var back := smear_side < 0.0
+		Art.draw_piece(trail_layer, piece, mini(int(age * n), n - 1), smear_center,
+			smear_dir + (PI if back else 0.0), back, Color.WHITE, Art.PIXEL * r_out / 80.0)
+		return
 	var col: Color = weapon.get("hit_color", Color.WHITE).lerp(Color(0.8, 0.9, 1.0), 0.5)
 	var fade := 1.0 - age
-	if absf(smear_a1 - smear_a0) < 0.05:
+	if thrust:
 		# A thrust: a straight streak along the blade instead of an arc.
 		var d := Vector2.RIGHT.rotated(smear_a0)
 		var n := d.orthogonal() * 4.0

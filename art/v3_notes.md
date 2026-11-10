@@ -132,3 +132,44 @@ What it changed from the numbers above, so the two stay in step:
   same day:** both are one palette step brighter and their top edge is now in the `_glow` layer as a thin lit rim
   (`cave/crawler_*`, `cave/burrower_*`, and the arena's `enemies/slime_*`, `charger_*`). With the glow layer drawn unshaded
   the 1.7x should not be needed.
+
+## Gap fill, 10 November evening: everything on the prototype's "missing art" list
+
+Darren asked what art was still missing. The prototype thread's list is `/mnt/project-files/art/requests/prototype-missing-art.md`
+(A1 to A22, B1 to B7, C1, C4 and section D are done here). **`gaps.json`** at the top of this folder lists every new file
+with its frame size, frame count, fps, origin, whether it has a `_glow.png`, and a note on how to draw it. Drawing code:
+`v3_gaps.py`, `v3_gaps2.py`, `v3_gaps3.py`, `v3_gaps4.py`. Pictures: `preview/screen_fight.png` (a mock fight using the
+pieces together), `gaps_combat.png`, `gaps_smear.png`, `gaps_cave.png`, `gaps_cards.png`, `gaps_forge_hud.png`,
+`gaps_arena.png`, `gaps_crate.png`.
+
+### Where I departed from the sizes you asked for (all in gaps.json)
+
+| Item | You asked | Delivered | Why |
+| --- | --- | --- | --- |
+| A2 hit sparks | 32 x 32, crit 48 x 48 | `hit_spark` 40 x 40 (20, 20), `hit_spark_crit` 56 x 56 (28, 28) | room for the flung lines |
+| A3 death burst | bronze flecks, verdigris dust | `fx/death_burst.png` as asked; it is a verdigris ring (what was awake goes back to green) with bronze flakes | |
+| A5 shadows | s / m / l / xl | as asked: 16x6, 24x9, 40x14, 64x20 | |
+| A8 lanes | one 16 x 24 tile stretched to 18 or 40 wide, plus a cap | two native widths, no stretching: `fx/warn_lane_thin_*` (16 long x 18) and `fx/warn_lane_wide_*` (32 long x 40), each as `_aim` and `_lock`, 4 frames, plus `_cap` (12 long) | stretching across breaks the 1 px hatch and rails |
+| A9 warning circle | one 64 x 64 at radius 28, scaled | `fx/warn_circle_r92.png` (100 x 100) and `fx/warn_circle_r58.png` (66 x 66), 8 frames each, drawn 1:1 | 92 / 56 is not a whole number, so a scaled ring goes ragged |
+| A10 falling rock | 32 x 64 | 48 x 64, feet (24, 60) | the break needs the width |
+| A11 stun stars | 24 x 10 | 30 x 14, origin (15, 7) | |
+| A19 rune pickup | 32 x 48 | 32 x 56, origin (16, 52), additive | the rune lifts 8 px |
+| B5 tabs | 12 x 14 | as asked; `tab_selected` uses the full height, `tab` starts 2 px lower | the chosen tab stands proud |
+| extra | | `swing/fx/hurt_burst.png` (a player takes a hit), `fx/blank_stone_pickup.png`, `fx/broken_band_pickup.png` | |
+
+### Existing files that changed (same names)
+
+- **`body/crew_a_*`, `body/crew_b_*` (all strips):** scarves one step brighter, and every strip now has a `_glow.png` with a thin
+  lit rim along the top edges (draw it unshaded on top, like the crabs). Sizes, feet and hands unchanged. `crew_*.json` has
+  `"glow": true`. New strips `crew_a_down`, `crew_b_down` (3 frames, hold the last).
+- **`cave/crate_closed.png` 34 x 24, feet (17, 22), with `crate_closed_glow.png`; `cave/crate_open.png` 34 x 32, feet (17, 30).**
+  Was 22 x 13 and 22 x 15. `cave.json → props` is updated.
+- **`cave/cave.json → lighting`:** one more light, "roof crack over the giant blade (room 1)" at map px (380, 968), r128,
+  daylight, 0.7. Move the lantern to feet (258, 984) so it clears the wider crate (`layout_map_px` is updated).
+- **`enemies/brute_*`:** bell one palette step brighter and a rim in the glow layer. **`enemies/dummy*`:** rim in the glow
+  layer, so `dummy_idle_glow.png` now exists.
+
+### Not drawn, on purpose
+
+A title wordmark (the game has no name yet), Mirror and the other parked runes, players 3 and 4, and the bow, staff and
+hammer parts (C2, C3, C5): those wait for the bow to be built, as you asked.

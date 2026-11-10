@@ -18,6 +18,7 @@ const Art := preload("res://scripts/art.gd")
 const SpriteOnce := preload("res://scripts/fx/sprite_once.gd")
 const Sfx := preload("res://scripts/sfx.gd")
 const Glow := preload("res://scripts/glow.gd")
+const Warn := preload("res://scripts/fx/warn.gd")
 
 var kind := "slime"
 var max_hp := 30.0
@@ -72,6 +73,17 @@ func _ready() -> void:
 	circle.radius = radius
 	shape.shape = circle
 	add_child(shape)
+	# Two extra surfaces the dark never dims: warnings painted on the floor under
+	# everyone, and the health bar, stars and warnings on top of the sprite.
+	_ground = Node2D.new()
+	_ground.material = Art.unshaded()
+	_ground.z_index = -5
+	add_child(_ground)
+	_ground.draw.connect(func(): _draw_ground(_ground))
+	_over = Node2D.new()
+	_over.material = Art.unshaded()
+	add_child(_over)
+	_over.draw.connect(func(): _draw_over(_over))
 
 
 ## Stats for this kind. Cave enemies override this.
@@ -284,13 +296,15 @@ func current_dps() -> float:
 
 func _die() -> void:
 	dead = true
-	var b := Fx.new()
-	b.kind = "burst"
-	b.radius = radius * 1.6
-	b.color = color
-	b.life = 0.25
-	get_parent().add_child(b)
-	b.global_position = global_position
+	# What was awake goes back to green: a verdigris ring and bronze flakes.
+	if Art.play_piece(self, "death_burst", global_position, 0.0, clampf(radius / 14.0, 0.8, 2.0)) == null:
+		var b := Fx.new()
+		b.kind = "burst"
+		b.radius = radius * 1.6
+		b.color = color
+		b.life = 0.25
+		get_parent().add_child(b)
+		b.global_position = global_position
 	var info := _art_info()
 	var death := _art_tex("death")
 	if death != null and info.get("strips", {}).has("death"):
@@ -313,7 +327,14 @@ func _die() -> void:
 func _process(delta: float) -> void:
 	if freeze <= 0.0:
 		anim_time += delta
+	_redraw()
+
+
+## Everything this enemy draws: the sprite, its glow, and the two bright surfaces.
+func _redraw() -> void:
 	queue_redraw()
+	_ground.queue_redraw()
+	_over.queue_redraw()
 	_update_glow()
 
 
@@ -348,9 +369,12 @@ func _sprite() -> Dictionary:
 		return {}
 	var a := _anim()
 	var anim: String = a[0]
-	if not info["strips"].has(anim):
-		anim = "idle"
 	var strip: Dictionary = info["strips"].get(anim, {})
+	if strip.is_empty():
+		strip = Art.piece("%s_%s" % [kind, anim])   # strips drawn later live in art/gaps.json
+	if strip.is_empty():
+		anim = "idle"
+		strip = info["strips"].get(anim, {})
 	var tex := _art_tex(anim)
 	var glow := _art_tex(anim + "_glow")
 	if tex == null:
@@ -388,15 +412,92 @@ func _anim() -> Array:
 	var hit_strip: Dictionary = strips.get("hit", {})
 	if not hit_strip.is_empty() and hit_anim < float(hit_strip["frames"]) / float(hit_strip["fps"]):
 		return ["hit", hit_anim, false]
+	if kind == "charger" and state == "windup":
+		return ["windup", anim_time, true]
 	if velocity.length() > 15.0 and strips.has("move"):
 		return ["move", anim_time, true]
 	return ["idle", anim_time, true]
 
 
 func _draw_shadow() -> void:
+	var size := "s" if radius <= 14.0 else ("m" if radius <= 20.0 else ("l" if radius <= 30.0 else "xl"))
+	if Art.draw_piece(self, "shadow_" + size, 0, _feet()):
+		return
 	draw_set_transform(_feet(), 0.0, Vector2(1.0, 0.4))
 	draw_circle(Vector2.ZERO, radius * 1.1, Color(0, 0, 0, 0.3))
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+
+
+var _over: Node2D      # on top of the sprite, never dimmed
+var _ground: Node2D    # on the floor under everyone, never dimmed
+
+## How far a charger's dash carries it (its speed times its dash time).
+const CHARGE_REACH := 560.0 * 0.35
+
+
+## Warnings on the floor. The horned crab shows the lane it is about to dash down.
+func _draw_ground(ci: CanvasItem) -> void:
+	if kind == "charger" and state == "windup":
+		Warn.lane(ci, "thin", state_timer < 0.15, Vector2.ZERO, charge_dir, CHARGE_REACH + radius, anim_time)
+
+
+static var _tops: Dictionary = {}
+
+## How high the top of its picture is above this node (world units, negative is up),
+## so the bar and the stars sit over the head whatever its size.
+func _head_y() -> float:
+	var info := _art_info()
+	var tex := _art_tex("idle")
+	if tex == null or not info.has("origin_feet"):
+		return -radius
+	var key := "%s/%s" % [art_set, kind]
+	if not _tops.has(key):
+		var top := 0.0
+		var img := tex.get_image()
+		if img != null and not img.is_empty():
+			if img.is_compressed():
+				img.decompress()
+			top = float(img.get_used_rect().position.y)
+		_tops[key] = top
+	var o: Array = info["origin_feet"]
+	return minf(_feet().y - (float(o[1]) - float(_tops[key])) * Art.PIXEL, -radius)
+
+
+## Is it reeling with stars round its head?
+func _starry() -> bool:
+	return stun_time > 0.0
+
+
+## Stars and the health bar, above the head.
+func _draw_over(ci: CanvasItem) -> void:
+	if _starry():
+		var stars := Art.piece("stun_stars")
+		var n := int(stars.get("frames", 6))
+		if not Art.draw_piece(ci, "stun_stars", int(Time.get_ticks_msec() / 1000.0 * float(stars.get("fps", 10))) % maxi(n, 1), Vector2(0, _head_y() - 4.0)):
+			for i in 3:
+				var ang := Time.get_ticks_msec() / 150.0 + i * TAU / 3.0
+				ci.draw_circle(Vector2(cos(ang), sin(ang) * 0.4) * radius * 0.8 + Vector2(0, -radius - 6.0), 2.5, Color(1.0, 0.95, 0.5))
+	if show_bar and hp < max_hp and kind != "dummy" and not dead:
+		_draw_bar(ci)
+
+
+func _draw_bar(ci: CanvasItem) -> void:
+	var frac := clampf(hp / max_hp, 0.0, 1.0)
+	var fill := Art.piece_texture("enemy_bar_fill")
+	# In art pixels: the frame is a nine-patch with a 2 px edge, the fill sits 2 in and 1 down.
+	var w := clampf(roundf(radius * 1.2), 14.0, 40.0)
+	var at := Vector2(-w, _head_y() - 18.0 - (12.0 if _starry() else 0.0))
+	ci.draw_set_transform(at, 0.0, Vector2(Art.PIXEL, Art.PIXEL))
+	if fill != null and Art.draw_nine(ci, "hud/enemy_bar_frame.png", Rect2(0, 0, w, 5), 2):
+		var fw := roundf((w - 4.0) * frac)
+		if fw > 0.0:
+			ci.draw_texture_rect_region(fill, Rect2(2, 1, fw, 3), Rect2(0, 0, 22.0 * frac, 3))
+		ci.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+		return
+	ci.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+	var ww := radius * 2.0
+	ci.draw_rect(Rect2(-ww * 0.5, -radius - 10.0, ww, 4.0), Color(0, 0, 0, 0.6))
+	ci.draw_rect(Rect2(-ww * 0.5, -radius - 10.0, ww * frac, 4.0), Color(0.9, 0.25, 0.25))
 
 
 func _draw() -> void:
@@ -422,11 +523,6 @@ func _draw() -> void:
 			tint *= Color(0.65, 0.8, 1.0)
 		Art.draw_strip(self, sp["tex"], sp["frames"], sp["frame"], _feet(), sp["origin"], sp["flip"], tint)
 
-	if stun_time > 0.0:
-		for i in 3:
-			var ang := Time.get_ticks_msec() / 150.0 + i * TAU / 3.0
-			draw_circle(Vector2(cos(ang), sin(ang) * 0.4) * radius * 0.8 + Vector2(0, -radius - 6.0), 2.5, WeaponBuild.ELEMENT_COLORS["electrified"])
-
 	if kind == "dummy":
 		var dps := current_dps()
 		if dps > 0.0:
@@ -434,12 +530,6 @@ func _draw() -> void:
 			var label := "DPS %.1f" % dps
 			draw_string_outline(font, Vector2(-60, -radius - 14.0), label, HORIZONTAL_ALIGNMENT_CENTER, 120, 16, 8, Color(0.06, 0.04, 0.09))
 			draw_string(font, Vector2(-60, -radius - 14.0), label, HORIZONTAL_ALIGNMENT_CENTER, 120, 16, Color("#ffc850"))
-
-	if show_bar and hp < max_hp and kind != "dummy":
-		var w := radius * 2.0
-		var y := -radius - 10.0
-		draw_rect(Rect2(-w * 0.5, y, w, 4.0), Color(0, 0, 0, 0.6))
-		draw_rect(Rect2(-w * 0.5, y, w * clampf(hp / max_hp, 0.0, 1.0), 4.0), Color(0.9, 0.25, 0.25))
 
 
 ## Stand-in shapes until the enemy sprites land.

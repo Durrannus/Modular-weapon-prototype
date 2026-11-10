@@ -1,0 +1,1231 @@
+{
+ "note": "Gap fill, 10 Nov 2026: every new file from the prototype thread's list (art/requests/prototype-missing-art.md). frame = one frame's size in art px; origin = the anchor inside a frame; glow = a <name>_glow.png sits beside it; ADDITIVE in a note means draw it with additive blending at full alpha. Changed existing files are listed in README.md.",
+ "files": {
+  "warn_circle_r92": {
+   "file": "fx/warn_circle_r92.png",
+   "frame": [
+    100,
+    100
+   ],
+   "frames": 8,
+   "origin": [
+    50,
+    50
+   ],
+   "glow": false,
+   "note": "danger circle for a hit of radius 92 game px (art radius 46), drawn 1:1 so the hatch stays one pixel. 8 frames = how full: frame = int(t / delay * 7); frame 7 is the flash when it lands. Unshaded, under everyone. For another radius use the nearer file scaled by radius / 92"
+  },
+  "warn_circle_r58": {
+   "file": "fx/warn_circle_r58.png",
+   "frame": [
+    66,
+    66
+   ],
+   "frames": 8,
+   "origin": [
+    33,
+    33
+   ],
+   "glow": false,
+   "note": "danger circle for a hit of radius 58 game px (art radius 29), drawn 1:1 so the hatch stays one pixel. 8 frames = how full: frame = int(t / delay * 7); frame 7 is the flash when it lands. Unshaded, under everyone. For another radius use the nearer file scaled by radius / 58"
+  },
+  "warn_lane_wide_aim": {
+   "file": "fx/warn_lane_wide_aim.png",
+   "frame": [
+    32,
+    40
+   ],
+   "frames": 4,
+   "origin": [
+    0,
+    20
+   ],
+   "glow": false,
+   "note": "lane tile pointing right, 32 long, 40 across (80 game px: the knight charge). Repeat it along the lane; the 4 frames march the chevrons forward. _aim while it follows you, _lock once it cannot turn. Two native widths so nothing is stretched across",
+   "fps": 14
+  },
+  "warn_lane_wide_aim_cap": {
+   "file": "fx/warn_lane_wide_aim_cap.png",
+   "frame": [
+    12,
+    40
+   ],
+   "frames": 1,
+   "origin": [
+    0,
+    20
+   ],
+   "glow": false,
+   "note": "the far end of the lane, 12 long"
+  },
+  "warn_lane_wide_lock": {
+   "file": "fx/warn_lane_wide_lock.png",
+   "frame": [
+    32,
+    40
+   ],
+   "frames": 4,
+   "origin": [
+    0,
+    20
+   ],
+   "glow": false,
+   "note": "lane tile pointing right, 32 long, 40 across (80 game px: the knight charge). Repeat it along the lane; the 4 frames march the chevrons forward. _aim while it follows you, _lock once it cannot turn. Two native widths so nothing is stretched across",
+   "fps": 14
+  },
+  "warn_lane_wide_lock_cap": {
+   "file": "fx/warn_lane_wide_lock_cap.png",
+   "frame": [
+    12,
+    40
+   ],
+   "frames": 1,
+   "origin": [
+    0,
+    20
+   ],
+   "glow": false,
+   "note": "the far end of the lane, 12 long"
+  },
+  "warn_lane_thin_aim": {
+   "file": "fx/warn_lane_thin_aim.png",
+   "frame": [
+    16,
+    18
+   ],
+   "frames": 4,
+   "origin": [
+    0,
+    9
+   ],
+   "glow": false,
+   "note": "lane tile pointing right, 16 long, 18 across (36 game px: the worm lunge and the horned crab). Repeat it along the lane; the 4 frames march the chevrons forward. _aim while it follows you, _lock once it cannot turn. Two native widths so nothing is stretched across",
+   "fps": 14
+  },
+  "warn_lane_thin_aim_cap": {
+   "file": "fx/warn_lane_thin_aim_cap.png",
+   "frame": [
+    12,
+    18
+   ],
+   "frames": 1,
+   "origin": [
+    0,
+    9
+   ],
+   "glow": false,
+   "note": "the far end of the lane, 12 long"
+  },
+  "warn_lane_thin_lock": {
+   "file": "fx/warn_lane_thin_lock.png",
+   "frame": [
+    16,
+    18
+   ],
+   "frames": 4,
+   "origin": [
+    0,
+    9
+   ],
+   "glow": false,
+   "note": "lane tile pointing right, 16 long, 18 across (36 game px: the worm lunge and the horned crab). Repeat it along the lane; the 4 frames march the chevrons forward. _aim while it follows you, _lock once it cannot turn. Two native widths so nothing is stretched across",
+   "fps": 14
+  },
+  "warn_lane_thin_lock_cap": {
+   "file": "fx/warn_lane_thin_lock_cap.png",
+   "frame": [
+    12,
+    18
+   ],
+   "frames": 1,
+   "origin": [
+    0,
+    9
+   ],
+   "glow": false,
+   "note": "the far end of the lane, 12 long"
+  },
+  "warn_ring": {
+   "file": "fx/warn_ring.png",
+   "frame": [
+    28,
+    28
+   ],
+   "frames": 2,
+   "origin": [
+    14,
+    14
+   ],
+   "glow": false,
+   "note": "round a crawler as it rears to bite: flash it as now; frame 1 is the hotter one for the last flashes. Ring radius 10"
+  },
+  "shadow_s": {
+   "file": "fx/shadow_s.png",
+   "frame": [
+    16,
+    6
+   ],
+   "frames": 1,
+   "origin": [
+    8,
+    3
+   ],
+   "glow": false,
+   "note": "ground shadow, centred on the feet, lit like the sprites"
+  },
+  "shadow_m": {
+   "file": "fx/shadow_m.png",
+   "frame": [
+    24,
+    9
+   ],
+   "frames": 1,
+   "origin": [
+    12,
+    4
+   ],
+   "glow": false,
+   "note": "ground shadow, centred on the feet, lit like the sprites"
+  },
+  "shadow_l": {
+   "file": "fx/shadow_l.png",
+   "frame": [
+    40,
+    14
+   ],
+   "frames": 1,
+   "origin": [
+    20,
+    7
+   ],
+   "glow": false,
+   "note": "ground shadow, centred on the feet, lit like the sprites"
+  },
+  "shadow_xl": {
+   "file": "fx/shadow_xl.png",
+   "frame": [
+    64,
+    20
+   ],
+   "frames": 1,
+   "origin": [
+    32,
+    10
+   ],
+   "glow": false,
+   "note": "ground shadow, centred on the feet, lit like the sprites"
+  },
+  "ring_a": {
+   "file": "hud/ring_a.png",
+   "frame": [
+    26,
+    12
+   ],
+   "frames": 1,
+   "origin": [
+    13,
+    6
+   ],
+   "glow": false,
+   "note": "who-is-who ring under a player's feet; centre on the feet, unshaded, behind the body"
+  },
+  "ring_b": {
+   "file": "hud/ring_b.png",
+   "frame": [
+    26,
+    12
+   ],
+   "frames": 1,
+   "origin": [
+    13,
+    6
+   ],
+   "glow": false,
+   "note": "who-is-who ring under a player's feet; centre on the feet, unshaded, behind the body"
+  },
+  "enemy_bar_frame": {
+   "file": "hud/enemy_bar_frame.png",
+   "frame": [
+    26,
+    5
+   ],
+   "frames": 1,
+   "origin": [
+    0,
+    0
+   ],
+   "glow": false,
+   "note": "nine-patch, margin 2. The inside is 22 x 3 at (2, 1)"
+  },
+  "enemy_bar_fill": {
+   "file": "hud/enemy_bar_fill.png",
+   "frame": [
+    22,
+    3
+   ],
+   "frames": 1,
+   "origin": [
+    0,
+    0
+   ],
+   "glow": false,
+   "note": "22 x 3; show the left part for the health left"
+  },
+  "stun_stars": {
+   "file": "fx/stun_stars.png",
+   "frame": [
+    30,
+    14
+   ],
+   "frames": 6,
+   "origin": [
+    15,
+    7
+   ],
+   "glow": false,
+   "note": "loops; origin = centre of the circle, place it just above the head. Unshaded",
+   "fps": 10
+  },
+  "hit_spark": {
+   "file": "swing/fx/hit_spark.png",
+   "frame": [
+    40,
+    40
+   ],
+   "frames": 5,
+   "origin": [
+    20,
+    20
+   ],
+   "glow": false,
+   "note": "ADDITIVE. On every sword hit, at the enemy; faces right, turn it to the hit direction",
+   "fps": 24
+  },
+  "hit_spark_crit": {
+   "file": "swing/fx/hit_spark_crit.png",
+   "frame": [
+    56,
+    56
+   ],
+   "frames": 6,
+   "origin": [
+    28,
+    28
+   ],
+   "glow": false,
+   "note": "ADDITIVE. Instead of hit_spark on a critical hit",
+   "fps": 22
+  },
+  "hurt_burst": {
+   "file": "swing/fx/hurt_burst.png",
+   "frame": [
+    40,
+    40
+   ],
+   "frames": 4,
+   "origin": [
+    16,
+    20
+   ],
+   "glow": false,
+   "note": "ADDITIVE. Extra, not on your list: on a player who takes a hit, pointing away from the blow (faces right)",
+   "fps": 20
+  },
+  "death_burst": {
+   "file": "fx/death_burst.png",
+   "frame": [
+    48,
+    48
+   ],
+   "frames": 5,
+   "origin": [
+    24,
+    24
+   ],
+   "glow": false,
+   "note": "ADDITIVE. Under the death strip; scale by enemy size",
+   "fps": 18
+  },
+  "slash_smear": {
+   "file": "swing/fx/slash_smear.png",
+   "frame": [
+    96,
+    96
+   ],
+   "frames": 4,
+   "origin": [
+    48,
+    48
+   ],
+   "glow": false,
+   "note": "ADDITIVE. Origin = the hand. Sweeps clockwise from -52 to +52 degrees, outer radius 40; mirror for the back-hand, scale to the blade's reach. Frame 0 whole, 1 to 3 dissolve",
+   "fps": 40
+  },
+  "overhead_smear": {
+   "file": "swing/fx/overhead_smear.png",
+   "frame": [
+    96,
+    96
+   ],
+   "frames": 4,
+   "origin": [
+    48,
+    48
+   ],
+   "glow": false,
+   "note": "ADDITIVE. As slash_smear but -80 to +26 degrees and heavier",
+   "fps": 40
+  },
+  "crew_a_down": {
+   "file": "body/crew_a_down.png",
+   "frame": [
+    56,
+    56
+   ],
+   "frames": 3,
+   "origin": [
+    28,
+    52
+   ],
+   "glow": true,
+   "note": "3 frames: reeling, hitting the floor, lying; hold the last. No turning or greying needed. Play it backwards to get up",
+   "fps": 8
+  },
+  "crew_b_down": {
+   "file": "body/crew_b_down.png",
+   "frame": [
+    56,
+    56
+   ],
+   "frames": 3,
+   "origin": [
+    28,
+    52
+   ],
+   "glow": true,
+   "note": "3 frames: reeling, hitting the floor, lying; hold the last. No turning or greying needed. Play it backwards to get up",
+   "fps": 8
+  },
+  "rock_fall": {
+   "file": "cave/rock_fall.png",
+   "frame": [
+    48,
+    64
+   ],
+   "frames": 6,
+   "origin": [
+    24,
+    60
+   ],
+   "glow": false,
+   "note": "6 frames of 48 x 64 (wider than you asked, so the break fits): the rock drops down the frame onto the feet point (3 frames), then breaks (3)",
+   "fps": 16
+  },
+  "smith_walk_down": {
+   "file": "cave/smith_walk_down.png",
+   "frame": [
+    56,
+    56
+   ],
+   "frames": 6,
+   "origin": [
+    28,
+    52
+   ],
+   "glow": false,
+   "note": "6 frames, same frame and feet as his other strips",
+   "fps": 8
+  },
+  "cage_break": {
+   "file": "cave/cage_break.png",
+   "frame": [
+    36,
+    54
+   ],
+   "frames": 4,
+   "origin": [
+    18,
+    49
+   ],
+   "glow": true,
+   "note": "4 frames in place of cage_front: the lock flares, the bars are thrown out, the pieces land; the last frame is cage_broken. Frame 0 and 1 have glow pixels (cage_break_glow.png)",
+   "fps": 12
+  },
+  "rune_pickup": {
+   "file": "cave/rune_pickup.png",
+   "frame": [
+    32,
+    56
+   ],
+   "frames": 6,
+   "origin": [
+    16,
+    52
+   ],
+   "glow": false,
+   "note": "ADDITIVE, over pedestal_empty. 32 x 56 (taller than you asked, so the rune can lift), origin (16, 52) on the pedestal's feet: the rune brightens, lifts, flares, is gone",
+   "fps": 12
+  },
+  "pickup_burst": {
+   "file": "fx/pickup_burst.png",
+   "frame": [
+    48,
+    48
+   ],
+   "frames": 6,
+   "origin": [
+    24,
+    24
+   ],
+   "glow": false,
+   "note": "ADDITIVE. On a player who is given something; origin about chest height",
+   "fps": 16
+  },
+  "crawler_emerge": {
+   "file": "cave/crawler_emerge.png",
+   "frame": [
+    32,
+    32
+   ],
+   "frames": 4,
+   "origin": [
+    16,
+    28
+   ],
+   "glow": true,
+   "note": "4 frames: it digs up through the floor, eyes lit, then stands. Rim glow like its other strips",
+   "fps": 10
+  },
+  "card_intro": {
+   "file": "cave/ui/card_intro.png",
+   "frame": [
+    200,
+    72
+   ],
+   "frames": 1,
+   "origin": [
+    0,
+    0
+   ],
+   "glow": false,
+   "note": "200 x 72 still for the opening card"
+  },
+  "card_daylight": {
+   "file": "cave/ui/card_daylight.png",
+   "frame": [
+    200,
+    72
+   ],
+   "frames": 1,
+   "origin": [
+    0,
+    0
+   ],
+   "glow": false,
+   "note": "200 x 72 still for the ending card"
+  },
+  "prompt_plate": {
+   "file": "cave/ui/prompt_plate.png",
+   "frame": [
+    12,
+    18
+   ],
+   "frames": 1,
+   "origin": [
+    0,
+    0
+   ],
+   "glow": false,
+   "note": "nine-patch, margin 4"
+  },
+  "hint_plate": {
+   "file": "cave/ui/hint_plate.png",
+   "frame": [
+    12,
+    14
+   ],
+   "frames": 1,
+   "origin": [
+    0,
+    0
+   ],
+   "glow": false,
+   "note": "nine-patch, margin 4; already see-through, draw at full alpha"
+  },
+  "objective_mark": {
+   "file": "hud/objective_mark.png",
+   "frame": [
+    7,
+    7
+   ],
+   "frames": 1,
+   "origin": [
+    3,
+    3
+   ],
+   "glow": false,
+   "note": "7 x 7"
+  },
+  "prompt_space": {
+   "file": "cave/ui/prompt_space.png",
+   "frame": [
+    24,
+    16
+   ],
+   "frames": 1,
+   "origin": [
+    0,
+    0
+   ],
+   "glow": false,
+   "note": "same make as prompt_e.png; pad buttons carry only the letter, so they suit any controller"
+  },
+  "prompt_tab": {
+   "file": "cave/ui/prompt_tab.png",
+   "frame": [
+    24,
+    16
+   ],
+   "frames": 1,
+   "origin": [
+    0,
+    0
+   ],
+   "glow": false,
+   "note": "same make as prompt_e.png; pad buttons carry only the letter, so they suit any controller"
+  },
+  "prompt_esc": {
+   "file": "cave/ui/prompt_esc.png",
+   "frame": [
+    24,
+    16
+   ],
+   "frames": 1,
+   "origin": [
+    0,
+    0
+   ],
+   "glow": false,
+   "note": "same make as prompt_e.png; pad buttons carry only the letter, so they suit any controller"
+  },
+  "prompt_mouse_left": {
+   "file": "cave/ui/prompt_mouse_left.png",
+   "frame": [
+    16,
+    16
+   ],
+   "frames": 1,
+   "origin": [
+    0,
+    0
+   ],
+   "glow": false,
+   "note": "same make as prompt_e.png; pad buttons carry only the letter, so they suit any controller"
+  },
+  "prompt_mouse_right": {
+   "file": "cave/ui/prompt_mouse_right.png",
+   "frame": [
+    16,
+    16
+   ],
+   "frames": 1,
+   "origin": [
+    0,
+    0
+   ],
+   "glow": false,
+   "note": "same make as prompt_e.png; pad buttons carry only the letter, so they suit any controller"
+  },
+  "prompt_pad_x": {
+   "file": "cave/ui/prompt_pad_x.png",
+   "frame": [
+    16,
+    16
+   ],
+   "frames": 1,
+   "origin": [
+    0,
+    0
+   ],
+   "glow": false,
+   "note": "same make as prompt_e.png; pad buttons carry only the letter, so they suit any controller"
+  },
+  "prompt_pad_y": {
+   "file": "cave/ui/prompt_pad_y.png",
+   "frame": [
+    16,
+    16
+   ],
+   "frames": 1,
+   "origin": [
+    0,
+    0
+   ],
+   "glow": false,
+   "note": "same make as prompt_e.png; pad buttons carry only the letter, so they suit any controller"
+  },
+  "prompt_pad_b": {
+   "file": "cave/ui/prompt_pad_b.png",
+   "frame": [
+    16,
+    16
+   ],
+   "frames": 1,
+   "origin": [
+    0,
+    0
+   ],
+   "glow": false,
+   "note": "same make as prompt_e.png; pad buttons carry only the letter, so they suit any controller"
+  },
+  "prompt_pad_start": {
+   "file": "cave/ui/prompt_pad_start.png",
+   "frame": [
+    16,
+    16
+   ],
+   "frames": 1,
+   "origin": [
+    0,
+    0
+   ],
+   "glow": false,
+   "note": "same make as prompt_e.png; pad buttons carry only the letter, so they suit any controller"
+  },
+  "prompt_stick_l": {
+   "file": "cave/ui/prompt_stick_l.png",
+   "frame": [
+    16,
+    16
+   ],
+   "frames": 1,
+   "origin": [
+    0,
+    0
+   ],
+   "glow": false,
+   "note": "same make as prompt_e.png; pad buttons carry only the letter, so they suit any controller"
+  },
+  "prompt_stick_r": {
+   "file": "cave/ui/prompt_stick_r.png",
+   "frame": [
+    16,
+    16
+   ],
+   "frames": 1,
+   "origin": [
+    0,
+    0
+   ],
+   "glow": false,
+   "note": "same make as prompt_e.png; pad buttons carry only the letter, so they suit any controller"
+  },
+  "wooden_blade_icon": {
+   "file": "swing/blades/wooden_blade_icon.png",
+   "frame": [
+    42,
+    13
+   ],
+   "frames": 1,
+   "origin": [
+    0,
+    0
+   ],
+   "glow": false,
+   "note": "forge tray card: lying down, tip right, true proportions; sockets shown"
+  },
+  "tin_blade_icon": {
+   "file": "swing/blades/tin_blade_icon.png",
+   "frame": [
+    42,
+    13
+   ],
+   "frames": 1,
+   "origin": [
+    0,
+    0
+   ],
+   "glow": false,
+   "note": "forge tray card: lying down, tip right, true proportions; sockets shown"
+  },
+  "iron_shortblade_icon": {
+   "file": "swing/blades/iron_shortblade_icon.png",
+   "frame": [
+    30,
+    13
+   ],
+   "frames": 1,
+   "origin": [
+    0,
+    0
+   ],
+   "glow": false,
+   "note": "forge tray card: lying down, tip right, true proportions; sockets shown"
+  },
+  "iron_blade_icon": {
+   "file": "swing/blades/iron_blade_icon.png",
+   "frame": [
+    42,
+    13
+   ],
+   "frames": 1,
+   "origin": [
+    0,
+    0
+   ],
+   "glow": false,
+   "note": "forge tray card: lying down, tip right, true proportions; sockets shown"
+  },
+  "iron_longblade_icon": {
+   "file": "swing/blades/iron_longblade_icon.png",
+   "frame": [
+    56,
+    13
+   ],
+   "frames": 1,
+   "origin": [
+    0,
+    0
+   ],
+   "glow": false,
+   "note": "forge tray card: lying down, tip right, true proportions; sockets shown"
+  },
+  "wooden_grip_icon": {
+   "file": "swing/grips/wooden_grip_icon.png",
+   "frame": [
+    17,
+    23
+   ],
+   "frames": 1,
+   "origin": [
+    0,
+    0
+   ],
+   "glow": false,
+   "note": "forge tray card: lying down, guard on the right, sockets shown"
+  },
+  "tin_grip_icon": {
+   "file": "swing/grips/tin_grip_icon.png",
+   "frame": [
+    17,
+    23
+   ],
+   "frames": 1,
+   "origin": [
+    0,
+    0
+   ],
+   "glow": false,
+   "note": "forge tray card: lying down, guard on the right, sockets shown"
+  },
+  "wrapped_grip_icon": {
+   "file": "swing/grips/wrapped_grip_icon.png",
+   "frame": [
+    23,
+    23
+   ],
+   "frames": 1,
+   "origin": [
+    0,
+    0
+   ],
+   "glow": false,
+   "note": "forge tray card: lying down, guard on the right, sockets shown"
+  },
+  "long_grip_icon": {
+   "file": "swing/grips/long_grip_icon.png",
+   "frame": [
+    29,
+    23
+   ],
+   "frames": 1,
+   "origin": [
+    0,
+    0
+   ],
+   "glow": false,
+   "note": "forge tray card: lying down, guard on the right, sockets shown"
+  },
+  "ringed_grip_icon": {
+   "file": "swing/grips/ringed_grip_icon.png",
+   "frame": [
+    26,
+    23
+   ],
+   "frames": 1,
+   "origin": [
+    0,
+    0
+   ],
+   "glow": false,
+   "note": "forge tray card: lying down, guard on the right, sockets shown"
+  },
+  "gilded_grip_icon": {
+   "file": "swing/grips/gilded_grip_icon.png",
+   "frame": [
+    23,
+    23
+   ],
+   "frames": 1,
+   "origin": [
+    0,
+    0
+   ],
+   "glow": false,
+   "note": "forge tray card: lying down, guard on the right, sockets shown"
+  },
+  "stat_damage": {
+   "file": "swing/ui/stat_damage.png",
+   "frame": [
+    9,
+    9
+   ],
+   "frames": 1,
+   "origin": [
+    0,
+    0
+   ],
+   "glow": false,
+   "note": "9 x 9, idle (verdigris)"
+  },
+  "stat_damage_hot": {
+   "file": "swing/ui/stat_damage_hot.png",
+   "frame": [
+    9,
+    9
+   ],
+   "frames": 1,
+   "origin": [
+    0,
+    0
+   ],
+   "glow": false,
+   "note": "9 x 9, lit (ember) when the number changes"
+  },
+  "stat_speed": {
+   "file": "swing/ui/stat_speed.png",
+   "frame": [
+    9,
+    9
+   ],
+   "frames": 1,
+   "origin": [
+    0,
+    0
+   ],
+   "glow": false,
+   "note": "9 x 9, idle (verdigris)"
+  },
+  "stat_speed_hot": {
+   "file": "swing/ui/stat_speed_hot.png",
+   "frame": [
+    9,
+    9
+   ],
+   "frames": 1,
+   "origin": [
+    0,
+    0
+   ],
+   "glow": false,
+   "note": "9 x 9, lit (ember) when the number changes"
+  },
+  "stat_reach": {
+   "file": "swing/ui/stat_reach.png",
+   "frame": [
+    9,
+    9
+   ],
+   "frames": 1,
+   "origin": [
+    0,
+    0
+   ],
+   "glow": false,
+   "note": "9 x 9, idle (verdigris)"
+  },
+  "stat_reach_hot": {
+   "file": "swing/ui/stat_reach_hot.png",
+   "frame": [
+    9,
+    9
+   ],
+   "frames": 1,
+   "origin": [
+    0,
+    0
+   ],
+   "glow": false,
+   "note": "9 x 9, lit (ember) when the number changes"
+  },
+  "stat_crit": {
+   "file": "swing/ui/stat_crit.png",
+   "frame": [
+    9,
+    9
+   ],
+   "frames": 1,
+   "origin": [
+    0,
+    0
+   ],
+   "glow": false,
+   "note": "9 x 9, idle (verdigris)"
+  },
+  "stat_crit_hot": {
+   "file": "swing/ui/stat_crit_hot.png",
+   "frame": [
+    9,
+    9
+   ],
+   "frames": 1,
+   "origin": [
+    0,
+    0
+   ],
+   "glow": false,
+   "note": "9 x 9, lit (ember) when the number changes"
+  },
+  "stat_crit_damage": {
+   "file": "swing/ui/stat_crit_damage.png",
+   "frame": [
+    9,
+    9
+   ],
+   "frames": 1,
+   "origin": [
+    0,
+    0
+   ],
+   "glow": false,
+   "note": "9 x 9, idle (verdigris)"
+  },
+  "stat_crit_damage_hot": {
+   "file": "swing/ui/stat_crit_damage_hot.png",
+   "frame": [
+    9,
+    9
+   ],
+   "frames": 1,
+   "origin": [
+    0,
+    0
+   ],
+   "glow": false,
+   "note": "9 x 9, lit (ember) when the number changes"
+  },
+  "fitted_mark": {
+   "file": "swing/ui/fitted_mark.png",
+   "frame": [
+    5,
+    5
+   ],
+   "frames": 1,
+   "origin": [
+    0,
+    0
+   ],
+   "glow": false,
+   "note": "5 x 5: this part is on your sword"
+  },
+  "cursor": {
+   "file": "swing/ui/cursor.png",
+   "frame": [
+    7,
+    11
+   ],
+   "frames": 1,
+   "origin": [
+    0,
+    5
+   ],
+   "glow": false,
+   "note": "7 x 11 menu cursor, points right"
+  },
+  "tab": {
+   "file": "swing/ui/tab.png",
+   "frame": [
+    12,
+    14
+   ],
+   "frames": 1,
+   "origin": [
+    0,
+    0
+   ],
+   "glow": false,
+   "note": "nine-patch, margin 4; open at the bottom"
+  },
+  "tab_selected": {
+   "file": "swing/ui/tab_selected.png",
+   "frame": [
+    12,
+    14
+   ],
+   "frames": 1,
+   "origin": [
+    0,
+    0
+   ],
+   "glow": false,
+   "note": "nine-patch, margin 4; 2 px taller on screen than tab because its top edge starts at y 0"
+  },
+  "arena_ground": {
+   "file": "tiles/arena_ground.png",
+   "frame": [
+    928,
+    608
+   ],
+   "frames": 1,
+   "origin": [
+    16,
+    48
+   ],
+   "glow": false,
+   "note": "928 x 608; draw at (-16, -48) art px. Floor 896 x 544 from (16, 48). Flagstones at floor px (32,32)-(144,112). A sparring ring in the middle (floor centre 448, 280, about 200 x 120) and one dormant channel; both are flat, nothing blocks"
+  },
+  "charger_windup": {
+   "file": "enemies/charger_windup.png",
+   "frame": [
+    32,
+    32
+   ],
+   "frames": 2,
+   "origin": [
+    16,
+    28
+   ],
+   "glow": true,
+   "note": "2 frames, loops while it winds up; rim glow like its other strips. Put warn_lane_thin in front of it",
+   "fps": 10
+  },
+  "ability_slot": {
+   "file": "hud/ability_slot.png",
+   "frame": [
+    20,
+    20
+   ],
+   "frames": 1,
+   "origin": [
+    0,
+    0
+   ],
+   "glow": false,
+   "note": "20 x 20; the glyph sits at (4, 4), 12 x 12"
+  },
+  "ability_ready": {
+   "file": "hud/ability_ready.png",
+   "frame": [
+    20,
+    20
+   ],
+   "frames": 1,
+   "origin": [
+    0,
+    0
+   ],
+   "glow": false,
+   "note": "same, ember edge: the ability is ready"
+  },
+  "ability_cool": {
+   "file": "hud/ability_cool.png",
+   "frame": [
+    16,
+    16
+   ],
+   "frames": 8,
+   "origin": [
+    0,
+    0
+   ],
+   "glow": false,
+   "note": "8 frames of 16 x 16 drawn over the glyph at (2, 2) in the slot: frame = int(cooldown left / cooldown * 8), frame 0 = just used, 7 = nearly back"
+  },
+  "glyph_hook": {
+   "file": "hud/glyph_hook.png",
+   "frame": [
+    12,
+    12
+   ],
+   "frames": 1,
+   "origin": [
+    0,
+    0
+   ],
+   "glow": false,
+   "note": "12 x 12, Hook's red-orange"
+  },
+  "glyph_leap": {
+   "file": "hud/glyph_leap.png",
+   "frame": [
+    12,
+    12
+   ],
+   "frames": 1,
+   "origin": [
+    0,
+    0
+   ],
+   "glow": false,
+   "note": "12 x 12, Leap's bronze gold"
+  },
+  "blank_stone_icon": {
+   "file": "swing/runes/blank_stone_icon.png",
+   "frame": [
+    26,
+    26
+   ],
+   "frames": 1,
+   "origin": [
+    0,
+    0
+   ],
+   "glow": false,
+   "note": "26 x 26, same shape as the rune icons: a rune stone with nothing cut in it yet"
+  },
+  "broken_band_icon": {
+   "file": "swing/bands/broken_band_icon.png",
+   "frame": [
+    30,
+    14
+   ],
+   "frames": 1,
+   "origin": [
+    0,
+    0
+   ],
+   "glow": false,
+   "note": "30 x 14, same shape as the band icons, snapped"
+  },
+  "blank_stone_pickup": {
+   "file": "fx/blank_stone_pickup.png",
+   "frame": [
+    16,
+    16
+   ],
+   "frames": 4,
+   "origin": [
+    8,
+    14
+   ],
+   "glow": true,
+   "note": "16 x 16 world pickup, 4 frames, loops slowly; the glint is in the _glow layer",
+   "fps": 5
+  },
+  "broken_band_pickup": {
+   "file": "fx/broken_band_pickup.png",
+   "frame": [
+    16,
+    16
+   ],
+   "frames": 4,
+   "origin": [
+    8,
+    14
+   ],
+   "glow": true,
+   "note": "as blank_stone_pickup",
+   "fps": 5
+  }
+ }
+}

@@ -12,6 +12,7 @@ var mode := "emerge"
 var mode_t := 0.5
 var side := 1.0            # which way it circles as it closes in
 var bitten := false
+var emerge_time := 0.5     # how long it takes to dig up
 
 
 func _setup() -> void:
@@ -23,7 +24,8 @@ func _setup() -> void:
 	contact_damage = 0.0
 	color = Color("#c9923a")
 	side = 1.0 if randf() < 0.5 else -1.0
-	mode_t = randf_range(0.35, 0.6)
+	mode_t = randf_range(0.4, 0.6)
+	emerge_time = mode_t
 
 
 func _set_mode(m: String, time: float) -> void:
@@ -95,6 +97,9 @@ func _anim() -> Array:
 			if mode_t > RECOVER_TIME - 0.15:
 				return ["attack", 0.2, false]
 		"emerge":
+			# It digs up through the floor (or, with no art for that, fades in).
+			if Art.piece_texture("crawler_emerge") != null:
+				return ["emerge", emerge_time - mode_t, false]
 			return ["idle", anim_time, true]
 	if velocity.length() > 15.0:
 		return ["move", anim_time, true]
@@ -102,12 +107,18 @@ func _anim() -> Array:
 
 
 func _draw() -> void:
-	# Fades in as it crawls out of the dark.
-	modulate.a = 1.0 if mode != "emerge" else clampf(1.0 - mode_t / 0.5, 0.2, 1.0)
+	var digs := Art.piece_texture("crawler_emerge") != null
+	modulate.a = 1.0 if mode != "emerge" or digs else clampf(1.0 - mode_t / 0.5, 0.2, 1.0)
 	super._draw()
-	if mode == "rear":
-		# The warning: a red flash that quickens just before the bite.
-		var k := 1.0 - mode_t / REAR_TIME
-		var on := int(k * k * 9.0) % 2 == 0
-		if on:
-			draw_arc(Vector2(0, -2), radius + 9.0, 0.0, TAU, 20, Color(1.8, 0.3, 0.2, 0.9), 2.0)
+
+
+## The warning as it rears to bite: a ring that flashes faster, and hotter at the end.
+func _draw_over(ci: CanvasItem) -> void:
+	super._draw_over(ci)
+	if mode != "rear":
+		return
+	var k := 1.0 - mode_t / REAR_TIME
+	if int(k * k * 9.0) % 2 != 0:
+		return
+	if not Art.draw_piece(ci, "warn_ring", 1 if k > 0.6 else 0, Vector2(0, -2)):
+		ci.draw_arc(Vector2(0, -2), radius + 9.0, 0.0, TAU, 20, Color("#ff5a3c"), 2.0)

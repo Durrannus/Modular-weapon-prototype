@@ -22,6 +22,10 @@ var kills := 0
 
 func _ready() -> void:
 	randomize()
+	var floor_node := Node2D.new()
+	floor_node.z_index = -10
+	floor_node.draw.connect(func(): _draw_floor(floor_node))
+	add_child(floor_node)
 	_make_world()
 	_make_walls()
 	_make_props()
@@ -185,27 +189,37 @@ func _add_prop(path: String, feet: Vector2, origin: Vector2) -> void:
 		sprite.add_child(glow)
 
 
-func _draw() -> void:
+## The floor is drawn on its own node under everything, so warnings painted on
+## the ground (z -5) show on top of it.
+func _draw_floor(ci: CanvasItem) -> void:
+	# One painted picture of the whole room (floor, walls, the forge corner's
+	# flagstones and a sparring ring), like the cave's ground.
+	var ground := Art.piece_texture("arena_ground")
+	if ground != null:
+		var o: Array = Art.piece("arena_ground").get("origin", [16, 48])
+		ci.draw_rect(ARENA.grow(400.0), Color("#19142a"))
+		ci.draw_texture_rect(ground, Rect2(ARENA.position - Vector2(o[0], o[1]) * Art.PIXEL, ground.get_size() * Art.PIXEL), false)
+		return
 	var floor_tex := Art.texture("tiles/floor.png")
 	if floor_tex != null:
-		_draw_tiles()
+		_draw_tiles(ci)
 		return
-	draw_rect(ARENA.grow(WALL), Color(0.1, 0.09, 0.12))
-	draw_rect(ARENA, Color(0.2, 0.24, 0.2))
+	ci.draw_rect(ARENA.grow(WALL), Color(0.1, 0.09, 0.12))
+	ci.draw_rect(ARENA, Color(0.2, 0.24, 0.2))
 	var step := 100.0
 	var x := ARENA.position.x
 	while x <= ARENA.end.x:
-		draw_line(Vector2(x, ARENA.position.y), Vector2(x, ARENA.end.y), Color(1, 1, 1, 0.04), 1.0)
+		ci.draw_line(Vector2(x, ARENA.position.y), Vector2(x, ARENA.end.y), Color(1, 1, 1, 0.04), 1.0)
 		x += step
 	var y := ARENA.position.y
 	while y <= ARENA.end.y:
-		draw_line(Vector2(ARENA.position.x, y), Vector2(ARENA.end.x, y), Color(1, 1, 1, 0.04), 1.0)
+		ci.draw_line(Vector2(ARENA.position.x, y), Vector2(ARENA.end.x, y), Color(1, 1, 1, 0.04), 1.0)
 		y += step
 
 
-func _draw_tiles() -> void:
+func _draw_tiles(ci: CanvasItem) -> void:
 	var size := Vector2(TILE, TILE)
-	draw_rect(ARENA.grow(200.0), Color(0.03, 0.03, 0.05))
+	ci.draw_rect(ARENA.grow(200.0), Color(0.03, 0.03, 0.05))
 	var cols := int(ARENA.size.x / TILE)
 	var rows := int(ARENA.size.y / TILE)
 	var variants := [Art.texture("tiles/floor.png"), Art.texture("tiles/floor_1.png"), Art.texture("tiles/floor_2.png")]
@@ -220,7 +234,7 @@ func _draw_tiles() -> void:
 				tex = variants[1]
 			elif r < 0.12 and variants[2] != null:
 				tex = variants[2]
-			draw_texture_rect(tex, Rect2(ARENA.position + Vector2(tx, ty) * TILE, size), false)
+			ci.draw_texture_rect(tex, Rect2(ARENA.position + Vector2(tx, ty) * TILE, size), false)
 	# Walls: one tile thick all round, plus capstones above the north wall.
 	var wall := Art.texture("tiles/wall.png")
 	var top := Art.texture("tiles/wall_top.png")
@@ -229,10 +243,10 @@ func _draw_tiles() -> void:
 	for tx in range(-1, cols + 1):
 		var px := ARENA.position.x + tx * TILE
 		if top != null:
-			draw_texture_rect(top, Rect2(Vector2(px, ARENA.position.y - TILE * 2.0), size), false)
-		draw_texture_rect(wall, Rect2(Vector2(px, ARENA.position.y - TILE), size), false)
-		draw_texture_rect(wall, Rect2(Vector2(px, ARENA.end.y), size), false)
+			ci.draw_texture_rect(top, Rect2(Vector2(px, ARENA.position.y - TILE * 2.0), size), false)
+		ci.draw_texture_rect(wall, Rect2(Vector2(px, ARENA.position.y - TILE), size), false)
+		ci.draw_texture_rect(wall, Rect2(Vector2(px, ARENA.end.y), size), false)
 	for ty in rows:
 		var py := ARENA.position.y + ty * TILE
-		draw_texture_rect(wall, Rect2(Vector2(ARENA.position.x - TILE, py), size), false)
-		draw_texture_rect(wall, Rect2(Vector2(ARENA.end.x, py), size), false)
+		ci.draw_texture_rect(wall, Rect2(Vector2(ARENA.position.x - TILE, py), size), false)
+		ci.draw_texture_rect(wall, Rect2(Vector2(ARENA.end.x, py), size), false)

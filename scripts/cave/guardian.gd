@@ -214,6 +214,7 @@ func _start_charge() -> void:
 	lane.width = radius * 2.0 + 12.0
 	lane.length = _lane_length()
 	lane.delay = mode_t
+	lane.lock_before = 0.3   # the same moment he stops tracking you
 	lane.follow = self
 	get_parent().add_child(lane)
 	lane.global_position = global_position
@@ -312,7 +313,7 @@ func _die() -> void:
 
 func _process(delta: float) -> void:
 	anim_time += delta
-	queue_redraw()
+	_redraw()
 
 
 func _anim() -> Array:

@@ -115,7 +115,8 @@ scripts/ui/title.gd                  Who is playing, what to play
 scripts/game_base.gd                 What both modes share: players, swords, camera, HUD, forge
 scripts/cave/cave.gd                 The tutorial cave: map, rooms, stages
 scripts/cave/crawler.gd, burrower.gd, guardian.gd   The cave's enemies and boss
-scripts/cave/hazard.gd               Red warning circles and lanes
+scripts/cave/hazard.gd               Timed danger areas: the knight's slam and charge, falling rocks
+scripts/fx/warn.gd                   Draws the warning lanes and circles on the floor from the art
 scripts/cave/cave_ui.gd              Objective, prompts, boss bar, speech box, cards
 scripts/main.gd                      The test arena
 scripts/player.gd                    Movement, dodge, the swing chain, runes
@@ -131,6 +132,7 @@ scripts/glow.gd                      The glowing pixels of a sprite, kept bright
 art/                                 All art, loaded at runtime (art/v3_notes.md explains the set)
 art/cave/cave.json                   The cave art's numbers: sizes, feet, lights, layout
 art/swing/swing_path.json            The sword, effect and menu art's numbers and colours
+art/gaps.json                        The later pieces' numbers (10 Nov evening): frame size, frames, speed, anchor
 ```
 
 ## The look (10 November: "Verdigris & Ember")
@@ -142,6 +144,17 @@ All sprites, effects, menus and the HUD use the art thread's v3 set. Three rules
 - **Verdigris is idle, ember is live.** Menu plates are dark plum with a bronze-green edge; whatever is selected, lit or speaking turns ember. Menu pieces are nine-patches drawn with `Art.draw_nine`.
 
 Readability tweaks made on top of the art's own lighting numbers: the cave's dark tint is 15% brighter (`AMBIENT_LIFT` in cave.gd), each player carries a small cool light, crawlers and burrowers carry a lit rim in their glow layer (and `lift` in enemy.gd can draw any enemy brighter than the floor if one ever sinks into it), and warnings and damage numbers ignore the lighting.
+
+**Later pieces (10 November evening).** The art thread drew what the prototype was still drawing in code. Their numbers are in `art/gaps.json`, and the code reaches them by name: `Art.piece(name)`, `Art.draw_piece(...)` to draw a frame, and `Art.play_piece(...)` to play one once (pieces whose note says ADDITIVE are added on the bright layer above the lighting). What uses them:
+
+- The swing smear, hit sparks, the burst when an enemy dies, when a player is hurt and when one is given something.
+- Warnings on the floor (`scripts/fx/warn.gd`): a lane that reads "aim" while it follows you and "lock" once it can't turn, circles that fill up, a ring round a crab about to bite. They draw at z -5, under everyone and above the floor, so each mode's floor sits at z -10.
+- Stars over a stunned enemy and a small health bar; both sit above the top of the enemy's picture, whatever its size.
+- A knocked-out pose for the crew, soft shadows, the player rings, a lit rim on the crew.
+- The cave: a falling rock, the cage breaking, the smith walking, the rune leaving its pedestal, pictures on the first and last cards, plates behind prompts and hints, and pictures of keys and buttons in hints (write `[space]`, `[mouse_left]`, `[pad_a]`, `[stick_l]` in the text).
+- The forge: tray pictures for blades and grips, stat icons that light for a moment when a number changes, tabs, a padlock. The arena floor is one painted picture.
+
+Drawn but not used yet, because the game has nothing for them to show: the ability slot and its glyphs (Hook and Leap are not buttons yet), the blank rune stone and the broken band.
 
 ## Older notes: the grid sword on `main`
 

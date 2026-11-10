@@ -33,6 +33,7 @@ var card_body := ""
 var card_time := 0.0
 var card_age := 0.0
 var card_blocks := true          # false: the game carries on behind it and it goes by itself
+var card_picture := ""           # a 200x72 picture above the words (set before card(); cleared with it)
 var on_card: Callable
 
 # Fade
@@ -118,6 +119,7 @@ func advance(pressed: bool, delta: float) -> void:
 		var timed_out := card_time > 0.0 and card_age >= card_time
 		if timed_out or (pressed and card_age > 0.35 and card_blocks):
 			card_title = ""
+			card_picture = ""
 			if on_card.is_valid():
 				on_card.call()
 	root.queue_redraw()
@@ -157,14 +159,71 @@ func _body(text: String, pos: Vector2, col := INK, width := -1.0, align := HORIZ
 	root.draw_string(Art.font("PixelifySans-Regular"), pos, text, align, width, 11, col)
 
 
-func _wrap(text: String, width: float) -> Array:
+## Body text can show a key or button as a picture: write it as a word in square
+## brackets, like [space], [mouse_left], [pad_x] or [stick_l] (the images are
+## art/cave/ui/prompt_<name>.png). A word whose image is missing is drawn as text.
+func _key_in(word: String) -> Array:
+	if not word.begins_with("["):
+		return []
+	var close := word.find("]")
+	if close < 2:
+		return []
+	var tex := Art.texture("cave/ui/prompt_%s.png" % word.substr(1, close - 1))
+	if tex == null:
+		return []
+	return [tex, word.substr(close + 1)]   # the image, then any comma or full stop after it
+
+
+func _word_w(word: String) -> float:
 	var f := Art.font("PixelifySans-Regular")
+	var key := _key_in(word)
+	if key.is_empty():
+		return f.get_string_size(word, HORIZONTAL_ALIGNMENT_LEFT, -1, 11).x
+	return float((key[0] as Texture2D).get_width()) + 1.0 + f.get_string_size(str(key[1]), HORIZONTAL_ALIGNMENT_LEFT, -1, 11).x
+
+
+func _line_w(line: String) -> float:
+	var space := Art.font("PixelifySans-Regular").get_string_size(" ", HORIZONTAL_ALIGNMENT_LEFT, -1, 11).x
+	var w := 0.0
+	var words := line.split(" ")
+	for i in words.size():
+		w += _word_w(words[i]) + (space if i < words.size() - 1 else 0.0)
+	return w
+
+
+## One line of body text with its key pictures, starting at pos (the text baseline).
+func _rich(line: String, pos: Vector2, col := INK) -> void:
+	var f := Art.font("PixelifySans-Regular")
+	var space := f.get_string_size(" ", HORIZONTAL_ALIGNMENT_LEFT, -1, 11).x
+	var x := pos.x
+	for word in line.split(" "):
+		var key := _key_in(word)
+		if key.is_empty():
+			root.draw_string(f, Vector2(x, pos.y), word, HORIZONTAL_ALIGNMENT_LEFT, -1, 11, col)
+		else:
+			var tex: Texture2D = key[0]
+			root.draw_texture(tex, Vector2(x, pos.y - 12.0).round())
+			if str(key[1]) != "":
+				root.draw_string(f, Vector2(x + tex.get_width() + 1.0, pos.y), str(key[1]), HORIZONTAL_ALIGNMENT_LEFT, -1, 11, col)
+		x += _word_w(word) + space
+
+
+## Lines are 14 apart, or 18 when any of them holds a key picture (those are 16 tall).
+func _pitch(lines: Array) -> float:
+	for l in lines:
+		for word in (l as String).split(" "):
+			if not _key_in(word).is_empty():
+				return 18.0
+	return 14.0
+
+
+func _wrap(text: String, width: float) -> Array:
 	var out: Array = []
 	for para in text.split("\n"):
 		var line := ""
 		for word in para.split(" "):
 			var trial := word if line == "" else line + " " + word
-			if f.get_string_size(trial, HORIZONTAL_ALIGNMENT_LEFT, -1, 11).x > width and line != "":
+			if _line_w(trial) > width and line != "":
 				out.append(line)
 				line = word
 			else:
@@ -188,7 +247,8 @@ func _draw_ui() -> void:
 		var w := silk.get_string_size(text.to_upper(), HORIZONTAL_ALIGNMENT_LEFT, -1, 8).x
 		var x := at.x - (w + 22.0) * 0.5
 		var bob := 1.0 if fmod(t, 0.8) < 0.4 else 0.0
-		root.draw_rect(Rect2(x - 3, at.y - 10 - bob, w + 28, 18), PLATE)
+		if not Art.draw_nine(root, "cave/ui/prompt_plate.png", Rect2(x - 3, at.y - 10 - bob, w + 28, 18), 4):
+			root.draw_rect(Rect2(x - 3, at.y - 10 - bob, w + 28, 18), PLATE)
 		var down := fmod(t, 0.8) > 0.6
 		var icon := Art.texture("cave/ui/%s%s.png" % ["prompt_pad_a" if pr["pad"] else "prompt_e", "_down" if down else ""])
 		if icon != null:
@@ -203,7 +263,11 @@ func _draw_ui() -> void:
 		var x := 320.0 - w * 0.5
 		if not Art.draw_nine(root, "swing/ui/well.png", Rect2(x - 17, 4, w + 28, 17), 3):
 			root.draw_rect(Rect2(x - 16, 5, w + 26, 15), PLATE)
-		root.draw_colored_polygon(PackedVector2Array([Vector2(x - 10, 12.5), Vector2(x - 7, 9.5), Vector2(x - 4, 12.5), Vector2(x - 7, 15.5)]), AMBER)
+		var mark := Art.texture("hud/objective_mark.png")
+		if mark != null:
+			root.draw_texture(mark, Vector2(x - 11, 9))
+		else:
+			root.draw_colored_polygon(PackedVector2Array([Vector2(x - 10, 12.5), Vector2(x - 7, 9.5), Vector2(x - 4, 12.5), Vector2(x - 7, 15.5)]), AMBER)
 		_head(objective, Vector2(x, 16), INK)
 	var hint_y := 34.0
 	if is_instance_valid(boss) and not boss.dead and boss.mode != "dormant" and not busy():
@@ -224,12 +288,17 @@ func _draw_ui() -> void:
 			root.draw_rect(Rect2(bx + 2, by + 2, 156.0 * frac, 6), Color("#d9483b"))
 		hint_y = 50.0
 	if hint != "" and not busy():
-		var f := Art.font("PixelifySans-Regular")
 		var lines_h := _wrap(hint, 360.0)   # narrow enough to clear the health bars in the corners
+		var pitch := _pitch(lines_h)
+		var widest := 0.0
+		for l in lines_h:
+			widest = maxf(widest, _line_w(l))
+		# One soft plate behind the whole hint.
+		var back := Rect2(roundf(320.0 - widest * 0.5) - 7, hint_y - 5 - pitch * 0.5, widest + 14, lines_h.size() * pitch + 2)
+		if not Art.draw_nine(root, "cave/ui/hint_plate.png", back, 4):
+			root.draw_rect(back, Color(PLATE.r, PLATE.g, PLATE.b, 0.66))
 		for i in lines_h.size():
-			var lw := f.get_string_size(lines_h[i], HORIZONTAL_ALIGNMENT_LEFT, -1, 11).x
-			root.draw_rect(Rect2(320.0 - lw * 0.5 - 6, hint_y - 10 + i * 14, lw + 12, 14), Color(PLATE.r, PLATE.g, PLATE.b, 0.66))
-			_body(lines_h[i], Vector2(320.0 - lw * 0.5, hint_y + i * 14), Color("#e8e4bc"))
+			_rich(lines_h[i], Vector2(roundf(320.0 - _line_w(lines_h[i]) * 0.5), hint_y + i * pitch))
 
 	# Fade (under the speech box and cards, over the game).
 	if fade > 0.0:
@@ -261,13 +330,18 @@ func _draw_ui() -> void:
 				_head("v", Vector2(r.end.x - 20, r.end.y - 10 + frame), AMBER)
 	elif card_title != "":
 		var body_lines := _wrap(card_body, 330.0)
-		var h := 54.0 + body_lines.size() * 14.0 + (16.0 if card_time <= 0.0 else 0.0)
+		var pitch := _pitch(body_lines)
+		var picture := Art.texture(card_picture) if card_picture != "" else null
+		var pic_h := float(picture.get_height()) + 6.0 if picture != null else 0.0
+		var h := 54.0 + pic_h + body_lines.size() * pitch + (16.0 if card_time <= 0.0 else 0.0)
 		var r := Rect2(140, 180.0 - h * 0.5 - 10.0, 360, h)
 		root.draw_style_box(_box("dialogue_box", 8), r)
-		_head(card_title, Vector2(r.position.x, r.position.y + 30), AMBER, 16, r.size.x, HORIZONTAL_ALIGNMENT_CENTER)
-		var y := r.position.y + 50.0
+		if picture != null:
+			root.draw_texture(picture, Vector2(roundf(r.get_center().x - picture.get_width() * 0.5), r.position.y + 12))
+		_head(card_title, Vector2(r.position.x, r.position.y + 30 + pic_h), AMBER, 16, r.size.x, HORIZONTAL_ALIGNMENT_CENTER)
+		var y := r.position.y + 50.0 + pic_h
 		for l in body_lines:
-			_body(l, Vector2(r.position.x + 15, y), INK, r.size.x - 30, HORIZONTAL_ALIGNMENT_CENTER)
-			y += 14.0
+			_rich(l, Vector2(roundf(r.get_center().x - _line_w(l) * 0.5), y))
+			y += pitch
 		if card_time <= 0.0 and card_age > 0.35:
 			_head("Click, E or A to go on", Vector2(r.position.x, r.end.y - 9), DIM, 8, r.size.x, HORIZONTAL_ALIGNMENT_CENTER)

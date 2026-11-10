@@ -164,6 +164,63 @@ static func json(rel_path: String) -> Dictionary:
 	return _json_cache[rel_path]
 
 
+## One entry of art/gaps.json: the single effects and pieces drawn on 10 November
+## (warnings, sparks, shadows, icons). {file, frame, frames, fps, origin, glow, note}.
+static func piece(name: String) -> Dictionary:
+	return json("gaps.json").get("files", {}).get(name, {})
+
+
+static func piece_texture(name: String) -> Texture2D:
+	var info := piece(name)
+	return texture(str(info["file"])) if info.has("file") else null
+
+
+## Draws frame `frame` of a piece with its origin at `at` (false if the art is missing).
+static func draw_piece(ci: CanvasItem, name: String, frame: int, at: Vector2, angle := 0.0,
+		flip := false, tint := Color.WHITE, px := PIXEL) -> bool:
+	var info := piece(name)
+	var tex := piece_texture(name)
+	if tex == null:
+		return false
+	var o: Array = info.get("origin", [0, 0])
+	draw_strip(ci, tex, int(info.get("frames", 1)), frame, at, Vector2(o[0], o[1]), flip, tint, px, angle)
+	return true
+
+
+## Where bright effects go: the layer above the lighting when the game has one
+## (game_base.gd), otherwise beside the node that asked.
+static func fx_root(from: Node) -> Node:
+	var layer: Node = null
+	if from.is_inside_tree():
+		layer = from.get_tree().get_first_node_in_group("fx_root")
+	return layer if layer != null else from.get_parent()
+
+
+## Plays a piece once at a world position and returns it (null if the art is missing).
+## Pieces marked ADDITIVE in the art's notes are blended that way and go on the
+## bright layer; the rest go beside `from`, lit like everything else.
+static func play_piece(from: Node, name: String, where: Vector2, angle := 0.0, size := 1.0) -> Node2D:
+	var info := piece(name)
+	var tex := piece_texture(name)
+	if tex == null:
+		return null
+	var n: Node2D = load("res://scripts/fx/sprite_once.gd").new()
+	n.texture = tex
+	n.frames = int(info.get("frames", 1))
+	n.fps = float(info.get("fps", 12))
+	var o: Array = info.get("origin", [0, 0])
+	n.origin = Vector2(o[0], o[1])
+	n.angle = angle
+	n.size = size
+	n.additive = str(info.get("note", "")).contains("ADDITIVE")
+	if info.get("glow", false):
+		n.glow_texture = glow_texture(str(info["file"]))
+	var parent := fx_root(from) if n.additive else from.get_parent()
+	parent.add_child(n)
+	n.global_position = where
+	return n
+
+
 static var _fonts := {}
 
 ## Pixel fonts from art/fonts (loaded at runtime so no import is needed).
