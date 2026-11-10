@@ -104,13 +104,13 @@ It opens with a 23 second cutscene: the ship in the storm, the wreck on the rock
 1. **The wreck.** Search the ship's crate for a wooden sword, then fight a few crawlers. They rear up before they bite, and a hit while they rear up stops the bite.
 2. **The burrows.** Burrowers travel underground, come up, flash red and lunge in a straight line. Dodge aside and hit them while they lie stunned.
 3. **The nest.** A mixed fight. Clearing it lets you take your first rune (Shockwave), which your sword can't use yet.
-4. **The forge.** The forge is a colossal sword set in the north wall, with a knight kneeling asleep in front of it. Fit the rune to your sword there and the forge lights, molten metal runs down the floor channels, and the guardian wakes. It slams its hammer (a red circle fills first) and charges (a red lane shows the path). A charge that hits a wall stuns it. Below half health it slams three times in a row. Beat it and the old smith is freed: he explains runes and bands and hands over tin parts. Forge the tin sword and the stairs to the surface open.
+4. **The forge.** The forge is a colossal sword set in the north wall, with a knight kneeling asleep in front of it. Fit the rune to your sword there and the forge lights, molten metal runs down the floor channels, and the guardian wakes. It has four attacks, each marked on the floor in red before it lands, and a line under its health bar names the attack and says what to do. **Slam**: a circle fills, then the hammer comes down. **Charge**: a lane shows the path, and a charge that hits a wall stuns it. **Quake**: cracks run out from it like the spokes of a wheel, so stand between them. **Rockfall**: rocks drop one after another where you stand, so keep moving, and hit it while it stands still. The first four attacks are one of each, and it never does the same one twice running. Below half health it slams three times in a row, a second ring of cracks fills the gaps of the first, and more rocks fall. The timings are at the top of `scripts/cave/guardian.gd` (`SLAM_WINDUP`, `REST` and so on). Beat it and the old smith is freed: he explains runes and bands and hands over tin parts. Forge the tin sword and the stairs to the surface open.
 
 Rules:
 
 - After each room everyone is healed and anyone knocked out gets back up. There are no revives mid-fight.
 - If everyone is knocked out, that room (or the boss) starts over.
-- With two players there are more enemies, the guardian has more health, and it also brings rocks down after each charge.
+- With two players there are more enemies, the guardian has more health, its rockfall is longer, and it also brings rocks down after each charge.
 - Only the sword exists so far, so every player takes a sword from the crate (the Game Plan's bow, staff and hammer come later).
 
 ## How the movement and sword feel (9 November pass)

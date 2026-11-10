@@ -2,24 +2,57 @@ extends "res://scripts/enemy.gd"
 ## The forge guardian: the tutorial's boss. A knight three times your height,
 ## kneeling asleep on the casting circle until the rune is fitted.
 ##
-## Two attacks, both warned on the ground first:
+## Four attacks, each warned on the ground first:
 ## - Slam: he walks up, raises his hammer (a red circle fills), then smashes.
 ## - Charge: he lowers a shoulder (a red lane shows the path), then runs until
 ##   he hits a wall. Hitting the wall drops him to one knee: that's the opening.
-## Below half health the slam comes three times in a row and the charge is faster.
-## With two players it has more health and also brings rocks down on everyone.
+## - Quake: he strikes the floor and cracks run out from him like the spokes of
+##   a wheel. Stand between them.
+## - Rockfall: he strikes the floor and rocks come down one after another on
+##   whoever he picks. Keep moving. He stands still for it, so it's also a
+##   chance to hit him.
+## The first four attacks are one of each, in that order, so every one is seen
+## early. After that he picks, and never does the same one twice running.
+## Below half health: three slams in a row, a second ring of cracks in the gaps
+## of the first, more rocks, a faster charge and shorter rests.
+## With two players it has more health, more rocks, and rocks after every charge.
+##
+## Everything here runs on game ticks and takes its random numbers from Sim, so
+## two computers playing online see the same fight.
 
 const Hazard := preload("res://scripts/cave/hazard.gd")
 
 signal woke
 signal defeated(guardian)
 
+signal attack_started(kind)   # "slam", "charge", "quake" or "rocks": the cave shows a tip
+
 const SLAM_RADIUS := 92.0
 const SLAM_DAMAGE := 15.0
 const CHARGE_DAMAGE := 18.0
-const CHARGE_SPEED := 620.0
+const CHARGE_SPEED := 560.0
 const ROCK_DAMAGE := 12.0
+const QUAKE_DAMAGE := 14.0
 const WAKE_TIME := 1.3
+
+# How long each warning shows before it lands. Longer is easier to read and
+# dodge. (Raised on 10 November after the first playtest: "quite quick".)
+const SLAM_WINDUP := 1.05         # was 0.75
+const SLAM_AGAIN := 0.7           # the second and third slam of three (was 0.48)
+const CHARGE_WINDUP := 1.35       # was 1.0
+const CHARGE_LOCK := 0.4          # he stops turning this long before he runs (was 0.3)
+const QUAKE_WINDUP := 1.25
+const QUAKE_AGAIN := 0.95         # the second ring of cracks
+const ROCKS_WINDUP := 0.8         # hammer up before the strike that brings them down
+const ROCK_WINDUP := 1.15         # each rock's own circle
+const ROCK_GAP := 0.42            # between one rock and the next
+const REST := 1.15                # standing still after an attack: the time to hit him (was 0.75)
+const RAGE_PACE := 0.85           # below half health the waits marked with _pace() are this much shorter
+
+const QUAKE_SPOKES := 6
+const QUAKE_REACH := 440.0
+const QUAKE_WIDTH := 36.0         # the thin warning lane's own width
+const FIRST := ["slam", "charge", "quake", "rocks"]   # the opening four: one of each
 
 var mode := "dormant"
 var mode_t := 0.0
@@ -28,6 +61,12 @@ var slams_left := 0
 var charge_struck := {}
 var charge_time := 0.0
 var lane: Node2D = null
+var next_attack := ""       # what he is walking up to do
+var avoid: Array = []       # what he just did, so he doesn't do it again straight away
+var quake_angle := 0.0
+var quake_rings := 0        # rings of cracks still to come in this quake
+var rocks_left := 0
+var rock_t := 0.0
 var team := 1               # how many players (set by the cave)
 var rage := false           # below half health
 var room := Rect2()         # it never leaves the forge room
@@ -105,14 +144,26 @@ func _think(delta: float) -> Vector2:
 				return Vector2.ZERO
 			if dist > 0.01:
 				facing = to_p / dist
-			# Every third attack is a charge; so is anyone standing far away.
-			var want_charge := attacks % 3 == 2 or dist > 330.0
-			if want_charge and mode_t < 2.4:
-				_start_charge()
-				return Vector2.ZERO
-			if dist < 104.0 or mode_t <= 0.0:
-				slams_left = 3 if rage else 1
-				_start_slam()
+			if next_attack == "":
+				next_attack = _pick_attack()
+			# A slam has to reach: anyone keeping well away gets something that does.
+			if next_attack == "slam" and dist > 330.0 and mode_t < 2.4:
+				next_attack = "charge" if not avoid.has("charge") else "quake"
+			if next_attack == "slam":
+				if dist < 104.0 or mode_t <= 0.0:
+					slams_left = 3 if rage else 1
+					attack_started.emit("slam")
+					_start_slam()
+					return Vector2.ZERO
+			elif mode_t < 2.3:
+				# The others start from where he stands, after a few steps toward you.
+				attack_started.emit(next_attack)
+				match next_attack:
+					"charge": _start_charge()
+					"quake":
+						quake_rings = 2 if rage else 1
+						_start_quake(false)
+					"rocks": _set_mode("rocks_ready", ROCKS_WINDUP * _pace())
 				return Vector2.ZERO
 			return facing * speed * (1.25 if rage else 1.0)
 		"telegraph":
@@ -127,8 +178,40 @@ func _think(delta: float) -> Vector2:
 						facing = to_p / dist
 					_set_mode("hop", 0.22)
 				else:
-					attacks += 1
-					_set_mode("recover", 0.75 if not rage else 0.55)
+					_rest()
+		"quake_ready":
+			if mode_t <= 0.0:
+				# The cracks go off this tick (hazard.gd); the hammer comes down with them.
+				_set_mode("quake", 0.34)
+				_shake(9.0)
+				Sfx.play(self, "slam", -3.0, 0.85)
+		"quake":
+			if mode_t <= 0.0:
+				quake_rings -= 1
+				if quake_rings > 0:
+					_start_quake(true)
+				else:
+					_rest()
+		"rocks_ready":
+			if mode_t <= 0.0:
+				_set_mode("rocks_strike", 0.34)
+				_shake(8.0)
+				Sfx.play(self, "slam", -4.0, 0.7)
+				Sfx.play(self, "rumble", -6.0, 1.2)
+		"rocks_strike":
+			if mode_t <= 0.0:
+				rocks_left = (8 if rage else 5) + 2 * (team - 1)
+				rock_t = 0.0
+				_set_mode("rocks", 0.0)
+		"rocks":
+			rock_t -= delta
+			if rock_t <= 0.0:
+				if rocks_left > 0:
+					_drop_rock()
+					rocks_left -= 1
+					rock_t = ROCK_GAP
+				else:
+					_rest(0.6)   # he has been standing still all this while already
 		"hop":
 			if mode_t <= 0.0:
 				_start_slam()
@@ -139,7 +222,7 @@ func _think(delta: float) -> Vector2:
 				_set_mode("walk", 3.0)
 		"charge_ready":
 			# It tracks you while it winds up, then commits.
-			if mode_t > 0.3 and dist > 0.01:
+			if mode_t > CHARGE_LOCK and dist > 0.01:
 				facing = to_p / dist
 				charge_dir = facing
 				if is_instance_valid(lane):
@@ -168,7 +251,7 @@ func _think(delta: float) -> Vector2:
 				if not inner.has_point(global_position + charge_dir * 4.0):
 					hit_wall = true
 			if hit_wall and charge_time > 0.1:
-				attacks += 1
+				_attack_done()
 				_shake(12.0)
 				Sfx.play(self, "slam", -2.0, 0.8)
 				_dust_burst()
@@ -176,20 +259,49 @@ func _think(delta: float) -> Vector2:
 				_set_mode("stunned", 2.4 if not rage else 2.0)
 				return Vector2.ZERO
 			if mode_t <= 0.0:
-				attacks += 1
-				_set_mode("recover", 0.6)
+				_rest(0.6)
 				return Vector2.ZERO
-			return charge_dir * CHARGE_SPEED * (1.15 if rage else 1.0)
+			return charge_dir * CHARGE_SPEED * (1.12 if rage else 1.0)
 		"stunned":
 			if mode_t <= 0.0:
 				if team > 1:
 					_rock_rain()
+					avoid.append("rocks")   # not his own rockfall straight after
 				_set_mode("walk", 3.0)
 	return Vector2.ZERO
 
 
+## Below half health he waits a little less between and before attacks.
+func _pace() -> float:
+	return RAGE_PACE if rage else 1.0
+
+
+## What to do next. The first four are one of each; after that anything except
+## what he just did. The slam is in twice: it is his everyday attack.
+func _pick_attack() -> String:
+	if attacks < FIRST.size():
+		return FIRST[attacks]
+	var pool: Array = []
+	for a in ["slam", "slam", "charge", "quake", "rocks"]:
+		if not avoid.has(a):
+			pool.append(a)
+	return pool[mini(int(Sim.chance() * pool.size()), pool.size() - 1)]
+
+
+func _attack_done() -> void:
+	attacks += 1
+	avoid = [next_attack]
+	next_attack = ""
+
+
+## An attack is over: he stands still for a moment. This is when to hit him.
+func _rest(time := REST) -> void:
+	_attack_done()
+	_set_mode("recover", time * _pace())
+
+
 func _start_slam() -> void:
-	var time := 0.75 if slams_left == (3 if rage else 1) else 0.48
+	var time := SLAM_WINDUP if slams_left == (3 if rage else 1) else SLAM_AGAIN
 	_set_mode("telegraph", time)
 	var h := Hazard.new()
 	h.radius = SLAM_RADIUS
@@ -205,8 +317,55 @@ func _slam_point() -> Vector2:
 	return global_position + _feet() + Vector2(at[0], at[1]) * Art.PIXEL
 
 
+## Cracks run out from where the hammer lands, evenly spaced all round. The
+## first ring has one pointing straight at whoever he is after, so nobody can
+## just stand there; a second ring (below half health) falls in the gaps.
+func _start_quake(again: bool) -> void:
+	var time := (QUAKE_AGAIN if again else QUAKE_WINDUP) * _pace()
+	_set_mode("quake_ready", time)
+	if again:
+		quake_angle += PI / float(QUAKE_SPOKES)
+	else:
+		quake_angle = facing.angle()
+	for i in QUAKE_SPOKES:
+		var h := Hazard.new()
+		h.shape = "lane"
+		h.dir = Vector2.from_angle(quake_angle + TAU * float(i) / float(QUAKE_SPOKES))
+		h.width = QUAKE_WIDTH
+		h.length = QUAKE_REACH
+		h.delay = time
+		h.lock_before = time   # a crack never turns, so it is drawn locked from the start
+		h.damage = QUAKE_DAMAGE
+		h.impact = "crack"
+		get_parent().add_child(h)
+		h.global_position = _slam_point()
+	Sfx.play(self, "warn", -6.0, 0.45)
+
+
+## One rock of a rockfall: on a player, taking turns when there are two.
+func _drop_rock() -> void:
+	var standing: Array = []
+	for p in players():
+		if not p.is_down:
+			standing.append(p)
+	if standing.is_empty():
+		return
+	var who = standing[rocks_left % standing.size()]
+	var pos: Vector2 = who.global_position + Vector2(Sim.between(-22, 22), Sim.between(-16, 16))
+	if room.size != Vector2.ZERO:
+		var inner := room.grow(-40.0)
+		pos = Vector2(clampf(pos.x, inner.position.x, inner.end.x), clampf(pos.y, inner.position.y, inner.end.y))
+	var h := Hazard.new()
+	h.radius = 58.0
+	h.delay = ROCK_WINDUP
+	h.damage = ROCK_DAMAGE
+	h.impact = "rock"
+	get_parent().add_child(h)
+	h.global_position = pos
+
+
 func _start_charge() -> void:
-	_set_mode("charge_ready", 1.0 if not rage else 0.8)
+	_set_mode("charge_ready", CHARGE_WINDUP * _pace())
 	charge_dir = facing
 	lane = Hazard.new()
 	lane.shape = "lane"
@@ -214,7 +373,8 @@ func _start_charge() -> void:
 	lane.width = radius * 2.0 + 12.0
 	lane.length = _lane_length()
 	lane.delay = mode_t
-	lane.lock_before = 0.3   # the same moment he stops tracking you
+	lane.damage = 0.0        # this lane only warns: the charge itself does the hurting
+	lane.lock_before = CHARGE_LOCK   # the same moment he stops tracking you
 	lane.follow = self
 	get_parent().add_child(lane)
 	lane.global_position = global_position
@@ -249,7 +409,7 @@ func _rock_rain() -> void:
 	for i in spots.size():
 		var h := Hazard.new()
 		h.radius = 58.0
-		h.delay = 1.0 + 0.12 * i
+		h.delay = ROCK_WINDUP + 0.12 * i
 		h.damage = ROCK_DAMAGE
 		h.impact = "rock"
 		get_parent().add_child(h)
@@ -326,10 +486,10 @@ func _anim() -> Array:
 			return ["wake", anim_time / WAKE_TIME * float(w["frames"]) / float(w["fps"]), false]
 		"dead":
 			return ["death", anim_time, false]
-		"telegraph":
-			# Fists up; the last frame (white) just before they come down.
+		"telegraph", "quake_ready", "rocks_ready":
+			# Hammer up; the last frame (white) just before it comes down.
 			return ["telegraph", 0.0 if mode_t > 0.3 else (0.17 if mode_t > 0.1 else 0.34), false]
-		"slam":
+		"slam", "quake", "rocks_strike":
 			return ["slam", anim_time, false]
 		"charge_ready":
 			return ["charge_ready", anim_time, true]

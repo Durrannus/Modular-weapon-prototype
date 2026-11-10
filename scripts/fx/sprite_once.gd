@@ -23,6 +23,7 @@ var velocity := Vector2.ZERO
 var follow: Node2D = null
 var follow_offset := Vector2.ZERO
 var fade_out := false
+var wait := 0.0           # > 0: stay hidden this long before playing (a row of bursts going off in turn)
 var t := 0.0
 
 
@@ -31,6 +32,7 @@ func _ready() -> void:
 	# the engine does between physics ticks.
 	physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 	z_index = 30
+	visible = wait <= 0.0
 	if additive:
 		var m := CanvasItemMaterial.new()
 		m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
@@ -42,6 +44,10 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
+	if wait > 0.0:
+		wait -= delta
+		visible = wait <= 0.0
+		return
 	t += delta
 	var end := life if life > 0.0 else float(frames) / fps
 	if t >= end:

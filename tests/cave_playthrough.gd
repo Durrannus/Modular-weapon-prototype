@@ -176,6 +176,14 @@ func _fight(i: int) -> void:
 			if p.dodge_charges > 0:
 				inp.dash_pressed = true
 			return
+	# The cracks of the guardian's quake: step sideways off the one you're standing on.
+	for h in get_nodes_in_group("hazards"):
+		if h.shape == "lane" and h.damage > 0.0:
+			var off: Vector2 = p.global_position - h.global_position
+			var across: float = off.dot(h.dir.orthogonal())
+			if off.dot(h.dir) > -10.0 and off.dot(h.dir) < h.length + 10.0 and absf(across) < h.width * 0.5 + 16.0:
+				inp.move = h.dir.orthogonal() * (1.0 if across >= 0.0 else -1.0)
+				return
 	if foe.kind == "guardian" and foe.mode in ["charge_ready", "charge"]:
 		var side: Vector2 = foe.charge_dir.orthogonal()
 		if side.dot(p.global_position - foe.global_position) < 0.0:

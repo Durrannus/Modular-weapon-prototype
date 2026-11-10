@@ -1,7 +1,8 @@
 extends Node2D
 ## A warning on the ground that turns into a hit: a circle (the guardian's slam,
-## falling rocks) or a lane (its charge). It fills up over `delay`, then hurts
-## every player inside. Lanes only warn; the charge itself does the damage.
+## falling rocks) or a lane (its charge, the cracks of its quake). It fills up
+## over `delay`, then hurts every player inside. A lane with no damage only
+## warns (the charge itself does the hurting).
 
 const Art := preload("res://scripts/art.gd")
 const Sfx := preload("res://scripts/sfx.gd")
@@ -15,7 +16,7 @@ var damage := 20.0
 var length := 400.0        # lane
 var width := 70.0          # lane
 var dir := Vector2.RIGHT   # lane
-var impact := "slam"       # what plays when it lands: "slam", "rock" or ""
+var impact := "slam"       # what plays when it lands: "slam", "rock", "crack" (a lane bursting open) or ""
 var follow: Node2D = null  # a lane follows the guardian while it aims
 var lock_before := 0.0     # lane: it stops turning this long before it goes, and shows it
 var _rock: Node2D = null   # the falling rock, once it's on its way
@@ -52,7 +53,10 @@ func _physics_process(delta: float) -> void:
 
 
 func _land() -> void:
-	if shape != "circle" or damage <= 0.0:
+	if damage <= 0.0:
+		return
+	if shape == "lane":
+		_land_lane()
 		return
 	for p in get_tree().get_nodes_in_group("player"):
 		if is_instance_valid(p) and not p.is_down and p.global_position.distance_to(global_position) <= radius + 10.0:
@@ -79,6 +83,41 @@ func _land() -> void:
 		if is_instance_valid(p) and p.rig != null:
 			p.rig.add_shake(9.0 if impact == "slam" else 4.0)
 			break
+
+
+## A lane that hurts: everyone standing on it is hit, and it bursts open from
+## the near end outward. No sound or shake here: several go off together, so
+## whoever made them does that once.
+func _land_lane() -> void:
+	var side := dir.orthogonal()
+	for p in get_tree().get_nodes_in_group("player"):
+		if not is_instance_valid(p) or p.is_down:
+			continue
+		var rel: Vector2 = p.global_position - global_position
+		var along := rel.dot(dir)
+		if along >= -6.0 and along <= length + 6.0 and absf(rel.dot(side)) <= width * 0.5 + 5.0:
+			p.take_damage(damage, global_position)
+	var tex := Art.texture("cave/slam_impact.png")
+	if impact != "crack" or tex == null:
+		return
+	var info: Dictionary = Art.json("cave/cave.json").get("fx", {}).get("slam_impact", {})
+	var o: Array = info.get("origin", [48, 48])
+	var x := 44.0
+	var i := 0
+	while x < length:
+		var n := SpriteOnce.new()
+		n.texture = tex
+		n.glow_texture = Art.glow_texture("cave/slam_impact.png")
+		n.frames = int(info.get("frames", 6))
+		n.fps = float(info.get("fps", 14))
+		n.origin = Vector2(o[0], o[1])
+		n.size = 0.5
+		n.wait = 0.035 * i        # looks only: the burst runs outward along the crack
+		get_parent().add_child(n)
+		n.z_index = -4
+		n.global_position = global_position + dir * x
+		x += 62.0
+		i += 1
 
 
 func _draw() -> void:

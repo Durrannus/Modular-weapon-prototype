@@ -828,6 +828,23 @@ func _spawn_guardian() -> void:
 	guardian.hp = guardian.max_hp
 	guardian.room = _room_rect(3)
 	guardian.defeated.connect(_on_guardian_defeated)
+	guardian.attack_started.connect(_on_guardian_attack)
+
+
+## As each of the guardian's attacks starts, the line under its health bar says
+## what it is and what to do about it.
+func _on_guardian_attack(kind: String) -> void:
+	if stage != "boss":
+		return
+	match kind:
+		"slam":
+			ui.hint = "Slam: get out of the red circle."
+		"charge":
+			ui.hint = _keys("Charge: dodge aside with [space] so it hits a wall, then strike.", "Charge: dodge aside with [pad_a] so it hits a wall, then strike.")
+		"quake":
+			ui.hint = "Quake: stand between the cracks."
+		"rocks":
+			ui.hint = "Rockfall: keep moving. Strike while it stands still."
 
 
 ## The forge wakes: the hearth lights, molten metal runs down the floor channels
@@ -954,7 +971,7 @@ func _wake_guardian() -> void:
 	ui.boss = guardian
 	ui.boss_shown = 1.0
 	ui.objective = "Defeat the forge guardian"
-	ui.hint = _keys("Its charge can't turn. Dodge aside with [space] so it hits a wall, then strike.", "Its charge can't turn. Dodge aside with [pad_a] so it hits a wall, then strike.")
+	ui.hint = "Every attack shows on the floor first. Watch the red marks."
 
 
 func _on_guardian_defeated(_g) -> void:
