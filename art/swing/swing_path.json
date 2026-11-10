@@ -703,91 +703,91 @@
   "shockwave_wave": {
    "frames": 6,
    "frame": [
-    40,
-    64
+    80,
+    88
    ],
    "fps": 14,
    "origin": [
-    0,
-    32
+    50,
+    44
    ],
-   "note": "moves forward; origin is the back of the crescent's centre line"
+   "note": "moves forward (faces right); origin is the centre of the hit line, 16 px behind the leading edge. rune_fx.gd hardcodes 6 frames and the origin"
   },
   "shockwave_burst": {
    "frames": 6,
    "frame": [
-    64,
-    64
+    96,
+    96
    ],
    "fps": 18,
    "origin": [
-    32,
-    32
+    48,
+    48
    ],
    "note": "at the finisher's impact point"
   },
   "hook_snag": {
    "frames": 5,
    "frame": [
-    28,
-    28
+    56,
+    56
    ],
    "fps": 20,
    "origin": [
-    14,
-    14
+    28,
+    28
    ],
    "note": "where the hook bites"
   },
   "hook_yank": {
    "frames": 4,
    "frame": [
-    48,
-    24
+    72,
+    36
    ],
    "fps": 16,
    "origin": [
-    48,
-    12
+    72,
+    18
    ],
    "note": "on the pulled enemy, right edge at its centre"
   },
   "cleave_arc": {
    "frames": 5,
    "frame": [
-    56,
-    64
+    80,
+    120
    ],
    "fps": 20,
    "origin": [
-    6,
-    28
+    8,
+    60
    ],
-   "note": "origin at the player's hand"
+   "note": "origin at the player's hand, faces right"
   },
   "cleave_echo": {
    "frames": 4,
    "frame": [
-    32,
-    32
+    52,
+    52
    ],
    "fps": 16,
    "origin": [
-    16,
-    16
+    26,
+    26
    ],
    "note": "on the enemy behind the target"
   },
   "wind_swirl": {
    "frames": 8,
    "frame": [
-    48,
-    48
+    72,
+    72
    ],
    "fps": 14,
    "origin": [
-    24,
-    30
+    36,
+    46
    ],
    "note": "round the player's feet"
   },
@@ -802,20 +802,98 @@
     5,
     5
    ],
-   "note": "HUD pip refilling"
+   "note": "HUD pip refilling; same size as before"
   },
   "band_spark": {
    "frames": 4,
    "frame": [
-    16,
-    16
+    28,
+    28
    ],
    "fps": 20,
    "origin": [
-    8,
-    8
+    14,
+    14
    ],
    "note": "on the band's centre when its rune fires"
+  },
+  "wind_wisp": {
+   "frames": 4,
+   "frame": [
+    15,
+    15
+   ],
+   "fps": 12,
+   "origin": [
+    7,
+    7
+   ],
+   "note": "flies from the kill to the player; loop"
+  },
+  "whirlwind_spin": {
+   "frames": 6,
+   "frame": [
+    96,
+    96
+   ],
+   "fps": 18,
+   "origin": [
+    48,
+    48
+   ],
+   "note": "centred on the player; one full turn clockwise starting from the right, plays once. The blade's outer edge is 36 px from the centre, as before"
+  },
+  "leap_trail": {
+   "frames": 4,
+   "frame": [
+    72,
+    28
+   ],
+   "fps": 16,
+   "origin": [
+    71,
+    14
+   ],
+   "note": "points along the jump (faces right); right end on the player"
+  },
+  "leap_land": {
+   "frames": 6,
+   "frame": [
+    80,
+    72
+   ],
+   "fps": 18,
+   "origin": [
+    40,
+    44
+   ],
+   "note": "at the player's feet where the leap lands"
+  },
+  "shards_hit": {
+   "frames": 4,
+   "frame": [
+    44,
+    44
+   ],
+   "fps": 20,
+   "origin": [
+    22,
+    22
+   ],
+   "note": "on each enemy a shard hits"
+  },
+  "shards_shard": {
+   "frames": 4,
+   "frame": [
+    13,
+    13
+   ],
+   "fps": 20,
+   "origin": [
+    6,
+    6
+   ],
+   "note": "loop while the shard flies from enemy to enemy"
   },
   "hook_head": {
    "frame": [
@@ -826,7 +904,7 @@
     2,
     1
    ],
-   "note": "points right; the chain joins at the eye (top-left). _bite is the closed/lit frame"
+   "note": "points right; the chain joins at the eye (top-left). _bite is the lit frame. Same size and origin as before"
   },
   "chain_link": {
    "frames": 2,
@@ -834,85 +912,7 @@
     6,
     4
    ],
-   "note": "alternate the two frames, one every 5 px along the chain"
-  },
-  "wind_wisp": {
-   "frames": 4,
-   "frame": [
-    10,
-    10
-   ],
-   "fps": 12,
-   "origin": [
-    5,
-    5
-   ],
-   "note": "flies from the kill to the player"
-  },
-  "whirlwind_spin": {
-   "frames": 6,
-   "frame": [
-    72,
-    72
-   ],
-   "fps": 18,
-   "origin": [
-    36,
-    36
-   ],
-   "note": "centred on the player; one full turn, plays once"
-  },
-  "leap_trail": {
-   "frames": 4,
-   "frame": [
-    40,
-    16
-   ],
-   "fps": 16,
-   "origin": [
-    39,
-    8
-   ],
-   "note": "points along the jump (faces right); right end on the player"
-  },
-  "leap_land": {
-   "frames": 6,
-   "frame": [
-    48,
-    48
-   ],
-   "fps": 18,
-   "origin": [
-    24,
-    24
-   ],
-   "note": "at the player's feet where the leap lands"
-  },
-  "shards_hit": {
-   "frames": 4,
-   "frame": [
-    24,
-    24
-   ],
-   "fps": 20,
-   "origin": [
-    12,
-    12
-   ],
-   "note": "on each enemy a shard hits"
-  },
-  "shards_shard": {
-   "frames": 4,
-   "frame": [
-    9,
-    9
-   ],
-   "fps": 20,
-   "origin": [
-    4,
-    4
-   ],
-   "note": "loop while the shard flies from enemy to enemy"
+   "note": "alternate the two frames, one every 5 px along the chain. Same as before"
   }
  },
  "ui": {
@@ -969,19 +969,70 @@
    "note": "corner marks; stretch as a 9-patch with margins 4"
   },
   "colours": {
-   "ink": "#e6dccb",
-   "dim": "#8e877b",
-   "faint": "#5a5650",
-   "rune_amber": "#ffb24a",
-   "band_teal": "#6fd6cb",
-   "focus": "#fff3c4",
-   "plate": "#14171d",
-   "well": "#0b0d11",
-   "outline": "#06070a"
+   "ink": "#e8e4bc",
+   "dim": "#8ba688",
+   "faint": "#5f8072",
+   "rune_amber": "#ffc850",
+   "band_teal": "#86d4a4",
+   "focus": "#fff0b4",
+   "plate": "#19142a",
+   "well": "#0f0b18",
+   "outline": "#0f0b18",
+   "player_1": "#f06a40",
+   "player_2": "#78c0cc",
+   "group_colours": [
+    "#ffc850",
+    "#78c0cc",
+    "#a878d0",
+    "#86d4a4",
+    "#f078b4"
+   ]
   },
   "fonts": {
    "headings": "Silkscreen 8 px (16 px for the title), Google Fonts, OFL",
    "body": "Pixelify Sans 11 px, Google Fonts, OFL; turn ligatures off"
+  },
+  "forge_backdrop.png": {
+   "size": [
+    640,
+    360
+   ],
+   "note": "New. A still backdrop for the forge screen: draw it first, full screen. The niche is centred on x 300 (CENTRE_X) and the ledge is at y 338."
+  },
+  "title_backdrop.png": {
+   "size": [
+    640,
+    360
+   ],
+   "note": "New. A still backdrop for the title screen, darkened toward both sides. Put panel.png plates behind the menu (28,98,276,142) and the players box (364,98,248,142)."
+  },
+  "screens": {
+   "note": "Rects used in preview/screen_*.png, in 640x360 pixels",
+   "forge": {
+    "left_panel": [
+     6,
+     30,
+     203,
+     324
+    ],
+    "right_panel": [
+     412,
+     34,
+     222,
+     302
+    ],
+    "cards": "well.png / well_selected.png as nine-patches (margins 3) instead of draw_rect",
+    "sword_zoom": "2 whenever sword height x 2 <= 322, so the pixels stay square"
+   },
+   "pause": {
+    "panel": [
+     230,
+     104,
+     180,
+     150
+    ],
+    "buttons": "button.png, button_hot.png for the focused one (dark text on it), 148x20"
+   }
   }
  },
  "rare": {
@@ -1057,5 +1108,68 @@
   ],
   "pitch": 2,
   "note": "7 Nov: hand scale is its own smaller layout (not forge / 3). Sword frame 9 px wide, blade at (2, 0), grip at (0, blade height), pommel at the grip's pommel_at. Runes and benders are 1x1 dots; bands 5x1, centred on the slot (x - 2), same row."
+ },
+ "fx_note": "v3 (10 Nov): every strip here is made for additive blending (SpriteOnce.additive, as before). They are bigger than the old ones, so read frame, frames, fps and origin from this file. Fades are drawn into the frames as a hatch dissolve, so play them at full alpha.",
+ "rune_colours": {
+  "note": "Palette versions of the colours in swing_build.gd FITTINGS, for the code-drawn rings, hit tints and labels",
+  "shockwave": "#ffc850",
+  "hook": "#ff9c32",
+  "shards": "#d0dcd8",
+  "second_wind": "#86d4a4",
+  "leap": "#f0c070",
+  "whirlwind": "#f078b4",
+  "bands": "#86d4a4",
+  "benders": "#a878d0",
+  "plain_pommel": "#94a8b8",
+  "keen_pommel": "#78c0cc",
+  "heavy_pommel": "#cf8a48",
+  "light_pommel": "#e8e4bc"
+ },
+ "hud": {
+  "note": "New folder hud/, for a HUD drawn at 640x360 with Silkscreen 8 instead of the fallback font. See preview/screen_hud.png.",
+  "hp_frame.png": {
+   "size": [
+    92,
+    12
+   ],
+   "fill_at": [
+    6,
+    3
+   ],
+   "fill_size": [
+    80,
+    6
+   ]
+  },
+  "hp_fill_a.png / hp_fill_b.png": "player 1 madder red, player 2 sea blue (their scarf colours); draw a region as wide as the health",
+  "hp_lost.png": "the pale bar that trails behind lost health",
+  "pip_full.png / pip_empty.png": {
+   "size": [
+    8,
+    8
+   ],
+   "pitch": 10,
+   "note": "dodge charges"
+  },
+  "chip*.png": {
+   "size": [
+    12,
+    14
+   ],
+   "nine_patch_margins": [
+    4,
+    4,
+    4,
+    4
+   ],
+   "note": "swing path cells: chip_rune (amber text), chip_band (teal text), chip_empty (faint text), chip_fired (dark text) for the 0.45 s flash"
+  },
+  "tag_a.png / tag_b.png": {
+   "size": [
+    6,
+    12
+   ],
+   "note": "player pennant beside P1 / P2"
+  }
  }
 }

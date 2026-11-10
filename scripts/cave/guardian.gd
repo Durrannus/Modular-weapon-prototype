@@ -1,10 +1,11 @@
 extends "res://scripts/enemy.gd"
-## The forge guardian: the tutorial's boss. A statue until the rune is fitted.
+## The forge guardian: the tutorial's boss. A knight three times your height,
+## kneeling asleep on the casting circle until the rune is fitted.
 ##
 ## Two attacks, both warned on the ground first:
-## - Slam: it walks up, raises both fists (a red circle fills), then smashes.
-## - Charge: it lowers a shoulder (a red lane shows the path), then runs until
-##   it hits a wall. Hitting the wall stuns it: that's the opening.
+## - Slam: he walks up, raises his hammer (a red circle fills), then smashes.
+## - Charge: he lowers a shoulder (a red lane shows the path), then runs until
+##   he hits a wall. Hitting the wall drops him to one knee: that's the opening.
 ## Below half health the slam comes three times in a row and the charge is faster.
 ## With two players it has more health and also brings rocks down on everyone.
 
@@ -18,6 +19,7 @@ const SLAM_DAMAGE := 15.0
 const CHARGE_DAMAGE := 18.0
 const CHARGE_SPEED := 620.0
 const ROCK_DAMAGE := 12.0
+const WAKE_TIME := 1.3
 
 var mode := "dormant"
 var mode_t := 0.0
@@ -34,9 +36,10 @@ var room := Rect2()         # it never leaves the forge room
 func _setup() -> void:
 	kind = "guardian"
 	art_set = "cave"
+	flash_tint = 1.6   # he fills a third of the screen: a full white-out is too much
 	max_hp = 300.0
 	speed = 64.0
-	radius = 30.0
+	radius = 34.0
 	contact_damage = 0.0
 	knock_resist = 0.06
 	show_bar = false
@@ -45,14 +48,20 @@ func _setup() -> void:
 
 
 func _feet() -> Vector2:
-	return Vector2(0, 24)
+	return Vector2(0, 20)
+
+
+## Kneeling poses are drawn in profile facing right; fighting poses face you.
+## Only the knee he drops to after a charge is mirrored, to face where he ran.
+func _flip(anim: String) -> bool:
+	return anim == "stunned" and charge_dir.x < 0.0
 
 
 func wake() -> void:
 	if mode != "dormant":
 		return
 	mode = "wake"
-	mode_t = 0.9
+	mode_t = WAKE_TIME
 	anim_time = 0.0
 	Sfx.play(self, "rumble", -2.0)
 
@@ -190,8 +199,10 @@ func _start_slam() -> void:
 	h.global_position = _slam_point()
 
 
+## Where the hammer lands: on the floor just in front of his feet.
 func _slam_point() -> Vector2:
-	return global_position + _feet() + Vector2(0, -8) + facing * 26.0
+	var at: Array = _art_info().get("slam_at", [0, 4])
+	return global_position + _feet() + Vector2(at[0], at[1]) * Art.PIXEL
 
 
 func _start_charge() -> void:
@@ -263,7 +274,7 @@ func _dust_burst() -> void:
 		var n := SpriteOnce.new()
 		n.texture = tex
 		n.frames = 4
-		n.fps = 10.0
+		n.fps = 14.0
 		n.origin = Vector2(8, 10)
 		n.size = 1.5
 		get_parent().add_child(n)
@@ -290,14 +301,13 @@ func _die() -> void:
 	_shake(14.0)
 	defeated.emit(self)
 	died.emit(self)
-	# The crumble plays out and the rubble stays.
+	# He sinks back to one knee, the helm rolls off, and the empty suit stays.
 	mode = "dead"
 	anim_time = 0.0
 	remove_from_group("enemies")
 	remove_from_group("foes")
 	collision_layer = 0
 	collision_mask = 0
-	z_index = -1
 
 
 func _process(delta: float) -> void:
@@ -310,7 +320,9 @@ func _anim() -> Array:
 		"dormant":
 			return ["dormant", 0.0, false]
 		"wake":
-			return ["wake", anim_time * 0.75, false]
+			# The whole strip (lit, head lifts, looks up, rises, stands) fills the wake.
+			var w: Dictionary = _art_info().get("strips", {}).get("wake", {"frames": 5, "fps": 6})
+			return ["wake", anim_time / WAKE_TIME * float(w["frames"]) / float(w["fps"]), false]
 		"dead":
 			return ["death", anim_time, false]
 		"telegraph":

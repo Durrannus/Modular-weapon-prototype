@@ -1,6 +1,7 @@
 extends Node2D
 ## Floating damage number.
 
+const Art := preload("res://scripts/art.gd")
 const LIFE := 0.7
 
 var text := ""
@@ -15,6 +16,7 @@ func _ready() -> void:
 	# the engine does between physics ticks.
 	physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 	z_index = 50
+	material = Art.unshaded()   # numbers stay bright in the dark
 	drift = Vector2(randf_range(-25.0, 25.0), -70.0)
 
 
@@ -30,7 +32,7 @@ func _process(delta: float) -> void:
 func _draw() -> void:
 	var c := color
 	c.a = 1.0 - pow(t / LIFE, 2.0)
-	var font := ThemeDB.fallback_font
-	var pos := Vector2(-30.0, 0.0)
-	draw_string_outline(font, pos, text, HORIZONTAL_ALIGNMENT_CENTER, 60.0, font_size, 4, Color(0, 0, 0, c.a))
-	draw_string(font, pos, text, HORIZONTAL_ALIGNMENT_CENTER, 60.0, font_size, c)
+	var font := Art.font("Silkscreen-Regular")
+	var pos := Vector2(-40.0, 0.0)
+	draw_string_outline(font, pos, text, HORIZONTAL_ALIGNMENT_CENTER, 80.0, font_size, 8, Color(0.06, 0.04, 0.09, c.a))
+	draw_string(font, pos, text, HORIZONTAL_ALIGNMENT_CENTER, 80.0, font_size, c)

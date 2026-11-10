@@ -23,6 +23,8 @@ var done := false
 func _ready() -> void:
 	physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 	z_index = -5
+	# A warning has to read at a glance, so the cave's darkness doesn't dim it.
+	material = Art.unshaded()
 	add_to_group("hazards")
 
 
@@ -49,11 +51,15 @@ func _land() -> void:
 	Sfx.play(self, "slam", -3.0 if impact == "slam" else -8.0, 1.0 if impact == "slam" else 1.5)
 	var tex := Art.texture("cave/slam_impact.png")
 	if tex != null:
+		# The art's hit circle is 28 px in radius, so radius / 56 scales it to ours.
+		var info: Dictionary = Art.json("cave/cave.json").get("fx", {}).get("slam_impact", {})
+		var o: Array = info.get("origin", [48, 48])
 		var n := SpriteOnce.new()
 		n.texture = tex
-		n.frames = 5
-		n.fps = 14.0
-		n.origin = Vector2(32, 32)
+		n.glow_texture = Art.glow_texture("cave/slam_impact.png")
+		n.frames = int(info.get("frames", 6))
+		n.fps = float(info.get("fps", 14))
+		n.origin = Vector2(o[0], o[1])
 		n.size = radius / 56.0
 		get_parent().add_child(n)
 		n.z_index = -4
@@ -66,7 +72,7 @@ func _land() -> void:
 
 func _draw() -> void:
 	var k := clampf(t / delay, 0.0, 1.0)
-	var hot := Color(1.6, 0.35, 0.25)
+	var hot := Color("#ff5a3c")
 	var pulse := 0.75 + 0.25 * sin(t * 26.0)
 	if shape == "circle":
 		draw_circle(Vector2.ZERO, radius, Color(hot.r, hot.g, hot.b, 0.16))

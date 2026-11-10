@@ -17,6 +17,7 @@ const Fx := preload("res://scripts/fx/fx.gd")
 const Art := preload("res://scripts/art.gd")
 const SpriteOnce := preload("res://scripts/fx/sprite_once.gd")
 const Sfx := preload("res://scripts/sfx.gd")
+const Glow := preload("res://scripts/glow.gd")
 
 var kind := "slime"
 var max_hp := 30.0
@@ -33,6 +34,8 @@ var immune := false        # can't be hurt right now (burrowed, a statue)
 
 var knock := Vector2.ZERO
 var flash := 0.0
+var flash_tint := 3.0     # how hard the sprite whites out when hit
+var lift := 1.0           # sprite brightness; above 1 in dark places, so it stands out from the floor
 var freeze := 0.0          # frozen on the frame it was hit
 var hit_stun := 0.0        # can't move or attack after a hit
 var burn_time := 0.0
@@ -253,7 +256,7 @@ func _apply_damage(dmg: float, crit: bool, num_color: Color) -> void:
 	var n := DamageNumber.new()
 	n.text = str(roundi(dmg)) + ("!" if crit else "")
 	n.color = num_color
-	n.font_size = 26 if crit else 16
+	n.font_size = 32 if crit else 16   # the pixel font is drawn for 8 screen pixels and its doubles
 	get_parent().add_child(n)
 	n.global_position = global_position + Vector2(randf_range(-8, 8), -radius - 6.0)
 	if kind == "dummy":
@@ -293,11 +296,12 @@ func _die() -> void:
 	if death != null and info.get("strips", {}).has("death"):
 		var splat := SpriteOnce.new()
 		splat.texture = death
+		splat.glow_texture = _art_tex("death_glow")
 		splat.frames = int(info["strips"]["death"]["frames"])
 		splat.fps = float(info["strips"]["death"]["fps"])
 		splat.origin = Vector2(info["origin_feet"][0], info["origin_feet"][1])
 		splat.feet = _feet()
-		splat.flip = facing.x < 0.0
+		splat.flip = _flip("death")
 		splat.z_index = 0
 		get_parent().add_child(splat)
 		splat.global_position = global_position
@@ -310,6 +314,7 @@ func _process(delta: float) -> void:
 	if freeze <= 0.0:
 		anim_time += delta
 	queue_redraw()
+	_update_glow()
 
 
 # --- Drawing ------------------------------------------------------------------
@@ -328,6 +333,53 @@ func _art_tex(anim: String) -> Texture2D:
 
 func _feet() -> Vector2:
 	return Vector2(0, radius * 0.7)
+
+
+## Sprites are drawn facing right and mirrored to look left. Front views say no.
+func _flip(_anim: String) -> bool:
+	return facing.x < 0.0
+
+
+## The strip and frame to show right now: {tex, glow, frames, frame, origin, flip},
+## or empty when this enemy has no sprite.
+func _sprite() -> Dictionary:
+	var info := _art_info()
+	if info.is_empty() or not info.has("strips"):
+		return {}
+	var a := _anim()
+	var anim: String = a[0]
+	if not info["strips"].has(anim):
+		anim = "idle"
+	var strip: Dictionary = info["strips"].get(anim, {})
+	var tex := _art_tex(anim)
+	var glow := _art_tex(anim + "_glow")
+	if tex == null:
+		tex = _art_tex("")
+		glow = _art_tex("glow")
+	if tex == null or strip.is_empty():
+		return {}
+	var frame := int(float(a[1]) * float(strip["fps"]))
+	if not a[2]:
+		frame = mini(frame, int(strip["frames"]) - 1)
+	var o: Array = info["origin_feet"]
+	return {"tex": tex, "glow": glow, "frames": int(strip["frames"]), "frame": frame, "origin": Vector2(o[0], o[1]), "flip": _flip(anim)}
+
+
+var _glow: Node2D
+
+## Eyes, embers and runes on the sprite stay bright in the dark (see glow.gd).
+func _update_glow() -> void:
+	var sp := _sprite()
+	var tex: Texture2D = sp.get("glow")
+	if tex == null and _glow == null:
+		return
+	if _glow == null:
+		_glow = Glow.new()
+		add_child(_glow)
+	if tex == null or flash > 0.0:
+		_glow.put(null)
+	else:
+		_glow.put(tex, sp["frames"], sp["frame"], _feet(), sp["origin"], sp["flip"])
 
 
 ## Which strip to show: [name, seconds into it, loops].
@@ -356,35 +408,19 @@ func _draw() -> void:
 	if flash > 0.0:
 		c = Color.WHITE
 
-	var info := _art_info()
 	_draw_shadow()
-	var drawn := false
-	if not info.is_empty() and info.has("strips"):
-		# Animated sprite. Sprites face right; mirrored when looking left.
-		var a := _anim()
-		var anim: String = a[0]
-		if not info["strips"].has(anim):
-			anim = "idle"
-		var strip: Dictionary = info["strips"].get(anim, {})
-		var tex := _art_tex(anim)
-		if tex == null:
-			tex = _art_tex("")
-		if tex != null and not strip.is_empty():
-			var frame := int(float(a[1]) * float(strip["fps"]))
-			if not a[2]:
-				frame = mini(frame, int(strip["frames"]) - 1)
-			var tint := Color.WHITE
-			if flash > 0.0:
-				tint = Color(3.0, 3.0, 3.0)
-			elif burn_time > 0.0:
-				tint = Color(1.0, 0.7, 0.55)
-			elif slow_time > 0.0:
-				tint = Color(0.65, 0.8, 1.0)
-			var o: Array = info["origin_feet"]
-			Art.draw_strip(self, tex, int(strip["frames"]), frame, _feet(), Vector2(o[0], o[1]), facing.x < 0.0, tint)
-			drawn = true
-	if not drawn:
+	var sp := _sprite()
+	if sp.is_empty():
 		_draw_shape(c)
+	else:
+		var tint := Color(lift, lift, lift)
+		if flash > 0.0:
+			tint = Color(flash_tint, flash_tint, flash_tint)
+		elif burn_time > 0.0:
+			tint *= Color(1.0, 0.7, 0.55)
+		elif slow_time > 0.0:
+			tint *= Color(0.65, 0.8, 1.0)
+		Art.draw_strip(self, sp["tex"], sp["frames"], sp["frame"], _feet(), sp["origin"], sp["flip"], tint)
 
 	if stun_time > 0.0:
 		for i in 3:
@@ -394,10 +430,10 @@ func _draw() -> void:
 	if kind == "dummy":
 		var dps := current_dps()
 		if dps > 0.0:
-			var font := ThemeDB.fallback_font
+			var font := Art.font("Silkscreen-Regular")
 			var label := "DPS %.1f" % dps
-			draw_string_outline(font, Vector2(-50, -radius - 14.0), label, HORIZONTAL_ALIGNMENT_CENTER, 100, 16, 4, Color.BLACK)
-			draw_string(font, Vector2(-50, -radius - 14.0), label, HORIZONTAL_ALIGNMENT_CENTER, 100, 16, Color(1, 0.95, 0.6))
+			draw_string_outline(font, Vector2(-60, -radius - 14.0), label, HORIZONTAL_ALIGNMENT_CENTER, 120, 16, 8, Color(0.06, 0.04, 0.09))
+			draw_string(font, Vector2(-60, -radius - 14.0), label, HORIZONTAL_ALIGNMENT_CENTER, 120, 16, Color("#ffc850"))
 
 	if show_bar and hp < max_hp and kind != "dummy":
 		var w := radius * 2.0

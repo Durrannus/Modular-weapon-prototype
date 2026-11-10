@@ -11,10 +11,12 @@ const Art := preload("res://scripts/art.gd")
 const Sfx := preload("res://scripts/sfx.gd")
 const PlayerInput := preload("res://scripts/player_input.gd")
 
-const INK := Color("#e6dccb")
-const DIM := Color("#8e877b")
-const AMBER := Color("#ffb24a")
-const PLAYER_COLORS := [Color("#5fb8ff"), Color("#ff9a4a")]
+const INK := Color("#e8e4bc")
+const DIM := Color("#8ba688")
+const AMBER := Color("#ffc850")
+const FAINT := Color("#5f8072")
+const PLATE := Color("#19142a")
+const PLAYER_COLORS := Art.PLAYER_COLORS
 const ITEMS := [
 	["cave", "Tutorial cave", "The four-room cave from the Game Plan: find a sword, fight through, fit a rune, beat the guardian."],
 	["arena", "Test arena", "The sandbox: every part unlocked, endless enemies, forge on Tab or Y."],
@@ -149,63 +151,65 @@ func _choose() -> void:
 func _draw_title() -> void:
 	var silk := Art.font("Silkscreen-Regular")
 	var pix := Art.font("PixelifySans-Regular")
-	root.draw_rect(Rect2(0, 0, 640, 360), Color("#0b0d16"))
-	# A strip of cave floor and the smith's forge glow, so it isn't a bare menu.
-	var wall := Art.texture("cave/wall_face_0.png")
-	var floor_tex := Art.texture("cave/floor_0.png")
-	if wall != null and floor_tex != null:
-		for x in 40:
-			root.draw_texture(wall, Vector2(x * 16, 292), Color(0.55, 0.57, 0.75))
-			for y in 4:
-				root.draw_texture(floor_tex, Vector2(x * 16, 308 + y * 16), Color(0.5, 0.52, 0.7))
-	var forge := Art.texture("cave/forge_awake.png")
-	if forge != null:
-		root.draw_texture(forge, Vector2(498, 246))
+	# A still picture of the forge room, darkened toward the sides, with a plate behind each block of words.
+	var backdrop := Art.texture("swing/ui/title_backdrop.png")
+	if backdrop != null:
+		root.draw_texture(backdrop, Vector2.ZERO)
+	else:
+		root.draw_rect(Rect2(0, 0, 640, 360), PLATE)
 	root.draw_string(silk, Vector2(40, 62), "MODULAR WEAPON", HORIZONTAL_ALIGNMENT_LEFT, -1, 24, AMBER)
 	root.draw_string(silk, Vector2(40, 80), "PROTOTYPE", HORIZONTAL_ALIGNMENT_LEFT, -1, 16, INK)
+	for plate in [Rect2(28, 98, 276, 142), Rect2(364, 98, 248, 142)]:
+		if not Art.draw_nine(root, "swing/ui/panel.png", plate, 8):
+			root.draw_rect(plate, PLATE)
 
 	rects = []
 	var y := 122.0
 	for i in ITEMS.size():
-		var r := Rect2(36, y - 13, 250, 20)
+		var r := Rect2(36, y - 14, 250, 20)
 		rects.append(r)
 		var on := i == cursor
 		if on:
-			root.draw_rect(r, Color(1, 0.7, 0.3, 0.12))
-			root.draw_colored_polygon(PackedVector2Array([Vector2(40, y - 8), Vector2(46, y - 3), Vector2(40, y + 2)]), AMBER)
-		root.draw_string(silk, Vector2(54, y + 1), str(ITEMS[i][1]).to_upper(), HORIZONTAL_ALIGNMENT_LEFT, -1, 16, INK if on else DIM)
+			if not Art.draw_nine(root, "swing/ui/well_selected.png", r, 3):
+				root.draw_rect(r, AMBER, false, 1.0)
+			root.draw_colored_polygon(PackedVector2Array([Vector2(41, y - 9), Vector2(47, y - 4), Vector2(41, y + 1)]), AMBER)
+		root.draw_string(silk, Vector2(55, y), str(ITEMS[i][1]).to_upper(), HORIZONTAL_ALIGNMENT_LEFT, -1, 16, INK if on else DIM)
 		y += 26.0
 	var note: String = ITEMS[cursor][2]
 	var ny := y + 6.0
-	for l in _wrap(note, 290.0, pix):
+	for l in _wrap(note, 252.0, pix):
 		root.draw_string(pix, Vector2(40, ny), l, HORIZONTAL_ALIGNMENT_LEFT, -1, 11, DIM)
 		ny += 13.0
 
 	# Who is playing.
 	var px := 372.0
-	root.draw_string(silk, Vector2(px, 110), "PLAYERS", HORIZONTAL_ALIGNMENT_LEFT, -1, 8, DIM)
+	root.draw_string(silk, Vector2(px, 111), "PLAYERS", HORIZONTAL_ALIGNMENT_LEFT, -1, 8, DIM)
 	for i in MAX_PLAYERS:
 		var row := Rect2(px, 118 + i * 34, 232, 28)
-		root.draw_rect(row, Color(0.06, 0.07, 0.1, 0.9))
-		root.draw_rect(Rect2(row.position, Vector2(3, row.size.y)), PLAYER_COLORS[i] if i < joined.size() else Color("#3a3f4c"))
-		root.draw_string(silk, row.position + Vector2(10, 18), "P%d" % (i + 1), HORIZONTAL_ALIGNMENT_LEFT, -1, 16, PLAYER_COLORS[i] if i < joined.size() else Color("#4a4f5c"))
+		if not Art.draw_nine(root, "swing/ui/well.png", row, 3):
+			root.draw_rect(row, Color("#0f0b18"))
+		var here := i < joined.size()
+		var tag := Art.texture("hud/tag_%s.png" % ("a" if i == 0 else "b"))
+		if here and tag != null:
+			root.draw_texture(tag, row.position + Vector2(4, 8))
+		root.draw_string(silk, row.position + Vector2(15, 20), "P%d" % (i + 1), HORIZONTAL_ALIGNMENT_LEFT, -1, 16, PLAYER_COLORS[i] if here else FAINT)
 		var text := ""
 		var col := INK
-		if i < joined.size():
+		if here:
 			text = "Keyboard + mouse" if joined[i][0] == "kbm" else "Controller %d" % (int(joined[i][1]) + 1)
 		elif i == joined.size():
-			col = DIM if fmod(t, 1.0) < 0.6 else Color("#5a5650")
+			col = DIM if fmod(t, 1.0) < 0.6 else FAINT
 			text = "Press Enter or A to join"
 		else:
-			col = Color("#4a4f5c")
+			col = FAINT
 			text = "Second player: Enter or A"
-		root.draw_string(pix, row.position + Vector2(46, 18), text, HORIZONTAL_ALIGNMENT_LEFT, -1, 11, col)
+		root.draw_string(pix, row.position + Vector2(50, 18), text, HORIZONTAL_ALIGNMENT_LEFT, -1, 11, col)
 	var help := "One player can use any device. Two players share the screen: each presses their own button."
 	var hy := 200.0
 	for l in _wrap(help, 232.0, pix):
 		root.draw_string(pix, Vector2(px, hy), l, HORIZONTAL_ALIGNMENT_LEFT, -1, 11, DIM)
 		hy += 13.0
-	root.draw_string(pix, Vector2(40, 280), "W / S or stick: choose      Enter or A: select      Backspace or B: leave", HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Color("#5a5650"))
+	root.draw_string(pix, Vector2(40, 348), "W / S or stick: choose      Enter or A: select      Backspace or B: leave", HORIZONTAL_ALIGNMENT_LEFT, -1, 11, DIM)
 
 
 func _wrap(text: String, width: float, f: Font) -> Array:

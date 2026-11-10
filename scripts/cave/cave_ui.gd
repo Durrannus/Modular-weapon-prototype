@@ -6,10 +6,10 @@ extends CanvasLayer
 const Art := preload("res://scripts/art.gd")
 const Sfx := preload("res://scripts/sfx.gd")
 
-const INK := Color("#e6dccb")
-const DIM := Color("#8e877b")
-const AMBER := Color("#ffb24a")
-const PLATE := Color(0.04, 0.045, 0.06, 0.82)
+const INK := Color("#e8e4bc")
+const DIM := Color("#8ba688")
+const AMBER := Color("#ffc850")
+const PLATE := Color(0.098, 0.078, 0.165, 0.86)   # the menu kit's dark plum
 
 var root: Control
 var objective := ""
@@ -131,8 +131,8 @@ func _box(name: String, margin) -> StyleBox:
 		var tex := Art.texture("cave/ui/%s.png" % name)
 		if tex == null:
 			var flat := StyleBoxFlat.new()
-			flat.bg_color = Color(0.08, 0.09, 0.12, 0.95)
-			flat.border_color = Color("#5a5650")
+			flat.bg_color = Color(PLATE.r, PLATE.g, PLATE.b, 0.95)
+			flat.border_color = Color("#5f8072")
 			flat.set_border_width_all(1)
 			_boxes[name] = flat
 		else:
@@ -201,7 +201,8 @@ func _draw_ui() -> void:
 	if objective != "" and not busy():
 		var w := silk.get_string_size(objective.to_upper(), HORIZONTAL_ALIGNMENT_LEFT, -1, 8).x
 		var x := 320.0 - w * 0.5
-		root.draw_rect(Rect2(x - 16, 5, w + 26, 15), PLATE)
+		if not Art.draw_nine(root, "swing/ui/well.png", Rect2(x - 17, 4, w + 28, 17), 3):
+			root.draw_rect(Rect2(x - 16, 5, w + 26, 15), PLATE)
 		root.draw_colored_polygon(PackedVector2Array([Vector2(x - 10, 12.5), Vector2(x - 7, 9.5), Vector2(x - 4, 12.5), Vector2(x - 7, 15.5)]), AMBER)
 		_head(objective, Vector2(x, 16), INK)
 	var hint_y := 34.0
@@ -224,11 +225,11 @@ func _draw_ui() -> void:
 		hint_y = 50.0
 	if hint != "" and not busy():
 		var f := Art.font("PixelifySans-Regular")
-		var lines_h := _wrap(hint, 420.0)
+		var lines_h := _wrap(hint, 360.0)   # narrow enough to clear the health bars in the corners
 		for i in lines_h.size():
 			var lw := f.get_string_size(lines_h[i], HORIZONTAL_ALIGNMENT_LEFT, -1, 11).x
-			root.draw_rect(Rect2(320.0 - lw * 0.5 - 6, hint_y - 10 + i * 14, lw + 12, 14), Color(0.04, 0.045, 0.06, 0.6))
-			_body(lines_h[i], Vector2(320.0 - lw * 0.5, hint_y + i * 14), Color("#d8d2c4"))
+			root.draw_rect(Rect2(320.0 - lw * 0.5 - 6, hint_y - 10 + i * 14, lw + 12, 14), Color(PLATE.r, PLATE.g, PLATE.b, 0.66))
+			_body(lines_h[i], Vector2(320.0 - lw * 0.5, hint_y + i * 14), Color("#e8e4bc"))
 
 	# Fade (under the speech box and cards, over the game).
 	if fade > 0.0:

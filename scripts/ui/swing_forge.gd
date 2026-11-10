@@ -21,18 +21,18 @@ var hotkey := true         # Tab / Y opens it anywhere (the test arena)
 var sandbox := true        # test swords (1, 2) and "try at the dummy" (T)
 var whose := ""            # "Player 2" when two players share the forge
 
-const INK := Color("#e6dccb")
-const DIM := Color("#8e877b")
-const FAINT := Color("#5a5650")
-const AMBER := Color("#ffb24a")
-const TEAL := Color("#6fd6cb")
-const FOCUS := Color("#fff3c4")
-const PLATE := Color("#14171d")
-const WELL := Color("#0b0d11")
+const INK := Color("#e8e4bc")
+const DIM := Color("#8ba688")
+const FAINT := Color("#5f8072")
+const AMBER := Color("#ffc850")
+const TEAL := Color("#86d4a4")
+const FOCUS := Color("#fff0b4")
+const PLATE := Color("#19142a")
+const WELL := Color("#0f0b18")
 
 const TABS := ["sword", "runes", "bands", "rare"]
-const LEFT := Rect2(10, 32, 195, 296)
-const RIGHT := Rect2(436, 32, 194, 296)
+const LEFT := Rect2(6, 30, 203, 324)     # the plate behind the tray
+const RIGHT := Rect2(412, 34, 222, 302)  # the plate behind "what it does"
 const CENTRE_X := 300.0
 const SWORD_BOTTOM := 326.0  # the pommel sits just above the anvil
 var sword_bottom := SWORD_BOTTOM
@@ -538,7 +538,14 @@ func _icon(kind: String, id: String, center: Vector2, part_scale := 2.0) -> void
 
 func _draw_forge() -> void:
 	buttons.clear()
-	root.draw_rect(Rect2(Vector2.ZERO, root.size), Color(0.035, 0.04, 0.055, 1.0))
+	# A still backdrop (the forge's niche), then a plate behind each column of words.
+	var backdrop := Art.texture("swing/ui/forge_backdrop.png")
+	if backdrop != null:
+		root.draw_texture(backdrop, Vector2.ZERO)
+	else:
+		root.draw_rect(Rect2(Vector2.ZERO, root.size), WELL)
+	_nine("panel", LEFT)
+	_nine("panel", RIGHT)
 	_head("The forge", Vector2(14, 24), AMBER, 16)
 	if whose != "":
 		_head(whose, Vector2(150, 24), INK, 8)
@@ -583,18 +590,23 @@ func _draw_tray() -> void:
 	for i in cards.size():
 		var c: Dictionary = cards[i]
 		var r := Rect2(14 + (i % 3) * 44, 60 + (i / 3) * 44, 38, 38)
+		var icon_scale := 2.0
 		if c.has("row"):
 			var ri: int = c["row"]
-			var w := clampi(186 / maxi(int(row_total[ri]), 1), 30, 60 if ri == 0 else 34)
+			var w := clampi(192 / maxi(int(row_total[ri]), 1), 30, 64 if ri == 0 else 34)
 			r = Rect2(14 + row_n[ri] * w, 70 + ri * 44, w - 3, 31)
 			row_n[ri] += 1
+			# The longest blade is 60 wide at double size. With more blades than fit
+			# that way, the whole row drops to single size so their lengths still compare.
+			if ri == 0 and r.size.x < 60.0:
+				icon_scale = 1.0
 		buttons["card:%d" % i] = r
-		root.draw_rect(r, WELL)
-		var edge := AMBER if i == card else (FOCUS if hover == "card:%d" % i else FAINT)
-		root.draw_rect(r, edge, false, 1.0)
+		_nine("well_selected" if i == card else "well", r)
+		if hover == "card:%d" % i and i != card:
+			root.draw_rect(r, FOCUS, false, 1.0)
 		if c["locked"]:
 			continue
-		_icon(c.get("kind", TABS[tab]), c["id"], r.get_center(), 2.0)
+		_icon(c.get("kind", TABS[tab]), c["id"], r.get_center(), icon_scale)
 		if _on_sword(c["id"]):
 			root.draw_rect(Rect2(r.end.x - 6, r.position.y + 2, 4, 4), AMBER)
 	var di := card
@@ -687,7 +699,7 @@ func _band_line(band: String, rune: String) -> String:
 
 ## Group colours: a band (or Relay) and the rune it boosts share one outline,
 ## and the same colour marks that rune's line on the right.
-const GROUP_COLORS := [Color("#ffb24a"), Color("#7fd0ff"), Color("#d9a6ff"), Color("#9ff07a"), Color("#ff8fb0")]
+const GROUP_COLORS := [Color("#ffc850"), Color("#78c0cc"), Color("#a878d0"), Color("#86d4a4"), Color("#f078b4")]
 
 
 func _group_color(effect_index: int) -> Color:
@@ -699,7 +711,8 @@ func _draw_sword(stats: Dictionary) -> void:
 	var blade := build.blade
 	var grip := build.grip
 	var size := SwordArt.frame_size(blade, grip, "forge")
-	zoom = minf(2.0, (SWORD_BOTTOM - 26.0) / size.y)
+	# Twice its size whenever that fits, so the sword's pixels stay square.
+	zoom = 2.0 if size.y * 2.0 <= SWORD_BOTTOM - 4.0 else (SWORD_BOTTOM - 4.0) / size.y
 	sword_bottom = SWORD_BOTTOM
 	var top := Vector2(CENTRE_X - size.x * zoom * 0.5, sword_bottom - size.y * zoom).round()
 	sword_top = top

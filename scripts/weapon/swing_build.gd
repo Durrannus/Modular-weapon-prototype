@@ -42,44 +42,44 @@ const GRIP_ORDER := ["wooden_grip", "wrapped_grip", "long_grip", "ringed_grip", 
 ## Pommels (Game Plan, decided 7 November in the prototype): no slots, stats only.
 ## These are fixed test rolls; real pommels will roll stats in the rarity tiers.
 const POMMELS := {
-	"plain_pommel": {"name": "Plain Pommel", "desc": "No bonus.", "color": Color("#8a8f99")},
-	"keen_pommel": {"name": "Keen Pommel", "crit": 0.08, "desc": "+8% crit chance.", "color": Color("#7fd0ff")},
-	"heavy_pommel": {"name": "Heavy Pommel", "crit_damage": 0.4, "desc": "+40% crit damage.", "color": Color("#c98a4a")},
-	"light_pommel": {"name": "Light Pommel", "speed": 0.1, "desc": "+10% swing speed.", "color": Color("#e8e2b0")},
+	"plain_pommel": {"name": "Plain Pommel", "desc": "No bonus.", "color": Color("#94a8b8")},
+	"keen_pommel": {"name": "Keen Pommel", "crit": 0.08, "desc": "+8% crit chance.", "color": Color("#78c0cc")},
+	"heavy_pommel": {"name": "Heavy Pommel", "crit_damage": 0.4, "desc": "+40% crit damage.", "color": Color("#cf8a48")},
+	"light_pommel": {"name": "Light Pommel", "speed": 0.1, "desc": "+10% swing speed.", "color": Color("#e8e4bc")},
 }
 const POMMEL_ORDER := ["plain_pommel", "keen_pommel", "heavy_pommel", "light_pommel"]
 
 ## Runes do something on their own; bands change the next rune above them.
 ## Rule-benders bend the reading rule itself. Only one per sword.
 const FITTINGS := {
-	"shockwave": {"kind": "rune", "name": "Shockwave", "trigger": "finisher", "color": Color("#ffb24a"),
+	"shockwave": {"kind": "rune", "name": "Shockwave", "trigger": "finisher", "color": Color("#ffc850"),
 		"desc": "Your finisher sends a rolling wave forward."},
-	"hook": {"kind": "rune", "name": "Hook", "trigger": "finisher", "color": Color("#ff9a3c"),
+	"hook": {"kind": "rune", "name": "Hook", "trigger": "finisher", "color": Color("#ff9c32"),
 		"desc": "Your finisher yanks nearby enemies in on chains."},
 	# Shards replaced Cleave (Darren, 6 November).
-	"shards": {"kind": "rune", "name": "Shards", "trigger": "hit", "color": Color("#c9d4e0"),
+	"shards": {"kind": "rune", "name": "Shards", "trigger": "hit", "color": Color("#d0dcd8"),
 		"desc": "Every hit sends metal shards jumping to the closest enemy, then the next."},
 	# Second Wind is parked (Darren, 6 November: "meh"); Whirlwind replaces it in the tray.
-	"second_wind": {"kind": "rune", "name": "Second Wind", "trigger": "kill", "color": Color("#8ff0c0"), "parked": true,
+	"second_wind": {"kind": "rune", "name": "Second Wind", "trigger": "kill", "color": Color("#86d4a4"), "parked": true,
 		"desc": "Every kill refills a dodge charge (up to 2)."},
-	"leap": {"kind": "rune", "name": "Leap", "trigger": "dodge_attack", "color": Color("#f4e07a"),
+	"leap": {"kind": "rune", "name": "Leap", "trigger": "dodge_attack", "color": Color("#f0c070"),
 		"desc": "Attacking straight after a dodge jumps you to the nearest enemy."},
-	"whirlwind": {"kind": "rune", "name": "Whirlwind", "trigger": "finisher", "color": Color("#ff7ad9"),
+	"whirlwind": {"kind": "rune", "name": "Whirlwind", "trigger": "finisher", "color": Color("#f078b4"),
 		"desc": "Your finisher spins a full circle, cutting everything around you."},
-	"twice": {"kind": "band", "name": "Twice", "color": Color("#6fd6cb"),
+	"twice": {"kind": "band", "name": "Twice", "color": Color("#86d4a4"),
 		"desc": "The rune above happens twice."},
-	"wider": {"kind": "band", "name": "Wider", "color": Color("#6fd6cb"),
+	"wider": {"kind": "band", "name": "Wider", "color": Color("#86d4a4"),
 		"desc": "The rune above is bigger."},
-	"every_hit": {"kind": "band", "name": "Every Hit", "color": Color("#6fd6cb"),
+	"every_hit": {"kind": "band", "name": "Every Hit", "color": Color("#86d4a4"),
 		"desc": "The rune above happens on every hit instead, at half strength."},
-	"saved_up": {"kind": "band", "name": "Saved Up", "color": Color("#6fd6cb"),
+	"saved_up": {"kind": "band", "name": "Saved Up", "color": Color("#86d4a4"),
 		"desc": "The rune above only happens every third time, but three times as strong."},
-	"on_dodge": {"kind": "band", "name": "On Dodge", "color": Color("#6fd6cb"),
+	"on_dodge": {"kind": "band", "name": "On Dodge", "color": Color("#86d4a4"),
 		"desc": "The rune above also happens when you dodge."},
 	# Mirror is parked (Darren, 6 November): it overlapped Twice too much. The rules stay, but it's kept out of the forge.
-	"mirror": {"kind": "bender", "name": "Mirror", "color": Color("#d9a6ff"), "parked": true,
+	"mirror": {"kind": "bender", "name": "Mirror", "color": Color("#a878d0"), "parked": true,
 		"desc": "Rare. Copies the fitting below it. One rule-bender per sword."},
-	"relay": {"kind": "bender", "name": "Relay", "color": Color("#d9a6ff"),
+	"relay": {"kind": "bender", "name": "Relay", "color": Color("#a878d0"),
 		"desc": "Rare. The bands on the rune below also boost the next rune above. One rule-bender per sword."},
 }
 const FITTING_ORDER := ["shockwave", "hook", "shards", "whirlwind", "leap", "second_wind",

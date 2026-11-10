@@ -11,6 +11,7 @@ const WALL := 32.0  # one wall tile (16 art pixels)
 ## The paved forge corner, in tiles from the arena's top-left.
 const FORGE_TILES := Rect2i(2, 2, 7, 5)
 const MAX_ENEMIES := 7
+const WARM := Color(1.0, 0.60, 0.28)
 const SPAWN_EVERY := 1.6
 
 var parts: Array = []
@@ -136,14 +137,15 @@ func _make_walls() -> void:
 
 
 func _make_props() -> void:
-	# Forge-lit look: darken everything, then warm lights on torches and the bench.
+	# The same look as the cave, but brighter (this is the test room): a cool dark
+	# tint, then warm stepped lights on the torches and the bench.
 	if Art.texture("tiles/floor.png") != null:
 		var dark := CanvasModulate.new()
-		dark.color = Color(0.78, 0.79, 0.92)
+		dark.color = Color(0.68, 0.71, 0.90)
 		add_child(dark)
 	var bench_pos := ARENA.position + (Vector2(FORGE_TILES.get_center()) + Vector2(0, 0.5)) * TILE
 	_add_prop("props/forge_bench.png", bench_pos, Vector2(23, 30))
-	_add_light(bench_pos + Vector2(0, -20), Color(1.0, 0.62, 0.3), 1.0, 2.2)
+	_add_light(bench_pos + Vector2(0, -20), WARM, 0.8, 96)
 	var bench_body := StaticBody2D.new()
 	bench_body.collision_layer = 4
 	bench_body.position = bench_pos + Vector2(0, -10)
@@ -157,7 +159,7 @@ func _make_props() -> void:
 	while x < ARENA.end.x - 100.0:
 		var torch_pos := Vector2(x, ARENA.position.y + 6.0)
 		_add_prop("props/torch.png", torch_pos, Vector2(4, 34))
-		_add_light(torch_pos + Vector2(0, -60), Color(1.0, 0.7, 0.4), 1.1, 2.6)
+		_add_light(torch_pos + Vector2(0, -56), WARM, 1.0, 128)
 		x += 520.0
 
 
@@ -172,6 +174,15 @@ func _add_prop(path: String, feet: Vector2, origin: Vector2) -> void:
 	sprite.scale = Vector2(Art.PIXEL, Art.PIXEL)
 	sprite.position = feet
 	world.add_child(sprite)
+	# Flames and embers stay bright whatever the lighting.
+	var glow_tex := Art.glow_texture(path)
+	if glow_tex != null:
+		var glow := Sprite2D.new()
+		glow.texture = glow_tex
+		glow.centered = false
+		glow.offset = -origin
+		glow.material = Art.unshaded()
+		sprite.add_child(glow)
 
 
 func _draw() -> void:

@@ -54,6 +54,22 @@ static func draw_strip(ci: CanvasItem, tex: Texture2D, frames: int, frame: int, 
 	ci.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 
+## The image holding a sprite's glowing pixels ("cave/brazier_lit.png" ->
+## "cave/brazier_lit_glow.png"), or null when it has none.
+static func glow_texture(rel_path: String) -> Texture2D:
+	return texture(rel_path.trim_suffix(".png") + "_glow.png")
+
+
+static var _unshaded: CanvasItemMaterial = null
+
+## For things that must stay bright in the dark: lights and the dark tint skip them.
+static func unshaded() -> CanvasItemMaterial:
+	if _unshaded == null:
+		_unshaded = CanvasItemMaterial.new()
+		_unshaded.light_mode = CanvasItemMaterial.LIGHT_MODE_UNSHADED
+	return _unshaded
+
+
 static var _anchors: Dictionary = {}
 
 ## The numbers from art/anchors.json (frame sizes, origins, hand points).
@@ -70,6 +86,50 @@ static func anchors() -> Dictionary:
 
 
 ## Light texture: a soft round falloff, made in code.
+## Who is who: player one madder red, player two sea blue (their scarves), then two spares.
+const PLAYER_COLORS := [Color("#f06a40"), Color("#78c0cc"), Color("#86d4a4"), Color("#a878d0")]
+
+static var _boxes := {}
+
+## Draws a nine-patch image from art/ (a plate, a well, a button, a chip) stretched
+## over rect. margins: one number, or [left, top, right, bottom], in the image's pixels.
+## Returns false when the image is missing, so the caller can draw a plain box instead.
+static func draw_nine(ci: CanvasItem, rel_path: String, rect: Rect2, margins = 4, tint := Color.WHITE) -> bool:
+	var sb := nine(rel_path, margins)
+	if sb == null:
+		return false
+	sb.modulate_color = tint
+	ci.draw_style_box(sb, rect)
+	return true
+
+
+## The same nine-patch as a style box, for buttons and panels.
+static func nine(rel_path: String, margins = 4) -> StyleBoxTexture:
+	var key := "%s|%s" % [rel_path, margins]
+	if not _boxes.has(key):
+		var tex := texture(rel_path)
+		if tex == null:
+			_boxes[key] = null
+		else:
+			var sb := StyleBoxTexture.new()
+			sb.texture = tex
+			var m: Array = margins if margins is Array else [margins, margins, margins, margins]
+			sb.texture_margin_left = m[0]
+			sb.texture_margin_top = m[1]
+			sb.texture_margin_right = m[2]
+			sb.texture_margin_bottom = m[3]
+			_boxes[key] = sb
+	return _boxes[key]
+
+
+const LIGHT_STEPS := {48: 2, 64: 3, 96: 3, 128: 4, 240: 5}   # light radius -> its file's step count
+
+## One of the art's stepped, hatched lights, by radius in art pixels (null if the
+## art is missing). Use it at texture_scale PIXEL and no other, or the hatch blurs.
+static func stepped_light(radius: int) -> Texture2D:
+	return texture("lights/light_r%d_s%d.png" % [radius, LIGHT_STEPS.get(radius, 3)])
+
+
 static var _light_tex: Texture2D = null
 
 static func light_texture() -> Texture2D:

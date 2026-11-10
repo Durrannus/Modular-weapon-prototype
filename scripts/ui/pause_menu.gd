@@ -7,6 +7,7 @@ signal to_title
 signal resumed
 
 var panel: Control
+var first_button: Button
 var build_menu  # Esc closes the forge first if it's open
 var locked := false  # a cutscene or the ending is showing: no pausing
 
@@ -38,33 +39,60 @@ func _ready() -> void:
 	panel.visible = false
 	add_child(panel)
 	var dim := ColorRect.new()
-	dim.color = Color(0.02, 0.02, 0.04, 0.7)
+	dim.color = Color(0.06, 0.04, 0.09, 0.72)
 	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
 	panel.add_child(dim)
+	# A dark plate with a bronze edge, from the menu kit.
+	var plate := Panel.new()
+	plate.position = Vector2(230, 104)
+	plate.size = Vector2(180, 150)
+	var plate_box: StyleBox = Art.nine("swing/ui/panel.png", 8)
+	if plate_box == null:
+		var flat := StyleBoxFlat.new()
+		flat.bg_color = Color("#19142a")
+		plate_box = flat
+	plate.add_theme_stylebox_override("panel", plate_box)
+	panel.add_child(plate)
 	var box := VBoxContainer.new()
-	box.set_anchors_preset(Control.PRESET_CENTER)
-	box.custom_minimum_size = Vector2(160, 0)
-	box.position = Vector2(-80, -60)
-	box.add_theme_constant_override("separation", 8)
+	box.position = Vector2(246, 114)
+	box.custom_minimum_size = Vector2(148, 0)
+	box.add_theme_constant_override("separation", 6)
 	panel.add_child(box)
 	var title := Label.new()
 	title.text = "PAUSED"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.custom_minimum_size = Vector2(0, 20)
 	var f := Art.font("Silkscreen-Regular")
 	if f != null:
 		title.add_theme_font_override("font", f)
 	title.add_theme_font_size_override("font_size", 16)
-	title.add_theme_color_override("font_color", Color("#ffb24a"))
+	title.add_theme_color_override("font_color", Color("#ffc850"))
 	box.add_child(title)
+	# Buttons: verdigris when idle, ember (with dark words) on the one you're on.
+	var idle := Art.nine("swing/ui/button.png", 3)
+	var hot := Art.nine("swing/ui/button_hot.png", 3)
+	var ink := Color("#e8e4bc")
+	var dark := Color("#19142a")
 	for item in [["Resume", resume], ["Fullscreen on/off", _toggle_full], ["Back to title", _title], ["Quit game", _quit]]:
 		var b := Button.new()
-		b.text = item[0]
+		b.text = str(item[0]).to_upper()
 		b.focus_mode = Control.FOCUS_ALL
+		b.custom_minimum_size = Vector2(148, 20)
 		if f != null:
 			b.add_theme_font_override("font", f)
 		b.add_theme_font_size_override("font_size", 8)
+		if idle != null and hot != null:
+			b.add_theme_stylebox_override("normal", idle)
+			b.add_theme_stylebox_override("hover", hot)
+			b.add_theme_stylebox_override("pressed", hot)
+			b.add_theme_stylebox_override("focus", hot)
+			b.add_theme_color_override("font_color", ink)
+			for state in ["font_hover_color", "font_pressed_color", "font_focus_color", "font_hover_pressed_color"]:
+				b.add_theme_color_override(state, dark)
 		b.pressed.connect(item[1])
 		box.add_child(b)
+		if first_button == null:
+			first_button = b
 
 
 func is_open() -> bool:
@@ -74,7 +102,7 @@ func is_open() -> bool:
 func open() -> void:
 	panel.visible = true
 	get_tree().paused = true
-	(panel.get_child(1).get_child(1) as Button).grab_focus()
+	first_button.grab_focus()
 
 
 func resume() -> void:

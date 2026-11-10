@@ -12,6 +12,7 @@ var targets: Array = []
 var shake := 0.0
 var limits := Rect2()
 var has_limits := false
+var bias := Vector2.ZERO           # look this far off the players (to show something tall)
 
 
 func _ready() -> void:
@@ -43,7 +44,7 @@ func _focus() -> Vector2:
 			if is_instance_valid(p):
 				sum += p.global_position
 				n += 1
-	return sum / n if n > 0 else global_position
+	return sum / n + bias if n > 0 else global_position
 
 
 func _physics_process(delta: float) -> void:

@@ -1,277 +1,472 @@
 {
  "tile": 16,
- "note": "Unlit base colours. Enemies face right; mirror for left. Strips are one row, frames left to right.",
- "tiles": {
-  "floor": 4,
-  "floor_wet": 2,
-  "rock_top": 2,
-  "wall_face": 3,
-  "overlays": [
-   "lip_n",
-   "lip_e",
-   "lip_w",
-   "lip_ne",
-   "lip_nw",
-   "shadow_n"
+ "style": "Verdigris & Ember (v3)",
+ "note": "Unlit base colours. Where a sprite has glow=true there is also <name>_glow.png with only its glowing pixels: draw it on top, unshaded.",
+ "ground": {
+  "file": "cave_ground.png",
+  "size": [
+   784,
+   1408
   ],
-  "note": "wall_face already has its lit top lip. Lips are for rock_top cells next to floor; shadow_n goes on the floor under a wall face."
+  "draw_at_map_px": [
+   -64,
+   -176
+  ],
+  "note": "The whole cave painted as one image from the map in cave.gd (same rooms, halls, bumps and cut corners). Draw it once instead of the floor, wall and lip tiles. Background beyond it: #19142a.",
+  "awake": {
+   "file": "forge_floor_awake.png",
+   "frame": [
+    464,
+    510
+   ],
+   "frames": 8,
+   "fps": 8,
+   "draw_at_map_px": [
+    96,
+    -110
+   ],
+   "note": "Room 4 after the rune goes in: lit channels, basins and glyphs with metal running away from the hearth. Draw over the ground, unshaded, looping."
+  }
  },
  "props": {
-  "gate": {
+  "forge_dormant": {
    "size": [
-    48,
-    32
+    210,
+    192
    ],
-   "files": [
-    "gate_closed",
-    "gate_open",
-    "gate_opening"
+   "origin_feet": [
+    115,
+    190
    ],
-   "opening": {
-    "frames": 4,
-    "fps": 10
-   },
-   "note": "fills a 3-tile corridor; draw with its bottom edge on the corridor's floor row. Walk through under the lintel when open."
+   "glow": false
+  },
+  "forge_awake": {
+   "size": [
+    210,
+    192
+   ],
+   "origin_feet": [
+    115,
+    190
+   ],
+   "glow": true,
+   "frames": 4,
+   "fps": 8,
+   "light_px": [
+    115,
+    162
+   ]
+  },
+  "quillon_piece": {
+   "size": [
+    41,
+    18
+   ],
+   "origin_feet": [
+    19,
+    14
+   ],
+   "glow": false,
+   "note": "new: the snapped-off arm of the sword's guard, lying on the floor"
+  },
+  "stairs_up": {
+   "size": [
+    61,
+    74
+   ],
+   "origin_feet": [
+    30,
+    71
+   ],
+   "glow": true,
+   "light_px": [
+    30,
+    21
+   ]
+  },
+  "gate_closed": {
+   "size": [
+    56,
+    48
+   ],
+   "origin_feet": [
+    28,
+    47
+   ],
+   "glow": true
+  },
+  "gate_opening": {
+   "size": [
+    56,
+    48
+   ],
+   "origin_feet": [
+    28,
+    47
+   ],
+   "glow": true,
+   "frames": 4,
+   "fps": 10
+  },
+  "gate_open": {
+   "size": [
+    56,
+    48
+   ],
+   "origin_feet": [
+    28,
+    47
+   ],
+   "glow": false
   },
   "collapse": {
    "size": [
-    82,
-    50
+    299,
+    66
    ],
    "origin_feet": [
-    40,
+    144,
     46
    ],
-   "note": "the caved-in entrance, 5 tiles wide; blocks movement"
+   "glow": false
+  },
+  "giant_blade": {
+   "size": [
+    137,
+    158
+   ],
+   "origin_feet": [
+    26,
+    140
+   ],
+   "glow": false,
+   "note": "new: the point of a colossal blade through the roof of room 1. Draw above the players (it hangs over the floor); feet is the buried tip."
+  },
+  "brazier_unlit": {
+   "size": [
+    24,
+    46
+   ],
+   "origin_feet": [
+    11,
+    44
+   ],
+   "glow": false
+  },
+  "brazier_lit": {
+   "size": [
+    24,
+    46
+   ],
+   "origin_feet": [
+    11,
+    44
+   ],
+   "glow": true,
+   "frames": 3,
+   "fps": 8,
+   "light_px": [
+    11,
+    10
+   ]
   },
   "rubble_0": {
    "size": [
-    18,
-    18
+    32,
+    16
    ],
    "origin_feet": [
-    8,
-    13
-   ]
+    15,
+    12
+   ],
+   "glow": false
   },
   "rubble_1": {
    "size": [
-    18,
-    18
+    26,
+    14
    ],
    "origin_feet": [
-    8,
-    13
-   ]
+    12,
+    10
+   ],
+   "glow": false
   },
   "crate_closed": {
    "size": [
-    32,
-    32
+    22,
+    13
    ],
    "origin_feet": [
-    16,
-    28
-   ]
+    11,
+    11
+   ],
+   "glow": false
   },
   "crate_open": {
    "size": [
-    32,
-    32
+    22,
+    15
    ],
    "origin_feet": [
-    16,
-    28
-   ]
+    11,
+    14
+   ],
+   "glow": false
   },
   "planks": {
    "size": [
-    34,
-    18
+    26,
+    12
    ],
    "origin_feet": [
-    16,
-    13
-   ]
+    13,
+    9
+   ],
+   "glow": false
   },
   "barrel": {
    "size": [
-    18,
-    26
+    14,
+    13
    ],
    "origin_feet": [
-    8,
-    23
-   ]
+    6,
+    11
+   ],
+   "glow": false
   },
   "sail": {
    "size": [
     34,
-    34
+    24
    ],
    "origin_feet": [
-    16,
-    28
-   ]
+    17,
+    21
+   ],
+   "glow": false
   },
   "pedestal_rune": {
    "size": [
-    34,
-    50
+    26,
+    40
    ],
    "origin_feet": [
-    16,
-    44
+    12,
+    38
    ],
+   "glow": true,
    "light_px": [
-    16,
-    10
+    12,
+    6
    ]
   },
   "pedestal_empty": {
    "size": [
-    34,
-    50
+    26,
+    40
    ],
    "origin_feet": [
-    16,
-    44
-   ]
+    12,
+    38
+   ],
+   "glow": false
   },
   "stalagmite_small": {
    "size": [
     16,
-    32
-   ],
-   "origin_feet": [
-    8,
     30
    ],
-   "blocks": true
+   "origin_feet": [
+    7,
+    28
+   ],
+   "glow": false
   },
   "stalagmite_large": {
    "size": [
-    32,
-    48
+    26,
+    46
    ],
    "origin_feet": [
-    16,
-    45
+    12,
+    44
    ],
-   "blocks": true
+   "glow": false
   },
   "mushrooms_0": {
    "size": [
-    18,
-    18
+    14,
+    9
    ],
    "origin_feet": [
-    8,
-    14
+    6,
+    8
    ],
+   "glow": true,
    "light_px": [
-    8,
-    6
-   ]
-  },
-  "bones_0": {
-   "size": [
-    18,
-    18
-   ],
-   "origin_feet": [
-    8,
-    13
+    6,
+    4
    ]
   },
   "mushrooms_1": {
    "size": [
-    18,
-    18
+    14,
+    9
    ],
    "origin_feet": [
-    8,
-    14
+    6,
+    8
    ],
+   "glow": true,
    "light_px": [
-    8,
-    6
+    6,
+    4
    ]
+  },
+  "bones_0": {
+   "size": [
+    12,
+    6
+   ],
+   "origin_feet": [
+    5,
+    4
+   ],
+   "glow": false
   },
   "bones_1": {
    "size": [
+    12,
+    7
+   ],
+   "origin_feet": [
+    5,
+    5
+   ],
+   "glow": false
+  },
+  "cage_back": {
+   "size": [
+    36,
+    54
+   ],
+   "origin_feet": [
     18,
+    49
+   ],
+   "glow": false
+  },
+  "cage_front": {
+   "size": [
+    36,
+    54
+   ],
+   "origin_feet": [
+    18,
+    49
+   ],
+   "glow": false
+  },
+  "cage_broken": {
+   "size": [
+    36,
+    54
+   ],
+   "origin_feet": [
+    18,
+    49
+   ],
+   "glow": false
+  },
+  "anvil": {
+   "size": [
+    22,
+    17
+   ],
+   "origin_feet": [
+    10,
+    15
+   ],
+   "glow": false,
+   "note": "new set dressing"
+  },
+  "trough": {
+   "size": [
+    22,
+    12
+   ],
+   "origin_feet": [
+    10,
+    10
+   ],
+   "glow": false,
+   "note": "new: quenching trough"
+  },
+  "coal_heap": {
+   "size": [
+    28,
+    16
+   ],
+   "origin_feet": [
+    13,
+    12
+   ],
+   "glow": false,
+   "note": "new"
+  },
+  "coal_heap_lit": {
+   "size": [
+    28,
+    16
+   ],
+   "origin_feet": [
+    13,
+    12
+   ],
+   "glow": true,
+   "note": "new: swap in when the forge wakes"
+  },
+  "bellows": {
+   "size": [
+    36,
+    22
+   ],
+   "origin_feet": [
+    17,
     18
    ],
-   "origin_feet": [
-    8,
-    13
-   ]
+   "glow": false,
+   "note": "new"
   },
-  "forge_dormant": {
+  "ingots": {
    "size": [
-    98,
-    66
+    16,
+    8
    ],
    "origin_feet": [
-    49,
-    64
-   ]
+    7,
+    6
+   ],
+   "glow": false,
+   "note": "new"
   },
-  "forge_awake": {
+  "lantern": {
    "size": [
-    98,
-    66
+    10,
+    16
    ],
    "origin_feet": [
-    49,
-    64
+    4,
+    14
    ],
+   "glow": true,
    "light_px": [
-    49,
-    42
-   ]
-  },
-  "stairs_up": {
-   "size": [
-    48,
-    48
+    4,
+    5
    ],
-   "origin_feet": [
-    24,
-    47
-   ],
-   "light_px": [
-    24,
-    9
-   ],
-   "note": "3 tiles wide, set into the north wall; walk in at the bottom"
-  },
-  "brazier_unlit": {
-   "size": [
-    18,
-    34
-   ],
-   "origin_feet": [
-    9,
-    32
-   ]
-  },
-  "brazier_lit": {
-   "size": [
-    18,
-    34
-   ],
-   "frames": 3,
-   "fps": 6,
-   "origin_feet": [
-    9,
-    32
-   ],
-   "light_px": [
-    9,
-    9
-   ]
+   "note": "new: by the crate"
   },
   "smith": {
    "frame": [
@@ -300,19 +495,39 @@
   },
   "cage": {
    "size": [
-    48,
-    56
+    36,
+    54
    ],
    "origin_feet": [
-    24,
-    52
+    18,
+    49
    ],
    "files": [
     "cage_back",
     "cage_front",
     "cage_broken"
    ],
-   "note": "draw cage_back, the smith (feet on the same point), then cage_front. cage_broken replaces cage_front once he is freed; keep cage_back."
+   "note": "draw cage_back, the smith (feet on the same point), then cage_front. cage_broken replaces cage_front once he is freed."
+  },
+  "gate": {
+   "size": [
+    56,
+    48
+   ],
+   "origin_feet": [
+    28,
+    47
+   ],
+   "files": [
+    "gate_closed",
+    "gate_open",
+    "gate_opening"
+   ],
+   "opening": {
+    "frames": 4,
+    "fps": 10
+   },
+   "note": "A bronze door that sinks into the floor. gate_open is the flat threshold: draw it under the players."
   }
  },
  "enemies": {
@@ -328,26 +543,31 @@
    "strips": {
     "idle": {
      "frames": 4,
-     "fps": 6
+     "fps": 6,
+     "glow": true
     },
     "move": {
      "frames": 6,
-     "fps": 8
-    },
-    "hit": {
-     "frames": 2,
-     "fps": 12
-    },
-    "death": {
-     "frames": 4,
-     "fps": 8
+     "fps": 8,
+     "glow": true
     },
     "attack": {
      "frames": 3,
-     "fps": 10
+     "fps": 10,
+     "glow": true
+    },
+    "hit": {
+     "frames": 2,
+     "fps": 12,
+     "glow": true
+    },
+    "death": {
+     "frames": 4,
+     "fps": 8,
+     "glow": true
     }
    },
-   "note": "attack: rear up, bite (frame 1 is the hit), recover"
+   "note": "The helm crab: a cave crab living in an old bronze helmet. Front view, so it needs no mirroring. attack: rears up with claws open, snaps (frame 1 is the hit), settles. death ends on the empty helmet."
   },
   "burrower": {
    "frame": [
@@ -361,111 +581,689 @@
    "strips": {
     "idle": {
      "frames": 4,
-     "fps": 6
+     "fps": 6,
+     "glow": false
     },
     "move": {
      "frames": 6,
-     "fps": 10
+     "fps": 10,
+     "glow": false
     },
     "warn": {
      "frames": 2,
-     "fps": 10
+     "fps": 10,
+     "glow": true
     },
     "lunge": {
      "frames": 3,
-     "fps": 14
+     "fps": 14,
+     "glow": true
     },
     "stunned": {
      "frames": 2,
-     "fps": 5
+     "fps": 5,
+     "glow": false
     },
     "hit": {
      "frames": 2,
-     "fps": 12
+     "fps": 12,
+     "glow": true
     },
     "death": {
      "frames": 4,
-     "fps": 8
+     "fps": 8,
+     "glow": true
     }
    },
-   "note": "move = burrowed (only the mound shows). warn loops (red flash). lunge: launch, stretched, land. stunned loops: flopped out, open to hits."
+   "note": "The pike worm: a pale grub wearing an old bronze spearhead. Faces right. move = burrowed (only the mound). warn loops and its pike glows on frame 1. lunge: launch, stretched in the air, land. stunned loops, flopped out. death ends on the dropped spearhead."
   },
   "guardian": {
    "frame": [
-    64,
-    64
+    128,
+    146
    ],
    "origin_feet": [
-    32,
-    58
+    64,
+    136
    ],
    "strips": {
     "dormant": {
      "frames": 1,
-     "fps": 1
+     "fps": 1,
+     "glow": false
     },
     "wake": {
-     "frames": 4,
-     "fps": 6
+     "frames": 5,
+     "fps": 6,
+     "glow": true
     },
     "idle": {
      "frames": 4,
-     "fps": 5
+     "fps": 5,
+     "glow": true
     },
     "move": {
      "frames": 6,
-     "fps": 7
+     "fps": 7,
+     "glow": true
     },
     "telegraph": {
      "frames": 3,
-     "fps": 6
+     "fps": 6,
+     "glow": true
     },
     "slam": {
      "frames": 4,
-     "fps": 12
+     "fps": 12,
+     "glow": true
     },
     "hit": {
      "frames": 2,
-     "fps": 12
-    },
-    "death": {
-     "frames": 6,
-     "fps": 7
+     "fps": 12,
+     "glow": true
     },
     "charge_ready": {
      "frames": 2,
-     "fps": 6
+     "fps": 6,
+     "glow": true
     },
     "charge": {
      "frames": 2,
-     "fps": 12
+     "fps": 12,
+     "glow": true
     },
     "stunned": {
      "frames": 3,
-     "fps": 6
+     "fps": 6,
+     "glow": true
+    },
+    "death": {
+     "frames": 6,
+     "fps": 7,
+     "glow": true
     }
    },
+   "note": "The knight. dormant, stunned and the end of death are in profile facing right (mirror for left); the rest are front views. wake has 5 frames: lit, head lifts, looks up, rises, stands. telegraph: hammer goes up, last frame flashes. slam frame 0 is the impact with the hammer on the floor in front of him. death ends kneeling with the helm on the floor and stays.",
    "slam_at": [
     0,
-    -4
+    4
    ],
-   "slam_radius": 26,
-   "note": "dormant = the statue. telegraph: both fists up, last frame flashes. slam frame 0 is the impact. charge_ready, charge and stunned loop. death's last frame stays as rubble."
+   "slam_radius": 30,
+   "stands_px": 98,
+   "note_size": "He is about 98 px tall standing and 56 px kneeling; the old golem was 64. His body blocks about 44 x 20 px at the feet."
+  }
+ },
+ "lighting": {
+  "ambient": [
+   0.31,
+   0.35,
+   0.53
+  ],
+  "note": "CanvasModulate colour. Lights use lights/light_r<radius>_s<steps>.png at texture_scale 2 (never other scales, or the hatch blurs); pick the radius by file. Colours: warm fire [1.0, 0.60, 0.28], daylight [0.50, 0.78, 0.95], mushrooms [0.20, 0.85, 0.66].",
+  "lights_map_px": {
+   "hearth (awake)": [
+    328,
+    86,
+    "r240",
+    "warm",
+    1.25
+   ],
+   "casting circle (awake)": [
+    328,
+    196,
+    "r64",
+    "warm",
+    0.45
+   ],
+   "brazier": [
+    "feet x",
+    "feet y - 28",
+    "r96 (r64 by the stairs)",
+    "warm",
+    0.7
+   ],
+   "stairs (open)": [
+    456,
+    30,
+    "r128",
+    "day",
+    0.8
+   ],
+   "sleeping guardian": [
+    328,
+    172,
+    "r64",
+    "day",
+    0.75
+   ],
+   "mushrooms": [
+    "x",
+    "y - 4",
+    "r48",
+    "teal",
+    0.55
+   ],
+   "lantern by the crate": [
+    252,
+    972,
+    "r96",
+    [
+     1.0,
+     0.8,
+     0.5
+    ],
+    0.95
+   ],
+   "each player": [
+    "x",
+    "y - 12",
+    "r48",
+    [
+     0.85,
+     0.92,
+     1.0
+    ],
+    0.3
+   ]
+  }
+ },
+ "layout_map_px": {
+  "room4": [
+   {
+    "what": "forge",
+    "feet": [
+     328,
+     110
+    ],
+    "tile": [
+     20.5,
+     6.88
+    ],
+    "change": "moved to the centre of the north wall (was tile 12.5, 6.7)"
+   },
+   {
+    "what": "brazier",
+    "feet": [
+     252,
+     131
+    ],
+    "tile": [
+     15.75,
+     8.19
+    ],
+    "change": "moved: stands over a channel basin"
+   },
+   {
+    "what": "brazier",
+    "feet": [
+     404,
+     131
+    ],
+    "tile": [
+     25.25,
+     8.19
+    ],
+    "change": "moved: stands over a channel basin"
+   },
+   {
+    "what": "brazier",
+    "feet": [
+     422,
+     85
+    ],
+    "tile": [
+     26.38,
+     5.31
+    ],
+    "change": "keep"
+   },
+   {
+    "what": "brazier",
+    "feet": [
+     490,
+     85
+    ],
+    "tile": [
+     30.62,
+     5.31
+    ],
+    "change": "keep"
+   },
+   {
+    "what": "stairs_up",
+    "feet": [
+     456,
+     64
+    ],
+    "tile": [
+     28.5,
+     4.0
+    ],
+    "change": "keep"
+   },
+   {
+    "what": "cage",
+    "feet": [
+     496,
+     186
+    ],
+    "tile": [
+     31.0,
+     11.62
+    ],
+    "change": "keep"
+   },
+   {
+    "what": "guardian",
+    "feet": [
+     328,
+     202
+    ],
+    "tile": [
+     20.5,
+     12.62
+    ],
+    "change": "kneels on the casting circle"
+   },
+   {
+    "what": "guardian_ruin",
+    "feet": [
+     150,
+     292
+    ],
+    "tile": [
+     9.38,
+     18.25
+    ],
+    "change": "new: guardian_death's last frame as a prop"
+   },
+   {
+    "what": "anvil",
+    "feet": [
+     386,
+     150
+    ],
+    "tile": [
+     24.12,
+     9.38
+    ],
+    "change": "new"
+   },
+   {
+    "what": "ingots",
+    "feet": [
+     408,
+     156
+    ],
+    "tile": [
+     25.5,
+     9.75
+    ],
+    "change": "new"
+   },
+   {
+    "what": "coal_heap",
+    "feet": [
+     392,
+     104
+    ],
+    "tile": [
+     24.5,
+     6.5
+    ],
+    "change": "new"
+   },
+   {
+    "what": "trough",
+    "feet": [
+     272,
+     152
+    ],
+    "tile": [
+     17.0,
+     9.5
+    ],
+    "change": "new"
+   },
+   {
+    "what": "bellows",
+    "feet": [
+     274,
+     106
+    ],
+    "tile": [
+     17.12,
+     6.62
+    ],
+    "change": "new"
+   },
+   {
+    "what": "quillon_piece",
+    "feet": [
+     196,
+     128
+    ],
+    "tile": [
+     12.25,
+     8.0
+    ],
+    "change": "new"
+   },
+   {
+    "what": "barrel",
+    "feet": [
+     216,
+     88
+    ],
+    "tile": [
+     13.5,
+     5.5
+    ],
+    "change": "new"
+   },
+   {
+    "what": "barrel",
+    "feet": [
+     202,
+     96
+    ],
+    "tile": [
+     12.62,
+     6.0
+    ],
+    "change": "new"
+   },
+   {
+    "what": "stalagmite_large",
+    "feet": [
+     138,
+     278
+    ],
+    "tile": [
+     8.62,
+     17.38
+    ],
+    "change": "keep"
+   },
+   {
+    "what": "stalagmite_small",
+    "feet": [
+     520,
+     285
+    ],
+    "tile": [
+     32.5,
+     17.81
+    ],
+    "change": "keep"
+   },
+   {
+    "what": "bones_1",
+    "feet": [
+     384,
+     259
+    ],
+    "tile": [
+     24.0,
+     16.19
+    ],
+    "change": "keep"
+   },
+   {
+    "what": "mushrooms_0",
+    "feet": [
+     122,
+     218
+    ],
+    "tile": [
+     7.62,
+     13.62
+    ],
+    "change": "keep"
+   },
+   {
+    "what": "mushrooms_1",
+    "feet": [
+     531,
+     138
+    ],
+    "tile": [
+     33.19,
+     8.62
+    ],
+    "change": "keep"
+   }
+  ],
+  "room1": [
+   {
+    "what": "collapse",
+    "feet": [
+     328,
+     1105
+    ],
+    "tile": [
+     20.5,
+     69.06
+    ],
+    "change": "keep"
+   },
+   {
+    "what": "crate",
+    "feet": [
+     232,
+     986
+    ],
+    "tile": [
+     14.5,
+     61.62
+    ],
+    "change": "keep"
+   },
+   {
+    "what": "lantern",
+    "feet": [
+     252,
+     984
+    ],
+    "tile": [
+     15.75,
+     61.5
+    ],
+    "change": "new"
+   },
+   {
+    "what": "giant_blade",
+    "feet": [
+     396,
+     1004
+    ],
+    "tile": [
+     24.75,
+     62.75
+    ],
+    "change": "new"
+   },
+   {
+    "what": "sail",
+    "feet": [
+     197,
+     1030
+    ],
+    "tile": [
+     12.31,
+     64.38
+    ],
+    "change": "keep"
+   },
+   {
+    "what": "planks",
+    "feet": [
+     266,
+     1050
+    ],
+    "tile": [
+     16.62,
+     65.62
+    ],
+    "change": "keep"
+   },
+   {
+    "what": "planks",
+    "feet": [
+     408,
+     1014
+    ],
+    "tile": [
+     25.5,
+     63.38
+    ],
+    "change": "keep"
+   },
+   {
+    "what": "barrel",
+    "feet": [
+     186,
+     966
+    ],
+    "tile": [
+     11.62,
+     60.38
+    ],
+    "change": "keep"
+   },
+   {
+    "what": "barrel",
+    "feet": [
+     438,
+     1061
+    ],
+    "tile": [
+     27.38,
+     66.31
+    ],
+    "change": "keep"
+   },
+   {
+    "what": "rubble_0",
+    "feet": [
+     278,
+     1086
+    ],
+    "tile": [
+     17.38,
+     67.88
+    ],
+    "change": "keep"
+   },
+   {
+    "what": "rubble_1",
+    "feet": [
+     390,
+     1082
+    ],
+    "tile": [
+     24.38,
+     67.62
+    ],
+    "change": "keep"
+   },
+   {
+    "what": "stalagmite_small",
+    "feet": [
+     472,
+     954
+    ],
+    "tile": [
+     29.5,
+     59.62
+    ],
+    "change": "keep"
+   },
+   {
+    "what": "bones_0",
+    "feet": [
+     362,
+     950
+    ],
+    "tile": [
+     22.62,
+     59.38
+    ],
+    "change": "keep"
+   },
+   {
+    "what": "mushrooms_0",
+    "feet": [
+     483,
+     979
+    ],
+    "tile": [
+     30.19,
+     61.19
+    ],
+    "change": "keep"
+   },
+   {
+    "what": "mushrooms_1",
+    "feet": [
+     170,
+     941
+    ],
+    "tile": [
+     10.62,
+     58.81
+    ],
+    "change": "keep"
+   }
+  ],
+  "channels": {
+   "casting_circle": [
+    328,
+    196
+   ],
+   "basins": [
+    [
+     328,
+     196
+    ],
+    [
+     186,
+     226
+    ],
+    [
+     470,
+     226
+    ],
+    [
+     252,
+     125
+    ],
+    [
+     404,
+     125
+    ]
+   ],
+   "pedestal": [
+    328,
+    477
+   ],
+   "note": "painted into the ground; listed so props and fights can line up with them"
   }
  },
  "fx": {
   "slam_impact": {
-   "frames": 5,
+   "frames": 6,
    "frame": [
-    64,
-    64
+    96,
+    96
    ],
    "fps": 14,
    "origin": [
-    32,
-    32
+    48,
+    48
    ],
-   "note": "at the guardian's feet + slam_at"
+   "note": "at the guardian's feet + slam_at; NOT additive, drawn on the floor; the hit circle is 28 px radius, so size = radius / 56 still holds. slam_impact_glow.png = the ember in the cracks, draw it unshaded on top",
+   "glow": true
   },
   "dust_puff": {
    "frames": 4,
@@ -473,11 +1271,12 @@
     16,
     16
    ],
-   "fps": 12,
+   "fps": 14,
    "origin": [
     8,
     10
-   ]
+   ],
+   "note": "same size, frames and origin as before"
   }
  },
  "ui": {

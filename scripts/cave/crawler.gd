@@ -17,6 +17,7 @@ var bitten := false
 func _setup() -> void:
 	kind = "crawler"
 	art_set = "cave"
+	lift = 1.7   # the rooms they live in are dark
 	max_hp = 14.0
 	speed = 50.0
 	radius = 11.0
@@ -29,6 +30,11 @@ func _setup() -> void:
 func _set_mode(m: String, time: float) -> void:
 	mode = m
 	mode_t = time
+
+
+## The helm crab is drawn from the front, so it never needs mirroring.
+func _flip(_anim: String) -> bool:
+	return false
 
 
 func _think(delta: float) -> Vector2:

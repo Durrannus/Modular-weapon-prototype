@@ -32,6 +32,7 @@ var forge_wait := 0
 var finished := false
 var shot_queue: Array = []
 var hits_taken := 0
+var hits_by_stage := {}
 var last_hp: Array = []
 
 
@@ -160,7 +161,7 @@ func _fight(i: int) -> void:
 	# Step out of the way of anything about to land.
 	for h in get_nodes_in_group("hazards"):
 		if h.shape == "circle" and h.global_position.distance_to(p.global_position) < h.radius + 30.0 and h.t > h.delay - 0.35:
-			inp.move = (p.global_position - h.global_position).normalized()
+			inp.move = _escape(p, h.global_position)
 			if p.dodge_charges > 0:
 				inp.dash_pressed = true
 			return
@@ -189,6 +190,18 @@ func _fight(i: int) -> void:
 		inp.attack_held = true
 		if p.current_step < 0:
 			inp.attack_pressed = true
+
+
+## The way out of a circle: straight away from its middle, unless a wall is in
+## the way, in which case the nearest open direction to that.
+func _escape(p, from: Vector2) -> Vector2:
+	var away: Vector2 = p.global_position - from
+	away = away.normalized() if away.length() > 1.0 else Vector2.DOWN
+	for turn in [0.0, 0.8, -0.8, 1.57, -1.57, 2.36, -2.36, 3.14]:
+		var dir := away.rotated(turn)
+		if not p.test_move(p.global_transform, dir * 70.0):
+			return dir
+	return away
 
 
 func _all_go(target: Vector2, spread := 40.0) -> bool:
@@ -221,6 +234,7 @@ func _tick() -> void:
 		var p = m.players[i]
 		if p.hp < last_hp[i]:
 			hits_taken += 1
+			hits_by_stage[m.stage] = int(hits_by_stage.get(m.stage, 0)) + 1
 		if not mortal:
 			p.hp = maxf(p.hp, 60.0)
 		last_hp[i] = p.hp
@@ -299,7 +313,7 @@ func _tick() -> void:
 			for i in m.players.size():
 				if i != who:
 					m.players[i].input.move = Vector2.ZERO
-			if _go(who, Vector2(12.5, 8.4) * T, 22.0) and frame % 10 == 0:
+			if _go(who, Vector2(20.5, 7.75) * T, 22.0) and frame % 10 == 0:
 				forge_step = 0
 				_press(who, "interact")
 		"boss_wake", "boss_dead":
@@ -369,6 +383,7 @@ func _done(ok: bool) -> void:
 		ok = false
 	if ok and missing.is_empty():
 		print("PASS: %d player(s) finished the cave in %.0f s of game time (%d hits taken, %d knock-outs)" % [n_players, m.run_time, hits_taken, m.knockouts])
+		print("  hits by stage: %s" % str(hits_by_stage))
 		for i in m.players.size():
 			print("  P%d sword: %s + %s %s" % [i + 1, m.builds[i].blade, m.builds[i].grip, str(m.builds[i].line)])
 	else:

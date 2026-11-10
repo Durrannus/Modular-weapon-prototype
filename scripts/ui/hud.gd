@@ -1,7 +1,8 @@
 extends CanvasLayer
-## On-screen info. Each player gets a small panel (health and dodge) in a top
-## corner and their swing path in the bottom corner. The test arena also shows
-## kills, the chain and the control hints.
+## On-screen info, drawn from the art in art/hud at the game's own 640x360.
+## Each player gets a health bar and dodge pips in a top corner and their swing
+## path in the bottom corner. The test arena also shows kills, the chain and the
+## control hints.
 
 var player = null          # player one
 var players: Array = []
@@ -10,37 +11,90 @@ var spawning := true
 var mode := "arena"        # "arena" or "cave"
 var panel: Control
 var pause_button: Button
+var trail: Array = []      # per player: the pale bar that trails behind lost health, 0..1
 
 signal pause_pressed
 
+const Art := preload("res://scripts/art.gd")
 const SwingBuild := preload("res://scripts/weapon/swing_build.gd")
-const PLAYER_COLORS := [Color("#5fb8ff"), Color("#ff9a4a"), Color("#8fe08a"), Color("#e08ad8")]
+const PLAYER_COLORS := Art.PLAYER_COLORS
+const INK := Color("#e8e4bc")
+const DIM := Color("#8ba688")
+const FAINT := Color("#5f8072")
+const AMBER := Color("#ffc850")
+const TEAL := Color("#86d4a4")
+const VIOLET := Color("#a878d0")
+const EMBER := Color("#f06a40")
+const PLATE := Color("#19142a")
+const SHADE := Color(0.098, 0.078, 0.165, 0.5)   # PLATE, half see-through
+const SIZE := Vector2(640, 360)
+const MARGIN := 10.0
+const BAR := Vector2(92, 12)       # hp_frame.png
+const FILL_AT := Vector2(6, 3)     # where the bar itself sits inside the frame
+const FILL := Vector2(80, 6)
+const CHIP_H := 14.0
 
 
 func _ready() -> void:
 	layer = 5
 	panel = Control.new()
-	# UI is laid out at 1280x720 and drawn at half scale onto the 640x360 screen,
-	# which the window then doubles, so text stays sharp.
-	scale = Vector2(0.5, 0.5)
-	panel.size = Vector2(1280, 720)
+	panel.size = SIZE
 	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(panel)
 	panel.draw.connect(_draw_hud)
 	# Clickable spawn pause, top right (P / Start does the same). Arena only.
 	pause_button = Button.new()
-	pause_button.position = Vector2(1280 - 250, 16)
-	pause_button.size = Vector2(230, 44)
+	pause_button.size = Vector2(126, 18)
+	pause_button.position = Vector2(SIZE.x - MARGIN - pause_button.size.x, 6)
 	pause_button.focus_mode = Control.FOCUS_NONE
-	pause_button.add_theme_font_size_override("font_size", 18)
+	var f := Art.font("Silkscreen-Regular")
+	if f != null:
+		pause_button.add_theme_font_override("font", f)
+	pause_button.add_theme_font_size_override("font_size", 8)
+	var idle := Art.nine("swing/ui/button.png", 3)
+	var hot := Art.nine("swing/ui/button_hot.png", 3)
+	if idle != null and hot != null:
+		pause_button.add_theme_stylebox_override("normal", idle)
+		pause_button.add_theme_stylebox_override("hover", hot)
+		pause_button.add_theme_stylebox_override("pressed", hot)
+		pause_button.add_theme_color_override("font_color", INK)
+		pause_button.add_theme_color_override("font_hover_color", PLATE)
+		pause_button.add_theme_color_override("font_pressed_color", PLATE)
+		pause_button.add_theme_color_override("font_hover_pressed_color", PLATE)
 	pause_button.pressed.connect(func(): pause_pressed.emit())
 	panel.add_child(pause_button)
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	pause_button.visible = mode == "arena" and players.size() <= 1
-	pause_button.text = "Pause enemies (P)" if spawning else "Resume enemies (P)"
+	pause_button.text = "PAUSE ENEMIES (P)" if spawning else "RESUME ENEMIES (P)"
+	# Lost health lingers as a pale bar for a moment, then drains away.
+	trail.resize(players.size())
+	for i in players.size():
+		var p = players[i]
+		if not is_instance_valid(p):
+			continue
+		var frac := clampf(p.hp / p.max_hp, 0.0, 1.0)
+		trail[i] = maxf(frac, (trail[i] if trail[i] != null else frac) - delta * 0.45)
 	panel.queue_redraw()
+
+
+func _head(text: String, pos: Vector2, col: Color, size := 8, width := -1.0, align := HORIZONTAL_ALIGNMENT_LEFT) -> void:
+	panel.draw_string(Art.font("Silkscreen-Regular"), pos, text.to_upper(), align, width, size, col)
+
+
+func _head_width(text: String) -> float:
+	return ceilf(Art.font("Silkscreen-Regular").get_string_size(text.to_upper(), HORIZONTAL_ALIGNMENT_LEFT, -1, 8).x)
+
+
+## One cell of a row of chips. `look` is the chip image: "", "rune", "band", "empty" or "fired".
+func _chip(text: String, x: float, y: float, w: float, look: String, col: Color, tint := Color.WHITE) -> void:
+	var file := "hud/chip.png" if look == "" else "hud/chip_%s.png" % look
+	if not Art.draw_nine(panel, file, Rect2(x, y, w, CHIP_H), 4, tint):
+		panel.draw_rect(Rect2(x, y, w, CHIP_H), Color(PLATE.r, PLATE.g, PLATE.b, tint.a))
+		panel.draw_rect(Rect2(x, y, w, CHIP_H), Color(col.r, col.g, col.b, tint.a), false, 1.0)
+	if text != "":
+		_head(text, Vector2(x + 5, y + 10), col)
 
 
 func _draw_hud() -> void:
@@ -48,8 +102,6 @@ func _draw_hud() -> void:
 		players = [player]
 	if players.is_empty():
 		return
-	var font := ThemeDB.fallback_font
-	var size := panel.size
 	var many := players.size() > 1
 
 	for i in players.size():
@@ -57,72 +109,95 @@ func _draw_hud() -> void:
 		if not is_instance_valid(p):
 			continue
 		var right := i % 2 == 1
-		var x := size.x - 260.0 if right else 20.0
-		var y := 20.0
-		var tag: Color = PLAYER_COLORS[i % PLAYER_COLORS.size()]
-		# Health
-		var hp_frac := clampf(p.hp / p.max_hp, 0.0, 1.0)
-		panel.draw_rect(Rect2(x, y, 240, 18), Color(0, 0, 0, 0.6))
-		panel.draw_rect(Rect2(x, y, 240 * hp_frac, 18), Color(0.85, 0.25, 0.3))
-		var hp_text := "HP %d / %d" % [roundi(p.hp), roundi(p.max_hp)]
+		var lead := 26.0 if many else 0.0     # room for the pennant and "P1"
+		var x := SIZE.x - MARGIN - lead - BAR.x if right else MARGIN
+		var y := 7.0
+		var who: Color = PLAYER_COLORS[i % PLAYER_COLORS.size()]
+		var side := "a" if i % 2 == 0 else "b"
+		# A soft dark backing, so the words and pips read over bright floor.
+		panel.draw_rect(Rect2(x - 4, y - 3, lead + BAR.x + 8, 29), SHADE)
 		if many:
-			hp_text = "P%d  %s" % [i + 1, hp_text]
-			panel.draw_rect(Rect2(x - 6, y, 4, 18), tag)
+			var tag := Art.texture("hud/tag_%s.png" % side)
+			if tag != null:
+				panel.draw_texture(tag, Vector2(x, y))
+			else:
+				panel.draw_rect(Rect2(x, y, 4, 12), who)
+			_head("P%d" % (i + 1), Vector2(x + 9, y + 10), who)
+		var bar := Vector2(x + lead, y)
+		# Health: the frame, the pale trail of what was just lost, then what's left.
+		var frac := clampf(p.hp / p.max_hp, 0.0, 1.0)
+		var frame := Art.texture("hud/hp_frame.png")
+		if frame != null:
+			panel.draw_texture(frame, bar)
+		else:
+			panel.draw_rect(Rect2(bar, BAR), Color(0, 0, 0, 0.6))
+		var was: float = trail[i] if i < trail.size() and trail[i] != null else frac
+		var lost := Art.texture("hud/hp_lost.png")
+		if lost != null and was > frac:
+			var lw := roundf(FILL.x * was)
+			panel.draw_texture_rect_region(lost, Rect2(bar + FILL_AT, Vector2(lw, FILL.y)), Rect2(0, 0, lw, FILL.y))
+		var fill := Art.texture("hud/hp_fill_%s.png" % side)
+		var fw := ceilf(FILL.x * frac)
+		if fill != null:
+			panel.draw_texture_rect_region(fill, Rect2(bar + FILL_AT, Vector2(fw, FILL.y)), Rect2(0, 0, fw, FILL.y))
+		else:
+			panel.draw_rect(Rect2(bar + FILL_AT, Vector2(fw, FILL.y)), who)
+		_head("%d" % roundi(p.hp), Vector2(bar.x + 40, y + 22), FAINT, 8, 50, HORIZONTAL_ALIGNMENT_RIGHT)
+		# Dodge charges, or the bad news.
 		if p.is_down:
-			hp_text = "P%d  knocked out" % (i + 1) if many else "Knocked out"
-		panel.draw_string(font, Vector2(x + 6, y + 14), hp_text, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color.WHITE)
-		# Dodge charges
-		var dodge_y := y + 40.0
-		panel.draw_string(font, Vector2(x, dodge_y), "Dodge", HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(0.75, 0.78, 0.85))
-		for d in maxi(p.DODGE_MAX_CHARGES, p.dodge_charges):
-			var full: bool = d < p.dodge_charges
-			var c := Color(0.5, 0.85, 1.0) if full else Color(0.3, 0.32, 0.38)
-			panel.draw_circle(Vector2(x + 52 + d * 16, dodge_y - 5), 6.0, c)
-		if p.dodge_charges < p.DODGE_MAX_CHARGES:
-			var frac: float = p.dodge_refill / p.DODGE_REFILL
-			panel.draw_arc(Vector2(x + 52 + p.dodge_charges * 16, dodge_y - 5), 6.0, -PI * 0.5, -PI * 0.5 + TAU * frac, 16, Color(0.5, 0.85, 1.0), 2.0)
+			_head("Knocked out", Vector2(bar.x + 2, y + 22), EMBER)
+		else:
+			var full_pip := Art.texture("hud/pip_full.png")
+			var empty_pip := Art.texture("hud/pip_empty.png")
+			for d in maxi(p.DODGE_MAX_CHARGES, p.dodge_charges):
+				var at := Vector2(bar.x + 2 + d * 10, y + 15)
+				var have: bool = d < p.dodge_charges
+				if full_pip == null or empty_pip == null:
+					panel.draw_circle(at + Vector2(4, 4), 3.0, TEAL if have else FAINT)
+					continue
+				panel.draw_texture(full_pip if have else empty_pip, at)
+				# The next charge fills in as it comes back.
+				if d == p.dodge_charges and p.dodge_charges < p.DODGE_MAX_CHARGES:
+					var back: float = clampf(p.dodge_refill / p.DODGE_REFILL, 0.0, 1.0)
+					panel.draw_texture(full_pip, at, Color(1, 1, 1, back * 0.55))
 		_draw_path(p, i, right)
 
 	if mode == "arena":
-		var y := 84.0
-		panel.draw_string(font, Vector2(20, y), "Kills: %d" % kills, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color(0.9, 0.9, 0.9))
+		_head("Kills %d" % kills, Vector2(MARGIN, 46), INK)
 		if not spawning:
-			panel.draw_string(font, Vector2(20, y + 22), "Enemies paused (P / Start)", HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(1, 0.8, 0.4))
+			_head("Enemies paused (P / Start)", Vector2(MARGIN, 58), AMBER)
 		if player.knocked_out_timer > 0.0:
-			panel.draw_string(font, Vector2(0, 140), "Knocked out! Back to the start.", HORIZONTAL_ALIGNMENT_CENTER, size.x, 26, Color(1, 0.5, 0.5))
+			_head("Knocked out! Back to the start.", Vector2(0, 84), EMBER, 16, SIZE.x, HORIZONTAL_ALIGNMENT_CENTER)
 		if not many:
 			_draw_chain(player)
 			var hint := "Tab / Y: forge    Click / X: attack    Space / A: dodge"
-			panel.draw_string(font, Vector2(0, size.y - 16), hint, HORIZONTAL_ALIGNMENT_RIGHT, size.x - 20, 14, Color(0.7, 0.72, 0.8))
+			panel.draw_string(Art.font("PixelifySans-Regular"), Vector2(0, SIZE.y - 8), hint, HORIZONTAL_ALIGNMENT_RIGHT, SIZE.x - MARGIN, 11, DIM)
 
 
-## The blade's chain along the bottom; the last hit is the finisher. (Arena, one player.)
+## The blade's chain above the swing path; the last hit is the finisher. (Arena, one player.)
 func _draw_chain(p) -> void:
-	var font := ThemeDB.fallback_font
 	var steps: Array = p.weapon.get("steps", [])
-	var x := 20.0
-	var y := panel.size.y - 110.0
-	panel.draw_string(font, Vector2(x, y - 10), "Chain", HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(0.75, 0.78, 0.85))
+	var x := MARGIN
+	var y := SIZE.y - 54.0
+	_head("Chain", Vector2(x, y - 5), DIM)
 	for i in steps.size():
 		var label: String = steps[i]["move"]
 		if i == steps.size() - 1:
-			label += "  (finisher)"
-		var w := font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x + 24.0
+			label += " (finisher)"
+		var w := _head_width(label) + 10.0
 		var active: bool = p.current_step == i
 		var next: bool = p.current_step < 0 and p.step_index == i and p.step_index > 0
-		var bg := Color(0.2, 0.22, 0.28, 0.85)
 		if active:
-			bg = Color(0.95, 0.75, 0.3, 0.95)
+			_chip(label, x, y, w, "fired", PLATE)
 		elif next:
-			bg = Color(0.35, 0.38, 0.48, 0.95)
-		panel.draw_rect(Rect2(x, y, w, 30), bg)
-		panel.draw_string(font, Vector2(x + 12, y + 21), label, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color.BLACK if active else Color.WHITE)
-		x += w + 8.0
+			_chip(label, x, y, w, "", INK)
+		else:
+			_chip(label, x, y, w, "empty", DIM)
+		x += w + 4.0
 
 
 ## The swing path, bottom of the grip to the tip; slots light up when they fire.
 func _draw_path(p, i: int, right: bool) -> void:
-	var font := ThemeDB.fallback_font
 	var line: Array = p.weapon.get("line", [])
 	if line.is_empty() or not p.weapon.has("blade"):
 		return
@@ -133,37 +208,37 @@ func _draw_path(p, i: int, right: bool) -> void:
 	for s in line.size():
 		var id: String = line[s]
 		var label := "empty" if id == "" else str(SwingBuild.FITTINGS[id]["name"])
-		var w := font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, 15).x + 20.0
+		var w := _head_width(label) + 10.0
 		cells.append([label, w])
-		total += w + (18.0 if s < line.size() - 1 else 0.0)
-	var x := panel.size.x - 20.0 - total if right else 20.0
-	var y := panel.size.y - 62.0
-	var title := "Swing path (grip to tip)"
+		total += w + (10.0 if s < line.size() - 1 else 0.0)
+	var x := SIZE.x - MARGIN - total if right else MARGIN
+	var y := SIZE.y - 20.0
+	var title := "Swing path"
 	if players.size() > 1:
 		title = "P%d swing path" % (i + 1)
 	var title_x := x
 	if right:
-		title_x = minf(x, panel.size.x - 20.0 - font.get_string_size(title, HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x)
-	panel.draw_string(font, Vector2(title_x, y - 8), title, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(0.75, 0.78, 0.85))
+		title_x = minf(x, SIZE.x - MARGIN - _head_width(title))
+	panel.draw_rect(Rect2(title_x - 4, y - 14, _head_width(title) + 8, 12), SHADE)
+	_head(title, Vector2(title_x, y - 5), DIM)
 	for s in line.size():
 		var id: String = line[s]
 		var label: String = cells[s][0]
 		var w: float = cells[s][1]
-		var col := Color(0.25, 0.26, 0.3, 0.85)
-		var text_col := Color(0.6, 0.62, 0.68)
-		if id != "":
-			col = SwingBuild.FITTINGS[id]["color"]
-			col = col.darkened(0.55) if not info.get(s, {}).has("unused") else Color(0.2, 0.2, 0.22)
-			text_col = Color.WHITE
+		var look := "empty"
+		var col := FAINT
+		if id != "" and not info.get(s, {}).has("unused"):
+			var kind: String = SwingBuild.FITTINGS[id]["kind"]
+			look = "rune" if kind == "rune" else ("band" if kind == "band" else "")
+			col = AMBER if kind == "rune" else (TEAL if kind == "band" else VIOLET)
+		_chip(label, x, y, w, look, col)
+		# It flashes ember, with dark words, as it fires.
 		var since: float = p.game_time - float(p.slot_flash.get(s, -99.0))
 		var glow := clampf(1.0 - since / 0.45, 0.0, 1.0)
 		if glow > 0.0 and id != "":
-			col = col.lerp(SwingBuild.FITTINGS[id]["color"].lightened(0.4), glow)
-			text_col = text_col.lerp(Color.BLACK, glow)
-			panel.draw_rect(Rect2(x - 4, y - 4, w + 8, 36), Color(1, 1, 1, 0.35 * glow))
-		panel.draw_rect(Rect2(x, y, w, 28), col)
-		panel.draw_string(font, Vector2(x + 10, y + 20), label, HORIZONTAL_ALIGNMENT_LEFT, -1, 15, text_col)
-		x += w + 6.0
+			_chip("", x, y, w, "fired", PLATE, Color(1, 1, 1, glow))
+			_head(label, Vector2(x + 5, y + 10), Color(PLATE.r, PLATE.g, PLATE.b, glow))
+		x += w
 		if s < line.size() - 1:
-			panel.draw_string(font, Vector2(x - 2, y + 20), ">", HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color(0.6, 0.62, 0.7))
-			x += 12.0
+			_head(">", Vector2(x + 3, y + 10), FAINT)
+			x += 10.0

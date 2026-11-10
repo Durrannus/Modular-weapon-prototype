@@ -142,10 +142,14 @@ func _forge_hotkey_player() -> int:
 	return 0
 
 
-func _add_light(pos: Vector2, col: Color, energy: float, size: float) -> PointLight2D:
+## A light from the art's stepped set. radius is in art pixels: 48, 64, 96, 128 or 240.
+func _add_light(pos: Vector2, col: Color, energy: float, radius: int) -> PointLight2D:
 	var light := PointLight2D.new()
-	light.texture = Art.light_texture()
-	light.texture_scale = size
+	light.texture = Art.stepped_light(radius)
+	light.texture_scale = Art.PIXEL
+	if light.texture == null:
+		light.texture = Art.light_texture()
+		light.texture_scale = float(radius) / 50.0
 	light.color = col
 	light.energy = energy
 	light.position = pos
@@ -173,7 +177,7 @@ func _unhandled_input(event: InputEvent) -> void:
 func _set_cursor() -> void:
 	var px := 9
 	var img := Image.create(px, px, false, Image.FORMAT_RGBA8)
-	var ink := Color("#fff3c4")
+	var ink := Color("#fff0b4")
 	var edge := Color(0.05, 0.04, 0.06)
 	for i in px:
 		for j in px:

@@ -9,6 +9,7 @@ extends Node2D
 ##   "text"   floating label, like "+DODGE"
 
 const Art := preload("res://scripts/art.gd")
+const SwordArt := preload("res://scripts/weapon/sword_art.gd")
 
 var kind := "wave"
 var color := Color(1.0, 0.72, 0.25)
@@ -94,9 +95,12 @@ func _draw() -> void:
 	var fade := 1.0 - k
 	match kind:
 		"wave" when Art.texture("swing/fx/shockwave_wave.png") != null:
+			# The strip fades itself out (a hatch dissolve drawn into the frames), so it plays at full strength.
 			var tex := Art.texture("swing/fx/shockwave_wave.png")
-			var frame := mini(int(k * 6.0), 5)
-			Art.draw_strip(self, tex, 6, frame, Vector2.ZERO, Vector2(0, 32), false, Color(1, 1, 1, minf(fade * 2.0, 1.0)), Art.PIXEL * size)
+			var info: Dictionary = SwordArt.data().get("fx", {}).get("shockwave_wave", {})
+			var n := int(info.get("frames", 6))
+			var o: Array = info.get("origin", [50, 44])
+			Art.draw_strip(self, tex, n, mini(int(k * n), n - 1), Vector2.ZERO, Vector2(o[0], o[1]), false, Color.WHITE, Art.PIXEL * size)
 		"chain" when Art.texture("swing/fx/chain_link.png") != null:
 			if not is_instance_valid(from_node) or not is_instance_valid(to_node):
 				return
@@ -172,11 +176,11 @@ func _draw() -> void:
 			c.a = fade * 0.25
 			draw_circle(Vector2.ZERO, lerpf(20.0, 140.0 * size, k), c)
 		"text":
-			var font := ThemeDB.fallback_font
+			var font := Art.font("PixelifySans-Bold")
 			var c := color
 			c.a = fade
-			draw_string_outline(font, Vector2(-80, 0), text, HORIZONTAL_ALIGNMENT_CENTER, 160, 22, 6, Color(0, 0, 0, fade))
-			draw_string(font, Vector2(-80, 0), text, HORIZONTAL_ALIGNMENT_CENTER, 160, 22, c)
+			draw_string_outline(font, Vector2(-120, 0), text, HORIZONTAL_ALIGNMENT_CENTER, 240, 26, 8, Color(0.06, 0.04, 0.09, fade))
+			draw_string(font, Vector2(-120, 0), text, HORIZONTAL_ALIGNMENT_CENTER, 240, 26, c)
 
 
 ## A curved band facing +x (the node is rotated to the wave's direction).

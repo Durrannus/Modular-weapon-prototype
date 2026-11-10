@@ -24,6 +24,7 @@ var hit_someone := false
 func _setup() -> void:
 	kind = "burrower"
 	art_set = "cave"
+	lift = 1.7   # the rooms they live in are dark
 	max_hp = 18.0
 	speed = 105.0
 	radius = 12.0

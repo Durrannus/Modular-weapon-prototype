@@ -64,6 +64,7 @@ var frozen := false            # a dialogue or cutscene has the controls
 var is_down := false           # knocked out and waiting to get back up
 var auto_respawn := true       # get straight back up at spawn_point (the test arena)
 var show_marker := false       # coloured ring under the feet (two players)
+var light: PointLight2D     # the small light the player carries
 var interact_ready := false    # standing at something usable: A on a controller uses it and doesn't dodge
 
 ## Screen shake goes to the shared camera.
@@ -181,12 +182,14 @@ func _ready() -> void:
 	weapon_layer = Node2D.new()
 	weapon_group.add_child(weapon_layer)
 	weapon_layer.draw.connect(_draw_weapon)
-	# A soft light that follows the player, so the sword's colours read in the dark.
-	var light := PointLight2D.new()
-	light.texture = Art.light_texture()
-	light.texture_scale = 2.4
-	light.energy = 0.6
-	light.color = Color(0.95, 0.9, 1.0)
+	# A small cool light that follows the player, so they read in the darkest corner.
+	light = PointLight2D.new()
+	var stepped := Art.stepped_light(64)
+	light.texture = stepped if stepped != null else Art.light_texture()
+	light.texture_scale = Art.PIXEL if stepped != null else 2.4
+	light.energy = 0.55
+	light.color = Color(0.85, 0.92, 1.0)
+	light.position = Vector2(0, -10)
 	add_child(light)
 
 
@@ -688,7 +691,11 @@ func _fire_rune(q: Dictionary) -> void:
 			var spin := _strip("whirlwind_spin", global_position, aim_dir.angle(), w.size / (36.0 * Art.PIXEL))
 			if spin != null:
 				spin.follow = self
+				# Mirrored, the strip would start behind you: turn it half round so it
+				# starts at the aim, the same place the hits start.
 				spin.flip = swing_side > 0.0
+				if spin.flip:
+					spin.angle += PI
 				w.drawn = false
 			_fx_root().add_child(w)
 			w.global_position = global_position
@@ -1006,7 +1013,6 @@ static func _facing_of(d: Vector2) -> String:
 
 # --- Drawing ------------------------------------------------------------------
 
-const MARKER_COLORS := [Color("#5fb8ff"), Color("#ff9a4a"), Color("#8fe08a"), Color("#e08ad8")]
 
 
 func _draw() -> void:
@@ -1015,7 +1021,7 @@ func _draw() -> void:
 	draw_circle(Vector2.ZERO, 15.0, Color(0, 0, 0, 0.3))  # shadow
 	if show_marker:
 		# Two players: a coloured ring under the feet says who is who.
-		var mc: Color = MARKER_COLORS[index % MARKER_COLORS.size()]
+		var mc: Color = Art.PLAYER_COLORS[index % Art.PLAYER_COLORS.size()]
 		mc.a = 0.45 if is_down else 0.9
 		draw_arc(Vector2.ZERO, 17.0, 0.0, TAU, 24, mc, 2.0)
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)

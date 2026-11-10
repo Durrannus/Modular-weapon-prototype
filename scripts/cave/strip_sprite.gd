@@ -4,6 +4,7 @@ extends Node2D
 ## y-sort lines up with the players (whose position is their middle, not their feet).
 
 const Art := preload("res://scripts/art.gd")
+const Glow := preload("res://scripts/glow.gd")
 const SORT_BIAS := 14.0
 
 signal finished
@@ -16,20 +17,45 @@ var loop := true
 var playing := true
 var flip := false
 var tint := Color.WHITE
+var fixed_frame := -1        # 0 or more: always show this frame of the strip
+var glow_on := true          # false hides the glowing pixels (an unlit stair, say)
 var t := 0.0
 var _done := false
+var _glow_tex: Texture2D
+var _glow: Node2D
 
 
 ## Set the image. `rel` is a path under art/ (e.g. "cave/barrel.png").
 func show_strip(rel: String, frames_ := 1, fps_ := 6.0, loop_ := true) -> void:
 	texture = Art.texture(rel)
+	_glow_tex = Art.glow_texture(rel)
 	frames = maxi(frames_, 1)
 	fps = fps_
 	loop = loop_
 	t = 0.0
 	_done = false
 	playing = true
+	refresh()
+
+
+## Call after changing flip, glow_on or fixed_frame by hand.
+func refresh() -> void:
 	queue_redraw()
+	if _glow_tex == null and _glow == null:
+		return
+	if _glow == null:
+		_glow = Glow.new()
+		add_child(_glow)
+	_glow.put(_glow_tex if glow_on else null, frames, _frame(), Vector2(0, SORT_BIAS), origin, flip)
+
+
+func _frame() -> int:
+	if fixed_frame >= 0:
+		return fixed_frame
+	var frame := int(t * fps)
+	if not loop:
+		frame = mini(frame, frames - 1)
+	return frame
 
 
 func _process(delta: float) -> void:
@@ -39,13 +65,10 @@ func _process(delta: float) -> void:
 	if not loop and not _done and t * fps >= float(frames):
 		_done = true
 		finished.emit()
-	queue_redraw()
+	refresh()
 
 
 func _draw() -> void:
 	if texture == null:
 		return
-	var frame := int(t * fps)
-	if not loop:
-		frame = mini(frame, frames - 1)
-	Art.draw_strip(self, texture, frames, frame, Vector2(0, SORT_BIAS), origin, flip, tint)
+	Art.draw_strip(self, texture, frames, _frame(), Vector2(0, SORT_BIAS), origin, flip, tint)

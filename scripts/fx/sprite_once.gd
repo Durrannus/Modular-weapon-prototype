@@ -5,8 +5,11 @@ extends Node2D
 ## and velocity / follow to move it.
 
 const Art := preload("res://scripts/art.gd")
+const Glow := preload("res://scripts/glow.gd")
 
 var texture: Texture2D
+var glow_texture: Texture2D   # optional: the strip's glowing pixels, kept bright in the dark
+var _glow: Node2D
 var frames := 1
 var fps := 8.0
 var origin := Vector2.ZERO
@@ -32,6 +35,10 @@ func _ready() -> void:
 		var m := CanvasItemMaterial.new()
 		m.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
 		material = m
+	if glow_texture != null:
+		_glow = Glow.new()
+		add_child(_glow)
+		_glow.put(glow_texture, frames, 0, feet, origin, flip, Art.PIXEL * size, angle)
 
 
 func _process(delta: float) -> void:
@@ -45,14 +52,21 @@ func _process(delta: float) -> void:
 		if is_instance_valid(follow):
 			global_position = follow.global_position + follow_offset
 	queue_redraw()
+	if _glow != null:
+		_glow.put(glow_texture, frames, _frame(), feet, origin, flip, Art.PIXEL * size, angle)
+
+
+func _frame() -> int:
+	var frame := int(t * fps)
+	if life <= 0.0:
+		frame = mini(frame, frames - 1)
+	return frame
 
 
 func _draw() -> void:
 	if texture == null:
 		return
-	var frame := int(t * fps)
-	if life <= 0.0:
-		frame = mini(frame, frames - 1)
+	var frame := _frame()
 	var tint := Color.WHITE
 	if fade_out and life > 0.0:
 		tint.a = clampf(1.0 - t / life, 0.0, 1.0) * 1.5

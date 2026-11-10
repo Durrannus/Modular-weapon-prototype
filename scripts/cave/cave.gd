@@ -7,8 +7,12 @@ extends "res://scripts/game_base.gd"
 ##   Room 4  the forge     fitting the rune wakes the guardian; beat it, free the
 ##                         smith, forge the tin sword, take the stairs up
 ##
-## The map is a grid of rock and floor built in code (see _carve). One or two
-## players; enemy numbers and the boss scale with the number of players.
+## The map is a grid of rock and floor built in code (see _carve). The ground the
+## players see is one painted image made from that same map (art/cave/cave_ground.png).
+## One or two players; enemy numbers and the boss scale with the number of players.
+##
+## The art is drawn in flat, unlit colours. The mood comes from a dark tint over
+## everything, the art's stepped lights, and "glow" layers that the tint skips.
 
 const Crawler := preload("res://scripts/cave/crawler.gd")
 const Burrower := preload("res://scripts/cave/burrower.gd")
@@ -32,7 +36,13 @@ const BUMPS := [
 ]
 const CENTRE_X := 20.5          # the cave's centre line, in tiles
 const SPAWN := Vector2(20.5, 64.6)
-const WET_FROM_ROW := 64
+const FORGE_AT := Vector2(20.5, 6.88)     # the forge's feet, in tiles
+const GUARDIAN_AT := Vector2(20.5, 12.62) # the casting circle he kneels on
+## Light colours from the art notes.
+const WARM := Color(1.0, 0.60, 0.28)
+const DAY := Color(0.50, 0.78, 0.95)
+const TEAL := Color(0.20, 0.85, 0.66)
+const AMBIENT_LIFT := 1.15       # a touch brighter than the art's ambient, so the dark rooms stay readable
 
 var cells := PackedByteArray()  # 1 = floor
 var cave_data: Dictionary = {}
@@ -60,6 +70,9 @@ var was_busy := false
 var crate: Node2D
 var pedestal: Node2D
 var forge_prop: Node2D
+var forge_awake := false
+var channels: Node2D            # the lit floor channels, once the forge wakes
+var coal: Node2D
 var braziers: Array = []
 var stairs: Node2D
 var cage_front: Node2D
@@ -82,7 +95,10 @@ func _ready() -> void:
 		players[i].face_dir = Vector2.UP
 		owned.append(["wooden_blade", "wooden_grip", "plain_pommel"])
 		armed.append(false)
-	rig.set_limits(Rect2(0, 0, COLS * TILE, ROWS * TILE), 0.0)
+	# The forge towers over the north wall, so the camera may look above the map.
+	var ground: Dictionary = cave_data.get("ground", {})
+	var top: float = float((ground.get("draw_at_map_px", [0, 0]) as Array)[1]) * Art.PIXEL
+	rig.set_limits(Rect2(0, top, COLS * TILE, ROWS * TILE - top), 0.0)
 	rig.snap()
 	_make_ui()
 	hud.mode = "cave"
@@ -93,8 +109,10 @@ func _ready() -> void:
 	add_child(ui)
 	ui.cam = rig.camera
 	# Dark cave, lit by what glows.
+	var amb: Array = cave_data.get("lighting", {}).get("ambient", [0.31, 0.35, 0.53])
 	var dark := CanvasModulate.new()
-	dark.color = Color(0.6, 0.62, 0.8)
+	dark.color = Color(amb[0], amb[1], amb[2]) * AMBIENT_LIFT
+	dark.color.a = 1.0
 	add_child(dark)
 	_spawn_guardian()
 	_begin()
@@ -141,54 +159,20 @@ func _make_floor() -> void:
 	floor_node.draw.connect(_draw_floor)
 
 
-func _variant(name: String, count: int, x: int, y: int, salt := 0) -> Texture2D:
-	var r := _tile_hash(x + salt * 31, y + salt * 17)
-	return Art.texture("cave/%s_%d.png" % [name, int(r * 997.0) % count])
-
-
+## The whole cave is one painted image, laid over the map it was made from.
 func _draw_floor() -> void:
-	var size := Vector2(TILE, TILE)
-	floor_node.draw_rect(Rect2(-400, -400, COLS * TILE + 800, ROWS * TILE + 800), Color("#0b0d16"))
-	if Art.texture("cave/floor_0.png") == null:
+	var ground: Dictionary = cave_data.get("ground", {})
+	var tex := Art.texture("cave/%s" % ground.get("file", "cave_ground.png"))
+	floor_node.draw_rect(Rect2(-2000, -2000, COLS * TILE + 4000, ROWS * TILE + 4000), Color("#19142a"))
+	if tex == null:
 		# No art: flat colours.
 		for y in ROWS:
 			for x in COLS:
 				if is_floor(x, y):
-					floor_node.draw_rect(Rect2(Vector2(x, y) * TILE, size), Color(0.2, 0.22, 0.3))
+					floor_node.draw_rect(Rect2(Vector2(x, y) * TILE, Vector2(TILE, TILE)), Color(0.2, 0.22, 0.3))
 		return
-	for y in ROWS:
-		for x in COLS:
-			var at := Rect2(Vector2(x, y) * TILE, size)
-			if is_floor(x, y):
-				var tex: Texture2D
-				var r := _tile_hash(x, y)
-				if y >= WET_FROM_ROW and y < ROOMS[0].end.y and (r < 0.75 or y > WET_FROM_ROW):
-					tex = _variant("floor_wet", 2, x, y, 3)
-				elif r < 0.62:
-					tex = Art.texture("cave/floor_0.png")
-				elif r < 0.8:
-					tex = Art.texture("cave/floor_1.png")
-				elif r < 0.95:
-					tex = Art.texture("cave/floor_2.png")
-				else:
-					tex = Art.texture("cave/floor_3.png")
-				floor_node.draw_texture_rect(tex, at, false)
-				if not is_floor(x, y - 1):
-					var sh := Art.texture("cave/shadow_n.png")
-					if sh != null:
-						floor_node.draw_texture_rect(sh, at, false)
-			elif is_floor(x, y + 1):
-				floor_node.draw_texture_rect(_variant("wall_face", 3, x, y, 1), at, false)
-			else:
-				floor_node.draw_texture_rect(_variant("rock_top", 2, x, y, 2), at, false)
-				var n := is_floor(x, y - 1)
-				var e := is_floor(x + 1, y)
-				var w := is_floor(x - 1, y)
-				for pair in [["lip_n", n], ["lip_e", e], ["lip_w", w], ["lip_ne", not n and not e and is_floor(x + 1, y - 1)], ["lip_nw", not n and not w and is_floor(x - 1, y - 1)]]:
-					if pair[1]:
-						var lip := Art.texture("cave/%s.png" % pair[0])
-						if lip != null:
-							floor_node.draw_texture_rect(lip, at, false)
+	var at: Array = ground.get("draw_at_map_px", [-64, -176])
+	floor_node.draw_texture_rect(tex, Rect2(Vector2(at[0], at[1]) * Art.PIXEL, tex.get_size() * Art.PIXEL), false)
 
 
 func _near_floor(x: int, y: int) -> bool:
@@ -238,97 +222,149 @@ func _solid(center: Vector2, size: Vector2) -> StaticBody2D:
 
 
 ## A prop from cave.json, with its feet at `tile` (in tiles). solid = the size of
-## the box that blocks walking (zero = walk over it).
-func _prop(name: String, tile: Vector2, solid := Vector2.ZERO, parent: Node = null) -> Node2D:
+## the box that blocks walking (zero = walk over it). flat = it lies on the floor,
+## so everyone is drawn on top of it.
+func _prop(name: String, tile: Vector2, solid := Vector2.ZERO, flat := false) -> Node2D:
 	var info: Dictionary = cave_data.get("props", {}).get(name, {})
 	var s := StripSprite.new()
 	var o: Array = info.get("origin_feet", [0, 0])
 	s.origin = Vector2(o[0], o[1])
 	s.show_strip("cave/%s.png" % name, int(info.get("frames", 1)), float(info.get("fps", 6)))
 	var feet := tile * TILE
-	if parent == null:
-		s.position = feet - Vector2(0, StripSprite.SORT_BIAS)
-		world.add_child(s)
-	else:
-		parent.add_child(s)
+	s.position = feet - Vector2(0, StripSprite.SORT_BIAS)
+	if flat:
+		s.z_index = -1
+	world.add_child(s)
 	if solid != Vector2.ZERO:
 		_solid(feet - Vector2(0, solid.y * 0.5), solid)
 	return s
 
 
-func _prop_light(name: String, tile: Vector2, col: Color, energy: float, size: float, key := "") -> PointLight2D:
+## Swaps a prop for another of its images (lit for unlit, open for closed).
+func _show(prop: Node2D, name: String) -> void:
 	var info: Dictionary = cave_data.get("props", {}).get(name, {})
-	var o: Array = info.get("origin_feet", [0, 0])
-	var l: Array = info.get("light_px", o)
-	var pos := tile * TILE + (Vector2(l[0], l[1]) - Vector2(o[0], o[1])) * Art.PIXEL
-	var light := _add_light(pos, col, energy, size)
+	prop.show_strip("cave/%s.png" % name, int(info.get("frames", 1)), float(info.get("fps", 6)))
+
+
+## One of the art's stepped, hatched lights. `at` is in map pixels (art pixels
+## from the map's top left) and `radius` picks the file: 48, 64, 96, 128 or 240.
+## They are drawn at the same scale as the sprites and no other, or the hatching blurs.
+func _lamp(at: Vector2, radius: int, col: Color, energy: float, key := "") -> PointLight2D:
+	var light := PointLight2D.new()
+	light.texture = Art.stepped_light(radius)
+	light.texture_scale = Art.PIXEL
+	if light.texture == null:
+		light.texture = Art.light_texture()
+		light.texture_scale = float(radius) / 50.0
+	light.color = col
+	light.energy = energy
+	light.position = at.round() * Art.PIXEL
+	add_child(light)
 	if key != "":
 		lights[key] = light
 	return light
 
 
+## A light on a prop, at the spot the art marks on it (a flame, a rune).
+func _prop_lamp(name: String, tile: Vector2, radius: int, col: Color, energy: float, key := "") -> PointLight2D:
+	var info: Dictionary = cave_data.get("props", {}).get(name, {})
+	var o: Array = info.get("origin_feet", [0, 0])
+	var l: Array = info.get("light_px", o)
+	return _lamp(tile * 16.0 + Vector2(l[0], l[1]) - Vector2(o[0], o[1]), radius, col, energy, key)
+
+
+func _mushrooms(tile: Vector2) -> void:
+	var name := "mushrooms_%d" % (int(tile.x * 7.0 + tile.y * 3.0) % 2)
+	_prop(name, tile, Vector2.ZERO, true)
+	_prop_lamp(name, tile, 48, TEAL, 0.55)
+
+
 func _make_props() -> void:
-	const TEAL := Color(0.4, 0.95, 0.9)
-	const FIRE := Color(1.0, 0.62, 0.3)
 	# Room 1: the wreck. The way in has come down behind you.
-	_prop("collapse", Vector2(CENTRE_X, 69.05), Vector2(150, 78))
-	crate = _prop("crate_closed", Vector2(14.5, 61.6), Vector2(44, 26))
-	_prop("sail", Vector2(12.3, 64.4))
-	_prop("planks", Vector2(16.6, 65.6))
-	_prop("planks", Vector2(25.5, 63.4))
-	_prop("barrel", Vector2(11.6, 60.4), Vector2(22, 16))
-	_prop("barrel", Vector2(27.4, 66.3), Vector2(22, 16))
-	_prop("rubble_0", Vector2(17.4, 67.9))
-	_prop("rubble_1", Vector2(24.4, 67.6))
-	_prop("stalagmite_small", Vector2(29.5, 59.6), Vector2(22, 14))
-	_prop("bones_0", Vector2(22.6, 59.4))
-	for m in [Vector2(30.2, 61.2), Vector2(10.6, 58.8)]:
-		_prop("mushrooms_%d" % (int(m.x) % 2), m)
-		_add_light(m * TILE + Vector2(0, -12), TEAL, 0.7, 0.9)
-	_add_light(Vector2(14.5, 60.6) * TILE, Color(1.0, 0.85, 0.6), 0.5, 1.4)
+	_prop("collapse", Vector2(CENTRE_X, 69.06), Vector2(570, 70))
+	crate = _prop("crate_closed", Vector2(14.5, 61.62), Vector2(40, 18))
+	_prop("lantern", Vector2(15.75, 61.5))
+	_prop_lamp("lantern", Vector2(15.75, 61.5), 96, Color(1.0, 0.8, 0.5), 0.95)
+	_prop("giant_blade", Vector2(24.75, 62.75), Vector2(44, 18))
+	_prop("sail", Vector2(12.31, 64.38), Vector2.ZERO, true)
+	_prop("planks", Vector2(16.62, 65.62), Vector2.ZERO, true)
+	_prop("planks", Vector2(25.5, 63.38), Vector2.ZERO, true)
+	_prop("barrel", Vector2(11.62, 60.38), Vector2(24, 14))
+	_prop("barrel", Vector2(27.38, 66.31), Vector2(24, 14))
+	_prop("rubble_0", Vector2(17.38, 66.4), Vector2.ZERO, true)
+	_prop("rubble_1", Vector2(24.38, 66.2), Vector2.ZERO, true)
+	_prop("stalagmite_small", Vector2(29.5, 59.62), Vector2(20, 12))
+	_prop("bones_0", Vector2(22.62, 59.38), Vector2.ZERO, true)
+	_mushrooms(Vector2(30.19, 61.19))
+	_mushrooms(Vector2(10.62, 58.81))
 	# Room 2: the burrows.
-	_prop("stalagmite_large", Vector2(12.5, 44.8), Vector2(34, 18))
-	_prop("stalagmite_large", Vector2(28.5, 44.2), Vector2(34, 18))
-	_prop("stalagmite_small", Vector2(27.5, 50.4), Vector2(22, 14))
-	_prop("stalagmite_small", Vector2(15.5, 50.6), Vector2(22, 14))
-	_prop("bones_1", Vector2(18.5, 46.6))
-	_prop("bones_0", Vector2(24.5, 49.6))
+	_prop("stalagmite_large", Vector2(12.5, 44.8), Vector2(30, 16))
+	_prop("stalagmite_large", Vector2(28.5, 44.2), Vector2(30, 16))
+	_prop("stalagmite_small", Vector2(27.5, 50.4), Vector2(20, 12))
+	_prop("stalagmite_small", Vector2(15.5, 50.6), Vector2(20, 12))
+	_prop("bones_1", Vector2(18.5, 46.6), Vector2.ZERO, true)
+	_prop("bones_0", Vector2(24.5, 49.6), Vector2.ZERO, true)
 	for m in [Vector2(10.6, 49.6), Vector2(30.3, 47.6), Vector2(22.4, 42.4)]:
-		_prop("mushrooms_%d" % (int(m.y) % 2), m)
-		_add_light(m * TILE + Vector2(0, -12), TEAL, 0.7, 0.9)
+		_mushrooms(m)
 	# Room 3: the nest, with the rune on its pedestal.
-	pedestal = _prop("pedestal_rune", Vector2(CENTRE_X, 29.8), Vector2(30, 18))
-	_prop_light("pedestal_rune", Vector2(CENTRE_X, 29.8), Color(1.0, 0.7, 0.3), 0.9, 1.5, "rune")
-	_prop("stalagmite_large", Vector2(11.5, 27.8), Vector2(34, 18))
-	_prop("stalagmite_large", Vector2(30.0, 27.2), Vector2(34, 18))
-	_prop("stalagmite_small", Vector2(29.5, 34.4), Vector2(22, 14))
-	_prop("stalagmite_small", Vector2(12.5, 34.6), Vector2(22, 14))
-	_prop("bones_0", Vector2(23.5, 33.2))
-	_prop("bones_1", Vector2(15.0, 30.2))
+	pedestal = _prop("pedestal_rune", Vector2(CENTRE_X, 29.81), Vector2(28, 16))
+	_prop_lamp("pedestal_rune", Vector2(CENTRE_X, 29.81), 64, WARM, 0.7, "rune")
+	_prop("stalagmite_large", Vector2(11.5, 27.8), Vector2(30, 16))
+	_prop("stalagmite_large", Vector2(30.0, 27.2), Vector2(30, 16))
+	_prop("stalagmite_small", Vector2(29.5, 34.4), Vector2(20, 12))
+	_prop("stalagmite_small", Vector2(12.5, 34.6), Vector2(20, 12))
+	_prop("bones_0", Vector2(23.5, 33.2), Vector2.ZERO, true)
+	_prop("bones_1", Vector2(15.0, 30.2), Vector2.ZERO, true)
 	for m in [Vector2(9.6, 32.6), Vector2(31.2, 29.4), Vector2(16.5, 25.4), Vector2(24.2, 35.6)]:
-		_prop("mushrooms_%d" % (int(m.x) % 2), m)
-		_add_light(m * TILE + Vector2(0, -12), TEAL, 0.7, 0.9)
-	# Room 4: the forge, the caged smith and the stairs up.
-	forge_prop = _prop("forge_dormant", Vector2(12.5, 6.7), Vector2(176, 70))
-	_prop_light("forge_awake", Vector2(12.5, 6.7), FIRE, 0.0, 3.2, "forge")
-	for b in [Vector2(9.0, 7.5), Vector2(16.0, 7.5), Vector2(26.4, 5.3), Vector2(30.6, 5.3)]:
+		_mushrooms(m)
+	# Room 4: the sword forge in the north wall, its sleeping guardian, the caged
+	# smith and the stairs up.
+	# Its step, the bellows and the coal beside it block one wide strip of the wall.
+	forge_prop = _prop("forge_dormant", FORGE_AT, Vector2(326, 92))
+	_prop_lamp("forge_awake", FORGE_AT, 240, WARM, 0.0, "forge")
+	_lamp(GUARDIAN_AT * 16.0 - Vector2(0, 6), 64, WARM, 0.0, "circle")
+	_lamp(GUARDIAN_AT * 16.0 - Vector2(0, 30), 64, DAY, 0.75, "guardian")
+	# On the forge's step, a hair in front of the forge so they aren't drawn behind it.
+	_prop("bellows", Vector2(17.12, 6.9))
+	coal = _prop("coal_heap", Vector2(24.5, 6.9))
+	# (The trough and anvil stand a little further from the braziers than the art's
+	# layout has them, so nobody gets wedged in the gap between.)
+	_prop("trough", Vector2(18.1, 9.6), Vector2(38, 14))
+	_prop("anvil", Vector2(22.9, 9.5), Vector2(34, 14))
+	_prop("ingots", Vector2(23.9, 10.0), Vector2.ZERO, true)
+	_prop("quillon_piece", Vector2(12.25, 8.0), Vector2(64, 16))
+	_prop("barrel", Vector2(13.5, 5.5), Vector2(24, 14))
+	_prop("barrel", Vector2(12.62, 6.0), Vector2(24, 14))
+	# Two braziers by the forge burn from the start; the two by the stairs light
+	# when the way out opens.
+	for b in [Vector2(15.75, 8.19), Vector2(25.25, 8.19), Vector2(26.38, 5.31), Vector2(30.62, 5.31)]:
+		var k := braziers.size()
 		braziers.append(_prop("brazier_unlit", b, Vector2(22, 14)))
-		braziers[-1].set_meta("tile", b)
-		lights["brazier%d" % (braziers.size() - 1)] = _add_light(b * TILE + Vector2(0, -46), FIRE, 0.0, 1.8)
-	stairs = _prop("stairs_up", Vector2(28.5, 4.03))
-	stairs.tint = Color(0.32, 0.34, 0.45)
-	_prop_light("stairs_up", Vector2(28.5, 4.03), Color(1.0, 0.97, 0.85), 0.0, 3.0, "stairs")
+		_lamp(b * 16.0 - Vector2(0, 28), 96 if k < 2 else 64, WARM, 0.0, "brazier%d" % k)
+	_set_brazier(0, true)
+	_set_brazier(1, true)
+	# The gap between the forge's step and each of its braziers is too narrow to
+	# walk through, so it is closed off: the forge front is one open bay.
+	for side in [-1.0, 1.0]:
+		_solid((FORGE_AT + Vector2(side * 4.75, 0.42)) * TILE, Vector2(26, 30))
+	stairs = _prop("stairs_up", Vector2(28.5, 4.0))
+	stairs.tint = Color(0.45, 0.45, 0.55)
+	stairs.glow_on = false
+	stairs.refresh()
+	_prop_lamp("stairs_up", Vector2(28.5, 4.0), 128, DAY, 0.0, "stairs")
+	var cage_at := Vector2(31.0, 11.62)
 	var cage := Node2D.new()
-	cage.position = Vector2(31.0, 11.6) * TILE - Vector2(0, StripSprite.SORT_BIAS)
+	cage.position = cage_at * TILE - Vector2(0, StripSprite.SORT_BIAS)
 	world.add_child(cage)
-	_solid(Vector2(31.0, 11.6) * TILE - Vector2(0, 14), Vector2(76, 30))
+	_solid(cage_at * TILE - Vector2(0, 12), Vector2(60, 26))
 	var cinfo: Dictionary = cave_data.get("props", {}).get("cage", {})
-	var co: Array = cinfo.get("origin_feet", [24, 52])
+	var co: Array = cinfo.get("origin_feet", [18, 49])
+	var so: Array = cave_data.get("props", {}).get("smith", {}).get("origin_feet", [28, 52])
 	for layer_name in ["cage_back", "smith", "cage_front"]:
 		var s := StripSprite.new()
 		cage.add_child(s)
 		if layer_name == "smith":
-			s.origin = Vector2(28, 52)
+			s.origin = Vector2(so[0], so[1])
 			s.show_strip("cave/smith_caged.png", 4, 4.0)
 			smith = s
 		else:
@@ -336,18 +372,33 @@ func _make_props() -> void:
 			s.show_strip("cave/%s.png" % layer_name)
 			if layer_name == "cage_front":
 				cage_front = s
-	_prop("stalagmite_large", Vector2(8.6, 17.4), Vector2(34, 18))
-	_prop("stalagmite_small", Vector2(32.5, 17.8), Vector2(22, 14))
-	_prop("bones_1", Vector2(24.0, 16.2))
-	for m in [Vector2(7.6, 13.6), Vector2(33.2, 8.6)]:
-		_prop("mushrooms_%d" % (int(m.y) % 2), m)
-		_add_light(m * TILE + Vector2(0, -12), TEAL, 0.7, 0.9)
+	# An older guardian, long empty, kneels in the dark corner.
+	var ginfo: Dictionary = cave_data.get("enemies", {}).get("guardian", {})
+	var death: Dictionary = ginfo.get("strips", {}).get("death", {})
+	if Art.texture("cave/guardian_death.png") != null and not death.is_empty():
+		var ruin := StripSprite.new()
+		var go: Array = ginfo.get("origin_feet", [64, 136])
+		ruin.origin = Vector2(go[0], go[1])
+		ruin.fixed_frame = int(death["frames"]) - 1
+		ruin.show_strip("cave/guardian_death.png", int(death["frames"]), 1.0)
+		ruin.glow_on = false
+		ruin.playing = false
+		ruin.refresh()
+		ruin.position = Vector2(9.38, 18.25) * TILE - Vector2(0, StripSprite.SORT_BIAS)
+		world.add_child(ruin)
+		_solid(Vector2(9.38, 18.25) * TILE - Vector2(0, 12), Vector2(70, 24))
+	_prop("stalagmite_large", Vector2(8.62, 17.38), Vector2(30, 16))
+	_prop("stalagmite_small", Vector2(32.5, 17.81), Vector2(20, 12))
+	_prop("bones_1", Vector2(24.0, 16.19), Vector2.ZERO, true)
+	_mushrooms(Vector2(7.62, 13.62))
+	_mushrooms(Vector2(33.19, 8.62))
 
 	# Gates: one at the south end of each hall, shut until the room below is cleared.
+	var gate_o: Array = cave_data.get("props", {}).get("gate_closed", {}).get("origin_feet", [28, 47])
 	for h in HALLS:
 		var bottom := float(h.end.y)
 		var g := StripSprite.new()
-		g.origin = Vector2(24, 32)
+		g.origin = Vector2(gate_o[0], gate_o[1])
 		g.show_strip("cave/gate_closed.png")
 		g.position = Vector2(CENTRE_X, bottom) * TILE - Vector2(0, StripSprite.SORT_BIAS)
 		world.add_child(g)
@@ -365,11 +416,11 @@ func _make_props() -> void:
 
 	# Things you can walk up to and use.
 	interactables = [
-		{"at": Vector2(14.5, 61.3) * TILE, "radius": 62.0, "lift": 50.0, "text": "Search the crate",
+		{"at": Vector2(14.5, 61.5) * TILE, "radius": 62.0, "lift": 44.0, "text": "Search the crate",
 			"can": func(i): return not armed[i] and stage in ["crate", "fight1"], "use": _take_sword},
 		{"at": Vector2(CENTRE_X, 29.6) * TILE, "radius": 60.0, "lift": 96.0, "text": "Take the rune",
 			"can": func(_i): return stage == "rune", "use": _take_rune},
-		{"at": Vector2(12.5, 7.1) * TILE, "radius": 84.0, "lift": 120.0, "text": "Use the forge",
+		{"at": (FORGE_AT + Vector2(0, 0.3)) * TILE, "radius": 110.0, "lift": 120.0, "text": "Use the forge",
 			"can": func(_i): return stage in ["forge", "tin", "stairs"], "use": _use_forge},
 		{"at": Vector2(31.0, 13.2) * TILE, "radius": 60.0, "lift": 74.0, "text": "Talk",
 			"can": func(_i): return stage in ["smith", "tin", "stairs"], "use": _talk_smith},
@@ -384,7 +435,10 @@ func _open_gate(i: int) -> void:
 	(g["shape"] as CollisionShape2D).set_deferred("disabled", true)
 	var s: Node2D = g["sprite"]
 	s.show_strip("cave/gate_opening.png", 4, 10.0, false)
-	s.finished.connect(func(): s.show_strip("cave/gate_open.png"), CONNECT_ONE_SHOT)
+	# Open, it is a flat threshold: everyone walks over it.
+	s.finished.connect(func():
+		s.show_strip("cave/gate_open.png")
+		s.z_index = -1, CONNECT_ONE_SHOT)
 	Sfx.play(self, "gate", -3.0)
 	rig.add_shake(5.0)
 
@@ -396,6 +450,7 @@ func _close_gate(i: int) -> void:
 	g["open"] = false
 	(g["shape"] as CollisionShape2D).set_deferred("disabled", false)
 	(g["sprite"] as Node2D).show_strip("cave/gate_closed.png")
+	(g["sprite"] as Node2D).z_index = 0
 	Sfx.play(self, "gate", -3.0, 1.3)
 	rig.add_shake(6.0)
 
@@ -455,6 +510,12 @@ func _physics_process(delta: float) -> void:
 	ui.prompts = []
 	for p in players:
 		p.interact_ready = false
+	# In the forge room the camera looks a little north, to keep the forge in view.
+	var in_forge_room := false
+	for p in living_players():
+		if p.global_position.y < float(ROOMS[3].end.y) * TILE:
+			in_forge_room = true
+	rig.bias = rig.bias.move_toward(Vector2(0, -70.0) if in_forge_room else Vector2.ZERO, 120.0 * delta)
 	if stage not in ["intro", "end"]:
 		run_time += delta
 	if busy and stage != "boss_wake":
@@ -528,7 +589,7 @@ func _update_stage(delta: float) -> void:
 		"rune":
 			var l: PointLight2D = lights.get("rune")
 			if l != null:
-				l.energy = 1.1 + 0.5 * sin(run_time * 5.0)
+				l.energy = 0.9 + 0.3 * sin(run_time * 5.0)
 		"walk4":
 			if _in_room(3):
 				stage = "forge"
@@ -709,8 +770,8 @@ func _take_rune(_i: int) -> void:
 # --- Room 4: forge, guardian, smith ----------------------------------------------
 
 func _spawn_guardian() -> void:
-	guardian_home = Vector2(CENTRE_X, 10.6) * TILE
 	guardian = Guardian.new()
+	guardian_home = GUARDIAN_AT * TILE - guardian._feet()
 	guardian.position = guardian_home
 	world.add_child(guardian)
 	guardian.team = players.size()
@@ -720,20 +781,48 @@ func _spawn_guardian() -> void:
 	guardian.defeated.connect(_on_guardian_defeated)
 
 
+## The forge wakes: the hearth lights, molten metal runs down the floor channels
+## to the casting circle, and the coals catch.
 func _set_forge(lit: bool) -> void:
-	forge_prop.show_strip("cave/forge_awake.png" if lit else "cave/forge_dormant.png")
-	(lights["forge"] as PointLight2D).energy = 1.1 if lit else 0.0
-	for k in 2:
-		_set_brazier(k, lit)
+	if lit == forge_awake:
+		return
+	forge_awake = lit
+	_show(forge_prop, "forge_awake" if lit else "forge_dormant")
+	_show(coal, "coal_heap_lit" if lit else "coal_heap")
+	var tw := create_tween().set_parallel(true)
+	tw.tween_property(lights["forge"], "energy", 1.25 if lit else 0.0, 0.5)
+	tw.tween_property(lights["circle"], "energy", 0.45 if lit else 0.0, 0.9)
+	tw.tween_property(lights["guardian"], "energy", 0.0 if lit else 0.75, 0.9)
+	if lit:
+		_light_channels()
+		tw.tween_property(channels, "modulate:a", 1.0, 0.9)
+	elif is_instance_valid(channels):
+		tw.tween_property(channels, "modulate:a", 0.0, 0.5)
+
+
+## The lit channels are an animated image laid over the ground and left bright.
+func _light_channels() -> void:
+	if is_instance_valid(channels):
+		return
+	var info: Dictionary = cave_data.get("ground", {}).get("awake", {})
+	if Art.texture("cave/%s" % info.get("file", "")) == null:
+		channels = Node2D.new()
+		add_child(channels)
+		return
+	var at: Array = info.get("draw_at_map_px", [96, -110])
+	var s := StripSprite.new()
+	s.show_strip("cave/%s" % info["file"], int(info.get("frames", 8)), float(info.get("fps", 8)))
+	s.position = Vector2(at[0], at[1]) * Art.PIXEL - Vector2(0, StripSprite.SORT_BIAS)
+	s.z_index = -9
+	s.material = Art.unshaded()
+	s.modulate.a = 0.0
+	add_child(s)
+	channels = s
 
 
 func _set_brazier(k: int, lit: bool) -> void:
-	var b: Node2D = braziers[k]
-	if lit:
-		b.show_strip("cave/brazier_lit.png", 3, 6.0)
-	else:
-		b.show_strip("cave/brazier_unlit.png")
-	(lights["brazier%d" % k] as PointLight2D).energy = 0.9 if lit else 0.0
+	_show(braziers[k], "brazier_lit" if lit else "brazier_unlit")
+	(lights["brazier%d" % k] as PointLight2D).energy = 0.7 if lit else 0.0
 
 
 func _fitted(i: int) -> bool:
@@ -757,16 +846,13 @@ func _waiting_on(check: Callable) -> String:
 func _forge_objective() -> void:
 	if stage == "forge":
 		ui.objective = "Fit the rune to your sword at the forge" + _waiting_on(_fitted)
-		ui.hint = "The forge is in the north-west corner. Drag the rune onto the slot in the grip."
+		ui.hint = "The forge is the great sword in the north wall. Drag the rune onto the slot in the grip."
 	elif stage == "tin":
 		ui.objective = "Forge your tin sword at the forge" + _waiting_on(_tin_done)
 		ui.hint = "Sword tab: pick the tin blade and the tin grip. Keep the rune in a slot."
 
 
 func _use_forge(i: int) -> void:
-	if not (lights["forge"] as PointLight2D).energy > 0.0:
-		_set_forge(true)
-		Sfx.play(self, "forged", -6.0)
 	build_menu.owned = owned[i]
 	open_forge(i)
 
@@ -793,12 +879,14 @@ func _on_forge_closed() -> void:
 			_forge_objective()
 
 
-## The rune is fitted: the forge's fire goes out and the statue stirs.
+## The rune is fitted: the forge wakes, metal runs to the casting circle, and the
+## knight kneeling on it stirs.
 func _wake_guardian() -> void:
 	stage = "boss_wake"
-	timer = 1.3
+	timer = Guardian.WAKE_TIME
 	room_i = 3
-	_set_forge(false)
+	_set_forge(true)
+	Sfx.play(self, "forged", -6.0)
 	_close_gate(2)
 	# Nobody gets left outside the door.
 	var n := 0
@@ -875,8 +963,9 @@ func _talk_smith(_i: int) -> void:
 func _open_stairs() -> void:
 	stage = "stairs"
 	stairs.tint = Color.WHITE
-	stairs.queue_redraw()
-	(lights["stairs"] as PointLight2D).energy = 1.2
+	stairs.glow_on = true
+	stairs.refresh()
+	create_tween().tween_property(lights["stairs"], "energy", 0.8, 0.6)
 	_set_brazier(2, true)
 	_set_brazier(3, true)
 	Sfx.play(self, "pickup", -4.0, 0.7)
@@ -934,7 +1023,7 @@ func _restart_room() -> void:
 		ui.boss = guardian
 		ui.boss_shown = 1.0
 		stage = "boss_wake"
-		timer = 1.3
+		timer = Guardian.WAKE_TIME
 	elif fighting:
 		_start_fight(room_i, fight_plan)
 	ui.fade_in(0.5)

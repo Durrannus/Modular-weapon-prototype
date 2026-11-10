@@ -52,7 +52,7 @@ It follows the "Tutorial opening" in the Game Plan. You shelter from a storm in 
 1. **The wreck.** Search the ship's crate for a wooden sword, then fight a few crawlers. They rear up before they bite, and a hit while they rear up stops the bite.
 2. **The burrows.** Burrowers travel underground, come up, flash red and lunge in a straight line. Dodge aside and hit them while they lie stunned.
 3. **The nest.** A mixed fight. Clearing it lets you take your first rune (Shockwave), which your sword can't use yet.
-4. **The forge.** Fit the rune to your sword at the forge and the guardian statue wakes. It slams (a red circle fills first) and charges (a red lane shows the path). A charge that hits a wall stuns it. Below half health it slams three times in a row. Beat it and the old smith is freed: he explains runes and bands and hands over tin parts. Forge the tin sword and the stairs to the surface open.
+4. **The forge.** The forge is a colossal sword set in the north wall, with a knight kneeling asleep in front of it. Fit the rune to your sword there and the forge lights, molten metal runs down the floor channels, and the guardian wakes. It slams its hammer (a red circle fills first) and charges (a red lane shows the path). A charge that hits a wall stuns it. Below half health it slams three times in a row. Beat it and the old smith is freed: he explains runes and bands and hands over tin parts. Forge the tin sword and the stairs to the surface open.
 
 Rules:
 
@@ -126,8 +126,22 @@ scripts/weapon/swing_build.gd        Blades, grips, fittings and the reading rul
 scripts/weapon/sword_art.gd          Draws the sword with its slots
 scripts/ui/swing_forge.gd            The forge screen
 scripts/fx/rune_fx.gd                Rune visuals
-art/cave/                            Cave art (cave.md lists every file, cave.json has the numbers)
+scripts/ui/hud.gd, pause_menu.gd     Health, dodge pips and swing path chips; the pause menu
+scripts/glow.gd                      The glowing pixels of a sprite, kept bright in the dark
+art/                                 All art, loaded at runtime (art/v3_notes.md explains the set)
+art/cave/cave.json                   The cave art's numbers: sizes, feet, lights, layout
+art/swing/swing_path.json            The sword, effect and menu art's numbers and colours
 ```
+
+## The look (10 November: "Verdigris & Ember")
+
+All sprites, effects, menus and the HUD use the art thread's v3 set. Three rules the code follows:
+
+- **Sprites are painted unlit.** The mood comes from a dark tint over the world (`CanvasModulate`) plus the stepped, hatched lights in `art/lights/`. Use them through `Art.stepped_light(radius)` at `texture_scale = Art.PIXEL` and nothing else, or the hatching blurs.
+- **Glow layers.** A sprite with glowing pixels has a `<name>_glow.png` beside it. `scripts/glow.gd` draws it on top with an unshaded material, so embers, eyes and runes stay bright in the dark. Props (`strip_sprite.gd`), enemies (`enemy.gd`) and one-shot effects (`sprite_once.gd`) pick the glow file up by name.
+- **Verdigris is idle, ember is live.** Menu plates are dark plum with a bronze-green edge; whatever is selected, lit or speaking turns ember. Menu pieces are nine-patches drawn with `Art.draw_nine`.
+
+Readability tweaks made on top of the art's own lighting numbers: the cave's dark tint is 15% brighter (`AMBIENT_LIFT` in cave.gd), each player carries a small cool light, crawlers and burrowers are drawn 1.7 times brighter than the floor (`lift` in enemy.gd), and warnings and damage numbers ignore the lighting.
 
 ## Older notes: the grid sword on `main`
 
