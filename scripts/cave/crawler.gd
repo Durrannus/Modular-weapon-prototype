@@ -17,7 +17,6 @@ var bitten := false
 func _setup() -> void:
 	kind = "crawler"
 	art_set = "cave"
-	lift = 1.4   # the rooms they live in are dark; with the lit rim in the art this is enough
 	max_hp = 14.0
 	speed = 50.0
 	radius = 11.0
