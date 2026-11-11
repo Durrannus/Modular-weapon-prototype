@@ -20,6 +20,7 @@ const Guardian := preload("res://scripts/cave/guardian.gd")
 const Hazard := preload("res://scripts/cave/hazard.gd")
 const StripSprite := preload("res://scripts/cave/strip_sprite.gd")
 const CaveUi := preload("res://scripts/cave/cave_ui.gd")
+const Music := preload("res://scripts/music.gd")
 
 const COLS := 41
 const ROWS := 73
@@ -48,6 +49,7 @@ var cells := PackedByteArray()  # 1 = floor
 var cave_data: Dictionary = {}
 var floor_node: Node2D
 var ui
+var music                       # background music: calm in the cave, the fight track at the forge
 var gates: Array = []           # [{sprite, body, open}]
 var blocked: Array = []         # world rects props stand on (enemies don't spawn there)
 var interactables: Array = []   # [{at, radius, text, lift, can: Callable(i), use: Callable(i)}]
@@ -110,6 +112,8 @@ func _ready() -> void:
 	ui = CaveUi.new()
 	add_child(ui)
 	ui.cam = rig.camera
+	music = Music.new()
+	add_child(music)
 	# Dark cave, lit by what glows.
 	var amb: Array = cave_data.get("lighting", {}).get("ambient", [0.31, 0.35, 0.53])
 	var dark := CanvasModulate.new()
@@ -484,6 +488,7 @@ func _begin() -> void:
 	hud.visible = false
 	ui.cutscene("cutscene/intro", players.size() > 1, func():
 		hud.visible = true
+		music.play("cave_calm", 5.0)
 		ui.fade = 1.0
 		ui.fade_in(1.4)
 		ui.card_picture = "cave/ui/card_intro.png"
@@ -970,6 +975,7 @@ func _wake_guardian() -> void:
 			p.reset_physics_interpolation()
 			n += 1
 	guardian.wake()
+	music.play("cave_boss", 1.5)
 	ui.boss = guardian
 	ui.boss_shown = 1.0
 	ui.objective = "Defeat the forge guardian"
@@ -978,6 +984,7 @@ func _wake_guardian() -> void:
 
 func _on_guardian_defeated(_g) -> void:
 	stage = "boss_dead"
+	music.play("cave_calm", 4.0)
 	timer = 1.8
 	ui.hint = ""
 	ui.objective = ""
