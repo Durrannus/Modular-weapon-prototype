@@ -97,6 +97,7 @@ Game code must follow these rules, or the two games drift apart:
 | Dodge | Space or Shift | A or left trigger |
 | First active rune (hold for Whirlwind) | Right click | RB |
 | Second active rune | Q | LB |
+| Third active rune | R | B |
 | Use (crate, rune, forge, talk) | E or F | A or Y, when the prompt shows |
 | Pause menu | Esc | Start (in the cave) |
 | Fullscreen on or off | F11 | |
@@ -144,7 +145,7 @@ Run these after changes (they need no window):
 ```
 godot --headless --path . -s tests/test_swing_build.gd                         # the sword rules
 godot --headless --path . --fixed-fps 60 -s tests/feel_check.gd                # movement and swing feel
-godot --headless --path . --fixed-fps 60 -s tests/active_runes.gd              # Hook and Whirlwind on their buttons, and the bands on them
+godot --headless --path . --fixed-fps 60 -s tests/active_runes.gd              # Whirlwind, Hook and Leap on their buttons, the bands on them, and Weak Point
 godot --headless --path . --fixed-fps 60 -s tests/cave_playthrough.gd          # plays the whole cave
 godot --headless --path . --fixed-fps 60 -s tests/cave_playthrough.gd -- players=2 wipe down
 godot --path . -s tests/smoke_forge.gd                                         # opens the forge, fires every rune
@@ -175,19 +176,26 @@ This branch tests the **swing path** (design notes, 3 November). It replaces the
 
 - A sword is a **blade** plus a **grip**. The blade sets the basic three-hit chain (the last hit is the finisher). Grip and blade both have **slots**.
 - Slots hold **runes** (effects) or **bands** (modifiers). Read the sword as one line from the bottom of the grip to the tip: a band boosts the next rune above it, bands in a row stack, and a band with nothing above it does nothing.
-- Runes are **passive** or **active** (Darren, 10 November).
-  - Passive runes fire by themselves: **Shockwave** (finisher: a rolling wave, a light hit that shoves enemies back), **Shards** (every hit sends metal shards jumping to the closest enemy, then the next), **Leap** (an attack straight after a dodge jumps you to the nearest enemy).
-  - Active runes wait for a button: **Hook** (press: chains yank nearby enemies in and stun them for a moment) and **Whirlwind** (hold: you spin, cutting everything around you once a turn, walking at three quarters speed).
+- Runes are **passive** or **active** (Darren, 10 November). The sword has three of each (11 November).
+  - Passive runes fire by themselves: **Shockwave** (finisher: a rolling wave, a light hit that shoves enemies back), **Shards** (every hit sends metal shards jumping to the closest enemy, then the next), **Weak Point** (the finisher marks the enemy it hit, and the next sword hit on the mark is a big crit).
+  - Active runes wait for a button: **Whirlwind** (hold: you spin, cutting everything around you once a turn, walking at three quarters speed), **Hook** (press: chains yank nearby enemies in and stun them for a moment) and **Leap** (press: you jump to an enemy and land at your blade's reach from it, with a strike).
 - Bands: **Twice** (the rune happens twice, a beat apart), **Wider** (bigger), **Every Hit** (on every hit instead, at half strength), **Saved Up** (every third time, three times as strong) and **On Dodge** (also when you dodge).
-- **Active runes, in full.** There are two ability buttons: right click and Q, or RB and LB. The first active rune on the sword, reading from the bottom of the grip, takes the first button and the next takes the second, so the order on the sword picks the buttons. Two of the same rune share a button and go off together. Each button has a meter, drawn under the health bar with the rune's picture and its button: it fills from the bottom as the rune recharges and gets a bright edge when it can be used.
+- **Active runes, in full.** There are three ability buttons: right click, Q and R, or RB, LB and B (the third button's keys are a first guess, to settle in testing). The first active rune on the sword, reading from the bottom of the grip, takes the first button, the next takes the second and the next the third, so the order on the sword picks the buttons. Two of the same rune share a button and go off together. Each button has a meter, drawn under the health bar with the rune's picture and its button: it fills from the bottom as the rune recharges and gets a bright edge when it can be used.
   - Hook needs a full meter, empties it, and is back in 4 seconds.
   - Whirlwind's full meter is three turns. Each turn spends a third; a tap is one turn, holding keeps turning until the meter is empty or you let go. It refills in 5 seconds, starting a moment after you stop. A dodge cuts a spin short, and the sword can't swing during one.
-  - Bands on an active rune: **Twice** makes Hook pull twice on one press and gives Whirlwind twice the turns; **Wider** is a bigger reach or circle; **Saved Up** makes it three times as strong and three times as slow to recharge; **On Dodge** makes a dodge do it too (one pull or one turn) without touching the meter; **Every Hit** takes it off its button, so it fires by itself on every hit at half strength, as a passive rune.
-  - The numbers are at the top of the rune's entry in `FITTINGS` (`scripts/weapon/swing_build.gd`: `recharge`, `turns`, `turn`) and in `scripts/player.gd` (`HOLD_MOVE`, `HOOK_STUN`, `SHOCKWAVE_DAMAGE` and their neighbours). To make another rune active, give it `"trigger": "active"` and a `"use"`; a third kind of active rune on one sword does nothing, because there are only two buttons.
+  - Leap needs a full meter and is back in 3 seconds. It goes for the nearest enemy near where you aim (or else the nearest one) within about 260 pixels, and lands you so that enemy sits just inside your blade's reach: a long blade lands further out than a short one. If you are already closer than that, it hops you back out. As you land the sword cuts once in front of you (one blade hit and a short stun). With nobody in range it jumps a short way where you aim. You can't be hit during the jump. Before 11 November Leap was passive (an attack straight after a dodge) and landed on top of the enemy, which got you hit every time.
+  - Bands on an active rune: **Twice** makes Hook pull twice on one press, gives Whirlwind twice the turns and makes Leap go on to a second enemy; **Wider** is a bigger reach or circle; **Saved Up** makes it three times as strong and three times as slow to recharge; **On Dodge** makes a dodge do it too (one pull, one turn or one leap) without touching the meter; **Every Hit** takes it off its button, so it fires by itself on every hit at half strength, as a passive rune.
+  - The numbers are at the top of the rune's entry in `FITTINGS` (`scripts/weapon/swing_build.gd`: `recharge`, `turns`, `turn`) and in `scripts/player.gd` (`HOLD_MOVE`, `HOOK_STUN`, `SHOCKWAVE_DAMAGE`, `LEAP_RANGE`, `LEAP_DAMAGE` and their neighbours). To make another rune active, give it `"trigger": "active"` and a `"use"`; a fourth kind of active rune on one sword does nothing, because there are three buttons.
+- **Weak Point, in full.** The finisher marks the nearest enemy it hit. One mark at a time: marking another enemy takes the first mark away, and a mark fades after 8 seconds. The next sword swing that hits the mark is a crit worth 2.5 ordinary hits (a pommel's crit damage adds to it), with its own burst and "WEAK POINT!". Only sword swings count, not runes, and in two-player either player's swing can strike it.
+  - A small enemy glows icy white all over, and any swing that hits it counts.
+  - A big enemy (the brute, the guardian) gets a bright spot on one side of its body instead, never on the side you marked it from. The swing has to reach the spot, and you have to be standing on the spot's side of the enemy (within 50 degrees round), so you step round to it.
+  - Bands: **Twice** is two marks at a time (two small enemies, or two spots on a big one); **Wider** is a bigger spot that you can reach from further round; **Every Hit** marks on every hit, with a smaller crit (1.75 hits), and the hit that strikes a mark doesn't put a new one on; **Saved Up** marks on every third finisher with a huge crit (5.5 hits); **On Dodge** marks the enemy your dodge passes closest to.
+  - The numbers: `WEAK_CRIT` and `WEAK_DODGE_REACH` in `scripts/player.gd`, `WEAK_BIG`, `WEAK_LIFE`, `WEAK_SPOT` and `WEAK_SIDE` in `scripts/enemy.gd`.
+- Second Wind is gone (11 November).
 - Rule-benders (the "rare" tab, one per sword): **Relay** hands the bands on the rune below on to the next rune above too. Mirror is parked (it overlapped Twice).
 - New parts without art yet show as plain coloured stones, rings and gems.
 - Effects are deliberately loud: each rune has its own visual, sound and name pop-up, the slots flash on the sword and in the HUD when they fire, and a finisher that connects gets a screen shake. Identical runes firing together merge into one bigger effect.
-- **Test swords (test arena):** you start with Test sword C (Whirlwind, Hook, Twice, Shockwave: Whirlwind on the first button, Hook on the second, and two shockwaves on the finisher). The forge also has Test sword A (Twice, Shockwave, Wider, Hook: two shockwaves and a wide hook) and Test sword B (Shockwave, Twice, Wider, Hook: one shockwave and a double, wide hook). Keys 1, 2 and 3 at the forge load A, B and C.
+- **Test swords (test arena):** you start with Test sword D (Whirlwind, Hook, Leap, Weak Point: one active rune on each of the three buttons, and the new passive). The forge also has Test sword A (Twice, Shockwave, Wider, Hook: two shockwaves and a wide hook), Test sword B (Shockwave, Twice, Wider, Hook: one shockwave and a double, wide hook) and Test sword C (Whirlwind, Hook, Twice, Shockwave). Keys 1, 2, 3 and 4 at the forge load A, B, C and D.
 - **Pause enemies:** the button at the top right, or P / Start.
 - Parts: iron shortblade / blade / longblade (1, 2, 3 slots) and wooden / wrapped / long grips (1, 2, 3 slots), and pommels (no slots, stats only: Plain, Keen +8% crit chance, Heavy +40% crit damage, Light +10% swing speed). The Ringed Grip is a special grip whose built-in band makes every rune a bit bigger; the Gilded Grip's ruby top slot doubles whatever is in it (a rune fires twice, a band counts as two, caps still apply).
 - The forge follows the art thread's design: parts tray on the left, the sword over the anvil with slot numbers and band brackets, and "what this sword does" on the right. **T** or the button puts you next to the dummy. The forge glows: the hearth breathes behind the sword, embers drift up, every change is a hammer blow with sparks and a clang, and leaving after changes plays a short "Forged!" finish (white-hot, quench steam, a shine up the blade). Press Tab or click to skip it.
@@ -247,7 +255,9 @@ Readability tweaks made on top of the art's own lighting numbers: the cave's dar
 - The cave: a falling rock, the cage breaking, the smith walking, the rune leaving its pedestal, pictures on the first and last cards, plates behind prompts and hints, and pictures of keys and buttons in hints (write `[space]`, `[mouse_left]`, `[pad_a]`, `[stick_l]` in the text).
 - The forge: tray pictures for blades and grips, stat icons that light for a moment when a number changes, tabs, a padlock. The arena floor is one painted picture.
 
-Drawn but not used yet, because the game has nothing for them to show: the ability slot and its glyphs (Hook and Leap are not buttons yet), the blank rune stone and the broken band.
+Drawn but not used yet, because the game has nothing for them to show: the blank rune stone and the broken band.
+
+Stand-in pictures drawn by the prototype thread on 11 November, until the art thread's versions land under the same names (the list is in the project files, `art/requests/nov11-prototype-art.md`): the Weak Point rune stone and its three effects (`art/fx/weak_mark.png`, `weak_mark_on.png`, `weak_break.png`), the square stones for the three active runes, `art/swing/ui/active_badge.png` and `art/cave/ui/prompt_r.png`.
 
 ## Older notes: the grid sword on `main`
 

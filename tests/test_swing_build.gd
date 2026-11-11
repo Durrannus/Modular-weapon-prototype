@@ -22,6 +22,8 @@ func _init() -> void:
 	test_saved_up()
 	test_on_dodge()
 	test_leap()
+	test_weak_point()
+	test_three_buttons()
 	test_mirror()
 	test_relay()
 	test_one_bender_per_sword()
@@ -154,16 +156,69 @@ func test_on_dodge() -> void:
 	eq(e["also"], ["dodge"], "On Dodge adds the dodge trigger")
 	eq(e["trigger"], "finisher", "On Dodge keeps the finisher trigger")
 	eq(SwingBuild.sentence(e), "Your finisher sends a shockwave forward. Dodging does it too.", "On Dodge sentence")
-	check(SwingBuild.resolve(["on_dodge", "second_wind"])["slots"][0].get("unused", false), "On Dodge can't go on Second Wind")
 	eq(effect(SwingBuild.resolve(["on_dodge", "shards"]), "shards")["also"], ["dodge"], "On Dodge works on Shards (they fly from you)")
 
 
+# Leap is active since 11 November: a press, landing at the blade's reach.
 func test_leap() -> void:
 	var e := effect(SwingBuild.resolve(["leap"]), "leap")
-	eq(e["trigger"], "dodge_attack", "Leap fires on an attack straight after a dodge")
-	eq(SwingBuild.sentence(e), "An attack straight after a dodge jumps you to the nearest enemy.", "Leap sentence")
+	eq(e["trigger"], "active", "Leap waits for its button")
+	eq(SwingBuild.FITTINGS["leap"]["use"], "press", "Leap is used with a press")
+	eq(SwingBuild.sentence(e), "Press right mouse: leaps you to the nearest enemy and strikes it from your blade's reach. Recharges in 3 seconds.", "Leap sentence")
 	var t := effect(SwingBuild.resolve(["twice", "wider", "leap"]), "leap")
-	eq(SwingBuild.sentence(t), "An attack straight after a dodge jumps you to the nearest enemy, then the next one, from further away.", "Leap x2 wide sentence")
+	eq(SwingBuild.sentence(t), "Press right mouse: leaps you to the nearest enemy from further away and strikes it from your blade's reach, then the next one. Recharges in 3 seconds.", "Leap x2 wide sentence")
+	eq(SwingBuild.abilities([effect(SwingBuild.resolve(["saved_up", "leap"]), "leap")])[0]["recharge"], 9.0, "Saved Up makes Leap three times as slow to recharge")
+	var auto := effect(SwingBuild.resolve(["every_hit", "leap"]), "leap")
+	eq(SwingBuild.sentence(auto), "Every hit leaps you to the nearest enemy, at half strength.", "Every Hit Leap sentence")
+	check(not SwingBuild.WHEN.has("dodge_attack"), "nothing fires on an attack after a dodge any more")
+
+
+# Weak Point, the new passive (11 November).
+func test_weak_point() -> void:
+	var e := effect(SwingBuild.resolve(["weak_point"]), "weak_point")
+	eq(e["trigger"], "finisher", "Weak Point marks on the finisher")
+	check(not e.has("button"), "and it is passive")
+	eq(SwingBuild.sentence(e), "Your finisher marks the enemy it hits, and your next hit on a mark is a big crit.", "Weak Point sentence")
+	var two := effect(SwingBuild.resolve(["twice", "wider", "weak_point"]), "weak_point")
+	eq(two["count"], 2, "Twice: two marks")
+	eq(SwingBuild.sentence(two), "Your finisher marks up to two enemies with bigger spots, and your next hit on a mark is a big crit.", "Weak Point x2 wide sentence")
+	var every := effect(SwingBuild.resolve(["every_hit", "weak_point"]), "weak_point")
+	eq([every["trigger"], every["power"]], ["hit", 0.5], "Every Hit: a mark on every hit, at half strength")
+	eq(SwingBuild.sentence(every), "Every hit marks the enemy it hits, and your next hit on a mark is a smaller crit.", "Every Hit Weak Point sentence")
+	var saved := effect(SwingBuild.resolve(["saved_up", "weak_point"]), "weak_point")
+	eq([saved["every"], saved["power"]], [3, 3.0], "Saved Up: every third finisher, three times as strong")
+	eq(SwingBuild.sentence(saved), "Every third finisher marks the enemy it hits, and your next hit on a mark is a huge crit.", "Saved Up Weak Point sentence")
+	eq(effect(SwingBuild.resolve(["on_dodge", "weak_point"]), "weak_point")["also"], ["dodge"], "On Dodge: a dodge marks too")
+	check(not SwingBuild.FITTINGS.has("second_wind"), "Second Wind is gone")
+	# Three passive and three active sword runes.
+	var passive := 0
+	var active := 0
+	for id in SwingBuild.FITTINGS:
+		var f: Dictionary = SwingBuild.FITTINGS[id]
+		if f["kind"] == "rune":
+			if f["trigger"] == "active":
+				active += 1
+			else:
+				passive += 1
+	eq([passive, active], [3, 3], "three passive and three active sword runes")
+
+
+# Up to three active runes, each on its own button (11 November; it was two).
+func test_three_buttons() -> void:
+	var r := SwingBuild.resolve(["whirlwind", "hook", "leap", "weak_point"])
+	eq([effect(r, "whirlwind")["button"], effect(r, "hook")["button"], effect(r, "leap")["button"]], [0, 1, 2], "three active runes take buttons one, two and three")
+	for i in 3:
+		check(not r["slots"][i].has("unused"), "active rune %d works" % (i + 1))
+	var a: Array = SwingBuild.abilities(r["effects"])
+	eq(a.size(), 3, "three abilities")
+	eq([a[2]["id"], a[2]["use"], a[2]["recharge"]], ["leap", "press", 3.0], "Leap: a press, 3 seconds")
+	eq(SwingBuild.sentence(effect(r, "leap")), "Press R: leaps you to the nearest enemy and strikes it from your blade's reach. Recharges in 3 seconds.", "the third active rune names the third button")
+	eq(SwingBuild.sentence(effect(r, "leap"), SwingBuild.ABILITY_KEYS["pad"]), "Press B: leaps you to the nearest enemy and strikes it from your blade's reach. Recharges in 3 seconds.", "and the controller's name for it")
+	for kind in ["kbm", "pad"]:
+		eq([SwingBuild.ABILITY_KEYS[kind].size(), SwingBuild.ABILITY_PROMPTS[kind].size()], [3, 3], kind + " has three ability buttons")
+	var s = SwingBuild.new()
+	s.load_test("D")
+	eq(s.compute()["abilities"].size(), 3, "test sword D has three abilities")
 
 
 # --- Rule-benders ----------------------------------------------------------------
@@ -230,13 +285,12 @@ func test_whirlwind() -> void:
 	eq(e["trigger"], "active", "Whirlwind waits for its button")
 	eq(SwingBuild.sentence(e), "Hold right mouse: spins for up to six turns, cutting everything around you, in a bigger circle. Recharges in 5 seconds.", "Whirlwind x2 wide sentence")
 	eq(SwingBuild.sentence(effect(SwingBuild.resolve(["on_dodge", "whirlwind"]), "whirlwind")), "Hold right mouse: spins for up to three turns, cutting everything around you. Recharges in 5 seconds. Dodging does it too.", "Whirlwind on dodge")
-	check(SwingBuild.FITTINGS["second_wind"].get("parked", false), "Second Wind is parked")
 
 
 # --- Active and passive runes (Darren, 10 November) ----------------------------------
 
 func test_active_runes() -> void:
-	for id in ["shockwave", "shards", "leap"]:
+	for id in ["shockwave", "shards", "weak_point"]:
 		check(SwingBuild.FITTINGS[id]["trigger"] != "active", id + " is passive")
 	eq(SwingBuild.FITTINGS["hook"]["use"], "press", "Hook is used with a press")
 	eq(SwingBuild.FITTINGS["whirlwind"]["use"], "hold", "Whirlwind is used by holding")

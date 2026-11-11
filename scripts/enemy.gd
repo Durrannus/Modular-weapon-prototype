@@ -60,6 +60,18 @@ var state := "chase"
 var state_timer := 0.0
 var charge_dir := Vector2.RIGHT
 
+# Weak Point marks (the sword rune, 11 November). A marked enemy takes a big crit
+# from the next sword hit on the mark. A small enemy glows all over and any sword
+# hit counts. A big one (the brute, the guardian) gets a bright spot on one side
+# of its body, and the swing has to reach that spot from that side.
+const WEAK_BIG := 24.0          # this radius and up counts as big
+const WEAK_LIFE := 8.0          # a mark fades after this many seconds
+const WEAK_SPOT := 9.0          # the spot's own radius, times the mark's size
+const WEAK_SIDE := 50.0         # how far round from the spot you may stand, in degrees
+const WEAK_COLOR := Color("#b8f4ff")
+var weak_marks: Array = []      # [{by, power, size, angle, left, age}]
+var weak_popped := 9.0          # seconds since a mark on it was last struck
+
 
 func _ready() -> void:
 	add_to_group("enemies")
@@ -137,6 +149,7 @@ func nearest_player():
 func _physics_process(delta: float) -> void:
 	if dead:
 		return
+	_tick_marks(delta)
 	flash = maxf(flash - delta, 0.0)
 	hit_anim += delta
 	if freeze > 0.0:
@@ -225,6 +238,133 @@ func _update_burn(delta: float) -> void:
 	if burn_tick <= 0.0:
 		burn_tick = 0.5
 		_apply_damage(burn_damage, false, WeaponBuild.ELEMENT_COLORS["fire"])
+
+
+# --- Weak Point marks -----------------------------------------------------------
+
+func weak_big() -> bool:
+	return radius >= WEAK_BIG
+
+
+## Marks this enemy. by: the player's index. angle: where on its body the spot
+## sits (big enemies only), as a direction from its centre.
+func add_weak_mark(by: int, power: float, size: float, angle: float) -> Dictionary:
+	var m := {"by": by, "power": power, "size": size, "angle": angle, "left": WEAK_LIFE, "age": 0.0}
+	weak_marks.append(m)
+	return m
+
+
+## Where a mark's spot is on the ground, relative to this enemy (the hit test).
+func weak_spot(m: Dictionary) -> Vector2:
+	return Vector2.RIGHT.rotated(float(m["angle"])) * radius * 0.75
+
+
+## Can a sword swing from `from` (a world position) reach this mark? swing is the
+## swing's shape: {shape, dir, reach, half_arc, width}. A small enemy's mark is
+## its whole body. A big one's is the spot, and you must be on the spot's side.
+func weak_reached(m: Dictionary, from: Vector2, swing: Dictionary) -> bool:
+	if not weak_big():
+		return true
+	var size := float(m["size"])
+	var spot := weak_spot(m)
+	var to_player := from - global_position
+	var side := deg_to_rad(WEAK_SIDE * (1.5 if size > 1.0 else 1.0))
+	if to_player.length() > 0.5 and absf(spot.angle_to(to_player)) > side:
+		return false
+	var rel := global_position + spot - from
+	var r := WEAK_SPOT * size + 6.0
+	var dir: Vector2 = swing.get("dir", Vector2.RIGHT)
+	var reach := float(swing.get("reach", 0.0))
+	match str(swing.get("shape", "arc")):
+		"line":
+			return rel.dot(dir) > -r and rel.dot(dir) <= reach + r and absf(rel.dot(dir.orthogonal())) <= float(swing.get("width", 16.0)) + r
+		"circle":
+			return rel.length() <= reach + r
+	return rel.length() <= reach + r and absf(dir.angle_to(rel)) <= float(swing.get("half_arc", 1.0)) + 0.15
+
+
+## Takes the first mark that this swing reaches off the enemy and returns it
+## (empty if none): the hit that follows is the crit.
+func pop_weak_mark(from: Vector2, swing: Dictionary) -> Dictionary:
+	for m in weak_marks:
+		if weak_reached(m, from, swing):
+			weak_marks.erase(m)
+			weak_popped = 0.0
+			return m
+	return {}
+
+
+func _tick_marks(delta: float) -> void:
+	weak_popped += delta
+	for m in weak_marks.duplicate():
+		m["left"] = float(m["left"]) - delta
+		m["age"] = float(m["age"]) + delta
+		if float(m["left"]) <= 0.0:
+			weak_marks.erase(m)
+
+
+var _mark_body: Node2D     # the whole-body glow (small enemies)
+var _mark_spots: Node2D    # the spots (big enemies)
+
+func _update_marks() -> void:
+	if weak_marks.is_empty() and _mark_body == null:
+		return
+	if _mark_body == null:
+		_mark_body = Node2D.new()
+		var mat := ShaderMaterial.new()
+		mat.shader = load("res://shaders/mark_glow.gdshader")
+		mat.set_shader_parameter("tint", WEAK_COLOR)
+		_mark_body.material = mat
+		add_child(_mark_body)
+		_mark_body.draw.connect(_draw_mark_body)
+		_mark_spots = Node2D.new()
+		var add := CanvasItemMaterial.new()
+		add.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+		add.light_mode = CanvasItemMaterial.LIGHT_MODE_UNSHADED
+		_mark_spots.material = add
+		add_child(_mark_spots)
+		_mark_spots.draw.connect(_draw_mark_spots)
+	_mark_body.queue_redraw()
+	_mark_spots.queue_redraw()
+
+
+func _draw_mark_body() -> void:
+	if weak_marks.is_empty() or weak_big() or dead:
+		return
+	var sp := _sprite()
+	# A slow pulse; in its last second and a half the mark flickers before it goes.
+	var m: Dictionary = weak_marks[0]
+	var pulse := 0.75 + 0.25 * sin(float(m["age"]) * 9.0)
+	if float(m["left"]) < 1.5 and int(float(m["left"]) * 10.0) % 2 == 0:
+		pulse *= 0.35
+	if not sp.is_empty():
+		Art.draw_strip(_mark_body, sp["tex"], sp["frames"], sp["frame"], _feet(), sp["origin"], sp["flip"], Color(1, 1, 1, pulse))
+
+
+## Where a spot is drawn: on the body, which stands taller than its footprint.
+func weak_spot_drawn(m: Dictionary) -> Vector2:
+	var middle := (_feet().y + _head_y()) * 0.5
+	var s := weak_spot(m)
+	return Vector2(s.x, middle + s.y * 0.6)
+
+
+func _draw_mark_spots() -> void:
+	if dead or weak_marks.is_empty():
+		return
+	if not weak_big():
+		# No picture to light up (a stand-in shape): a ring round it instead.
+		if _sprite().is_empty():
+			_mark_spots.draw_arc(Vector2.ZERO, radius + 4.0, 0.0, TAU, 24, WEAK_COLOR, 2.0)
+		return
+	var info := Art.piece("weak_mark")
+	var n := int(info.get("frames", 6))
+	for m in weak_marks:
+		var at := weak_spot_drawn(m)
+		var fading := float(m["left"]) < 1.5 and int(float(m["left"]) * 10.0) % 2 == 0
+		var tint := Color(1, 1, 1, 0.35 if fading else 1.0)
+		var px := Art.PIXEL * (1.5 if float(m["size"]) > 1.0 else 1.0)
+		if not Art.draw_piece(_mark_spots, "weak_mark", int(float(m["age"]) * float(info.get("fps", 10))) % maxi(n, 1), at, 0.0, false, tint, px):
+			_mark_spots.draw_circle(at, WEAK_SPOT * float(m["size"]), Color(WEAK_COLOR, tint.a))
 
 
 ## A hit from the player. num_color colours the damage number (by element).
@@ -337,6 +477,7 @@ func _redraw() -> void:
 	_ground.queue_redraw()
 	_over.queue_redraw()
 	_update_glow()
+	_update_marks()
 
 
 # --- Drawing ------------------------------------------------------------------

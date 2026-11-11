@@ -138,21 +138,35 @@ var trail_te := -1.0                # step time of the last trail sample
 
 # Swing path runes
 const REPEAT_GAP := 0.16      # Twice: the second go comes this long after the first
-const MAX_DODGES_WIND := 2    # Second Wind can top dodges up past the normal 1
 var game_time := 0.0
 var rune_queue: Array = []    # [{at, effect, size, power, hits}]
 var slot_flash := {}          # slot index -> game_time it last fired
 var last_kill_pos := Vector2.ZERO
 var sweep_flash := {}         # slot index -> game_time the swing passes it
-const LEAP_WINDOW := 0.35     # Leap: an attack this soon after a dodge ends counts
-const LEAP_RANGE := 170.0
 var dodge_started := -9.0     # game_time the last dodge began
 var attack_buffered := false  # attack pressed mid-dodge, swung as the dodge ends
 var rune_counts := {}         # effect index -> triggers seen (Saved Up fires every third)
-var dodge_partial := 0.0      # Second Wind at half strength fills half a dodge
-var leap_targets: Array = []  # enemies already leapt to in this burst
 
-# Active runes (Hook, Whirlwind) wait for their ability button instead of firing
+# Leap (active since 11 November): a press jumps you to an enemy and lands you at
+# your blade's full reach from it, with a strike as you land. It used to land on
+# top of the enemy, which got you hit every time.
+const LEAP_RANGE := 260.0     # how far away an enemy can be
+const LEAP_TIME := 0.14       # the jump itself
+const LEAP_AIM := 1.0         # prefers an enemy within this many radians of the aim
+const LEAP_DAMAGE := 1.0      # the landing strike, in blade hits
+const LEAP_STUN := 0.3
+const LEAP_EMPTY := 130.0     # with nobody in range, it jumps this far the way you aim
+var leap_targets: Array = []  # enemies already leapt to in this burst
+var leap_burst := -9.0        # game_time the last leap of a burst began
+var leap_landing: Dictionary = {}   # the strike waiting for the jump to end: {at, dir, size, power, target}
+
+# Weak Point (passive, 11 November): the finisher marks the enemy it hit, and the
+# next sword hit on the mark is a big crit. Only so many marks at a time.
+const WEAK_CRIT := 2.5        # a full-strength mark's hit, in normal hits
+const WEAK_DODGE_REACH := 70.0  # On Dodge: how close the dodge must pass
+var weak_marks: Array = []    # this player's marks, oldest first: [[enemy, mark]]
+
+# Active runes (Whirlwind, Hook, Leap) wait for their ability button instead of firing
 # by themselves. Each button has a meter from 0 (used up) to 1 (full) that refills
 # over the rune's recharge time. A press rune needs a full meter and empties it.
 # A hold rune spends one turn's worth of meter for every turn, and keeps going
@@ -160,10 +174,10 @@ var leap_targets: Array = []  # enemies already leapt to in this burst
 const ABILITY_WAIT := 0.35      # a hold rune's meter starts to refill this long after it stops
 const HOLD_MOVE := 0.75         # walking speed while a hold rune is going
 const HOLD_KNOCK := 0.35        # a held Whirlwind shoves this much as hard, so enemies stay in reach
-var ability_charge: Array = [1.0, 1.0]
-var ability_wait: Array = [0.0, 0.0]
-var ability_denied: Array = [-9.0, -9.0]  # game_time of the last press that wasn't ready
-var ability_used: Array = [-9.0, -9.0]    # game_time it last went off
+var ability_charge: Array = [1.0, 1.0, 1.0]
+var ability_wait: Array = [0.0, 0.0, 0.0]
+var ability_denied: Array = [-9.0, -9.0, -9.0]  # game_time of the last press that wasn't ready
+var ability_used: Array = [-9.0, -9.0, -9.0]    # game_time it last went off
 var hold_button := -1           # which button's hold rune is going right now (-1: none)
 var hold_left := 0.0            # time left in its current turn
 var hold_turn := 0.28           # how long that turn takes
@@ -244,10 +258,11 @@ func set_weapon(stats: Dictionary) -> void:
 	slot_flash.clear()
 	sweep_flash.clear()
 	rune_counts.clear()
-	dodge_partial = 0.0
+	leap_landing = {}
+	_clear_marks()
 	_stop_hold(true)
-	ability_charge = [1.0, 1.0]
-	ability_wait = [0.0, 0.0]
+	ability_charge = [1.0, 1.0, 1.0]
+	ability_wait = [0.0, 0.0, 0.0]
 	_reset_combo()
 
 
@@ -271,6 +286,7 @@ func _physics_process(delta: float) -> void:
 	game_time += delta
 	_run_rune_queue()
 	_run_shards()
+	_run_leap()
 	if is_down:
 		_stop_hold(true)
 		_refill_abilities(delta)
@@ -412,7 +428,7 @@ func _update_combat(delta: float) -> void:
 	# One press, one swing. A press during a swing (or a dodge) queues the next one;
 	# holding the button keeps the chain going.
 	if input.attack_pressed:
-		if dodge_timer > 0.0 or hold_button >= 0:
+		if dodge_timer > 0.0 or hold_button >= 0 or not leap_landing.is_empty():
 			attack_buffered = true
 		elif current_step >= 0:
 			queued = true
@@ -421,8 +437,8 @@ func _update_combat(delta: float) -> void:
 		# A click that closed a menu shouldn't also swing: wait for the button to come up.
 		need_release = held
 		held = false
-	# (No swinging in the middle of a Whirlwind: the swing starts as the spin ends.)
-	if current_step < 0 and dodge_timer <= 0.0 and hold_button < 0 and (input.attack_pressed or attack_buffered or held):
+	# (No swinging in the middle of a Whirlwind or a Leap: the swing starts as it ends.)
+	if current_step < 0 and dodge_timer <= 0.0 and hold_button < 0 and leap_landing.is_empty() and (input.attack_pressed or attack_buffered or held):
 		attack_buffered = false
 		_start_step()
 
@@ -474,11 +490,6 @@ func _start_step() -> void:
 	# The swing travels up the sword: each slot lights for a moment, grip to tip.
 	for i in weapon.get("line", []).size():
 		sweep_flash[i] = game_time + float(i) * 0.04
-	# Leap: the first swing straight after a dodge.
-	if game_time - dodge_started <= DODGE_TIME + LEAP_WINDOW:
-		dodge_started = -9.0
-		leap_targets.clear()
-		_trigger("dodge_attack", [])
 	if info.has("dash"):
 		lunge_dir = aim_dir
 		lunge_timer = hit_time
@@ -539,7 +550,8 @@ func _do_move(move: String) -> void:
 		if str(info["shape"]) == "line":
 			kdir = dir
 		if hit:
-			_hit_enemy(e, dmg, kdir, knock, stun, freeze)
+			_hit_enemy(e, dmg, kdir, knock, stun, freeze, {"shape": str(info["shape"]), "dir": dir, "reach": reach,
+				"half_arc": deg_to_rad(float(info.get("arc", 120.0)) * 0.5), "width": float(info.get("width", 16.0))})
 			hits += 1
 			hit_list.append(e)
 
@@ -577,7 +589,31 @@ func _do_move(move: String) -> void:
 const FINISHER_PAUSE := 0.07
 
 
-func _hit_enemy(e, dmg: float, kdir: Vector2, knock: float, stun := 0.12, freeze := 0.05) -> void:
+## swing: the swing's shape ({shape, dir, reach, half_arc, width}), to tell whether
+## it reaches a Weak Point mark on the enemy. Empty for anything that isn't a swing.
+func _hit_enemy(e, dmg: float, kdir: Vector2, knock: float, stun := 0.12, freeze := 0.05, swing := {}) -> void:
+	# A Weak Point mark turns this hit into a big crit, whoever's mark it is.
+	var mark: Dictionary = {}
+	if not swing.is_empty() and not e.weak_marks.is_empty():
+		var spot_at: Vector2 = e.global_position
+		for m in e.weak_marks:
+			if e.weak_reached(m, global_position, swing):
+				spot_at = e.global_position + (e.weak_spot_drawn(m) if e.weak_big() else Vector2(0, -e.radius * 0.5))
+				break
+		mark = e.pop_weak_mark(global_position, swing)
+		if not mark.is_empty():
+			_forget_mark(mark)
+			var bonus := (WEAK_CRIT - 1.0) * float(mark["power"]) + maxf(float(weapon.get("crit_damage", 1.6)) - 1.6, 0.0)
+			var col: Color = SwingBuild.FITTINGS["weak_point"]["color"]
+			e.take_hit(dmg * (1.0 + bonus), kdir, knock, true, col, maxf(stun, 0.3), maxf(freeze, 0.09))
+			Art.play_piece(self, "weak_break", spot_at, 0.0, 1.0 + 0.25 * minf(float(mark["power"]), 3.0))
+			Art.play_piece(self, "hit_spark_crit", e.global_position - kdir * float(e.radius) * 0.4, kdir.angle())
+			shake = maxf(shake, 9.0 + 2.0 * minf(float(mark["power"]), 3.0))
+			hit_pause = maxf(hit_pause, 0.05)
+			Sfx.play(self, "finisher", -3.0, 1.5)
+			_label("WEAK POINT!", col)
+			_apply_elements(e, dmg * (1.0 + bonus))
+			return
 	var crit := Sim.chance() < float(weapon.get("crit", 0.05))
 	var final := dmg * (float(weapon.get("crit_damage", 1.5)) if crit else 1.0)
 	e.take_hit(final, kdir, knock, crit, weapon.get("hit_color", Color.WHITE), stun, freeze)
@@ -602,7 +638,8 @@ func _trigger(trigger: String, hits: Array) -> void:
 			rune_counts[i] = int(rune_counts.get(i, 0)) + 1
 			if int(rune_counts[i]) % every != 0:
 				continue
-		for n in int(e["count"]):
+		# (Twice on Weak Point is two marks from one firing, not two firings.)
+		for n in (1 if e["id"] == "weak_point" else int(e["count"])):
 			_queue_rune(i, game_time + n * REPEAT_GAP, float(e["size"]), hits, float(e.get("power", 1.0)))
 
 
@@ -727,28 +764,13 @@ func _fire_rune(q: Dictionary) -> void:
 			for s in starts:
 				_shards(s, size, power, dmg, col, splinter)
 			Sfx.play(self, "cleave", -6.0, 1.2)
-		"second_wind":
-			dodge_partial += power
-			var add := int(floor(dodge_partial + 0.001))
-			dodge_partial -= add
-			if add > 0:
-				dodge_charges = mini(dodge_charges + add, MAX_DODGES_WIND)
-			var wisp := _strip("wind_wisp", last_kill_pos)
-			if wisp != null:
-				wisp.life = 0.35
-				wisp.velocity = (global_position - last_kill_pos) / 0.35
-			var swirl := _strip("wind_swirl", global_position + FEET, 0.0, size)
-			if swirl != null:
-				swirl.follow = self
-				swirl.follow_offset = FEET
-			_label("+DODGE", col)
-			if size > 1.0:
-				for e in get_tree().get_nodes_in_group("enemies"):
-					if is_instance_valid(e) and not e.dead and e.global_position.distance_to(global_position) < 150.0 * size:
-						e.knock = (e.global_position - global_position).normalized() * 420.0 * e.knock_resist
-			Sfx.play(self, "second_wind", -4.0)
 		"leap":
-			_leap(size, power, dmg, col)
+			if not _leap(size, power, col):
+				return
+		"weak_point":
+			var count: int = int(weapon["effects"][effect]["count"]) + (q["merged"] as Array).size()
+			if not _weak_point(q["hits"], count, size, power, col):
+				return
 		"whirlwind":
 			# One full turn. Held on its button, each turn starts where the spin began
 			# and turns the same way; fired by a band (Every Hit, On Dodge) it starts
@@ -785,7 +807,9 @@ func _fire_rune(q: Dictionary) -> void:
 			if held and hold_turns > 1:
 				return   # only the first turn of a hold is named
 	# Name what fired above the player, so it's obvious which rune did what.
-	if id != "second_wind":
+	if id == "weak_point":
+		_label("MARKED", col)
+	else:
 		_label(str(SwingBuild.FITTINGS[id]["name"]).to_upper() + ("!" if power <= 1.0 else " x%s!" % str(snappedf(power, 0.5)).trim_suffix(".0")), col)
 
 
@@ -861,8 +885,10 @@ func _update_abilities(delta: float) -> void:
 			ability_used[b] = game_time
 			for i in a["effects"]:
 				var e: Dictionary = weapon["effects"][i]
+				# (One leap has to land before the next one sets off.)
+				var gap := LEAP_TIME + 0.12 if e["id"] == "leap" else REPEAT_GAP
 				for n in int(e["count"]):
-					_queue_rune(i, game_time + n * REPEAT_GAP, float(e["size"]), [], float(e.get("power", 1.0)))
+					_queue_rune(i, game_time + n * gap, float(e["size"]), [], float(e.get("power", 1.0)))
 
 
 ## One more turn of a hold rune: spends a turn's worth of meter and fires its runes once.
@@ -992,49 +1018,197 @@ func _shard_fly(a: Vector2, b: Vector2, col: Color) -> void:
 	line.global_position = a
 
 
-## Leap: jump to the nearest enemy (not one already leapt to in this burst),
-## landing just short of it with a small hit, so the swing lands.
-func _leap(size: float, power: float, dmg: float, col: Color) -> void:
+## Leap: jump to an enemy and land at the blade's full reach from it, striking as
+## you land. It picks the nearest enemy near your aim, or else the nearest one,
+## and not one already leapt to in this burst if there is another (Twice). With nobody in range it
+## jumps a short way where you aim. Returns false if it couldn't go at all.
+func _leap(size: float, power: float, col: Color) -> bool:
+	if is_down or frozen:
+		return false
+	if game_time - leap_burst > 1.0:
+		leap_targets.clear()
+	leap_burst = game_time
 	var best = null
-	var best_d := LEAP_RANGE * size
+	var best_score := INF
 	for e in get_tree().get_nodes_in_group("enemies"):
-		if not is_instance_valid(e) or e.dead or e in leap_targets:
+		if not is_instance_valid(e) or e.dead or e.immune:
 			continue
-		var d: float = e.global_position.distance_to(global_position)
+		var rel: Vector2 = e.global_position - global_position
+		var d := rel.length()
+		if d > LEAP_RANGE * size + float(e.radius):
+			continue
+		# Someone new beats someone already leapt to in this burst; anyone near the
+		# aim beats anyone who isn't; then the nearest.
+		var score := d + (0.0 if absf(aim_dir.angle_to(rel)) <= LEAP_AIM else 1000.0) + (5000.0 if e in leap_targets else 0.0)
+		if score < best_score:
+			best_score = score
+			best = e
+	var dir := aim_dir
+	var travel := LEAP_EMPTY
+	if best != null:
+		leap_targets.append(best)
+		var rel: Vector2 = best.global_position - global_position
+		if rel.length() > 0.5:
+			dir = rel.normalized()
+		# Land so the enemy sits just inside the blade's reach. Already closer than
+		# that: hop back out to it.
+		var stand := _hit_reach() + float(best.radius) - 12.0
+		travel = rel.length() - stand
+	_stop_hold(true)
+	_reset_combo()
+	hit_pause = 0.0
+	dodge_timer = 0.0  # a Leap on a dodge takes over the dodge
+	# A whole number of ticks, so the jump covers exactly the distance.
+	var tick := 1.0 / float(Engine.physics_ticks_per_second)
+	var ticks := maxi(roundi(LEAP_TIME / tick), 1)
+	lunge_dir = dir * signf(travel) if travel != 0.0 else dir
+	lunge_timer = (float(ticks) - 0.5) * tick
+	lunge_speed = absf(travel) / (float(ticks) * tick)
+	aim_dir = dir
+	face_dir = dir
+	invuln = maxf(invuln, LEAP_TIME + 0.1)
+	leap_landing = {"at": game_time + (float(ticks) - 0.5) * tick, "dir": dir, "size": size, "power": power, "col": col, "hit": best != null}
+	var trail := _strip("leap_trail", global_position, lunge_dir.angle(), size)
+	if trail != null:
+		trail.follow = self
+	_dust(global_position + FEET)
+	Sfx.play(self, "dodge", -8.0, 1.3)
+	return true
+
+
+## The strike at the end of a Leap: one cut in front of you at the blade's reach.
+func _run_leap() -> void:
+	if leap_landing.is_empty() or game_time < float(leap_landing["at"]):
+		return
+	var l := leap_landing
+	leap_landing = {}
+	var dir: Vector2 = l["dir"]
+	var size: float = l["size"]
+	var col: Color = l["col"]
+	_strip("leap_land", global_position + FEET, 0.0, size)
+	shake = maxf(shake, 5.0)
+	Sfx.play(self, "cleave", -6.0, 1.3)
+	if is_down or not l["hit"]:
+		return
+	var reach := _hit_reach() * (1.0 + 0.25 * (size - 1.0))
+	var half_arc := deg_to_rad(70.0)
+	var dmg := float(weapon.get("damage", 8.0)) * LEAP_DAMAGE * float(l["power"])
+	var struck := 0
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if not is_instance_valid(e) or e.dead:
+			continue
+		var rel: Vector2 = e.global_position - global_position
+		if rel.length() <= reach + float(e.radius) and (rel.length() < float(e.radius) + RADIUS or absf(dir.angle_to(rel)) <= half_arc):
+			e.take_hit(dmg, dir, 160.0, false, col, LEAP_STUN, 0.06)
+			e.apply_stun(LEAP_STUN)
+			Art.play_piece(self, "hit_spark", e.global_position - dir * float(e.radius) * 0.4, dir.angle())
+			struck += 1
+	# The cut shows as a swing: the sword snaps across in front of you.
+	if current_step < 0:
+		anim_dir = dir
+		anim_move = "slash"
+		swing_side = 1.0
+		_start_smear()
+		return_from = [dir.angle() + 0.9, _hand_point()]
+		return_t = RETURN_TIME
+	if struck > 0:
+		shake = maxf(shake, 8.0)
+		Sfx.play(self, "hit", -6.0)
+
+
+## How far a swing reaches from the player's centre (see _do_move).
+func _hit_reach() -> float:
+	return _reach_px() + 18.0
+
+
+# --- Weak Point -------------------------------------------------------------------
+
+## Marks enemies: the ones the swing hit, nearest first, or (On Dodge, no hits) the
+## enemy the dodge passes closest to. count: how many marks this player can have
+## out at once (Twice: two). With marks to spare and one enemy, a big enemy gets a
+## second spot. An enemy whose mark was struck by this very swing isn't marked
+## again by it. Returns false if nothing was marked.
+func _weak_point(hits: Array, count: int, size: float, power: float, col: Color) -> bool:
+	var targets: Array = []
+	for h in hits:
+		if is_instance_valid(h) and not h.dead and not h.immune and h.weak_popped > 0.05:
+			targets.append(h)
+	if hits.is_empty() and game_time - dodge_started < 0.05:
+		var passed = _dodge_passes()
+		if passed != null:
+			targets.append(passed)
+	if targets.is_empty():
+		return false
+	targets.sort_custom(func(a, b): return a.global_position.distance_squared_to(global_position) < b.global_position.distance_squared_to(global_position))
+	count = clampi(count, 1, SwingBuild.MAX_COUNT)
+	var placed := 0
+	var slot := 0
+	while placed < count and slot < count:
+		var e = targets[slot % targets.size()]
+		slot += 1
+		var mine := 0
+		for pair in weak_marks:
+			if pair[0] == e:
+				mine += 1
+				pair[1]["left"] = e.WEAK_LIFE   # still there: it just lasts longer
+		# One mark on a small enemy; a big one can carry a spot for each mark.
+		if mine >= (count if e.weak_big() else 1):
+			continue
+		if slot > targets.size() and not e.weak_big():
+			continue
+		# The spot is never right in front of you: you have to step round to it.
+		var from_enemy: Vector2 = global_position - e.global_position
+		var turn := deg_to_rad(Sim.between(80.0, 140.0)) * (1.0 if Sim.chance() < 0.5 else -1.0)
+		var m: Dictionary = e.add_weak_mark(index, power, size, from_enemy.angle() + turn)
+		weak_marks.append([e, m])
+		placed += 1
+		Art.play_piece(self, "weak_mark_on", e.global_position + (e.weak_spot_drawn(m) if e.weak_big() else Vector2(0, -e.radius * 0.5)), 0.0, 1.5 if size > 1.0 else 1.0)
+	# Only `count` marks at a time: the oldest go.
+	_prune_marks()
+	while weak_marks.size() > count:
+		var old: Array = weak_marks.pop_front()
+		if is_instance_valid(old[0]):
+			old[0].weak_marks.erase(old[1])
+	if placed > 0:
+		Sfx.play(self, "hook", -10.0, 1.8)
+	return placed > 0
+
+
+## The enemy a dodge that starts now will pass closest to (null if none is near).
+func _dodge_passes():
+	var a := global_position
+	var b := a + dodge_dir * DODGE_SPEED * DODGE_TIME
+	var best = null
+	var best_d := WEAK_DODGE_REACH
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if not is_instance_valid(e) or e.dead or e.immune:
+			continue
+		var d: float = Geometry2D.get_closest_point_to_segment(e.global_position, a, b).distance_to(e.global_position) - float(e.radius)
 		if d < best_d:
 			best_d = d
 			best = e
-	if best == null:
-		return
-	leap_targets.append(best)
-	var rel: Vector2 = best.global_position - global_position
-	var dir := rel.normalized()
-	var travel := maxf(rel.length() - (float(best.radius) + 14.0), 0.0)
-	dodge_timer = 0.0  # a Leap on a dodge takes over the dodge
-	lunge_dir = dir
-	lunge_timer = 0.14
-	lunge_speed = travel / 0.14
-	aim_dir = dir
-	face_dir = dir
-	invuln = maxf(invuln, 0.2)
-	best.take_hit(dmg * 0.4 * power, dir, 120.0, false, col)
-	best.apply_stun(0.25)
-	var trail := _strip("leap_trail", global_position, dir.angle(), size)
-	if trail != null:
-		trail.follow = self
-	if _strip("leap_land", global_position + dir * travel + FEET, 0.0, size) != null:
-		shake = maxf(shake, 5.0)
-		Sfx.play(self, "cleave", -6.0, 1.3)
-		return
-	var ring := RuneFx.new()
-	ring.kind = "ring"
-	ring.size = 34.0 * size
-	ring.color = col
-	ring.life = 0.25
-	_fx_root().add_child(ring)
-	ring.global_position = best.global_position
-	shake = maxf(shake, 5.0)
-	Sfx.play(self, "cleave", -6.0, 1.3)
+	return best
+
+
+func _prune_marks() -> void:
+	for pair in weak_marks.duplicate():
+		if not is_instance_valid(pair[0]) or pair[0].dead or not (pair[1] in pair[0].weak_marks):
+			weak_marks.erase(pair)
+
+
+## A mark was struck (by anyone): its owner stops counting it.
+func _forget_mark(mark: Dictionary) -> void:
+	for p in get_tree().get_nodes_in_group("player"):
+		for pair in p.weak_marks.duplicate():
+			if is_same(pair[1], mark):
+				p.weak_marks.erase(pair)
+
+
+func _clear_marks() -> void:
+	for pair in weak_marks:
+		if is_instance_valid(pair[0]):
+			pair[0].weak_marks.erase(pair[1])
+	weak_marks.clear()
 
 
 ## Plays one of the art's effect strips (art/swing/fx/) at a world position.

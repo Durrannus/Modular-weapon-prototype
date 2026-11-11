@@ -1226,6 +1226,51 @@
    "glow": true,
    "note": "as blank_stone_pickup",
    "fps": 5
+  },
+  "weak_mark": {
+   "file": "fx/weak_mark.png",
+   "frame": [
+    24,
+    24
+   ],
+   "frames": 6,
+   "origin": [
+    12,
+    12
+   ],
+   "glow": false,
+   "note": "ADDITIVE. Weak Point: the spot on a big enemy's body, looping. STAND-IN from the prototype thread, 11 Nov",
+   "fps": 10
+  },
+  "weak_mark_on": {
+   "file": "fx/weak_mark_on.png",
+   "frame": [
+    40,
+    40
+   ],
+   "frames": 5,
+   "origin": [
+    20,
+    20
+   ],
+   "glow": false,
+   "note": "ADDITIVE. Weak Point: the moment a mark lands. STAND-IN from the prototype thread, 11 Nov",
+   "fps": 20
+  },
+  "weak_break": {
+   "file": "fx/weak_break.png",
+   "frame": [
+    72,
+    72
+   ],
+   "frames": 6,
+   "origin": [
+    36,
+    36
+   ],
+   "glow": false,
+   "note": "ADDITIVE. Weak Point: the big crit when the mark is struck. STAND-IN from the prototype thread, 11 Nov",
+   "fps": 22
   }
  }
 }

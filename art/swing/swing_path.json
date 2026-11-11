@@ -564,37 +564,37 @@
   "shockwave": {
    "name": "Shockwave",
    "trigger": "finisher",
-   "text": "Your finisher sends a shockwave forward."
+   "text": "Your finisher sends a wave forward."
   },
   "hook": {
    "name": "Hook",
-   "trigger": "finisher",
-   "text": "Your finisher hooks enemies and yanks them in."
+   "trigger": "active (press)",
+   "text": "Press its button to yank nearby enemies in."
   },
   "cleave": {
    "name": "Cleave",
    "trigger": "every hit",
    "text": "Every hit also strikes the enemy behind."
   },
-  "second_wind": {
-   "name": "Second Wind",
-   "trigger": "on a kill",
-   "text": "Kills refill a dodge."
-  },
   "shards": {
    "name": "Shards",
    "trigger": "every hit",
-   "text": "Every hit sends metal shards jumping to the closest enemy, then the next."
+   "text": "Every hit sends shards jumping to the nearest enemies."
   },
   "leap": {
    "name": "Leap",
-   "trigger": "dodge attack",
-   "text": "Attacking straight after a dodge jumps you to the nearest enemy."
+   "trigger": "active (press)",
+   "text": "Press its button to leap at the nearest enemy and strike it."
   },
   "whirlwind": {
    "name": "Whirlwind",
+   "trigger": "active (hold)",
+   "text": "Hold its button to spin and cut everything around you."
+  },
+  "weak_point": {
+   "name": "Weak Point",
    "trigger": "finisher",
-   "text": "Your finisher spins a full circle, cutting everything around you."
+   "text": "Your finisher marks an enemy, and your next hit on the mark is a big crit."
   }
  },
  "bands": {
@@ -1115,7 +1115,6 @@
   "shockwave": "#ffc850",
   "hook": "#ff9c32",
   "shards": "#d0dcd8",
-  "second_wind": "#86d4a4",
   "leap": "#f0c070",
   "whirlwind": "#f078b4",
   "bands": "#86d4a4",
@@ -1123,7 +1122,8 @@
   "plain_pommel": "#94a8b8",
   "keen_pommel": "#78c0cc",
   "heavy_pommel": "#cf8a48",
-  "light_pommel": "#e8e4bc"
+  "light_pommel": "#e8e4bc",
+  "weak_point": "#b8f4ff"
  },
  "hud": {
   "note": "New folder hud/, for a HUD drawn at 640x360 with Silkscreen 8 instead of the fallback font. See preview/screen_hud.png.",

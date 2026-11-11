@@ -19,6 +19,7 @@ func _ready() -> void:
 	# The sword's active runes: the first one on the sword (grip to tip) is ability1.
 	_add("ability1", [_mouse(MOUSE_BUTTON_RIGHT), _btn(JOY_BUTTON_RIGHT_SHOULDER)])
 	_add("ability2", [_key(KEY_Q), _btn(JOY_BUTTON_LEFT_SHOULDER)])
+	_add("ability3", [_key(KEY_R), _btn(JOY_BUTTON_B)])   # a first guess, to settle in testing
 	_add("build", [_key(KEY_TAB), _btn(JOY_BUTTON_Y)])
 	_add("interact", [_key(KEY_E), _key(KEY_F), _btn(JOY_BUTTON_Y)])
 	_add("toggle_spawning", [_key(KEY_P), _btn(JOY_BUTTON_START)])

@@ -639,7 +639,7 @@ func _menu_open() -> bool:
 ##   bytes 3-4   right stick the same way
 ##   bytes 5-12  the mouse, as an offset from the player (two 32-bit floats)
 ##   byte 13     the ability buttons: 1 first held, 2 first pressed, 4 second held,
-##               8 second pressed
+##               8 second pressed, 16 third held, 32 third pressed
 ##   then, if bit 32 is set, the menu choices made since the last tick
 func _sample() -> PackedByteArray:
 	local.poll()
@@ -707,8 +707,8 @@ func _apply(i: int, b: PackedByteArray) -> void:
 	inp.move = (Vector2(b.decode_s8(1), b.decode_s8(2)) / 127.0).limit_length(1.0)
 	inp.stick_aim = (Vector2(b.decode_s8(3), b.decode_s8(4)) / 127.0).limit_length(1.0)
 	inp.aim_offset = Vector2(b.decode_float(5), b.decode_float(9))
-	inp.ability_held = [b[13] & 1 != 0, b[13] & 4 != 0]
-	inp.ability_pressed = [b[13] & 2 != 0, b[13] & 8 != 0]
+	inp.ability_held = [b[13] & 1 != 0, b[13] & 4 != 0, b[13] & 16 != 0]
+	inp.ability_pressed = [b[13] & 2 != 0, b[13] & 8 != 0, b[13] & 32 != 0]
 	if flags & 32 != 0 and b.size() > INPUT_BYTES:
 		var cmds = bytes_to_var(b.slice(INPUT_BYTES))
 		if cmds is Array:

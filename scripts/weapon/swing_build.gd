@@ -62,47 +62,53 @@ const POMMEL_ORDER := ["plain_pommel", "keen_pommel", "heavy_pommel", "light_pom
 ##   turn      hold only: how long one turn takes, in seconds
 const FITTINGS := {
 	"shockwave": {"kind": "rune", "name": "Shockwave", "trigger": "finisher", "color": Color("#ffc850"),
-		"desc": "Your finisher sends a rolling wave forward: a light hit that shoves enemies back."},
+		"desc": "Your finisher sends a wave forward."},
 	"hook": {"kind": "rune", "name": "Hook", "trigger": "active", "use": "press", "recharge": 4.0, "color": Color("#ff9c32"),
-		"desc": "Press its button to yank nearby enemies in on chains. Then it has to recharge."},
+		"desc": "Press its button to yank nearby enemies in."},
 	# Shards replaced Cleave (Darren, 6 November).
 	"shards": {"kind": "rune", "name": "Shards", "trigger": "hit", "color": Color("#d0dcd8"),
-		"desc": "Every hit sends metal shards jumping to the closest enemy, then the next."},
-	# Second Wind is parked (Darren, 6 November: "meh"); Whirlwind replaces it in the tray.
-	"second_wind": {"kind": "rune", "name": "Second Wind", "trigger": "kill", "color": Color("#86d4a4"), "parked": true,
-		"desc": "Every kill refills a dodge charge (up to 2)."},
-	"leap": {"kind": "rune", "name": "Leap", "trigger": "dodge_attack", "color": Color("#f0c070"),
-		"desc": "Attacking straight after a dodge jumps you to the nearest enemy."},
+		"desc": "Every hit sends shards jumping to the nearest enemies."},
+	# Weak Point (Darren, 11 November): the sword's single-target passive. The finisher
+	# marks the enemy it hit; the next sword hit on the mark is a big crit. Small
+	# enemies glow all over. Big ones get a spot on one side that you have to reach.
+	"weak_point": {"kind": "rune", "name": "Weak Point", "trigger": "finisher", "color": Color("#b8f4ff"),
+		"desc": "Your finisher marks an enemy, and your next hit on the mark is a big crit."},
 	"whirlwind": {"kind": "rune", "name": "Whirlwind", "trigger": "active", "use": "hold", "recharge": 5.0, "turns": 3, "turn": 0.28, "color": Color("#f078b4"),
-		"desc": "Hold its button to spin, cutting everything around you, until its meter runs out."},
+		"desc": "Hold its button to spin and cut everything around you."},
+	# Leap is active since 11 November (it was "attack straight after a dodge").
+	"leap": {"kind": "rune", "name": "Leap", "trigger": "active", "use": "press", "recharge": 3.0, "color": Color("#f0c070"),
+		"desc": "Press its button to leap at the nearest enemy and strike it."},
 	"twice": {"kind": "band", "name": "Twice", "color": Color("#86d4a4"),
 		"desc": "The rune above happens twice."},
 	"wider": {"kind": "band", "name": "Wider", "color": Color("#86d4a4"),
 		"desc": "The rune above is bigger."},
 	"every_hit": {"kind": "band", "name": "Every Hit", "color": Color("#86d4a4"),
-		"desc": "The rune above happens by itself on every hit instead, at half strength."},
+		"desc": "The rune above happens on every hit, at half strength."},
 	"saved_up": {"kind": "band", "name": "Saved Up", "color": Color("#86d4a4"),
-		"desc": "The rune above only happens every third time, but three times as strong. An active rune takes three times as long to recharge instead."},
+		"desc": "The rune above is three times as strong, but comes a third as often."},
 	"on_dodge": {"kind": "band", "name": "On Dodge", "color": Color("#86d4a4"),
 		"desc": "The rune above also happens when you dodge."},
 	# Mirror is parked (Darren, 6 November): it overlapped Twice too much. The rules stay, but it's kept out of the forge.
 	"mirror": {"kind": "bender", "name": "Mirror", "color": Color("#a878d0"), "parked": true,
 		"desc": "Rare. Copies the fitting below it. One rule-bender per sword."},
 	"relay": {"kind": "bender", "name": "Relay", "color": Color("#a878d0"),
-		"desc": "Rare. The bands on the rune below also boost the next rune above. One rule-bender per sword."},
+		"desc": "Rare: the bands under the rune below also boost the next rune above."},
 }
-const FITTING_ORDER := ["shockwave", "hook", "shards", "whirlwind", "leap", "second_wind",
+## Passive runes first, then active ones (the forge tray shows them as two groups).
+const FITTING_ORDER := ["shockwave", "shards", "weak_point", "whirlwind", "hook", "leap",
 	"twice", "wider", "every_hit", "saved_up", "on_dodge", "mirror", "relay"]
 const EVERY_HIT_POWER := 0.5
 const SAVED_UP_EVERY := 3
 const SAVED_UP_POWER := 3.0
 
 ## Active runes take the ability buttons in the order they sit on the sword, grip
-## to tip. Two of the same rune share a button. What the buttons are called and
-## which prompt pictures show them (art/cave/ui/prompt_<name>.png):
-const ACTIVE_BUTTONS := 2
-const ABILITY_KEYS := {"kbm": ["right mouse", "Q"], "pad": ["RB", "LB"]}
-const ABILITY_PROMPTS := {"kbm": ["mouse_right", "q"], "pad": ["pad_rb", "pad_lb"]}
+## to tip. Two of the same rune share a button. Up to three active runes work on
+## one sword (Darren, 11 November; it was two). What the buttons are called and
+## which prompt pictures show them (art/cave/ui/prompt_<name>.png). The third
+## button's keys (R, B) are a first guess, to settle in testing.
+const ACTIVE_BUTTONS := 3
+const ABILITY_KEYS := {"kbm": ["right mouse", "Q", "R"], "pad": ["RB", "LB", "B"]}
+const ABILITY_PROMPTS := {"kbm": ["mouse_right", "q", "r"], "pad": ["pad_rb", "pad_lb", "pad_b"]}
 
 ## The test swords from the 3 November notes, bottom to top.
 const TEST_SWORDS := {
@@ -111,6 +117,8 @@ const TEST_SWORDS := {
 	# 10 November: both active runes and a passive one. Whirlwind sits lowest, so it
 	# gets the first ability button (right mouse or RB), which is the easy one to hold.
 	"C": {"blade": "iron_blade", "grip": "wrapped_grip", "line": ["whirlwind", "hook", "twice", "shockwave"]},
+	# 11 November: all three active runes, one on each button, and the new passive.
+	"D": {"blade": "iron_blade", "grip": "wrapped_grip", "line": ["whirlwind", "hook", "leap", "weak_point"]},
 }
 
 var blade := "iron_shortblade"
@@ -222,7 +230,7 @@ static func wider_size(n: int) -> float:
 ## Reads the line bottom to top. Returns:
 ##   effects: one entry per rune: {id, slot, bands (ids), band_slots, trigger, count, size,
 ##            power (strength multiplier), every (fires on every Nth trigger), also (extra triggers),
-##            mirror (true if it's a Mirror's copy), button (active runes: 0 or 1)}
+##            mirror (true if it's a Mirror's copy), button (active runes: 0, 1 or 2)}
 ##   slots:   for each slot index: {"rune": effect index} / {"band": effect index} /
 ##            {"unused": true, "why": text} / plus "mirror": true or "relay": true on rule-benders
 ## ruby: the Gilded grip's ruby slot index (-1 if none). A rune there fires one more
@@ -252,13 +260,13 @@ static func resolve(slots: Array, ruby := -1) -> Dictionary:
 			pending.append(i)
 			continue
 		if f["trigger"] == "active" and not (id in buttons) and buttons.size() >= ACTIVE_BUTTONS:
-			# A third kind of active rune has no button left, unless an Every Hit
+			# A fourth kind of active rune has no button left, unless an Every Hit
 			# band below makes it fire by itself.
 			var automatic := false
 			for s in relay_bands + pending:
 				automatic = automatic or str(line[s]) == "every_hit"
 			if not automatic:
-				info[i] = {"unused": true, "why": "Only two active runes work on one sword."}
+				info[i] = {"unused": true, "why": "Only three active runes work on one sword."}
 				for s in pending:
 					info[s] = {"unused": true, "why": "The rune above it has no button."}
 				if relay_slot >= 0:
@@ -358,18 +366,16 @@ static func _apply_band(e: Dictionary, band: String) -> String:
 		"on_dodge":
 			if "dodge" in e["also"]:
 				return "On Dodge doesn't stack (max)."
-			if e["id"] == "second_wind":
-				return "Second Wind can't refill the dodge you're using."
 			e["also"].append("dodge")
 	return ""
 
 
-const WHEN := {"finisher": "Your finisher", "hit": "Every hit", "kill": "Every kill", "dodge_attack": "An attack straight after a dodge"}
-const WHEN_NTH := {"finisher": "Every third finisher", "hit": "Every third hit", "kill": "Every third kill", "dodge_attack": "Every third attack after a dodge"}
+const WHEN := {"finisher": "Your finisher", "hit": "Every hit", "kill": "Every kill"}
+const WHEN_NTH := {"finisher": "Every third finisher", "hit": "Every third hit", "kill": "Every third kill"}
 
 
 ## One plain sentence per rune, e.g. "Your finisher sends two shockwaves forward."
-## keys: what this player's two ability buttons are called (ABILITY_KEYS), for
+## keys: what this player's ability buttons are called (ABILITY_KEYS), for
 ## active runes: "Press Q: pulls enemies in."
 static func sentence(e: Dictionary, keys: Array = ABILITY_KEYS["kbm"]) -> String:
 	var n: int = e["count"]
@@ -387,16 +393,24 @@ static func sentence(e: Dictionary, keys: Array = ABILITY_KEYS["kbm"]) -> String
 			what = "pulls enemies in%s%s" % [" from further away" if big else "", times]
 		"shards":
 			what = "sends shards jumping to the closest enemies%s%s%s" % [", splitting in two at each jump" if e.get("splinter", false) else "", times, ", from further away" if big else ""]
-		"second_wind":
-			what = "refills %s%s" % ["a dodge charge" if n == 1 else _num(n) + " dodge charges", " and knocks enemies back" if big else ""]
+		"weak_point":
+			# Twice: two marks. Wider: a bigger spot on big enemies.
+			what = "marks %s%s, and your next hit on a mark is a %scrit" % ["the enemy it hits" if n == 1 else "up to %s enemies" % _num(n),
+				(" with a bigger spot" if n == 1 else " with bigger spots") if big else "", "big " if float(e.get("power", 1.0)) >= 1.0 else ""]
 		"whirlwind":
 			what = "spins %s, cutting everything around you%s" % ["a full circle" if n == 1 else _num(n) + " times round", ", in a bigger circle" if big else ""]
 		"leap":
-			what = "jumps you to the nearest enemy%s%s" % ["" if n == 1 else (", then the next one" if n == 2 else ", then %s more" % _num(n - 1)), ", from further away" if big else ""]
+			what = "leaps you to the nearest enemy%s%s" % ["" if n == 1 else (", then the next one" if n == 2 else ", then %s more" % _num(n - 1)), ", from further away" if big else ""]
 		_:
 			return ""
 	var power := float(e.get("power", 1.0))
-	if power < 1.0:
+	if str(e["id"]) == "weak_point":
+		# Its strength is the size of the crit, so say that instead.
+		if power < 1.0:
+			what = what.replace("a crit", "a smaller crit")
+		elif power >= 3.0:
+			what = what.replace("a big crit", "a huge crit")
+	elif power < 1.0:
 		what += ", at half strength"
 	elif power >= 3.0:
 		what += ", three times as strong"
@@ -421,6 +435,9 @@ static func _active_sentence(e: Dictionary, keys: Array) -> String:
 			what = "pulls enemies in%s%s" % [" from further away" if big else "", "" if n == 1 else (" twice" if n == 2 else " %d times" % n)]
 		"whirlwind":
 			what = "spins for up to %s turns, cutting everything around you%s" % [_num(int(f["turns"]) * n), ", in a bigger circle" if big else ""]
+		"leap":
+			what = "leaps you to the nearest enemy%s and strikes it from your blade's reach%s" % [" from further away" if big else "",
+				"" if n == 1 else (", then the next one" if n == 2 else ", then %s more" % _num(n - 1))]
 		_:
 			return ""
 	var slow := int(e.get("every", 1))
