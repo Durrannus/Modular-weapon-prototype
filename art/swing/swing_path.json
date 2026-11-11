@@ -797,6 +797,11 @@
    "name": "Weak Point",
    "trigger": "finisher",
    "text": "Your finisher marks an enemy, and your next hit on the mark is a big crit."
+  },
+  "ghostwield": {
+   "name": "Ghostwield",
+   "kind": "active",
+   "text": "A ghost of your sword appears in your other hand and mirrors each swing."
   }
  },
  "bands": {
@@ -1332,6 +1337,15 @@
    "#78c0cc",
    "#b8f4ff",
    "#e4fbff",
+   "#ffffff"
+  ],
+  "ghostwield": "#a8b4ff",
+  "ghostwield_ramp": [
+   "#1a2450",
+   "#3a3c8c",
+   "#6a70d0",
+   "#a8b4ff",
+   "#d8dcff",
    "#ffffff"
   ]
  },

@@ -144,6 +144,12 @@ const FITTINGS := {
 	# Leap is active since 11 November (it was "attack straight after a dodge").
 	"leap": {"kind": "rune", "name": "Leap", "trigger": "active", "use": "press", "recharge": 3.0, "color": Color("#f0c070"),
 		"desc": "Press its button to leap at the nearest enemy and strike it."},
+	# Ghostwield (Darren, 11 November afternoon): the sword's third active rune. A
+	# see-through copy of your sword appears in your other hand and copies every
+	# swing a moment later from the other side, at half strength, for `time`
+	# seconds. Its hits set your passive runes off again as ghosted effects.
+	"ghostwield": {"kind": "rune", "name": "Ghostwield", "trigger": "active", "use": "press", "recharge": 45.0, "time": 15.0, "color": Color("#a8b4ff"),
+		"desc": "Press its button: a ghost of your sword copies every swing for a while, at half strength."},
 	"twice": {"kind": "band", "name": "Twice", "color": Color("#86d4a4"),
 		"desc": "The rune above happens twice."},
 	"wider": {"kind": "band", "name": "Wider", "color": Color("#86d4a4"),
@@ -163,13 +169,27 @@ const FITTINGS := {
 		"desc": "Rare: the bands under the rune below also boost the next rune above."},
 }
 ## Passive runes first, then active ones (the forge tray shows them as two groups).
-const FITTING_ORDER := ["shockwave", "shards", "weak_point", "whirlwind", "hook", "leap",
+const FITTING_ORDER := ["shockwave", "shards", "weak_point", "whirlwind", "hook", "leap", "ghostwield",
 	"twice", "wider", "every_hit", "saved_up", "on_dodge", "mirror", "relay"]
 const EVERY_HIT_POWER := 0.5
 ## Every Hit on an active rune: seconds off its recharge for each swing that lands.
 const EVERY_HIT_REFUND := 0.5
 const SAVED_UP_EVERY := 3
 const SAVED_UP_POWER := 3.0
+## Ghostwield: what a ghost swing does, as a share of the swing it copies. Saved Up
+## brings it to a full copy (and makes the recharge three times as long).
+const GHOST_POWER := 0.5
+
+
+## How strong the ghost's copies are for a Ghostwield rune of this power.
+static func ghost_power(power: float) -> float:
+	return minf(GHOST_POWER * power, 1.0)
+
+
+## How long the ghost sword stays. Wider is the band for it: one Wider is a third
+## longer (20 seconds for 15).
+static func ghost_time(size: float) -> float:
+	return float(FITTINGS["ghostwield"]["time"]) * (1.0 + (size - 1.0) / 1.8)
 
 ## Active runes take the ability buttons in the order they sit on the sword, grip
 ## to tip. Two of the same rune share a button. Up to three active runes work on
@@ -188,8 +208,8 @@ const TEST_SWORDS := {
 	# 10 November: two active runes and a passive one. Whirlwind sits lowest, so it
 	# gets the first ability button (right mouse or RB), which is the easy one to hold.
 	"C": {"blade": "iron_broadsword", "grip": "wrapped_grip", "line": ["whirlwind", "leap", "twice", "shockwave"]},
-	# 11 November: the sword's active runes, one on each button, and two passives.
-	"D": {"blade": "iron_broadsword", "grip": "wrapped_grip", "line": ["whirlwind", "leap", "shards", "weak_point"]},
+	# 11 November: the sword's three active runes, one on each button, and a passive.
+	"D": {"blade": "iron_broadsword", "grip": "wrapped_grip", "line": ["whirlwind", "leap", "ghostwield", "weak_point"]},
 }
 
 var blade := "wooden_blade"   # the sword everyone starts with: no slots on the blade, one on the grip
@@ -575,16 +595,23 @@ static func _active_sentence(e: Dictionary, keys: Array) -> String:
 		"leap":
 			what = "leaps you to the nearest enemy%s and strikes it from your blade's reach%s" % [" from further away" if big else "",
 				"" if n == 1 else (", then the next one" if n == 2 else ", then %s more" % _num(n - 1))]
+		"ghostwield":
+			# Its strength is how much of your swing the ghost copies, so say that.
+			what = "a ghost of your sword copies every swing%s for %d seconds, at %s strength" % ["" if n == 1 else (" twice" if n == 2 else " %d times" % n),
+				roundi(ghost_time(float(e["size"]))), "full" if ghost_power(float(e.get("power", 1.0))) >= 1.0 else "half"]
 		_:
 			return ""
 	var slow := int(e.get("every", 1))
-	if float(e.get("power", 1.0)) >= 3.0:
+	if float(e.get("power", 1.0)) >= 3.0 and e["id"] != "ghostwield":
 		what += ", three times as strong"
 	var s := "%s %s: %s. Recharges in %d seconds." % ["Hold" if f["use"] == "hold" else "Press", key, what, roundi(float(f["recharge"]) * slow)]
 	if float(e.get("refund", 0.0)) > 0.0:
 		s += " Each hit you land takes half a second off."
 	if "dodge" in e.get("also", []):
-		s += " Every third dodge does it too." if slow > 1 else " Dodging does it too."
+		if e["id"] == "ghostwield":
+			s += " The ghost also cuts along %s." % ("every third dodge" if slow > 1 else "every dodge")
+		else:
+			s += " Every third dodge does it too." if slow > 1 else " Dodging does it too."
 	return s
 
 
@@ -594,6 +621,7 @@ static func _num(n: int) -> String:
 
 ## The sword's active runes, one entry per ability button, in button order:
 ##   {id, use, effects (indexes into `effects`), recharge (seconds), turns, turn, slot, refund}
+## (Two Ghostwield runes are one ghost: see _summon_ghost in player.gd.)
 ## Twice gives a hold rune that many times the turns; a press rune fires that
 ## many times. Saved Up makes the recharge three times as long. Every Hit gives
 ## a refund: seconds off the recharge for each swing that lands.

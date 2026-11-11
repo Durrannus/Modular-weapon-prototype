@@ -173,7 +173,7 @@ func _run() -> void:
 
 	# --- The starting sword: Whirlwind and Leap on buttons one and two ---
 	var list: Array = p.weapon["abilities"]
-	_check(list.size() == 2 and list[0]["id"] == "whirlwind" and list[1]["id"] == "leap", "the arena's sword has Whirlwind and Leap on buttons one and two")
+	_check(list.size() == 3 and list[0]["id"] == "whirlwind" and list[1]["id"] == "leap" and list[2]["id"] == "ghostwield", "the arena's sword has Whirlwind, Leap and Ghostwield on buttons one, two and three")
 	_check(not ("hook" in p.weapon["line"]) and SwingBuild.FITTINGS["hook"].get("parked", false), "Hook is off the sword and out of the forge, waiting for the hammer")
 
 	# --- Hook: one press pulls enemies in, then it has to recharge ---
@@ -397,6 +397,7 @@ func _run() -> void:
 	far.queue_free()
 	await _leap_checks(dmg)
 	await _weak_point_checks(dmg)
+	await _ghostwield_checks(dmg)
 
 	print("RESULT: %s" % ("all passed" if fails == 0 else "%d failed" % fails))
 	quit(1 if fails > 0 else 0)
@@ -484,15 +485,11 @@ func _leap_checks(dmg: float) -> void:
 	await _frames(2)
 
 	# All three buttons on one sword.
-	_sword_exact(["whirlwind", "hook", "leap", ""])
+	_sword_exact(["whirlwind", "leap", "ghostwield", ""])
 	await _rest()
-	far = _slime(Vector2(220, 0))
-	await _frames(3)
 	await _press(2)
 	await _frames(24)
-	_check(far.hp < 5000.0 and float(p.ability_charge[2]) < 0.2 and float(p.ability_charge[0]) >= 1.0 and float(p.ability_charge[1]) >= 1.0, "the third button uses the third active rune and only its meter")
-	far.queue_free()
-	await _frames(2)
+	_check(p.ghost_left > 0.0 and float(p.ability_charge[2]) < 0.2 and float(p.ability_charge[0]) >= 1.0 and float(p.ability_charge[1]) >= 1.0, "the third button uses the third active rune and only its meter")
 
 
 # --- Weak Point (passive, 11 November): the finisher marks, the next hit is a big crit ---
@@ -636,3 +633,165 @@ func _weak_point_checks(dmg: float) -> void:
 	m.build.set_pommel("plain_pommel")
 	near.queue_free()
 	await _frames(2)
+
+
+# --- Ghostwield (active, 11 November afternoon): a ghost sword copies every swing ---
+func _lost(e) -> float:
+	return 5000.0 - float(e.hp)
+
+
+func _ghostwield_checks(dmg: float) -> void:
+	_sword_exact(["ghostwield", "", "", ""])
+	await _rest()
+	_check(p.ghost_left == 0.0, "a new sword starts with no ghost out")
+	var near = _slime(Vector2(50, 0))
+	await _frames(3)
+	await _swing()
+	_check(absf(_lost(near) - dmg) < 0.01, "before it is called, a swing is just a swing (%.1f)" % _lost(near))
+	await _press(0)
+	_check(absf(float(p.ghost_left) - 15.0) < 0.1, "pressing its button calls the ghost sword for 15 seconds (%.2f)" % p.ghost_left)
+	_check(float(p.ability_charge[0]) < 0.05 and not p.ability_ready(0), "and empties its meter: the 45 seconds run from the press")
+	_check(absf(float(p.ghost_power) - 0.5) < 0.001 and p.ghost_count == 1, "one copy of each swing, at half strength")
+	near.hp = 5000.0
+	p._reset_combo()
+	p.input.stick_aim = Vector2.RIGHT
+	await _frames(2)
+	p.input.attack_pressed = true
+	await _frames(1)
+	p.input.attack_pressed = false
+	await _frames(6)
+	var first := _lost(near)
+	await _frames(22)
+	p._reset_combo()
+	_check(absf(first - dmg) < 0.01 and absf(_lost(near) - dmg * 1.5) < 0.01, "the ghost copies the swing a moment later, at half strength (%.1f, then %.1f)" % [first, _lost(near)])
+	near.hp = 5000.0
+	await _chain()
+	await _frames(20)
+	_check(absf(_lost(near) - dmg * 5.25) < 0.01, "a whole chain: 3.5 hits and the ghost's 1.75 (%.1f, blade %.0f)" % [_lost(near), dmg])
+	_check(float(p.ability_charge[0]) < 0.2, "its meter is still filling while it is out (%.2f)" % p.ability_charge[0])
+	# Its time runs out.
+	p.ghost_left = 0.2
+	await _frames(20)
+	_check(p.ghost_left == 0.0, "after its time the ghost sword goes")
+	near.hp = 5000.0
+	await _swing()
+	_check(absf(_lost(near) - dmg) < 0.01, "and a swing is just a swing again (%.1f)" % _lost(near))
+
+	# Twice: two copies of each swing.
+	_sword_exact(["twice", "ghostwield", "", ""])
+	await _rest()
+	await _press(0)
+	near.hp = 5000.0
+	await _swing()
+	_check(p.ghost_count == 2 and absf(_lost(near) - dmg * 2.0) < 0.01, "Twice: the ghost copies each swing twice (%.1f)" % _lost(near))
+
+	# Wider: it stays longer.
+	_sword_exact(["wider", "ghostwield", "", ""])
+	await _rest()
+	_check(p.ghost_left == 0.0, "changing the sword sends the ghost away")
+	await _press(0)
+	_check(absf(float(p.ghost_left) - 20.0) < 0.1, "Wider: 20 seconds instead of 15 (%.2f)" % p.ghost_left)
+
+	# Saved Up: a full copy, and three times the recharge.
+	_sword_exact(["saved_up", "ghostwield", "", ""])
+	await _rest()
+	await _press(0)
+	near.hp = 5000.0
+	await _swing()
+	_check(absf(_lost(near) - dmg * 2.0) < 0.01, "Saved Up: the ghost copies at full strength (%.1f)" % _lost(near))
+	_check(absf(float(p.weapon["abilities"][0]["recharge"]) - 135.0) < 0.01, "and takes 135 seconds to come back")
+
+	# Every Hit: your hits bring it back sooner, but not while it is still out.
+	_sword_exact(["every_hit", "ghostwield", "", ""])
+	await _rest()
+	await _press(0)
+	var c0 := float(p.ability_charge[0])
+	await _swing()
+	var gained := float(p.ability_charge[0]) - c0
+	_check(gained < 31.5 / 60.0 / 45.0, "Every Hit: no time off while the ghost is still out (%.4f)" % gained)
+	p.ghost_left = 0.01
+	await _frames(3)
+	c0 = float(p.ability_charge[0])
+	near.hp = 5000.0
+	await _swing()
+	gained = float(p.ability_charge[0]) - c0
+	_check(absf(gained - (0.5 / 45.0 + 31.0 / 60.0 / 45.0)) < 0.002, "once it has gone, a landed swing takes half a second off (%.4f)" % gained)
+
+	# The ghost's copies aren't your hits: they give no time back to another rune.
+	_sword_exact(["every_hit", "leap", "ghostwield", ""])
+	await _rest()
+	await _press(1)
+	p.ability_charge[0] = 0.0
+	await _swing()
+	_check(float(p.ability_charge[0]) < 0.4, "the ghost's copy of a hit gives nothing back to an Every Hit rune (%.3f)" % p.ability_charge[0])
+
+	# On Dodge: the ghost cuts along the dodge, out or not.
+	_sword_exact(["on_dodge", "ghostwield", "", ""])
+	await _rest()
+	near.hp = 5000.0
+	p.input.move = Vector2.RIGHT
+	p.input.dash_pressed = true
+	await _frames(1)
+	p.input.dash_pressed = false
+	p.input.move = Vector2.ZERO
+	await _frames(20)
+	_check(p.ghost_left == 0.0 and absf(_lost(near) - dmg * 0.5) < 0.01, "On Dodge: the ghost cuts what you dodge through for half a hit (%.1f)" % _lost(near))
+	near.queue_free()
+	await _frames(2)
+	near = _slime(Vector2(50, 0))
+	await _frames(3)
+
+	# Its hits set the passive runes off again, as ghosted effects at its strength.
+	_sword_exact(["ghostwield", "shockwave", "", ""])
+	await _rest()
+	await _press(0)
+	near.hp = 5000.0
+	await _chain()
+	await _frames(24)
+	_check(absf(_lost(near) - dmg * 5.85) < 0.01, "Shockwave: the ghost's finisher sends a second wave at half strength (%.2f, want %.2f)" % [_lost(near), dmg * 5.85])
+
+	_sword_exact(["ghostwield", "saved_up", "shockwave", ""])
+	await _rest()
+	await _press(0)
+	near.hp = 5000.0
+	await _chain()
+	await _frames(24)
+	_check(absf(_lost(near) - dmg * 5.25) < 0.01, "Saved Up Shockwave: no wave, and no ghost wave, on the first finisher (%.2f)" % _lost(near))
+	await _chain()
+	await _frames(24)
+	near.hp = 5000.0
+	await _chain()
+	await _frames(24)
+	_check(absf(_lost(near) - dmg * 7.05) < 0.01, "the third finisher's big wave gets its ghost too, and the count isn't thrown (%.2f, want %.2f)" % [_lost(near), dmg * 7.05])
+	near.hp = 5000.0
+	await _chain()
+	await _frames(24)
+	_check(absf(_lost(near) - dmg * 5.25) < 0.01, "and the fourth has none again (%.2f)" % _lost(near))
+
+	_sword_exact(["ghostwield", "shards", "", ""])
+	await _rest()
+	var far = _slime(Vector2(160, 0))
+	await _frames(3)
+	await _press(0)
+	near.hp = 5000.0
+	await _swing()
+	await _frames(20)
+	_check(absf(_lost(far) - dmg * 0.9) < 0.01, "Shards: the ghost's hit sends its own shards on, at half strength (%.2f, want %.2f)" % [_lost(far), dmg * 0.9])
+	far.queue_free()
+	await _frames(2)
+
+	# Weak Point: the ghost leaves your mark alone (it is for your own sword).
+	_sword_exact(["ghostwield", "weak_point", "", ""])
+	await _rest()
+	await _press(0)
+	near.hp = 5000.0
+	await _chain()
+	await _frames(20)
+	_check(near.weak_marks.size() == 1 and absf(_lost(near) - dmg * 5.25) < 0.01, "Weak Point: the ghost's copy of the finisher doesn't spend the mark (%.1f)" % _lost(near))
+	near.hp = 5000.0
+	await _swing()
+	_check(near.weak_marks.is_empty() and absf(_lost(near) - dmg * 3.0) < 0.01, "your next hit takes the big crit, and the ghost copies it as an ordinary hit (%.1f)" % _lost(near))
+	near.queue_free()
+	await _frames(2)
+	_sword_exact(["whirlwind", "leap", "ghostwield", "weak_point"])
+	await _rest()

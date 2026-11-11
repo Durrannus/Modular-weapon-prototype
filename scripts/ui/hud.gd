@@ -27,6 +27,7 @@ const AMBER := Color("#ffc850")
 const TEAL := Color("#86d4a4")
 const VIOLET := Color("#a878d0")
 const EMBER := Color("#f06a40")
+const GHOST := Color("#a8b4ff")   # Ghostwield's blue-violet
 const PLATE := Color("#19142a")
 const SHADE := Color(0.098, 0.078, 0.165, 0.5)   # PLATE, half see-through
 const SIZE := Vector2(640, 360)
@@ -219,12 +220,19 @@ func _draw_abilities(p, right: bool, x: float, y: float, block_w: float) -> void
 			panel.draw_rect(Rect2(sx, y, SLOT, SLOT), PLATE)
 			panel.draw_rect(Rect2(sx + 0.5, y + 0.5, SLOT - 1, SLOT - 1), EMBER if ready else FAINT, false, 1.0)
 		var glyph := Art.texture("hud/glyph_%s.png" % a["id"])
-		var dim := Color.WHITE if ready else Color(0.55, 0.55, 0.6)
+		# Ghostwield: while its ghost is out the glyph stays lit, and a bar runs down under it.
+		var ghost_out: bool = a["id"] == "ghostwield" and p.ghost_button == b and p.ghost_left > 0.0
+		var dim := Color.WHITE if ready or ghost_out else Color(0.55, 0.55, 0.6)
 		if glyph != null:
 			panel.draw_texture(glyph, Vector2(sx + 4, y + 4), dim)
 		else:
 			_head(str(a["id"]).substr(0, 1), Vector2(sx + 7, y + 14), AMBER if ready else FAINT)
-		if charge < 1.0:
+		if ghost_out:
+			var left := clampf(float(p.ghost_left) / maxf(float(p.ghost_total), 0.1), 0.0, 1.0)
+			panel.draw_rect(Rect2(sx + 1, y + 1, SLOT - 2, SLOT - 2), Color(GHOST.r, GHOST.g, GHOST.b, 0.9), false, 1.0)
+			panel.draw_rect(Rect2(sx + 2, y + SLOT - 5, 16, 3), Color(0.06, 0.05, 0.1, 0.85))
+			panel.draw_rect(Rect2(sx + 2, y + SLOT - 5, ceilf(16.0 * left), 3), GHOST)
+		elif charge < 1.0:
 			# The art's eight frames: 0 just used, 7 nearly back.
 			if cool != null:
 				var f := clampi(int(charge * 8.0), 0, 7)

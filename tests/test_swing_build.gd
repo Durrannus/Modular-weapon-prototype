@@ -25,6 +25,7 @@ func _init() -> void:
 	test_leap()
 	test_weak_point()
 	test_three_buttons()
+	test_ghostwield()
 	test_mirror()
 	test_relay()
 	test_one_bender_per_sword()
@@ -196,12 +197,12 @@ func test_weak_point() -> void:
 	eq(SwingBuild.sentence(saved), "Every third finisher marks the enemy it hits, and your next hit on a mark is a huge crit.", "Saved Up Weak Point sentence")
 	eq(effect(SwingBuild.resolve(["on_dodge", "weak_point"]), "weak_point")["also"], ["dodge"], "On Dodge: a dodge marks too")
 	check(not SwingBuild.FITTINGS.has("second_wind"), "Second Wind is gone")
-	# Three passive and three active sword runes.
+	# Three passive and three active sword runes (Hook waits for the hammer).
 	var passive := 0
 	var active := 0
 	for id in SwingBuild.FITTINGS:
 		var f: Dictionary = SwingBuild.FITTINGS[id]
-		if f["kind"] == "rune":
+		if f["kind"] == "rune" and not f.get("parked", false):
 			if f["trigger"] == "active":
 				active += 1
 			else:
@@ -224,10 +225,49 @@ func test_three_buttons() -> void:
 		eq([SwingBuild.ABILITY_KEYS[kind].size(), SwingBuild.ABILITY_PROMPTS[kind].size()], [3, 3], kind + " has three ability buttons")
 	var s = SwingBuild.new()
 	s.load_test("D")
-	eq(s.compute()["abilities"].size(), 2, "test sword D has the sword's two built abilities, Whirlwind and Leap")
+	var d_ids: Array = []
+	for ab in s.compute()["abilities"]:
+		d_ids.append(ab["id"])
+	eq(d_ids, ["whirlwind", "leap", "ghostwield"], "test sword D has the sword's three abilities, one on each button")
 	for id in SwingBuild.TEST_SWORDS:
 		check(not ("hook" in SwingBuild.TEST_SWORDS[id]["line"]), "test sword %s has no Hook (it left for the hammer)" % id)
 	check(SwingBuild.FITTINGS["hook"].get("parked", false), "Hook is parked: kept out of the forge until the hammer is built")
+
+
+# Ghostwield (11 November afternoon): the sword's third active rune.
+func test_ghostwield() -> void:
+	var f: Dictionary = SwingBuild.FITTINGS["ghostwield"]
+	eq([f["trigger"], f["use"], f["recharge"], f["time"]], ["active", "press", 45.0, 15.0], "Ghostwield: press, 15 seconds, back in 45")
+	check("ghostwield" in SwingBuild.FITTING_ORDER, "Ghostwield is in the forge")
+	eq(SwingBuild.ghost_power(1.0), 0.5, "the ghost copies a swing at half strength")
+	eq(snappedf(SwingBuild.ghost_time(1.0), 0.01), 15.0, "for 15 seconds")
+	var r := SwingBuild.resolve(["whirlwind", "leap", "ghostwield", ""])
+	var e := effect(r, "ghostwield")
+	eq(e.get("button", -1), 2, "third on the sword, third button")
+	eq(SwingBuild.sentence(e), "Press R: a ghost of your sword copies every swing for 15 seconds, at half strength. Recharges in 45 seconds.", "Ghostwield sentence")
+	eq(SwingBuild.abilities(r["effects"])[2]["recharge"], 45.0, "its button recharges in 45 seconds")
+	# The bands, as the Game Bible lists them.
+	var twice := effect(SwingBuild.resolve(["twice", "ghostwield"]), "ghostwield")
+	eq(twice["count"], 2, "Twice: two copies of each swing")
+	eq(SwingBuild.sentence(twice), "Press right mouse: a ghost of your sword copies every swing twice for 15 seconds, at half strength. Recharges in 45 seconds.", "Twice Ghostwield sentence")
+	var wider := effect(SwingBuild.resolve(["wider", "ghostwield"]), "ghostwield")
+	eq(snappedf(SwingBuild.ghost_time(float(wider["size"])), 0.01), 20.0, "Wider: 20 seconds instead of 15")
+	eq(SwingBuild.sentence(wider), "Press right mouse: a ghost of your sword copies every swing for 20 seconds, at half strength. Recharges in 45 seconds.", "Wider Ghostwield sentence")
+	check(SwingBuild.ghost_time(SwingBuild.MAX_SIZE) < 24.0, "however many Wider bands, under 24 seconds")
+	var every := effect(SwingBuild.resolve(["every_hit", "ghostwield"]), "ghostwield")
+	eq([every["trigger"], every.get("refund", 0.0)], ["active", 0.5], "Every Hit: the recharge rule, half a second a hit")
+	var saved_r := SwingBuild.resolve(["saved_up", "ghostwield"])
+	var saved := effect(saved_r, "ghostwield")
+	eq(SwingBuild.ghost_power(float(saved["power"])), 1.0, "Saved Up: the ghost copies at full strength")
+	eq(SwingBuild.abilities(saved_r["effects"])[0]["recharge"], 135.0, "and takes three times as long to come back")
+	eq(SwingBuild.sentence(saved), "Press right mouse: a ghost of your sword copies every swing for 15 seconds, at full strength. Recharges in 135 seconds.", "Saved Up Ghostwield sentence")
+	var dodge := effect(SwingBuild.resolve(["on_dodge", "ghostwield"]), "ghostwield")
+	eq(dodge["also"], ["dodge"], "On Dodge: the ghost cuts along the dodge")
+	eq(SwingBuild.sentence(dodge), "Press right mouse: a ghost of your sword copies every swing for 15 seconds, at half strength. Recharges in 45 seconds. The ghost also cuts along every dodge.", "On Dodge Ghostwield sentence")
+	# Two Ghostwield runes share one button; a fourth kind of active rune has none.
+	var two := SwingBuild.resolve(["ghostwield", "ghostwield"])
+	eq(SwingBuild.abilities(two["effects"]).size(), 1, "two Ghostwield runes share a button")
+	check(SwingBuild.resolve(["whirlwind", "leap", "ghostwield", "hook"])["slots"][3].get("unused", false), "a fourth kind of active rune has no button")
 
 
 # --- Rule-benders ----------------------------------------------------------------

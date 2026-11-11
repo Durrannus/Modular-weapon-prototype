@@ -1002,16 +1002,20 @@ func _desc(id: String) -> String:
 func _boost_text(band: String, rune: String) -> String:
 	match band:
 		"twice":
-			return {"shockwave": "two waves", "hook": "hooks twice", "shards": "two chains", "weak_point": "two marks", "leap": "two leaps", "whirlwind": "spins twice as long"}.get(rune, "twice")
+			return {"shockwave": "two waves", "hook": "hooks twice", "shards": "two chains", "weak_point": "two marks", "leap": "two leaps", "whirlwind": "spins twice as long", "ghostwield": "copies each swing twice"}.get(rune, "twice")
 		"wider":
-			return {"shockwave": "a bigger wave", "hook": "reaches further", "shards": "jumps further", "weak_point": "a bigger spot", "leap": "leaps from further away", "whirlwind": "a bigger circle"}.get(rune, "bigger")
+			return {"shockwave": "a bigger wave", "hook": "reaches further", "shards": "jumps further", "weak_point": "a bigger spot", "leap": "leaps from further away", "whirlwind": "a bigger circle", "ghostwield": "the ghost stays longer"}.get(rune, "bigger")
 		"every_hit":
 			if SwingBuild.FITTINGS.get(rune, {}).get("trigger", "") == "active":
 				return "back sooner with each hit"
 			return "on every hit, half strength"
 		"saved_up":
+			if rune == "ghostwield":
+				return "a full copy, 3x the recharge"
 			return "every third time, 3x strong"
 		"on_dodge":
+			if rune == "ghostwield":
+				return "the ghost cuts along your dodge"
 			return "when you dodge too"
 	return ""
 

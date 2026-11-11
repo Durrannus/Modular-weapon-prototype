@@ -1500,6 +1500,79 @@
    ],
    "glow": false,
    "note": "forge tray card: lying down, tip right, true proportions; sockets shown"
+  },
+  "ghost_summon": {
+   "file": "fx/ghost_summon.png",
+   "frame": [
+    48,
+    48
+   ],
+   "frames": 6,
+   "origin": [
+    24,
+    36
+   ],
+   "glow": false,
+   "note": "ADDITIVE, once. The ghost sword arriving. Drawn tip-up with the hand at the origin (24, 36), NOT (24, 24): put the origin on the off hand and give it the ghost sword's rotation. Blade about 30 px; scale y to the sword if you like",
+   "fps": 18
+  },
+  "ghost_fade": {
+   "file": "fx/ghost_fade.png",
+   "frame": [
+    48,
+    48
+   ],
+   "frames": 6,
+   "origin": [
+    24,
+    36
+   ],
+   "glow": false,
+   "note": "ADDITIVE, once. The ghost sword leaving: same placing as ghost_summon; hide the tinted sword from frame 2 on",
+   "fps": 14
+  },
+  "revive_up": {
+   "file": "fx/revive_up.png",
+   "frame": [
+    56,
+    56
+   ],
+   "frames": 7,
+   "origin": [
+    28,
+    40
+   ],
+   "glow": false,
+   "note": "ADDITIVE, once. On a revived player, origin on the feet; draw it over the player",
+   "fps": 18
+  },
+  "down_mark": {
+   "file": "hud/down_mark.png",
+   "frame": [
+    15,
+    15
+   ],
+   "frames": 1,
+   "origin": [
+    7,
+    7
+   ],
+   "glow": false,
+   "note": "15 x 15, not additive, unshaded (draw at full brightness): a broken heart on a dark disc. The disc is 14 px across, so rings of radius 9 and 11 clear it"
+  },
+  "glyph_ghostwield": {
+   "file": "hud/glyph_ghostwield.png",
+   "frame": [
+    12,
+    12
+   ],
+   "frames": 1,
+   "origin": [
+    0,
+    0
+   ],
+   "glow": false,
+   "note": "12 x 12, Ghostwield's blue-violet: a sword and its hollow twin"
   }
  }
 }

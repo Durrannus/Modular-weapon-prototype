@@ -56,6 +56,7 @@ static func _make(kind: String) -> AudioStreamWAV:
 		"rumble": length = 1.4
 		"warn": length = 0.16
 		"dodge": length = 0.12
+		"ghost": length = 0.5
 	var n := int(RATE * length)
 	data.resize(n * 2)
 	var phase := 0.0
@@ -130,6 +131,10 @@ static func _make(kind: String) -> AudioStreamWAV:
 			"warn":  # an enemy about to strike
 				phase += TAU * 880.0 / RATE
 				v = signf(sin(phase)) * 0.22 * (1.0 if int(k * 4.0) % 2 == 0 else 0.0)
+			"ghost":  # Ghostwield: a hollow, airy shimmer rising (two notes a fifth apart, with breath)
+				phase += TAU * lerpf(392.0, 587.0, k * k) / RATE
+				noise = lerpf(noise, randf_range(-1, 1), 0.12)
+				v = (sin(phase) * 0.3 + sin(phase * 1.5 + 0.7) * 0.2 + noise * 0.25) * sin(k * PI) * (0.7 + 0.3 * sin(t * 46.0))
 			"dodge":  # a quick whoosh
 				noise = lerpf(noise, randf_range(-1, 1), lerpf(0.5, 0.1, k))
 				v = noise * 0.3 * sin(k * PI)

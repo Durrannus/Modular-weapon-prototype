@@ -126,8 +126,8 @@ func _check_words(forge) -> void:
 	var tray_ids: Array = []
 	for c in forge._cards():
 		tray_ids.append(str(c.get("id", "")))
-	if "hook" in tray_ids or not ("whirlwind" in tray_ids and "leap" in tray_ids):
-		_fail("the rune tray should offer Whirlwind and Leap, and not Hook: %s" % [tray_ids])
+	if "hook" in tray_ids or not ("whirlwind" in tray_ids and "leap" in tray_ids and "ghostwield" in tray_ids):
+		_fail("the rune tray should offer Whirlwind, Leap and Ghostwield, and not Hook: %s" % [tray_ids])
 	# The fullest swords, with keyboard and with controller button names.
 	var full := [
 		["whirlwind", "leap", "shards", "weak_point"],
@@ -137,6 +137,13 @@ func _check_words(forge) -> void:
 		["every_hit", "whirlwind", "every_hit", "leap"],
 		["twice", "wider", "saved_up", "every_hit"],
 		["leap", "on_dodge", "whirlwind", "every_hit"],
+		# Ghostwield has the longest sentences of all.
+		["whirlwind", "leap", "ghostwield", "weak_point"],
+		["every_hit", "ghostwield", "on_dodge", "ghostwield"],
+		["on_dodge", "ghostwield", "every_hit", "leap"],
+		["saved_up", "ghostwield", "every_hit", "whirlwind"],
+		["twice", "wider", "every_hit", "ghostwield"],
+		["leap", "every_hit", "on_dodge", "ghostwield"],
 	]
 	forge.build.set_blade("iron_greatsword")
 	forge._set_tab(1)

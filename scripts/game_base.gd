@@ -226,7 +226,8 @@ func net_state() -> Array:
 	var out: Array = [Sim.rng.state]
 	for p in players:
 		out.append_array([p.global_position, p.hp, p.is_down, p.current_step, p.step_index, p.dodge_charges, p.invuln, p.walk_vel, p.aim_dir, p.frozen,
-			p.ability_charge[0], p.ability_charge[1], p.ability_charge[2], p.hold_button, p.hold_left, p.weak_marks.size()])
+			p.ability_charge[0], p.ability_charge[1], p.ability_charge[2], p.hold_button, p.hold_left, p.weak_marks.size(),
+			p.ghost_left, p.ghost_swings.size()])
 	for b in builds:
 		out.append(b.get_data())
 	for e in get_tree().get_nodes_in_group("foes"):

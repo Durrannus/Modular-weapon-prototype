@@ -217,6 +217,31 @@ const WEAK_CRIT := 2.5        # a full-strength mark's hit, in normal hits
 const WEAK_DODGE_REACH := 70.0  # On Dodge: how close the dodge must pass
 var weak_marks: Array = []    # this player's marks, oldest first: [[enemy, mark]]
 
+# Ghostwield (active, 11 November afternoon): a see-through copy of your sword in
+# your other hand. While it is out, every swing you make is copied a moment
+# later from the other side at a share of its strength, and the copy's hits set
+# your passive runes off again as ghosted effects (the same share, ghost-coloured).
+const GHOST_DELAY := 0.15        # a copy lands this long after your swing
+const GHOST_GAP := 0.1           # Twice: the next copy comes this long after the one before
+const GHOST_SHOVE := 0.5         # a copy knocks back and stuns this much as hard
+const GHOST_DODGE_WIDTH := 30.0  # On Dodge: how far to each side of the dodge the ghost cuts
+const GHOST_COLOR := Color("#a8b4ff")
+var ghost_left := 0.0            # seconds the ghost sword has left (0: it isn't out)
+var ghost_total := 1.0           # how long this one was called for (the HUD's bar)
+var ghost_power := 0.5           # its copies, as a share of your swing
+var ghost_count := 1             # copies of each swing (Twice: two)
+var ghost_button := -1           # the button that called it
+var ghost_swings: Array = []     # copies on their way: [{at, move, dir, side, finisher, fired}]
+var ghost_born := -9.0           # game_time it appeared, and went (for the pictures)
+var ghost_gone := -9.0
+var ghost_show: Dictionary = {}  # the copy on screen now: {t0, dir, side, move}
+var ghost_smears: Array = []     # its smears: [{t0, a0, a1, center, dir, side, move}]
+var ghost_fx := false            # what is being put on screen right now is a ghosted effect
+var dodge_from := Vector2.ZERO   # where the last dodge began
+var ghost_group: CanvasGroup     # the ghost sword, recoloured as one picture
+var ghost_layer: Node2D
+var ghost_trail: Node2D
+
 # Active runes (Whirlwind, Hook, Leap) wait for their ability button instead of firing
 # by themselves. Each button has a meter from 0 (used up) to 1 (full) that refills
 # over the rune's recharge time. A press rune needs a full meter and empties it.
@@ -241,6 +266,8 @@ var hold_fx: Array = []         # what the current turn put on screen, removed i
 ## Where the body sprite's feet sit, relative to the player's centre.
 const FEET := Vector2(0, 14)
 const OUTLINE_SHADER := preload("res://shaders/outline.gdshader")
+const GHOST_SHADER := preload("res://shaders/ghost.gdshader")
+const GHOST_GLOW_SHADER := preload("res://shaders/ghost_glow.gdshader")
 
 
 func _ready() -> void:
@@ -284,6 +311,21 @@ func _ready() -> void:
 	trail_layer.material = add
 	add_child(trail_layer)
 	trail_layer.draw.connect(_draw_trail)
+	# Ghostwield's sword and its smears, under the real sword.
+	ghost_trail = Node2D.new()
+	ghost_trail.material = _ghost_glow()
+	add_child(ghost_trail)
+	ghost_trail.draw.connect(_draw_ghost_trail)
+	ghost_group = CanvasGroup.new()
+	ghost_group.name = "Ghost"
+	var ghost_mat := ShaderMaterial.new()
+	ghost_mat.shader = GHOST_SHADER
+	ghost_group.material = ghost_mat
+	ghost_group.visible = false
+	add_child(ghost_group)
+	ghost_layer = Node2D.new()
+	ghost_group.add_child(ghost_layer)
+	ghost_layer.draw.connect(_draw_ghost)
 	weapon_group = CanvasGroup.new()
 	weapon_group.name = "Weapon"
 	var mat := ShaderMaterial.new()
@@ -313,6 +355,7 @@ func set_weapon(stats: Dictionary) -> void:
 	leap_landing = {}
 	_clear_marks()
 	_stop_hold(true)
+	_end_ghost(true)
 	ability_charge = [1.0, 1.0, 1.0]
 	ability_wait = [0.0, 0.0, 0.0]
 	_reset_combo()
@@ -339,6 +382,7 @@ func _physics_process(delta: float) -> void:
 	_run_rune_queue()
 	_run_shards()
 	_run_leap()
+	_run_ghost(delta)
 	if is_down:
 		_stop_hold(true)
 		_refill_abilities(delta)
@@ -452,6 +496,7 @@ func _update_dodge(delta: float, move: Vector2) -> void:
 		face_linger = 0.0
 		_reset_combo()
 		dodge_started = game_time
+		dodge_from = global_position
 		_dust(global_position + FEET)
 		Sfx.play(self, "dodge", -12.0)
 		_trigger("dodge", [])
@@ -581,41 +626,11 @@ func _do_move(move: String) -> void:
 
 	# One shape in front, tested once on the hit frame (like Core Keeper): reach is
 	# the blade's length plus a little margin, so it matches the sword you hold.
-	var reach := _hit_reach() * float(info.get("reach", 1.0))
-	if not weapon.has("blade"):
-		reach = float(info.get("range", 74.0)) * float(weapon.get("reach", 1.0)) * area
+	var reach := _move_reach(info)
 	var shape := str(info["shape"])
 	var swing := {"shape": shape, "dir": dir, "reach": reach,
 		"half_arc": deg_to_rad(float(info.get("arc", 120.0)) * 0.5), "width": float(info.get("width", 16.0))}
-	var found: Array = []   # [distance along the swing, enemy, knock direction]
-	for e in get_tree().get_nodes_in_group("enemies"):
-		if not is_instance_valid(e) or e.dead:
-			continue
-		var rel: Vector2 = e.global_position - global_position
-		var r: float = e.radius
-		var hit := false
-		match shape:
-			"line":
-				var along := rel.dot(dir)
-				var side_d := absf(rel.dot(dir.orthogonal()))
-				hit = along > -r and along <= reach + r and side_d <= float(info["width"]) + r
-			"circle":
-				hit = rel.length() <= reach + r
-			_:
-				# The arc only has to touch the enemy's body, not reach its middle.
-				var d := rel.length()
-				var body := asin(minf(r / maxf(d, 1.0), 1.0))
-				hit = d <= reach + r and (d < r + RADIUS or absf(dir.angle_to(rel)) <= float(swing["half_arc"]) + body)
-		if hit:
-			var kdir := rel.normalized() if rel.length() > 0.01 else dir
-			if shape == "line":
-				kdir = dir
-			found.append([rel.dot(dir) if shape == "line" else rel.length(), e, kdir])
-	# A thrust stops after so many enemies, nearest first (the rapier goes through
-	# to a second one, the dagger's stab stays in the first).
-	if info.has("max_hits") and found.size() > int(info["max_hits"]):
-		found.sort_custom(func(x, y): return float(x[0]) < float(y[0]))
-		found.resize(int(info["max_hits"]))
+	var found := _swing_hits(info, dir, reach)
 	for f in found:
 		_hit_enemy(f[1], dmg, f[2], knock, stun, freeze, swing)
 		hit_list.append(f[1])
@@ -641,6 +656,7 @@ func _do_move(move: String) -> void:
 
 	Sfx.play(self, "swing", -14.0)
 	var finisher := current_step == _steps().size() - 1 and _steps().size() > 1
+	var fired: Array = []   # the runes this swing set off
 	if finisher:
 		# A finisher that connects lands loud: you plant for a moment, the screen
 		# shakes and it thumps. A miss is just a swing. Nothing else in the game stops.
@@ -653,19 +669,70 @@ func _do_move(move: String) -> void:
 		else:
 			shake = maxf(shake, 2.5)
 			Sfx.play(self, "finisher", -12.0)
-		_trigger("finisher", hit_list)
+		fired.append_array(_trigger("finisher", hit_list))
 	if hits > 0:
 		Sfx.play(self, "hit", -8.0)
-		_trigger("hit", hit_list)
+		fired.append_array(_trigger("hit", hit_list))
 		_hit_refund()
+	# Ghostwield: the ghost sword copies this swing a moment later, from the other side.
+	if ghost_left > 0.0:
+		for n in ghost_count:
+			ghost_swings.append({"at": game_time + GHOST_DELAY + n * GHOST_GAP, "move": move, "dir": dir,
+				"side": -swing_side if n % 2 == 0 else swing_side, "finisher": finisher, "fired": fired})
 
 
 const FINISHER_PAUSE := 0.07
 
 
+## How far this move reaches from the player's centre.
+func _move_reach(info: Dictionary) -> float:
+	if not weapon.has("blade"):
+		return float(info.get("range", 74.0)) * float(weapon.get("reach", 1.0)) * (1.0 + float(weapon.get("area", 0.0)))
+	return _hit_reach() * float(info.get("reach", 1.0))
+
+
+## The enemies a move catches when swung from here towards `dir`:
+## [[distance along the swing, enemy, knock direction]].
+func _swing_hits(info: Dictionary, dir: Vector2, reach: float) -> Array:
+	var shape := str(info["shape"])
+	var half_arc := deg_to_rad(float(info.get("arc", 120.0)) * 0.5)
+	var found: Array = []
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if not is_instance_valid(e) or e.dead:
+			continue
+		var rel: Vector2 = e.global_position - global_position
+		var r: float = e.radius
+		var hit := false
+		match shape:
+			"line":
+				var along := rel.dot(dir)
+				var side_d := absf(rel.dot(dir.orthogonal()))
+				hit = along > -r and along <= reach + r and side_d <= float(info["width"]) + r
+			"circle":
+				hit = rel.length() <= reach + r
+			_:
+				# The arc only has to touch the enemy's body, not reach its middle.
+				var d := rel.length()
+				var body := asin(minf(r / maxf(d, 1.0), 1.0))
+				hit = d <= reach + r and (d < r + RADIUS or absf(dir.angle_to(rel)) <= half_arc + body)
+		if hit:
+			var kdir := rel.normalized() if rel.length() > 0.01 else dir
+			if shape == "line":
+				kdir = dir
+			found.append([rel.dot(dir) if shape == "line" else rel.length(), e, kdir])
+	# A thrust stops after so many enemies, nearest first (the rapier goes through
+	# to a second one, the dagger's stab stays in the first).
+	if info.has("max_hits") and found.size() > int(info["max_hits"]):
+		found.sort_custom(func(x, y): return float(x[0]) < float(y[0]))
+		found.resize(int(info["max_hits"]))
+	return found
+
+
 ## swing: the swing's shape ({shape, dir, reach, half_arc, width}), to tell whether
 ## it reaches a Weak Point mark on the enemy. Empty for anything that isn't a swing.
-func _hit_enemy(e, dmg: float, kdir: Vector2, knock: float, stun := 0.12, freeze := 0.05, swing := {}) -> void:
+## ghost: Ghostwield's copy of a hit, in the ghost's colour (it leaves marks alone:
+## a mark is for your own sword).
+func _hit_enemy(e, dmg: float, kdir: Vector2, knock: float, stun := 0.12, freeze := 0.05, swing := {}, ghost := false) -> void:
 	# A Weak Point mark turns this hit into a big crit, whoever's mark it is.
 	var mark: Dictionary = {}
 	if not swing.is_empty() and not e.weak_marks.is_empty():
@@ -690,9 +757,11 @@ func _hit_enemy(e, dmg: float, kdir: Vector2, knock: float, stun := 0.12, freeze
 			return
 	var crit := Sim.chance() < float(weapon.get("crit", 0.05))
 	var final := dmg * (float(weapon.get("crit_damage", 1.5)) if crit else 1.0)
-	e.take_hit(final, kdir, knock, crit, weapon.get("hit_color", Color.WHITE), stun, freeze)
+	e.take_hit(final, kdir, knock, crit, GHOST_COLOR if ghost else weapon.get("hit_color", Color.WHITE), stun, freeze)
 	# A spark where the blade lands, thrown the way the hit goes.
-	Art.play_piece(self, "hit_spark_crit" if crit else "hit_spark", e.global_position - kdir * float(e.radius) * 0.4, kdir.angle())
+	var spark := Art.play_piece(self, "hit_spark_crit" if crit else "hit_spark", e.global_position - kdir * float(e.radius) * 0.4, kdir.angle())
+	if ghost and spark != null:
+		spark.material = _ghost_glow()
 	_apply_elements(e, final)
 
 
@@ -700,33 +769,47 @@ func _hit_enemy(e, dmg: float, kdir: Vector2, knock: float, stun := 0.12, freeze
 # A rune fires on its trigger (finisher, hit, kill). Twice queues repeats a beat
 # apart. Identical runes firing at the same moment merge into one bigger effect.
 
-func _trigger(trigger: String, hits: Array) -> void:
+## Returns the runes it set off (their places in the sword's effects).
+## ghost: Ghostwield's copy of a swing is doing the triggering, {power, fired}:
+## the runes go off again at that share of their strength, as ghosted effects.
+func _trigger(trigger: String, hits: Array, ghost: Dictionary = {}) -> Array:
+	var fired: Array = []
 	var effects: Array = weapon.get("effects", [])
 	for i in effects.size():
 		var e: Dictionary = effects[i]
 		if e["trigger"] != trigger and not (trigger in e.get("also", [])):
 			continue
-		# Saved Up: count the triggers and only fire on every third one.
+		# Saved Up: count the triggers and only fire on every third one. The ghost
+		# doesn't count: it copies a saved-up rune when the swing it copies set it off.
 		var every := int(e.get("every", 1))
 		if every > 1:
-			rune_counts[i] = int(rune_counts.get(i, 0)) + 1
-			if int(rune_counts[i]) % every != 0:
-				continue
+			if not ghost.is_empty():
+				if not (i in ghost.get("fired", [])):
+					continue
+			else:
+				rune_counts[i] = int(rune_counts.get(i, 0)) + 1
+				if int(rune_counts[i]) % every != 0:
+					continue
+		fired.append(i)
+		var power := float(e.get("power", 1.0)) * (1.0 if ghost.is_empty() else float(ghost["power"]))
 		# (Twice on Weak Point is two marks from one firing, not two firings.)
 		for n in (1 if e["id"] == "weak_point" else int(e["count"])):
-			_queue_rune(i, game_time + n * REPEAT_GAP, float(e["size"]), hits, float(e.get("power", 1.0)))
+			_queue_rune(i, game_time + n * REPEAT_GAP, float(e["size"]), hits, power, false, trigger, not ghost.is_empty())
+	return fired
 
 
 ## held: one turn of a hold rune (it follows the spin, and only the first turn is named).
-func _queue_rune(effect: int, at: float, size: float, hits: Array, power := 1.0, held := false) -> void:
+## why: what set it off ("finisher", "hit", "kill", "dodge", or "" for its button).
+## ghost: Ghostwield's copy of the rune (kept apart from the real one).
+func _queue_rune(effect: int, at: float, size: float, hits: Array, power := 1.0, held := false, why := "", ghost := false) -> void:
 	var id: String = weapon["effects"][effect]["id"]
 	for q in rune_queue:
-		if q["effect"] != effect and weapon["effects"][q["effect"]]["id"] == id and absf(float(q["at"]) - at) < 0.03 and q["held"] == held:
+		if q["effect"] != effect and weapon["effects"][q["effect"]]["id"] == id and absf(float(q["at"]) - at) < 0.03 and q["held"] == held and q["ghost"] == ghost:
 			q["size"] = minf(maxf(float(q["size"]), size) * 1.3, SwingBuild.MAX_SIZE)
 			q["power"] = float(q["power"]) + power
 			q["merged"].append(effect)
 			return
-	rune_queue.append({"at": at, "effect": effect, "size": size, "power": power, "hits": hits.duplicate(), "merged": [], "held": held})
+	rune_queue.append({"at": at, "effect": effect, "size": size, "power": power, "hits": hits.duplicate(), "merged": [], "held": held, "why": why, "ghost": ghost})
 
 
 func _run_rune_queue() -> void:
@@ -765,16 +848,26 @@ const WHIRLWIND_DAMAGE := 0.9   # for each turn
 
 
 func _fire_rune(q: Dictionary) -> void:
-	var effect: int = q["effect"]
-	if effect >= weapon.get("effects", []).size():
+	if int(q["effect"]) >= weapon.get("effects", []).size():
 		return
-	_flash_effect(effect)
-	for m in q["merged"]:
-		_flash_effect(m)
+	# A ghosted effect (Ghostwield's copy of a passive rune) is the same effect in
+	# the ghost's colour: everything put on screen while this is set gets tinted.
+	ghost_fx = q.get("ghost", false)
+	_fire_rune_now(q)
+	ghost_fx = false
+
+
+func _fire_rune_now(q: Dictionary) -> void:
+	var effect: int = q["effect"]
+	var ghost: bool = q.get("ghost", false)
+	if not ghost:
+		_flash_effect(effect)
+		for m in q["merged"]:
+			_flash_effect(m)
 	var id: String = weapon["effects"][effect]["id"]
 	var size: float = q["size"]
 	var power: float = q["power"]
-	var col: Color = SwingBuild.FITTINGS[id]["color"]
+	var col: Color = GHOST_COLOR if ghost else SwingBuild.FITTINGS[id]["color"]
 	var dmg := float(weapon.get("damage", 8.0))
 	match id:
 		"shockwave":
@@ -786,10 +879,12 @@ func _fire_rune(q: Dictionary) -> void:
 			w.damage = dmg * SHOCKWAVE_DAMAGE * power
 			w.knock = 380.0 * size
 			_fx_root().add_child(w)
+			if ghost:
+				w.material = _ghost_glow()
 			w.global_position = global_position + aim_dir * 30.0
 			_strip("shockwave_burst", global_position + aim_dir * 40.0, 0.0, size)
-			shake = maxf(shake, 9.0 * size)
-			Sfx.play(self, "shockwave", -2.0, 1.0 / sqrt(size))
+			shake = maxf(shake, (4.0 if ghost else 9.0) * size)
+			Sfx.play(self, "shockwave", -10.0 if ghost else -2.0, (1.4 if ghost else 1.0) / sqrt(size))
 		"hook":
 			var reach := 260.0 * size
 			var ring := RuneFx.new()
@@ -837,14 +932,18 @@ func _fire_rune(q: Dictionary) -> void:
 			var splinter: bool = weapon["effects"][effect].get("splinter", false)
 			for s in starts:
 				_shards(s, size, power, dmg, col, splinter)
-			Sfx.play(self, "cleave", -6.0, 1.2)
+			Sfx.play(self, "cleave", -13.0 if ghost else -6.0, 1.5 if ghost else 1.2)
 		"leap":
 			if not _leap(size, power, col):
 				return
 		"weak_point":
 			var count: int = int(weapon["effects"][effect]["count"]) + (q["merged"] as Array).size()
-			if not _weak_point(q["hits"], count, size, power, col):
+			if not _weak_point(q["hits"], count, size, power, col, ghost):
 				return
+		"ghostwield":
+			# (Its button calls the ghost straight away, so this is On Dodge.)
+			_ghost_dodge_cut(power)
+			return
 		"whirlwind":
 			# One full turn. Held on its button, each turn starts where the spin began
 			# and turns the same way; fired by a band (Every Hit, On Dodge) it starts
@@ -880,7 +979,10 @@ func _fire_rune(q: Dictionary) -> void:
 			Sfx.play(self, "cleave", -4.0 if not held or hold_turns <= 1 else -9.0, 0.8 if not held else 0.8 + 0.06 * minf(float(hold_turns), 6.0))
 			if held and hold_turns > 1:
 				return   # only the first turn of a hold is named
-	# Name what fired above the player, so it's obvious which rune did what.
+	# Name what fired above the player, so it's obvious which rune did what. (A
+	# ghosted copy isn't named: the real one just was.)
+	if ghost:
+		return
 	if id == "weak_point":
 		_label("MARKED", col)
 	else:
@@ -957,6 +1059,9 @@ func _update_abilities(delta: float) -> void:
 		else:
 			ability_charge[b] = 0.0
 			ability_used[b] = game_time
+			if a["id"] == "ghostwield":
+				_summon_ghost(b, a["effects"])
+				continue
 			for i in a["effects"]:
 				var e: Dictionary = weapon["effects"][i]
 				# (One leap has to land before the next one sets off.)
@@ -967,12 +1072,16 @@ func _update_abilities(delta: float) -> void:
 
 ## Every Hit on an active rune (Darren, 11 November): a swing that lands takes a
 ## bit off that rune's recharge. One swing counts once, however many enemies it
-## catches, so a crowd doesn't hand the ability straight back.
+## catches, so a crowd doesn't hand the ability straight back. Only your own
+## swings count, not the ghost sword's copies of them.
 func _hit_refund() -> void:
 	var list := _abilities()
 	for b in mini(list.size(), ability_charge.size()):
 		var seconds := float(list[b].get("refund", 0.0))
 		if seconds <= 0.0 or b == hold_button or float(ability_charge[b]) >= 1.0:
+			continue
+		# (Nor for a ghost that is still out: like a spin that's going, it is in use.)
+		if b == ghost_button and ghost_left > 0.0:
 			continue
 		ability_charge[b] = minf(float(ability_charge[b]) + seconds / float(list[b]["recharge"]), 1.0)
 		ability_refunded[b] = game_time
@@ -1018,6 +1127,153 @@ func _hold_angle_now() -> float:
 	return hold_angle + hold_side * TAU * clampf(1.0 - hold_left / hold_turn, 0.0, 1.0)
 
 
+# --- Ghostwield -------------------------------------------------------------------
+
+## Calls the ghost sword. Every Ghostwield rune on the sword is one ghost: a
+## second rune counts like a Twice, and the longest and strongest of them win.
+func _summon_ghost(b: int, effects: Array) -> void:
+	var count := 0
+	var time := 0.0
+	var power := 0.0
+	for i in effects:
+		var e: Dictionary = weapon["effects"][i]
+		count += int(e["count"])
+		time = maxf(time, SwingBuild.ghost_time(float(e["size"])))
+		power = maxf(power, SwingBuild.ghost_power(float(e.get("power", 1.0))))
+		_flash_effect(i)
+	ghost_count = clampi(count, 1, SwingBuild.MAX_COUNT)
+	ghost_power = power
+	ghost_total = maxf(time, 0.1)
+	ghost_left = ghost_total
+	ghost_button = b
+	ghost_born = game_time
+	ghost_gone = -9.0
+	ghost_swings.clear()
+	ghost_show = {}
+	var arrive := Art.play_piece(self, "ghost_summon", global_position + _off_hand_point(), _ghost_rest_angle() + PI * 0.5, _ghost_piece_size())
+	if arrive != null:
+		arrive.follow = self
+		arrive.follow_offset = _off_hand_point()
+	Sfx.play(self, "ghost", -5.0)
+	_label("GHOSTWIELD!" if power < 1.0 else "GHOSTWIELD x2!", GHOST_COLOR)
+
+
+## The ghost sword goes: its time is up, you were knocked out, or the sword
+## changed. quiet: no picture or sound (the sword was changed at the forge).
+func _end_ghost(quiet := false) -> void:
+	if ghost_left <= 0.0 and ghost_swings.is_empty():
+		return
+	var was_out := ghost_left > 0.0
+	ghost_left = 0.0
+	ghost_swings.clear()
+	ghost_show = {}
+	if not was_out or quiet:
+		ghost_gone = -9.0
+		return
+	ghost_gone = game_time
+	var leave := Art.play_piece(self, "ghost_fade", global_position + _off_hand_point(), _ghost_rest_angle() + PI * 0.5, _ghost_piece_size())
+	if leave != null:
+		leave.follow = self
+		leave.follow_offset = _off_hand_point()
+	Sfx.play(self, "ghost", -11.0, 0.7)
+
+
+## Every tick: the ghost's time runs down and the copies that are due land.
+func _run_ghost(delta: float) -> void:
+	if ghost_left > 0.0:
+		if ghost_left <= delta or is_down or not armed():
+			_end_ghost()
+		else:
+			ghost_left -= delta
+	while not ghost_smears.is_empty() and game_time - float(ghost_smears[0]["t0"]) > SMEAR_LIFE:
+		ghost_smears.pop_front()
+	var due: Array = []
+	for g in ghost_swings:
+		if float(g["at"]) <= game_time:
+			due.append(g)
+	for g in due:
+		ghost_swings.erase(g)
+		_ghost_swing(g)
+
+
+## One copy of a swing lands: the same cut from the other side, from where you
+## stand now, at the ghost's share of its strength. Then your passive runes go
+## off again, as that swing's ghost.
+func _ghost_swing(g: Dictionary) -> void:
+	var move: String = g["move"]
+	var info: Dictionary = MOVES.get(move, MOVES["slash"])
+	var dir: Vector2 = g["dir"]
+	var side: float = g["side"]
+	var dmg := float(weapon.get("damage", 4.0)) * float(info["power"]) * ghost_power
+	var hit_list: Array = []
+	for f in _swing_hits(info, dir, _move_reach(info)):
+		_hit_enemy(f[1], dmg, f[2], float(info["knock"]) * GHOST_SHOVE, float(info.get("stun", 0.12)) * GHOST_SHOVE,
+			float(info.get("freeze", 0.05)) * GHOST_SHOVE, {}, true)
+		hit_list.append(f[1])
+	var curve: Array = info["curve"]
+	ghost_show = {"t0": game_time, "dir": dir, "side": side, "move": move}
+	ghost_smears.append({"t0": game_time, "a0": dir.angle() + float(curve[0]) * side, "a1": dir.angle() + float(curve[1]) * side,
+		"center": _off_hand_point(), "dir": dir.angle(), "side": side, "move": move})
+	Sfx.play(self, "swing", -19.0, 1.5)
+	var ghost := {"power": ghost_power, "fired": g["fired"]}
+	if g["finisher"]:
+		_trigger("finisher", hit_list, ghost)
+	if not hit_list.is_empty():
+		Sfx.play(self, "hit", -14.0, 1.35)
+		_trigger("hit", hit_list, ghost)
+
+
+## On Dodge on Ghostwield: the ghost cuts along the dodge, through everything
+## you pass, whether or not it is out. power: the rune's (Saved Up: a full hit).
+func _ghost_dodge_cut(power: float) -> void:
+	var a := dodge_from
+	var b := dodge_from + dodge_dir * DODGE_SPEED * DODGE_TIME
+	var dmg := float(weapon.get("damage", 8.0)) * SwingBuild.ghost_power(power)
+	var struck := 0
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if not is_instance_valid(e) or e.dead:
+			continue
+		var d: float = Geometry2D.get_closest_point_to_segment(e.global_position, a, b).distance_to(e.global_position) - float(e.radius)
+		if d <= GHOST_DODGE_WIDTH:
+			_hit_enemy(e, dmg, dodge_dir, 120.0, 0.1, 0.03, {}, true)
+			struck += 1
+	# The cut shows as a streak the length of the dodge with a slash across its
+	# middle, in the ghost's colour.
+	for piece in [["thrust_smear", a.distance_to(b) / 80.0], ["slash_smear", 0.8]]:
+		var cut := Art.play_piece(self, str(piece[0]), a + Vector2(0, -12), dodge_dir.angle(), float(piece[1]))
+		if cut != null:
+			cut.material = _ghost_glow()
+	Sfx.play(self, "swing", -15.0, 1.5)
+	if struck > 0:
+		Sfx.play(self, "hit", -12.0, 1.35)
+
+
+static var _ghost_glow_material: ShaderMaterial
+
+## The material that redraws a glowing effect in the ghost's colour.
+static func _ghost_glow() -> ShaderMaterial:
+	if _ghost_glow_material == null:
+		_ghost_glow_material = ShaderMaterial.new()
+		_ghost_glow_material.shader = GHOST_GLOW_SHADER
+	return _ghost_glow_material
+
+
+## The arriving and leaving pictures are drawn for a blade about 30 pixels long:
+## scaled to the blade in your hand, a little over its size so they flash round it.
+func _ghost_piece_size() -> float:
+	if not weapon.has("blade"):
+		return 1.0
+	return clampf(SwordArt.blade_size(str(weapon["blade"]), "hand").y / 26.0, 0.5, 1.3)
+
+
+## Is the ghost sword on screen? It appears partway through its arriving
+## picture and stays for the first moments of its leaving one.
+func _ghost_shown() -> bool:
+	if ghost_left > 0.0:
+		return game_time - ghost_born >= 4.0 / 18.0
+	return game_time - ghost_gone < 2.0 / 14.0
+
+
 ## Shards: a chain of metal shards from `from` to the closest enemy, then the next.
 ## Each jump takes SHARD_FLIGHT; the hit lands when the shard arrives. Counted in
 ## game ticks (not a timer), so it lands on the same tick on every computer.
@@ -1027,7 +1283,7 @@ var shard_queue: Array = []   # shards in the air: [{at, next, fronts, hit, jump
 
 func _shards(from: Node2D, size: float, power: float, dmg: float, col: Color, splinter := false) -> void:
 	_shard_jump({"fronts": [from], "hit": {from.get_instance_id(): true}, "jumps": SHARD_JUMPS,
-		"size": size, "power": power, "dmg": dmg, "col": col, "splinter": splinter})
+		"size": size, "power": power, "dmg": dmg, "col": col, "splinter": splinter, "ghost": ghost_fx})
 
 
 ## Sends the shards on from where they are now to the closest enemies not hit yet.
@@ -1062,6 +1318,7 @@ func _run_shards() -> void:
 			due.append(s)
 	for s in due:
 		shard_queue.erase(s)
+		ghost_fx = s.get("ghost", false)
 		for e in s["next"]:
 			if not is_instance_valid(e) or e.dead:
 				continue
@@ -1071,6 +1328,7 @@ func _run_shards() -> void:
 				_strip("cleave_echo", e.global_position, 0.0, float(s["size"]))
 		s["fronts"] = s["next"]
 		_shard_jump(s)
+	ghost_fx = false
 
 
 const SHARD_FLIGHT := 0.09
@@ -1215,7 +1473,13 @@ func _hit_reach() -> float:
 ## out at once (Twice: two). With marks to spare and one enemy, a big enemy gets a
 ## second spot. An enemy whose mark was struck by this very swing isn't marked
 ## again by it. Returns false if nothing was marked.
-func _weak_point(hits: Array, count: int, size: float, power: float, col: Color) -> bool:
+## ghost: Ghostwield's copy of the rune only marks when you have a mark to spare,
+## so its weaker mark never takes the place of a real one.
+func _weak_point(hits: Array, count: int, size: float, power: float, col: Color, ghost := false) -> bool:
+	if ghost:
+		_prune_marks()
+		if weak_marks.size() >= clampi(count, 1, SwingBuild.MAX_COUNT):
+			return false
 	var targets: Array = []
 	for h in hits:
 		if is_instance_valid(h) and not h.dead and not h.immune and h.weak_popped > 0.05:
@@ -1314,6 +1578,8 @@ func _strip(name: String, where: Vector2, angle := 0.0, size := 1.0) -> Node2D:
 	n.size = size
 	n.additive = true
 	_fx_root().add_child(n)
+	if ghost_fx:
+		n.material = _ghost_glow()
 	n.global_position = where
 	return n
 
@@ -1425,6 +1691,7 @@ func take_damage(amount: float, from: Vector2 = Vector2.INF) -> void:
 		hp = 0.0
 		_reset_combo()
 		dodge_timer = 0.0
+		_end_ghost()
 		if auto_respawn:
 			hp = max_hp
 			global_position = spawn_point
@@ -1463,6 +1730,9 @@ func _process(delta: float) -> void:
 	# Behind the body when facing away, or when the hand is above the body's centre.
 	weapon_group.show_behind_parent = facing8 in ["up", "up_left", "up_right", "left"]
 	weapon_group.visible = not is_down and rise_timer <= 0.0
+	# The ghost sword is in the other hand: behind the body when that hand is on the far side.
+	ghost_group.show_behind_parent = facing8 in ["up", "up_left", "up_right", "right"]
+	ghost_group.visible = _ghost_shown() and weapon_group.visible
 	anim_time += delta
 	if is_down:
 		down_time += delta
@@ -1472,6 +1742,15 @@ func _process(delta: float) -> void:
 	# The outline is one game pixel: as many screen pixels as the window's scale.
 	var scale_px := maxf(floorf(float(get_window().size.y) / 360.0), 1.0)
 	(weapon_group.material as ShaderMaterial).set_shader_parameter("px", scale_px)
+	if ghost_group.visible:
+		# It shimmers, and blinks through its last two seconds so you see it going.
+		var solid := 0.85 + 0.15 * sin(anim_time * 5.0)
+		if ghost_left > 0.0 and ghost_left < 2.0:
+			solid = 0.95 if int(ghost_left * 8.0) % 2 == 0 else 0.45
+		(ghost_group.material as ShaderMaterial).set_shader_parameter("px", scale_px)
+		(ghost_group.material as ShaderMaterial).set_shader_parameter("strength", solid)
+		ghost_layer.queue_redraw()
+	ghost_trail.queue_redraw()
 	queue_redraw()
 	weapon_layer.queue_redraw()
 	under_bright.queue_redraw()
@@ -1837,14 +2116,35 @@ func _start_smear() -> void:
 func _draw_trail() -> void:
 	if smear_t0 < 0.0 or not weapon.has("blade"):
 		return
-	var age := (game_time - smear_t0) / SMEAR_LIFE
+	_draw_smear(trail_layer, {"t0": smear_t0, "a0": smear_a0, "a1": smear_a1, "center": smear_center,
+		"dir": smear_dir, "side": smear_side, "move": smear_move})
+
+
+## Ghostwield's copies of your swings: the same smears from the other hand, in
+## the ghost's colour (the layer's material recolours them).
+func _draw_ghost_trail() -> void:
+	if not weapon.has("blade"):
+		return
+	for sm in ghost_smears:
+		_draw_smear(ghost_trail, sm)
+
+
+## One swing's smear on `layer`: {t0, a0, a1, center, dir, side, move}.
+func _draw_smear(layer: Node2D, sm: Dictionary) -> void:
+	var sa0: float = sm["a0"]
+	var sa1: float = sm["a1"]
+	var scenter: Vector2 = sm["center"]
+	var sdir: float = sm["dir"]
+	var sside: float = sm["side"]
+	var smove: String = sm["move"]
+	var age := (game_time - float(sm["t0"])) / SMEAR_LIFE
 	if age >= 1.0:
 		return
-	var info: Dictionary = MOVES.get(smear_move, MOVES["slash"])
+	var info: Dictionary = MOVES.get(smove, MOVES["slash"])
 	var length_px := _reach_px() * float(info.get("reach", 1.0))
 	var r_in := 3.0 + length_px * 0.45
 	var r_out := 3.0 + length_px
-	var thrust := absf(smear_a1 - smear_a0) < 0.05
+	var thrust := absf(sa1 - sa0) < 0.05
 	var piece := str(info.get("smear", "slash_smear"))
 	if Art.piece_texture(piece) != null:
 		# The art reaches 40 px from the hand: scale it to this blade. A swing the
@@ -1861,37 +2161,37 @@ func _draw_trail() -> void:
 			var fw := float(tex.get_width()) / n
 			var along := (r_out + REACH_MARGIN) / 40.0
 			var across := clampf(along, 1.6, 2.0) * (1.3 if info.get("big", false) else 1.0)
-			trail_layer.draw_set_transform(smear_center, smear_dir, Vector2(along, across))
-			trail_layer.draw_texture_rect_region(tex, Rect2(-float(o[0]), -float(o[1]), fw, tex.get_height()), Rect2(frame * fw, 0, fw, tex.get_height()))
-			trail_layer.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+			layer.draw_set_transform(scenter, sdir, Vector2(along, across))
+			layer.draw_texture_rect_region(tex, Rect2(-float(o[0]), -float(o[1]), fw, tex.get_height()), Rect2(frame * fw, 0, fw, tex.get_height()))
+			layer.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 			return
-		var back := smear_side < 0.0
-		Art.draw_piece(trail_layer, piece, frame, smear_center,
-			smear_dir + (PI if back else 0.0), back, Color.WHITE, Art.PIXEL * r_out / 80.0)
+		var back := sside < 0.0
+		Art.draw_piece(layer, piece, frame, scenter,
+			sdir + (PI if back else 0.0), back, Color.WHITE, Art.PIXEL * r_out / 80.0)
 		return
 	var col: Color = weapon.get("hit_color", Color.WHITE).lerp(Color(0.8, 0.9, 1.0), 0.5)
 	var fade := 1.0 - age
 	if thrust:
 		# A thrust: a straight streak along the blade instead of an arc.
-		var d := Vector2.RIGHT.rotated(smear_a0)
+		var d := Vector2.RIGHT.rotated(sa0)
 		var n := d.orthogonal() * 4.0
-		var c := smear_center
-		draw_colored_polygon_on(trail_layer, PackedVector2Array([c + d * r_in - n, c + d * (r_out + 10.0) - n, c + d * (r_out + 10.0) + n, c + d * r_in + n]), Color(col.r, col.g, col.b, 0.8 * fade))
+		var c := scenter
+		draw_colored_polygon_on(layer, PackedVector2Array([c + d * r_in - n, c + d * (r_out + 10.0) - n, c + d * (r_out + 10.0) + n, c + d * r_in + n]), Color(col.r, col.g, col.b, 0.8 * fade))
 		return
 	var steps := 16
 	for i in steps:
 		var s0 := float(i) / steps
 		var s1 := float(i + 1) / steps
-		var a0 := lerpf(smear_a0, smear_a1, s0)
-		var a1 := lerpf(smear_a0, smear_a1, s1)
+		var a0 := lerpf(sa0, sa1, s0)
+		var a1 := lerpf(sa0, sa1, s1)
 		var d0 := Vector2.RIGHT.rotated(a0)
 		var d1 := Vector2.RIGHT.rotated(a1)
 		# Thin at the trailing end, full width and opaque at the leading edge.
 		var w0 := lerpf(r_out - 4.0, r_in, s0)
 		var w1 := lerpf(r_out - 4.0, r_in, s1)
 		var alpha := (0.15 + 0.85 * s1 * s1) * fade
-		var c := smear_center
-		draw_colored_polygon_on(trail_layer, PackedVector2Array([c + d0 * w0, c + d0 * r_out, c + d1 * r_out, c + d1 * w1]), Color(col.r, col.g, col.b, alpha))
+		var c := scenter
+		draw_colored_polygon_on(layer, PackedVector2Array([c + d0 * w0, c + d0 * r_out, c + d1 * r_out, c + d1 * w1]), Color(col.r, col.g, col.b, alpha))
 
 
 func draw_colored_polygon_on(ci: CanvasItem, pts: PackedVector2Array, c: Color) -> void:
@@ -1930,6 +2230,78 @@ func _draw_weapon() -> void:
 		weapon_layer.draw_set_transform(hand, 0.0, Vector2(Art.PIXEL, Art.PIXEL))
 		weapon_layer.draw_texture(fist, -fist.get_size() * 0.5)
 	weapon_layer.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+
+
+## Where the other hand is: the sword hand's place mirrored across the body. Side
+## on, both hands are at the same place on screen, so the far one sits a little
+## back and up, and the near one a little forward and down.
+func _off_hand_point() -> Vector2:
+	var h := _hand_point()
+	match facing8:
+		"right":
+			return h + Vector2(-5, -5)
+		"left":
+			return h + Vector2(-7, 4)
+	return Vector2(-h.x, h.y)
+
+
+## The ghost sword at rest: the real sword's stance mirrored, so the two fan out.
+const GHOST_READY := {"down": -1.29, "down_right": -1.1, "right": -1.35, "up_right": -2.04,
+	"up": -1.84, "up_left": -1.1, "left": -2.75, "down_left": -2.04}
+
+func _ghost_rest_angle() -> float:
+	return GHOST_READY.get(facing8, -1.3)
+
+
+## The ghost sword's pose: [angle, hand, hidden]. It rests in the other hand,
+## winds up when a copy of your swing is on its way, is hidden for the copy's
+## smear, holds where the cut ended and eases back.
+const GHOST_HOLD := 0.1
+
+func _ghost_pose() -> Array:
+	var angle := _ghost_rest_angle()
+	var hand := _off_hand_point()
+	var hidden := false
+	var reach := 0.0
+	if not ghost_show.is_empty():
+		var since := game_time - float(ghost_show["t0"])
+		var curve: Array = MOVES.get(str(ghost_show["move"]), MOVES["slash"])["curve"]
+		var end_a: float = (ghost_show["dir"] as Vector2).angle() + float(curve[1]) * float(ghost_show["side"])
+		if since < SWEEP_TIME:
+			hidden = true
+		elif since < GHOST_HOLD:
+			angle = end_a
+			reach = 3.0
+		elif since < GHOST_HOLD + RETURN_TIME:
+			var k := 1.0 - (since - GHOST_HOLD) / RETURN_TIME
+			angle = lerp_angle(angle, end_a, k * k)
+			reach = 3.0 * k
+	if not ghost_swings.is_empty():
+		# A copy is on its way: swing back to where it starts from.
+		var g: Dictionary = ghost_swings[0]
+		var curve: Array = MOVES.get(str(g["move"]), MOVES["slash"])["curve"]
+		var start_a: float = (g["dir"] as Vector2).angle() + float(curve[0]) * float(g["side"])
+		var lead := clampf(1.0 - (float(g["at"]) - game_time) / GHOST_DELAY, 0.0, 1.0)
+		angle = lerp_angle(angle, start_a, clampf(lead / 0.5, 0.0, 1.0))
+		reach = maxf(reach, 3.0 * lead)
+	return [angle, hand + Vector2.RIGHT.rotated(angle) * reach, hidden]
+
+
+## The ghost sword: your own sword, drawn in the other hand. (Its CanvasGroup's
+## material turns the whole picture see-through and ghost-coloured.)
+func _draw_ghost() -> void:
+	if not weapon.has("blade"):
+		return
+	var pose := _ghost_pose()
+	if pose[2]:
+		return
+	var angle: float = pose[0]
+	var blade: String = weapon["blade"]
+	var grip: String = weapon["grip"]
+	ghost_layer.draw_set_transform(pose[1], angle + PI * 0.5, Vector2(Art.PIXEL, Art.PIXEL))
+	SwordArt.draw(ghost_layer, blade, grip, weapon["line"], "hand", {}, -SwordArt.pivot(blade, grip, "hand"), Color.WHITE,
+		str(weapon.get("pommel", "plain_pommel")), SwordArt.one_edged(blade) and cos(angle) <= 0.0)
+	ghost_layer.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 
 ## A one-edged blade (sabre, falchion) is drawn with its edge on the left of the
