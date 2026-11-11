@@ -104,7 +104,7 @@ Game code must follow these rules, or the two games drift apart:
 | Test arena only: open the forge anywhere | Tab | Y |
 | Test arena only: pause enemy spawning | P | Start |
 
-**At the forge** (the game pauses): drag a part onto a slot, or click a slot and then a part. Right-click or drag off to remove. Keys or controller: up and down pick a slot, left and right pick a part, Q/E or the shoulder buttons change tab, Enter or A fits it, Esc or B leaves.
+**At the forge** (the game pauses): drag a part onto a slot, or click a slot and then a part. Right-click or drag off to remove. Keys or controller: up and down pick a slot, left and right pick a part, Q/E or the shoulder buttons change tab, Enter or A fits it, Esc or B leaves. Point at a rune and hold Alt (the left trigger on a controller) to see a picture of it firing. Point at a blade, grip or pommel you could fit and the numbers show what it would change: gains in green with a plus, losses in red with a minus.
 
 ## The tutorial cave
 
@@ -217,7 +217,7 @@ This branch tests the **swing path** (design notes, 3 November). It replaces the
   - The rapier's lunge reaches further instead of moving you, because attacks never carry you into the enemy.
   - The numbers: `SHAPES`, `METALS` and `BLADES` in `scripts/weapon/swing_build.gd`; the moves (`MOVES`) and `BASE_REACH` in `scripts/player.gd`.
 - Other parts: wooden / wrapped / long grips (1, 2, 3 slots), and pommels (no slots, stats only: Plain, Keen +8% crit chance, Heavy +40% crit damage, Light +10% swing speed). The Ringed Grip is a special grip whose built-in band makes every rune a bit bigger; the Gilded Grip's ruby top slot doubles whatever is in it (a rune fires twice, a band counts as two).
-- The forge follows the art thread's design: parts tray on the left, the sword over the anvil with slot numbers and band brackets, and "what this sword does" on the right. **T** or the button puts you next to the dummy. The forge glows: the hearth breathes behind the sword, embers drift up, every change is a hammer blow with sparks and a clang, and leaving after changes plays a short "Forged!" finish (white-hot, quench steam, a shine up the blade). Press Tab or click to skip it.
+- The forge screen (laid out again for the 11 November decisions, so that nothing on it overlaps): on the left the parts tray, with the runes in a PASSIVE group (round stones) and an ACTIVE group (square stones with a small button badge); under it a plate with the name and one plain sentence for the part under the cursor; under that how to use the screen. In the middle the sword over the anvil. On the right "what it does", a line per rune, which closes up its rows when a sword has a lot to say; and under it the sword's numbers on a plate of their own (damage, speed, reach, crit, crit hits, slots, walking while swinging). Pointing at a part you could fit shows what it would change beside each number. Holding Alt on a rune shows a still picture of it firing (`art/swing/previews/<rune>.png`, 352 x 240, taken from the game). `tests/smoke_forge.gd` checks that every sentence, every sword's "what it does" and every number with its change fit their plates. **T** or the button puts you next to the dummy. The forge glows: the hearth breathes behind the sword, embers drift up, every change is a hammer blow with sparks and a clang, and leaving after changes plays a short "Forged!" finish (white-hot, quench steam, a shine up the blade). Press Tab or click to skip it.
 - Art and numbers for all of this are in `art/swing/` (`swing_path.md` explains how the sword is assembled; `swing_path.json` has every slot, pivot and effect strip). Fonts are Silkscreen and Pixelify Sans (OFL), in `art/fonts/`.
 - Elemental blades are parked for now. Sounds are placeholders made in code (`scripts/sfx.gd`).
 
@@ -277,6 +277,8 @@ Readability tweaks made on top of the art's own lighting numbers: the cave's dar
 Drawn but not used yet, because the game has nothing for them to show: the blank rune stone and the broken band.
 
 The 11 November pictures (asked for in the project files, `art/requests/nov11-prototype-art.md`, and drawn by the art thread the same day): the six blade shapes in the hand, on the forge screen and as tray cards, with their forge heat and shine strips; the swing smears (`art/swing/fx/sweep_smear.png`, `flick_smear.png`, `chop_smear.png`, `thrust_smear.png`, `slam_burst.png`); the Weak Point stone and its three effects (`art/fx/weak_mark.png`, `weak_mark_on.png`, `weak_break.png`); square stones for the three active runes with `art/swing/ui/active_badge.png`; the PASSIVE and ACTIVE tray headers; and the R, Q, RB and LB prompts. Sabre and falchion have one cutting edge, on the left of the picture: in the hand the picture is mirrored so the edge leads the cut.
+
+Stand-ins made by the prototype thread, for the art thread to redraw: the stat icons for slots and for walking while swinging (`art/swing/ui/stat_slots.png`, `stat_move.png` and their `_hot` versions). The six rune preview pictures are screenshots of the game, so they need retaking if a rune's effect is redrawn.
 
 ## Older notes: the grid sword on `main`
 

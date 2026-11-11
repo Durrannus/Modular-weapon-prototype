@@ -59,6 +59,7 @@ func _init() -> void:
 	forge.drag_id = forge._drag_source("card:2"); forge.drag_from = -1; forge.drag_key = "card:2"; forge.dragging = false
 	forge._drop("")
 	print("press without drag = click, selected card: ", forge.card)
+	await _check_words(forge)
 	forge._set_tab(0)
 	for i in forge._cards().size():
 		forge._use_card(i)
@@ -83,5 +84,115 @@ func _init() -> void:
 		player._trigger(trig, [])
 		for f in 12:
 			await physics_frame
+	if fails > 0:
+		print("smoke FAILED: %d" % fails)
+		quit(1)
+		return
 	print("smoke done")
 	quit(0)
+
+
+var fails := 0
+
+
+func _fail(what: String) -> void:
+	fails += 1
+	print("FAIL: ", what)
+
+
+## Nothing on the forge screen may overlap: every part's sentence fits its plate,
+## "what it does" fits its plate for the fullest swords, and every number fits its
+## column with the biggest change beside it.
+func _check_words(forge) -> void:
+	var Forge := preload("res://scripts/ui/swing_forge.gd")
+	var parts: Array = []
+	parts.append_array(SwingBuild.BLADES.keys())
+	parts.append_array(SwingBuild.GRIPS.keys())
+	parts.append_array(SwingBuild.POMMELS.keys())
+	parts.append_array(SwingBuild.FITTINGS.keys())
+	for id in parts:
+		var n: int = forge.info_lines(id).size()
+		if n > 3:
+			_fail("%s: its sentence takes %d lines on the info plate (3 fit)" % [id, n])
+	print("sentences fit: ", parts.size(), " parts")
+	# Every rune in the tray has its "hold Alt" picture.
+	for id in SwingBuild.FITTING_ORDER:
+		var fit: Dictionary = SwingBuild.FITTINGS[id]
+		if fit["kind"] == "rune" and not fit.get("parked", false) and not FileAccess.file_exists("res://art/swing/previews/%s.png" % id):
+			_fail("%s has no preview picture" % id)
+	# The fullest swords, with keyboard and with controller button names.
+	var full := [
+		["whirlwind", "hook", "leap", "weak_point"],
+		["whirlwind", "twice", "leap", "saved_up"],
+		["shockwave", "every_hit", "shards", "on_dodge"],
+		["hook", "wider", "relay", "weak_point"],
+		["twice", "wider", "saved_up", "every_hit"],
+		["leap", "on_dodge", "whirlwind", "every_hit"],
+	]
+	forge.build.set_blade("iron_greatsword")
+	forge._set_tab(1)
+	var was_keys = forge.keys
+	for keys in [SwingBuild.ABILITY_KEYS["kbm"], SwingBuild.ABILITY_KEYS["pad"]]:
+		forge.keys = keys
+		for grip in ["gilded_grip", "wrapped_grip", "ringed_grip"]:
+			forge.build.set_grip(grip)
+			for l in full:
+				forge.build.line = l.duplicate()
+				forge.root.queue_redraw()
+				await process_frame
+				await process_frame
+				if not forge.does_fits:
+					_fail("what it does runs off its plate: %s %s" % [grip, l])
+	forge.keys = was_keys
+	print("what it does fits: ", full.size() * 6, " swords")
+	# Compare on hover. The Game Bible's example: a sabre fitted, pointing at a
+	# greatsword shows more reach and damage, less crit and speed.
+	forge.build.set_grip("wrapped_grip")
+	forge.build.set_pommel("plain_pommel")
+	forge.build.set_blade("iron_sabre")
+	var now: Dictionary = Forge.stat_values(forge.build.compute())
+	var then: Dictionary = Forge.stat_values(forge.stats_with("iron_greatsword"))
+	var ch: Dictionary = Forge.stat_changes(now, then)
+	print("sabre -> greatsword: ", ch)
+	for key in ["damage", "reach"]:
+		if not str(ch.get(key, "")).begins_with("+"):
+			_fail("sabre to greatsword should gain %s" % key)
+	for key in ["crit", "speed", "move"]:
+		if not str(ch.get(key, "")).begins_with("-"):
+			_fail("sabre to greatsword should lose %s" % key)
+	if ch.has("slots") or ch.has("crit_damage"):
+		_fail("sabre to greatsword should leave slots and crit damage alone")
+	ch = Forge.stat_changes(now, Forge.stat_values(forge.stats_with("long_grip")))
+	if ch != {"slots": "+1"}:
+		_fail("a long grip should only add a slot, got %s" % ch)
+	# Every sword, pointing at every part: each number and its change fit the column.
+	var widest := -999.0
+	var tight := ""
+	var pairs := 0
+	for blade in SwingBuild.BLADES:
+		for grip in SwingBuild.GRIPS:
+			for pommel in SwingBuild.POMMELS:
+				forge.build.set_blade(blade)
+				forge.build.set_grip(grip)
+				forge.build.set_pommel(pommel)
+				now = Forge.stat_values(forge.build.compute())
+				var others: Array = []
+				others.append_array(SwingBuild.BLADES.keys())
+				others.append_array(SwingBuild.GRIPS.keys())
+				others.append_array(SwingBuild.POMMELS.keys())
+				for id in others:
+					then = Forge.stat_values(forge.stats_with(id))
+					pairs += 1
+					for row in Forge.STAT_ROWS:
+						var key: String = row[0]
+						var w: float = forge.stat_width(Forge.stat_text(key, now[key]), Forge.delta_text(key, float(then[key]) - float(now[key])))
+						var room: float = Forge.STAT_COL - 3.0
+						if key == "move" or int(row[1]) == 1:
+							room = Forge.STATS.size.x - Forge.stat_at(row).x - 6.0
+						if w - room > widest:
+							widest = w - room
+							tight = "%s on a %s %s %s, pointing at %s (%d of %d px)" % [key, blade, grip, pommel, id, w, room]
+						if w > room:
+							_fail("%s on a %s %s %s, pointing at %s: %d px wide, %d fit" % [key, blade, grip, pommel, id, w, room])
+							return
+	print("numbers fit: %d comparisons, the tightest is %s" % [pairs, tight])

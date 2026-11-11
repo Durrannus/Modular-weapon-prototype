@@ -1,10 +1,15 @@
 extends CanvasLayer
-## The forge for the swing path (layout from art/swing/mockup_forge_A.png).
-## Left: the parts tray (blades, grips, runes, bands) and a details box.
-## Centre: the sword upright over the anvil, slot numbers up the left and
-## band-to-rune brackets on the right, plus the A/B test swords.
-## Right: what each slot does, read from the grip up, and the finisher summary.
-## Free to swap. Pauses the game while open. Drawn at the 640x360 base size.
+## The forge for the swing path. Drawn at the 640x360 base size.
+## Left: the parts tray (blades, grips and pommels; runes in a passive and an
+## active group; bands; rule-benders), then a plate with the name and one plain
+## sentence for the part under the cursor, then how to use the screen.
+## Centre: the sword upright over the anvil. Its sockets are the menu.
+## Right: what the sword does, a line per rune, and the sword's numbers on a
+## plate of their own. Pointing at a part you could fit shows what it would
+## change beside each number.
+## Nothing on this screen may overlap (Game Bible, 11 November): every kind of
+## words has its own plate, and the words are made to fit it.
+## Free to swap. Pauses the game while open.
 
 const SwingBuild := preload("res://scripts/weapon/swing_build.gd")
 const SwordArt := preload("res://scripts/weapon/sword_art.gd")
@@ -33,8 +38,16 @@ const PLATE := Color("#19142a")
 const WELL := Color("#0f0b18")
 
 const TABS := ["sword", "runes", "bands", "rare"]
-const LEFT := Rect2(6, 30, 203, 324)     # the plate behind the tray
-const RIGHT := Rect2(412, 34, 222, 302)  # the plate behind "what it does"
+const TRAY := Rect2(6, 30, 203, 188)        # tabs and part cards
+const INFO := Rect2(6, 221, 203, 88)        # the part under the cursor: its name and one sentence
+const HELP := Rect2(6, 312, 203, 42)        # how to use the screen
+const DOES := Rect2(396, 34, 238, 234)      # what the sword does, a line per rune
+const STATS := Rect2(396, 271, 238, 83)     # the sword's numbers
+const STAT_COL := 116.0                     # the width of a column of numbers
+const PREVIEW := Rect2(211, 92, 184, 150)   # the picture shown while Alt is held (fits between the plates)
+const GAIN := Color("#86d4a4")              # compare: this number would go up
+const LOSS := Color("#ff6a4a")              # compare: it would go down
+const SWORD_TOP := 4.0
 const CENTRE_X := 300.0
 const SWORD_BOTTOM := 326.0  # the pommel sits just above the anvil
 var sword_bottom := SWORD_BOTTOM
@@ -46,6 +59,7 @@ var selected := 0          # slot index, 0 = bottom of the grip
 var tab := 1               # runes
 var card := 0              # keyboard cursor in the tray
 var hover := ""
+var keys_on_cards := false # the tray cursor was last moved with keys or a pad, not the mouse
 var buttons := {}          # key -> Rect2, rebuilt every draw
 var _styles := {}
 
@@ -73,6 +87,7 @@ var heat_mask: Control     # draws the sword; its child is clipped to the sword'
 var heat_fill: Control
 var fx_top: Control
 var banner: Control
+var preview: Control
 
 
 func _ready() -> void:
@@ -111,6 +126,12 @@ func _ready() -> void:
 	banner.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	banner.draw.connect(_draw_banner)
 	root.add_child(banner)
+	# The "hold Alt" picture goes over everything.
+	preview = Control.new()
+	preview.size = root.size
+	preview.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	preview.draw.connect(_draw_preview)
+	root.add_child(preview)
 
 
 func _additive() -> CanvasItemMaterial:
@@ -241,8 +262,10 @@ func _process(delta: float) -> void:
 		_set_tab(tab - 1)
 	if Input.is_action_just_pressed("move_right"):
 		card = mini(card + 1, _cards().size() - 1)
+		keys_on_cards = true
 	if Input.is_action_just_pressed("move_left"):
 		card = maxi(card - 1, 0)
+		keys_on_cards = true
 	if Input.is_action_just_pressed("menu_place"):
 		_use_card(card)
 	if Input.is_action_just_pressed("menu_rotate"):
@@ -269,6 +292,7 @@ func _input(event: InputEvent) -> void:
 	if event is InputEventMouseMotion:
 		var m := root.get_local_mouse_position()
 		hover = _button_at(m)
+		keys_on_cards = false
 		if drag_id != "" and not dragging and m.distance_to(drag_start) > 4.0:
 			dragging = true
 		root.queue_redraw()
@@ -395,7 +419,8 @@ func _cards() -> Array:
 		"runes":
 			for id in SwingBuild.FITTING_ORDER:
 				if SwingBuild.FITTINGS[id]["kind"] == "rune" and not SwingBuild.FITTINGS[id].get("parked", false) and _has(id):
-					out.append({"id": id, "name": SwingBuild.FITTINGS[id]["name"], "locked": false})
+					out.append({"id": id, "name": SwingBuild.FITTINGS[id]["name"], "locked": false,
+						"group": "active" if SwingBuild.FITTINGS[id]["trigger"] == "active" else "passive"})
 		"bands":
 			for id in SwingBuild.FITTING_ORDER:
 				if SwingBuild.FITTINGS[id]["kind"] == "band" and _has(id):
@@ -457,7 +482,9 @@ func _button_at(m: Vector2) -> String:
 
 # --- Drawing helpers ----------------------------------------------------------
 
-func _nine(name: String, r: Rect2) -> void:
+func _nine(name: String, r: Rect2, ci: CanvasItem = null) -> void:
+	if ci == null:
+		ci = root
 	if not _styles.has(name):
 		var tex := Art.texture("swing/ui/%s.png" % name)
 		if tex == null:
@@ -476,10 +503,10 @@ func _nine(name: String, r: Rect2) -> void:
 				sb.draw_center = false
 			_styles[name] = sb
 	if _styles[name] == null:
-		root.draw_rect(r, PLATE)
-		root.draw_rect(r, FAINT, false, 1.0)
+		ci.draw_rect(r, PLATE)
+		ci.draw_rect(r, FAINT, false, 1.0)
 	else:
-		root.draw_style_box(_styles[name], r)
+		ci.draw_style_box(_styles[name], r)
 
 
 func _head(text: String, pos: Vector2, col := INK, size := 8, width := -1.0, align := HORIZONTAL_ALIGNMENT_LEFT) -> void:
@@ -554,14 +581,17 @@ func _icon(kind: String, id: String, center: Vector2, part_scale := 2.0) -> void
 
 func _draw_forge() -> void:
 	buttons.clear()
-	# A still backdrop (the forge's niche), then a plate behind each column of words.
+	# A still backdrop (the forge's niche), then a plate behind every kind of words.
 	var backdrop := Art.texture("swing/ui/forge_backdrop.png")
 	if backdrop != null:
 		root.draw_texture(backdrop, Vector2.ZERO)
 	else:
 		root.draw_rect(Rect2(Vector2.ZERO, root.size), WELL)
-	_nine("panel", LEFT)
-	_nine("panel", RIGHT)
+	_nine("panel", TRAY)
+	_nine("panel_titled", INFO)
+	_nine("well", HELP)
+	_nine("panel", DOES)
+	_nine("panel_titled", STATS)
 	_head("The forge", Vector2(14, 24), AMBER, 16)
 	if whose != "":
 		_head(whose, Vector2(150, 24), INK, 8)
@@ -569,6 +599,9 @@ func _draw_forge() -> void:
 	_draw_tray()
 	_draw_sword(stats)
 	_draw_does(stats)
+	_draw_info()
+	_draw_stats(stats)
+	_draw_help()
 	if dragging:
 		for i in build.line.size():
 			var r := _slot_screen(i)
@@ -579,7 +612,7 @@ func _draw_forge() -> void:
 		_icon(kind, drag_id, root.get_local_mouse_position())
 
 
-## Left: tabs and icon-only cards. Details show for the hovered (or keyboard) card.
+## Left: tabs and icon-only cards.
 func _draw_tray() -> void:
 	var x := 14.0
 	var f := Art.font("Silkscreen-Regular")
@@ -595,31 +628,12 @@ func _draw_tray() -> void:
 		x += w + 13
 	var cards := _cards()
 	card = clampi(card, 0, maxi(cards.size() - 1, 0))
-	var row_n := [0, 0, 0]
-	var row_total := [0, 0, 0]
-	for c in cards:
-		if c.has("row"):
-			row_total[int(c["row"])] += 1
 	if cards.is_empty():
 		_body("Nothing here yet.", Vector2(14, 78), DIM)
-	# More than three blades go in rows of three (the greatsword's picture is 62
-	# wide), and the grip and pommel rows move down to make room.
-	var blade_rows := (int(row_total[0]) + 2) / 3 if int(row_total[0]) > 3 else 1
-	var push := (blade_rows - 1) * 26.0 - (7.0 if blade_rows > 1 else 0.0)
-	if TABS[tab] == "sword":
-		for ri in 3:
-			_head(["Blade", "Grip", "Pommel"][ri], Vector2(14, 66 + ri * 44 + (push if ri > 0 else 0.0)), DIM)
+	var rects := _place_cards(cards)
 	for i in cards.size():
 		var c: Dictionary = cards[i]
-		var r := Rect2(14 + (i % 3) * 44, 60 + (i / 3) * 44, 38, 38)
-		var icon_scale := 2.0
-		if c.has("row"):
-			var ri: int = c["row"]
-			var w := clampi(192 / maxi(int(row_total[ri]), 1), 30, 64 if ri == 0 else 34)
-			r = Rect2(14 + row_n[ri] * w, 70 + ri * 44 + (push if ri > 0 else 0.0), w - 3, 31)
-			if ri == 0 and blade_rows > 1:
-				r = Rect2(14 + (row_n[ri] % 3) * 64, 70 + (row_n[ri] / 3) * 26, 62, 24)
-			row_n[ri] += 1
+		var r: Rect2 = rects[i]
 		buttons["card:%d" % i] = r
 		_nine("well_selected" if i == card else "well", r)
 		if hover == "card:%d" % i and i != card:
@@ -629,34 +643,171 @@ func _draw_tray() -> void:
 			if lock != null:
 				root.draw_texture(lock, (r.get_center() - lock.get_size() * 0.5).round())
 			continue
-		_icon(c.get("kind", TABS[tab]), c["id"], r.get_center(), icon_scale)
+		_icon(c.get("kind", TABS[tab]), c["id"], r.get_center())
+		if c.get("group", "") == "active":
+			_badge(r.get_center())
 		if _on_sword(c["id"]):
 			var fitted := Art.texture("swing/ui/fitted_mark.png")
 			if fitted != null:
 				root.draw_texture(fitted, Vector2(r.end.x - 7, r.position.y + 2))
 			else:
 				root.draw_rect(Rect2(r.end.x - 6, r.position.y + 2, 4, 4), AMBER)
-	var di := card
-	var text_end := 0.0
+
+
+## Where each card on the current tab goes, in card order. Draws the headings of
+## the rows and groups on the way.
+func _place_cards(cards: Array) -> Array:
+	var rects: Array = []
+	rects.resize(cards.size())
+	match TABS[tab]:
+		"sword":
+			# Three rows: blades, grips, pommels. More than three blades go in rows
+			# of three (the greatsword's picture is 62 wide), and the rows below
+			# move down to make room.
+			var totals := [0, 0, 0]
+			for c in cards:
+				totals[int(c["row"])] += 1
+			var blade_rows: int = (int(totals[0]) + 2) / 3 if int(totals[0]) > 3 else 1
+			var push := (blade_rows - 1) * 26.0 - (7.0 if blade_rows > 1 else 0.0)
+			for ri in 3:
+				_head(["Blade", "Grip", "Pommel"][ri], Vector2(14, 66 + ri * 44 + (push if ri > 0 else 0.0)), DIM)
+			var n := [0, 0, 0]
+			for i in cards.size():
+				var ri: int = cards[i]["row"]
+				var w := clampi(192 / maxi(int(totals[ri]), 1), 30, 64 if ri == 0 else 34)
+				var r := Rect2(14 + int(n[ri]) * w, 70 + ri * 44 + (push if ri > 0 else 0.0), w - 3, 31)
+				if ri == 0 and blade_rows > 1:
+					r = Rect2(14 + (int(n[ri]) % 3) * 64, 70 + (int(n[ri]) / 3) * 26, 62, 24)
+				n[ri] += 1
+				rects[i] = r
+		"runes":
+			# Two groups, so the two kinds can be told apart before reading anything:
+			# passive runes (round stones), then active ones (square, with a button badge).
+			var y := 58.0
+			for group in ["passive", "active"]:
+				var k := 0
+				for i in cards.size():
+					if cards[i]["group"] != group:
+						continue
+					if k == 0:
+						var tag := Art.texture("swing/ui/tray_%s.png" % group)
+						if tag != null:
+							root.draw_texture(tag, Vector2(14, y))
+						else:
+							_head(group, Vector2(14, y + 8), DIM)
+					rects[i] = Rect2(14 + (k % 3) * 44, y + 12 + (k / 3) * 44, 38, 38)
+					k += 1
+				if k > 0:
+					y += 12 + ((k + 2) / 3) * 44 + 4
+		_:
+			for i in cards.size():
+				rects[i] = Rect2(14 + (i % 3) * 44, 60 + (i / 3) * 44, 38, 38)
+	return rects
+
+
+## The little button cap on an active rune's stone. `center` is the middle of the
+## stone's 26 x 26 picture.
+func _badge(center: Vector2) -> void:
+	var tex := Art.texture("swing/ui/active_badge.png")
+	if tex == null:
+		return
+	var at: Array = SwordArt.data().get("stones", {}).get("active_badge", {}).get("at_on_icon", [18, 18])
+	root.draw_texture(tex, (center - Vector2(13, 13)).round() + Vector2(at[0], at[1]))
+
+
+## The part the info plate is about: what the mouse is on (a card in the tray or
+## a fitting on the sword), else the card the keys are on.
+func _info_id() -> String:
+	var cards := _cards()
 	if hover.begins_with("card:"):
-		di = int(hover.split(":")[1])
-	if di < cards.size():
-		var id: String = cards[di]["id"]
-		var y := 216.0 + push if TABS[tab] == "sword" else 166.0
-		root.draw_string(Art.font("PixelifySans-Regular"), Vector2(14, y), cards[di]["name"], HORIZONTAL_ALIGNMENT_LEFT, -1, 13, AMBER)
+		var i := int(hover.split(":")[1])
+		if i < cards.size():
+			return cards[i]["id"]
+	if hover.begins_with("slot:"):
+		var i := int(hover.split(":")[1])
+		if i < build.line.size() and build.line[i] != "":
+			return build.line[i]
+	if card < cards.size():
+		return cards[card]["id"]
+	return ""
+
+
+func _name(id: String) -> String:
+	if SwingBuild.BLADES.has(id):
+		return SwingBuild.BLADES[id]["name"]
+	if SwingBuild.GRIPS.has(id):
+		return SwingBuild.GRIPS[id]["name"]
+	if SwingBuild.POMMELS.has(id):
+		return SwingBuild.POMMELS[id]["name"]
+	return SwingBuild.FITTINGS[id]["name"]
+
+
+func _is_rune(id: String) -> bool:
+	return SwingBuild.FITTINGS.has(id) and SwingBuild.FITTINGS[id]["kind"] == "rune"
+
+
+func _on_pad() -> bool:
+	return keys == SwingBuild.ABILITY_KEYS["pad"]
+
+
+## Under the tray: the part's name and one plain sentence, never more, on a plate
+## of its own. A rune's picture shows while Alt (LT on a controller) is held.
+func _draw_info() -> void:
+	var at := INFO.position
+	var id := _info_id()
+	if id == "":
+		_head("Parts", at + Vector2(14, 14), DIM)
+		return
+	root.draw_string(Art.font("PixelifySans-Regular"), at + Vector2(14, 16), _name(id), HORIZONTAL_ALIGNMENT_LEFT, -1, 13, AMBER)
+	var y := at.y + 35.0
+	for l in info_lines(id):
+		_body(l, Vector2(at.x + 10, y))
 		y += 13
-		_body(_kind_line(id), Vector2(14, y), DIM)
-		y += 16
-		for l in _wrap(_desc(id), 186):
-			_body(l, Vector2(14, y))
-			y += 13
-		text_end = y - 13.0
-	# The how-to lines give way to a long description: nothing here may overlap.
-	if text_end < 290.0:
-		_body("Drag a part onto a slot, or", Vector2(14, 300), DIM)
-		_body("click a slot, then a part.", Vector2(14, 313), DIM)
-	_body("Drag off or right-click: take off", Vector2(14, 332), FAINT)
-	_body("T: try at the dummy   Tab: leave" if sandbox else "Tab, Esc or B: done", Vector2(14, 345), FAINT)
+	if _is_rune(id):
+		_body("Hold %s to preview" % ("LT" if _on_pad() else "Alt"), Vector2(at.x + 10, INFO.end.y - 10), DIM)
+
+
+## A part's sentence, wrapped for the info plate. (Three lines at most fit above
+## the preview hint: tests/smoke_forge.gd checks every part.)
+func info_lines(id: String) -> Array:
+	return _wrap(_desc(id), INFO.size.x - 20)
+
+
+func _draw_help() -> void:
+	var at := HELP.position + Vector2(8, 0)
+	_body("Drag a part onto a slot to fit it.", at + Vector2(0, 13), DIM)
+	_body("Right-click a slot to take it off.", at + Vector2(0, 25), DIM)
+	_body("T: try at the dummy   Tab: leave" if sandbox else "Tab, Esc or B: done", at + Vector2(0, 37), FAINT)
+
+
+func _preview_held() -> bool:
+	if Input.is_key_pressed(KEY_ALT):
+		return true
+	for pad in Input.get_connected_joypads():
+		if Input.get_joy_axis(pad, JOY_AXIS_TRIGGER_LEFT) > 0.5:
+			return true
+	return false
+
+
+## While Alt is held on a rune: a still picture of it firing, over the sword.
+func _draw_preview() -> void:
+	if not is_open or finishing >= 0.0 or dragging:
+		return
+	var id := _info_id()
+	if id == "" or not _is_rune(id) or not (_preview_held() or preview_always):
+		return
+	_nine("panel_titled", PREVIEW, preview)
+	preview.draw_string(Art.font("Silkscreen-Regular"), PREVIEW.position + Vector2(14, 14), _name(id).to_upper(), HORIZONTAL_ALIGNMENT_LEFT, -1, 8, AMBER)
+	var frame := Rect2(PREVIEW.position + Vector2(4, 24), Vector2(176, 120))   # the pictures are 352 x 240
+	var tex := Art.texture("swing/previews/%s.png" % id)
+	if tex != null:
+		preview.draw_texture_rect(tex, frame, false)
+	else:
+		preview.draw_rect(frame, WELL)
+		preview.draw_string(Art.font("PixelifySans-Regular"), frame.position + Vector2(0, 64), "No picture yet", HORIZONTAL_ALIGNMENT_CENTER, frame.size.x, 11, DIM)
+
+
+var preview_always := false   # for screenshots: show the picture without Alt
 
 
 func _short(name: String) -> String:
@@ -665,25 +816,6 @@ func _short(name: String) -> String:
 
 func _on_sword(id: String) -> bool:
 	return id != "" and (id == build.blade or id == build.grip or id == build.pommel or id in build.line)
-
-
-func _kind_line(id: String) -> String:
-	if SwingBuild.BLADES.has(id):
-		var b: Dictionary = SwingBuild.BLADES[id]
-		return "Blade, %d slot%s" % [b["slots"], "" if b["slots"] == 1 else "s"]
-	if SwingBuild.GRIPS.has(id):
-		var g: Dictionary = SwingBuild.GRIPS[id]
-		return "Grip, %d slot%s" % [g["slots"], "" if g["slots"] == 1 else "s"]
-	if SwingBuild.POMMELS.has(id):
-		return "Pommel, stats only"
-	var f: Dictionary = SwingBuild.FITTINGS[id]
-	if f["kind"] == "band":
-		return "Band"
-	if f["kind"] == "bender":
-		return "Rule-bender, 1 per sword"
-	if f["trigger"] == "active":
-		return "Active rune: %s a button" % ("hold" if f["use"] == "hold" else "press")
-	return "Passive rune, " + {"finisher": "on the finisher", "hit": "every hit", "kill": "on a kill"}[f["trigger"]]
 
 
 func _desc(id: String) -> String:
@@ -744,8 +876,11 @@ func _draw_sword(stats: Dictionary) -> void:
 	var blade := build.blade
 	var grip := build.grip
 	var size := SwordArt.frame_size(blade, grip, "forge")
-	# Twice its size whenever that fits, so the sword's pixels stay square.
-	zoom = 2.0 if size.y * 2.0 <= SWORD_BOTTOM - 4.0 else (SWORD_BOTTOM - 4.0) / size.y
+	# Twice its size whenever that fits. A taller sword is drawn smaller, by a
+	# whole number of screen pixels for each of its own, so they stay square.
+	var screen := maxf(roundf(float(get_window().size.y) / 360.0), 1.0)
+	var fit := minf((SWORD_BOTTOM - SWORD_TOP) / size.y, 2.0)
+	zoom = maxf(floorf(fit * screen) / screen, 1.0 / screen)
 	sword_bottom = SWORD_BOTTOM
 	var top := Vector2(CENTRE_X - size.x * zoom * 0.5, sword_bottom - size.y * zoom).round()
 	sword_top = top
@@ -811,6 +946,7 @@ func _update_fx(delta: float) -> void:
 	heat_fill.queue_redraw()
 	fx_top.queue_redraw()
 	banner.queue_redraw()
+	preview.queue_redraw()
 	root.queue_redraw()
 
 
@@ -932,55 +1068,226 @@ func _draw_banner() -> void:
 	banner.draw_string(Art.font("PixelifySans-Regular"), Vector2(0, y + 18), sub, HORIZONTAL_ALIGNMENT_CENTER, 640, 11, Color(0.9, 0.86, 0.8, a))
 
 
+## How "what it does" is set out, roomiest first. The first one that fits is used:
+## stone size, where the words start, line height, the gap between runes.
+const DOES_PLANS := [
+	{"stone": 26, "text_x": 38.0, "line": 13.0, "gap": 8.0, "least": 28.0},
+	{"stone": 26, "text_x": 38.0, "line": 13.0, "gap": 3.0, "least": 27.0},
+	{"stone": 9, "text_x": 16.0, "line": 13.0, "gap": 5.0, "least": 13.0},
+	{"stone": 9, "text_x": 16.0, "line": 12.0, "gap": 2.0, "least": 12.0},
+]
+
+
+## Sets out the "what it does" rows for one plan: {rows: [{lines, h}], notes, height}.
+func _plan_does(effects: Array, notes: Array, plan: Dictionary) -> Dictionary:
+	var width := DOES.size.x - 16.0
+	var rows: Array = []
+	var height := 0.0
+	for e in effects:
+		var lines := _wrap(SwingBuild.sentence(e, keys), width - float(plan["text_x"]))
+		var h := maxf(float(plan["least"]), lines.size() * float(plan["line"]))
+		rows.append({"lines": lines, "h": h})
+		height += h + float(plan["gap"])
+	var note_lines: Array = []
+	for n in notes:
+		note_lines.append(_wrap(n, width))
+		height += (note_lines[-1] as Array).size() * float(plan["line"]) + 4.0
+	return {"rows": rows, "notes": note_lines, "height": height}
+
+
 ## Right: one short line per rune, its bar in its group colour; then the
-## fittings that do nothing (and why); then the blade and grip.
+## fittings that do nothing (and why). It never runs off its plate: with more
+## to say, the rows close up and the stones get smaller.
 func _draw_does(stats: Dictionary) -> void:
-	const X := 420.0
-	const W := 172.0
-	_head("What it does", Vector2(X, 48), DIM)
+	var x := DOES.position.x + 8.0
+	_head("What it does", Vector2(x, DOES.position.y + 14), DIM)
 	var effects: Array = stats["effects"]
 	var info: Dictionary = stats["slot_info"]
-	var y := 62.0
-	if effects.is_empty():
-		for l in _wrap("Nothing fitted yet. Pick a rune on the left, then click a slot.", W):
-			_body(l, Vector2(X, y + 10), DIM)
-			y += 13
-	for ei in effects.size():
-		var e: Dictionary = effects[ei]
-		var lines := _wrap(SwingBuild.sentence(e, keys), W - 36)
-		var h := maxf(28.0, lines.size() * 13.0 + 4.0)
-		root.draw_rect(Rect2(X, y, 3, h), _group_color(ei))
-		_icon("runes", e["id"], Vector2(X + 20, y + 14))
-		var ly := y + 11
-		for l in lines:
-			_body(l, Vector2(X + 38, ly))
-			ly += 13
-		y += h + 10
+	var top := DOES.position.y + 24.0
+	var bottom := DOES.end.y - 8.0
+	var notes: Array = []
 	for i in build.line.size():
 		var si: Dictionary = info.get(i, {})
 		if build.line[i] != "" and si.has("unused"):
-			for l in _wrap("%s: %s" % [SwingBuild.FITTINGS[build.line[i]]["name"], si.get("why", "does nothing here.")], W):
-				_body(l, Vector2(X, y + 8), DIM)
-				y += 13
-			y += 6
-	var bl := SwingBuild.blade_info(build.blade)
-	var spd := float(stats["speed"])
-	var spd_word := "fast" if spd >= 1.15 else ("slow" if spd <= 0.85 else "normal")
-	var pm: Dictionary = SwingBuild.POMMELS[build.pommel]
-	_body("%s + %s" % [bl["name"], SwingBuild.GRIPS[build.grip]["name"]], Vector2(X, 284), DIM)
-	_body("%s: %s" % [pm["name"], pm["desc"]], Vector2(X, 298), DIM)
-	# The numbers, each with its icon. An icon lights for a moment when its number changes.
-	var reach := float(stats["reach"])
-	var reach_word := "long" if reach >= 1.1 else ("short" if reach <= 0.95 else "normal")
-	_stat("damage", "Damage %d" % roundi(float(stats["damage"])), Vector2(X, 312))
-	_stat("speed", "Speed %s" % spd_word, Vector2(X + 96, 312))
-	_stat("reach", "Reach %s" % reach_word, Vector2(X, 326))
-	_stat("crit", "Crit %d%%" % roundi(float(stats["crit"]) * 100.0), Vector2(X + 96, 326))
-	_stat("crit_damage", "x%s" % str(snappedf(float(stats["crit_damage"]), 0.1)), Vector2(X + 158, 326))
+			notes.append("%s: %s" % [SwingBuild.FITTINGS[build.line[i]]["name"], si.get("why", "does nothing here.")])
+	if effects.is_empty() and notes.is_empty():
+		# (With bands but no rune, the notes below say why nothing happens instead.)
+		var ey := top + 10.0
+		for l in _wrap("Nothing fitted yet. Pick a rune on the left, then click a slot.", DOES.size.x - 16.0):
+			_body(l, Vector2(x, ey), DIM)
+			ey += 13
+	var plan: Dictionary = DOES_PLANS[0]
+	var set_out := {}
+	for pl in DOES_PLANS:
+		plan = pl
+		set_out = _plan_does(effects, notes, pl)
+		if float(set_out["height"]) <= bottom - top:
+			break
+	does_fits = float(set_out["height"]) <= bottom - top
+	var y := top
+	var line_h: float = plan["line"]
+	var rows: Array = set_out["rows"]
+	for ei in effects.size():
+		var row: Dictionary = rows[ei]
+		var h: float = row["h"]
+		if y + h > bottom + 0.5:
+			# (Only with more runes than any sword in the prototype can hold.)
+			_body("and %d more" % (effects.size() - ei), Vector2(x, bottom - 2), DIM)
+			return
+		var e: Dictionary = effects[ei]
+		root.draw_rect(Rect2(x, y, 3, h), _group_color(ei))
+		if int(plan["stone"]) == 26:
+			_icon("runes", e["id"], Vector2(x + 20, y + 14))
+			if SwingBuild.FITTINGS[e["id"]]["trigger"] == "active":
+				_badge(Vector2(x + 20, y + 14))
+		else:
+			var stone := Art.texture("swing/runes/%s_forge.png" % e["id"])
+			if stone != null:
+				root.draw_texture(stone, Vector2(x + 5, y + 2))
+		var ly := y + line_h - 2.0
+		for l in row["lines"]:
+			_body(l, Vector2(x + float(plan["text_x"]), ly))
+			ly += line_h
+		y += h + float(plan["gap"])
+	for lines in set_out["notes"]:
+		for l in lines:
+			if y + line_h > bottom + 0.5:
+				return
+			_body(l, Vector2(x, y + line_h - 3.0), DIM)
+			y += line_h
+		y += 4.0
 
 
-## One number in "what it does": its icon, then the words. pos is the text baseline.
-func _stat(name: String, text: String, pos: Vector2) -> void:
+var does_fits := true   # the last "what it does" fitted its plate (checked by tests/smoke_forge.gd)
+
+
+## What each number is called, and where it sits on the stats plate (column, row).
+const STAT_ROWS := [
+	["damage", 0, 0], ["speed", 1, 0],
+	["reach", 0, 1], ["crit", 1, 1],
+	["crit_damage", 0, 2], ["slots", 1, 2],
+	["move", 0, 3],
+]
+
+
+## A sword's numbers as the stats plate shows them.
+static func stat_values(s: Dictionary) -> Dictionary:
+	return {
+		"damage": float(s["damage"]),
+		"speed": roundf(float(s["speed"]) * 100.0),
+		"reach": roundf(float(s["reach"]) * 100.0),
+		"crit": roundf(float(s["crit"]) * 100.0),
+		"crit_damage": float(s["crit_damage"]),
+		"slots": float((s["line"] as Array).size()),
+		"move": roundf(float(s.get("swing_move", SwingBuild.SWING_MOVE)) * 100.0),
+	}
+
+
+static func _plain(v: float) -> String:
+	return ("%d" % roundi(v)) if is_equal_approx(v, roundf(v)) else ("%.1f" % v)
+
+
+static func stat_text(key: String, v: float) -> String:
+	match key:
+		"damage": return "Damage %s" % _plain(v)
+		"speed": return "Speed %d%%" % roundi(v)
+		"reach": return "Reach %d%%" % roundi(v)
+		"crit": return "Crit %d%%" % roundi(v)
+		"crit_damage": return "Crit hits x%s" % _plain(v)
+		"slots": return "Slots %d" % roundi(v)
+		"move": return "Walk while swinging %d%%" % roundi(v)
+	return ""
+
+
+## The change in a number, as it is written beside it: "+8.3", "-60%". Empty for no change.
+static func delta_text(key: String, d: float) -> String:
+	if absf(d) < 0.05:
+		return ""
+	var amount := _plain(absf(d))
+	if key in ["speed", "reach", "crit", "move"]:
+		amount += "%"
+	return ("+" if d > 0.0 else "-") + amount
+
+
+## The part whose effect the stats plate should show: a blade, grip or pommel in
+## the tray that isn't the one fitted, under the mouse (or the keys' cursor).
+func _compare_id() -> String:
+	if TABS[tab] != "sword":
+		return ""
+	var cards := _cards()
+	var i := -1
+	if hover.begins_with("card:"):
+		i = int(hover.split(":")[1])
+	elif keys_on_cards:
+		i = card
+	if i < 0 or i >= cards.size() or cards[i]["locked"]:
+		return ""
+	var id: String = cards[i]["id"]
+	return "" if _on_sword(id) else id
+
+
+## What the sword's numbers would be with this blade, grip or pommel fitted.
+func stats_with(id: String) -> Dictionary:
+	var b := SwingBuild.new()
+	b.set_data(build.get_data())
+	if SwingBuild.BLADES.has(id):
+		b.set_blade(id)
+	elif SwingBuild.GRIPS.has(id):
+		b.set_grip(id)
+	elif SwingBuild.POMMELS.has(id):
+		b.set_pommel(id)
+	return b.compute()
+
+
+## The sword's numbers, on a bordered plate of their own. While the cursor is on
+## a part you could fit, each number it would change shows the change beside it:
+## green with a plus for a gain, red with a minus for a loss.
+func _draw_stats(stats: Dictionary) -> void:
+	var at := STATS.position
+	var with_id := _compare_id()
+	var now := stat_values(stats)
+	var then := now if with_id == "" else stat_values(stats_with(with_id))
+	if with_id == "":
+		_head("Stats", at + Vector2(14, 14), INK)
+		_head(_name(build.blade), at + Vector2(14, 14), DIM, 8, STATS.size.x - 26, HORIZONTAL_ALIGNMENT_RIGHT)
+	else:
+		_head("With the " + _name(with_id), at + Vector2(14, 14), FOCUS)
+		if stat_changes(now, then).is_empty():
+			_head("same numbers", at + Vector2(14, 14), DIM, 8, STATS.size.x - 26, HORIZONTAL_ALIGNMENT_RIGHT)
+	for row in STAT_ROWS:
+		var key: String = row[0]
+		var d: float = float(then[key]) - float(now[key])
+		_stat(key, stat_text(key, now[key]), at + stat_at(row), delta_text(key, d), d > 0.0)
+
+
+## Where a number sits on the stats plate (its text baseline), from the plate's corner.
+static func stat_at(row: Array) -> Vector2:
+	return Vector2(8 + int(row[1]) * STAT_COL, 32 + int(row[2]) * 13)
+
+
+## The numbers a part would change: {name: "+8.3"}.
+static func stat_changes(now: Dictionary, then: Dictionary) -> Dictionary:
+	var out := {}
+	for key in now:
+		var d := delta_text(key, float(then[key]) - float(now[key]))
+		if d != "":
+			out[key] = d
+	return out
+
+
+## How wide a number is on the plate with a change beside it (icon, words, change).
+func stat_width(text: String, change: String) -> float:
+	var f := Art.font("PixelifySans-Regular")
+	var w := 12.0 + f.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 11).x
+	if change != "":
+		w += 4.0 + f.get_string_size(change, HORIZONTAL_ALIGNMENT_LEFT, -1, 11).x
+	return w
+
+
+## One number on the stats plate: its icon, the words, then the change a hovered
+## part would make. pos is the text baseline. The icon lights for a moment when
+## the number itself changes.
+func _stat(name: String, text: String, pos: Vector2, change := "", gain := true) -> void:
 	if _stat_last.has(name) and _stat_last[name] != text:
 		_stat_lit[name] = t
 	_stat_last[name] = text
@@ -989,5 +1296,8 @@ func _stat(name: String, text: String, pos: Vector2) -> void:
 	var x := pos.x
 	if icon != null:
 		root.draw_texture(icon, Vector2(x, pos.y - 8))
-		x += icon.get_width() + 3.0
-	_body(text, Vector2(x, pos.y), AMBER if lit else DIM)
+	x += 12.0
+	_body(text, Vector2(x, pos.y), AMBER if lit else INK)
+	if change != "":
+		x += Art.font("PixelifySans-Regular").get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 11).x + 4.0
+		_body(change, Vector2(x, pos.y), GAIN if gain else LOSS)

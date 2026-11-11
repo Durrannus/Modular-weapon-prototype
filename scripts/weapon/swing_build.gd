@@ -29,7 +29,7 @@ const SHAPES := {
 		"desc": "Slash, slash, overhead: the balanced blade."},
 	"rapier": {"name": "Rapier", "chain": ["thrust", "thrust", "long_thrust"],
 		"damage": 0.9, "speed": 1.1, "reach": 1.4,
-		"desc": "Thrust, thrust, lunge: a long reach in a straight line, and every thrust goes through to a second enemy."},
+		"desc": "Thrust, thrust, lunge: long, straight reach, and each thrust goes through to a second enemy."},
 	"falchion": {"name": "Falchion", "chain": ["chop", "chop", "cleave"],
 		"damage": 1.35, "speed": 0.8, "reach": 0.9,
 		"desc": "Chop, chop, cleave: slow, heavy hits that knock enemies back, and the cleave staggers them."},
