@@ -233,6 +233,10 @@ func _draw_abilities(p, right: bool, x: float, y: float, block_w: float) -> void
 				panel.draw_rect(Rect2(sx + 2, y + 2, 16, 16.0 * (1.0 - charge)), Color(PLATE.r, PLATE.g, PLATE.b, 0.75))
 		if going:
 			panel.draw_rect(Rect2(sx + 2, y + 2, 16, 16), Color(1.0, 0.94, 0.7, 0.35))
+		# Every Hit: a landed swing just took time off this one. A green blink, the bands' colour.
+		var since_back: float = p.game_time - float(p.ability_refunded[b])
+		if since_back < 0.14:
+			panel.draw_rect(Rect2(sx + 2, y + 2, 16, 16), Color(0.53, 0.83, 0.64, 0.5 * (1.0 - since_back / 0.14)))
 		var key := Art.texture("cave/ui/prompt_%s.png" % prompts[b])
 		if key != null:
 			panel.draw_texture(key, Vector2(at + SLOT + 2, y + 2), Color.WHITE if ready else Color(0.7, 0.7, 0.7))

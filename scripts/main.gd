@@ -39,10 +39,10 @@ func _ready() -> void:
 	dummy.position = ARENA.get_center() + Vector2(220, -40)
 	world.add_child(dummy)
 
-	# Weapons: everyone starts with test sword D: all three active runes (Whirlwind,
-	# Hook, Leap), one on each button, and the passive Weak Point. A and B are the
-	# 3 November test swords, C is two actives and Shockwave; keys 1 to 4 at the
-	# forge load A to D.
+	# Weapons: everyone starts with test sword D: the sword's active runes, one on
+	# each button, and the passive ones beside them. A and B are the 3 November
+	# test swords, C is two actives and Shockwave; keys 1 to 4 at the forge load
+	# A to D.
 	for b in builds:
 		b.load_test("D")
 

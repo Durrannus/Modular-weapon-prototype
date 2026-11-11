@@ -6,6 +6,7 @@ extends SceneTree
 
 const EnemyScript := preload("res://scripts/enemy.gd")
 const RuneFx := preload("res://scripts/fx/rune_fx.gd")
+const SwingBuild := preload("res://scripts/weapon/swing_build.gd")
 
 var m
 var p
@@ -170,12 +171,15 @@ func _run() -> void:
 	await _frames(5)
 	var dmg := float(p.weapon["damage"])
 
-	# --- The starting sword: Whirlwind, Hook and Leap on buttons one, two and three ---
+	# --- The starting sword: Whirlwind and Leap on buttons one and two ---
 	var list: Array = p.weapon["abilities"]
-	_check(list.size() == 3 and list[0]["id"] == "whirlwind" and list[1]["id"] == "hook" and list[2]["id"] == "leap", "the arena's sword has Whirlwind, Hook and Leap on buttons one, two and three")
-	p.weapon["crit"] = 0.0   # no lucky crits, so the numbers below are exact
+	_check(list.size() == 2 and list[0]["id"] == "whirlwind" and list[1]["id"] == "leap", "the arena's sword has Whirlwind and Leap on buttons one and two")
+	_check(not ("hook" in p.weapon["line"]) and SwingBuild.FITTINGS["hook"].get("parked", false), "Hook is off the sword and out of the forge, waiting for the hammer")
 
 	# --- Hook: one press pulls enemies in, then it has to recharge ---
+	# (Hook left the sword for the hammer on 11 November. Until the hammer is built
+	# it is put on a sword by hand here, so its rules stay checked.)
+	_sword_exact(["whirlwind", "hook", "leap", ""])   # no lucky crits, so the numbers below are exact
 	await _rest()
 	var far = _slime(Vector2(200, 0), false)
 	await _frames(3)
@@ -322,20 +326,52 @@ func _run() -> void:
 	_check(float(p.ability_charge[0]) >= 1.0, "and leaves its meter full")
 	far.queue_free()
 
-	# Every Hit: the rune goes back to firing by itself, with no button.
-	_sword(["every_hit", "whirlwind", "", ""])
+	# Every Hit on an active rune (11 November afternoon): the rune stays on its
+	# button, and each swing that lands takes half a second off its recharge.
+	_sword_exact(["every_hit", "leap", "", ""])
 	await _rest()
-	_check(p.weapon["abilities"].is_empty(), "Every Hit takes Whirlwind off its button")
+	list = p.weapon["abilities"]
+	_check(list.size() == 1 and list[0]["id"] == "leap" and absf(float(list[0]["refund"]) - 0.5) < 0.001, "Every Hit leaves Leap on its button")
 	var near = _slime(Vector2(50, 0))
 	var side = _slime(Vector2(0, 60))
 	await _frames(3)
-	p.input.attack_pressed = true
-	p.input.attack_held = true
-	await _frames(1)
-	p.input.attack_pressed = false
-	p.input.attack_held = false
-	await _frames(30)
-	_check(absf((5000.0 - side.hp) - dmg * 0.9 * 0.5) < 0.01, "and every hit spins by itself at half strength (%.2f to an enemy beside you)" % (5000.0 - side.hp))
+	var hp0: float = side.hp
+	p.ability_charge[0] = 0.0
+	await _swing(Vector2.LEFT)   # a miss: nobody that way
+	var missed: float = p.ability_charge[0]
+	p.ability_charge[0] = 0.0
+	await _swing()               # lands on one enemy
+	var landed: float = p.ability_charge[0]
+	_check(absf((landed - missed) - 0.5 / 3.0) < 0.005, "a swing that lands takes half a second off Leap's 3 (%.3f of the meter, a miss gives none)" % (landed - missed))
+	_check(side.hp == hp0, "and nothing fires by itself any more")
+	var second = _slime(Vector2(50, 20))
+	await _frames(3)
+	p.ability_charge[0] = 0.0
+	await _swing()
+	_check(absf((float(p.ability_charge[0]) - missed) - 0.5 / 3.0) < 0.005, "one swing counts once, however many enemies it catches (%.3f)" % (float(p.ability_charge[0]) - missed))
+	second.queue_free()
+	p.ability_charge[0] = 1.0
+	await _swing()
+	_check(float(p.ability_charge[0]) == 1.0, "a full meter stays full")
+	# On a hold rune it is half a second of its refill: a tenth of Whirlwind's meter.
+	_sword_exact(["every_hit", "whirlwind", "", ""])
+	await _rest()
+	_check(p.weapon["abilities"].size() == 1 and p.weapon["abilities"][0]["id"] == "whirlwind", "Every Hit leaves Whirlwind on its button too")
+	p.ability_charge[0] = 0.0
+	await _swing(Vector2.LEFT)
+	missed = p.ability_charge[0]
+	p.ability_charge[0] = 0.0
+	await _swing()
+	_check(absf((float(p.ability_charge[0]) - missed) - 0.5 / 5.0) < 0.005, "a swing that lands gives Whirlwind a tenth of its meter (%.3f)" % (float(p.ability_charge[0]) - missed))
+	# Saved Up makes the recharge three times as long, and the half second stays a half second.
+	_sword_exact(["every_hit", "saved_up", "leap", ""])
+	await _rest()
+	p.ability_charge[0] = 0.0
+	await _swing(Vector2.LEFT)
+	missed = p.ability_charge[0]
+	p.ability_charge[0] = 0.0
+	await _swing()
+	_check(absf((float(p.ability_charge[0]) - missed) - 0.5 / 9.0) < 0.005, "with Saved Up it is still half a second, of 9 (%.3f)" % (float(p.ability_charge[0]) - missed))
 	near.queue_free()
 	side.queue_free()
 

@@ -171,8 +171,11 @@ func test_leap() -> void:
 	var t := effect(SwingBuild.resolve(["twice", "wider", "leap"]), "leap")
 	eq(SwingBuild.sentence(t), "Press right mouse: leaps you to the nearest enemy from further away and strikes it from your blade's reach, then the next one. Recharges in 3 seconds.", "Leap x2 wide sentence")
 	eq(SwingBuild.abilities([effect(SwingBuild.resolve(["saved_up", "leap"]), "leap")])[0]["recharge"], 9.0, "Saved Up makes Leap three times as slow to recharge")
+	# Every Hit on an active rune (11 November afternoon): it stays on its button,
+	# and each hit you land takes half a second off its recharge.
 	var auto := effect(SwingBuild.resolve(["every_hit", "leap"]), "leap")
-	eq(SwingBuild.sentence(auto), "Every hit leaps you to the nearest enemy, at half strength.", "Every Hit Leap sentence")
+	eq([auto["trigger"], auto["power"], auto.get("refund", 0.0)], ["active", 1.0, 0.5], "Every Hit leaves Leap on its button at full strength, with half a second back a hit")
+	eq(SwingBuild.sentence(auto), "Press right mouse: leaps you to the nearest enemy and strikes it from your blade's reach. Recharges in 3 seconds. Each hit you land takes half a second off.", "Every Hit Leap sentence")
 	check(not SwingBuild.WHEN.has("dodge_attack"), "nothing fires on an attack after a dodge any more")
 
 
@@ -221,7 +224,10 @@ func test_three_buttons() -> void:
 		eq([SwingBuild.ABILITY_KEYS[kind].size(), SwingBuild.ABILITY_PROMPTS[kind].size()], [3, 3], kind + " has three ability buttons")
 	var s = SwingBuild.new()
 	s.load_test("D")
-	eq(s.compute()["abilities"].size(), 3, "test sword D has three abilities")
+	eq(s.compute()["abilities"].size(), 2, "test sword D has the sword's two built abilities, Whirlwind and Leap")
+	for id in SwingBuild.TEST_SWORDS:
+		check(not ("hook" in SwingBuild.TEST_SWORDS[id]["line"]), "test sword %s has no Hook (it left for the hammer)" % id)
+	check(SwingBuild.FITTINGS["hook"].get("parked", false), "Hook is parked: kept out of the forge until the hammer is built")
 
 
 # --- Rule-benders ----------------------------------------------------------------
@@ -321,10 +327,11 @@ func test_active_runes() -> void:
 	eq(SwingBuild.abilities([saved])[0]["recharge"], 12.0, "and three times as slow to recharge")
 	eq(SwingBuild.sentence(saved), "Press right mouse: pulls enemies in, three times as strong. Recharges in 12 seconds.", "Saved Up Hook sentence")
 	var auto := effect(SwingBuild.resolve(["every_hit", "whirlwind"]), "whirlwind")
-	eq(auto["trigger"], "hit", "Every Hit makes Whirlwind fire by itself")
-	check(not auto.has("button"), "so it needs no button")
-	eq(SwingBuild.sentence(auto), "Every hit spins a full circle, cutting everything around you, at half strength.", "Every Hit Whirlwind sentence")
-	check(SwingBuild.abilities([auto]).is_empty(), "and it isn't an ability")
+	eq([auto["trigger"], auto.get("button", -1)], ["active", 0], "Every Hit leaves Whirlwind on its button")
+	eq(SwingBuild.sentence(auto), "Hold right mouse: spins for up to three turns, cutting everything around you. Recharges in 5 seconds. Each hit you land takes half a second off.", "Every Hit Whirlwind sentence")
+	eq(SwingBuild.abilities([auto])[0]["refund"], 0.5, "and its ability gets half a second back for each hit")
+	eq(SwingBuild.abilities([effect(SwingBuild.resolve(["whirlwind"]), "whirlwind")])[0]["refund"], 0.0, "without the band there is nothing back")
+	check(SwingBuild.resolve(["every_hit", "every_hit", "whirlwind"])["slots"][1].get("unused", false), "a second Every Hit on an active rune does nothing")
 	var dodge := effect(SwingBuild.resolve(["on_dodge", "hook"]), "hook")
 	eq([dodge["trigger"], dodge["also"]], ["active", ["dodge"]], "On Dodge keeps Hook on its button and adds the dodge")
 	# The Gilded grip's ruby slot and the sentences' button names.

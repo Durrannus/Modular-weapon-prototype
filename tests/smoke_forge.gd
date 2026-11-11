@@ -19,7 +19,7 @@ func _init() -> void:
 		return
 	forge.open()
 	var lines := [
-		["twice", "shockwave", "relay", "hook"],
+		["twice", "shockwave", "relay", "leap"],
 		["every_hit", "shockwave", "mirror", "saved_up"],
 		["on_dodge", "leap", "mirror", "shards"],
 		["relay", "mirror", "wider", ""],
@@ -45,7 +45,7 @@ func _init() -> void:
 	forge._put("relay")
 	print("one bender kept: ", forge.build.line)
 	# Drag and drop: tray card onto slot 0, slot 0 onto slot 1 (swap), slot 1 off the sword.
-	forge.build.line = ["", "hook", "", ""]
+	forge.build.line = ["", "leap", "", ""]
 	forge._set_tab(1)
 	forge.drag_id = forge._drag_source("card:0"); forge.drag_from = -1; forge.drag_key = "card:0"; forge.dragging = true
 	forge._drop("slot:0")
@@ -121,12 +121,20 @@ func _check_words(forge) -> void:
 		var fit: Dictionary = SwingBuild.FITTINGS[id]
 		if fit["kind"] == "rune" and not fit.get("parked", false) and not FileAccess.file_exists("res://art/swing/previews/%s.png" % id):
 			_fail("%s has no preview picture" % id)
+	# Hook left the sword for the hammer (11 November): the tray no longer offers it.
+	forge._set_tab(1)
+	var tray_ids: Array = []
+	for c in forge._cards():
+		tray_ids.append(str(c.get("id", "")))
+	if "hook" in tray_ids or not ("whirlwind" in tray_ids and "leap" in tray_ids):
+		_fail("the rune tray should offer Whirlwind and Leap, and not Hook: %s" % [tray_ids])
 	# The fullest swords, with keyboard and with controller button names.
 	var full := [
-		["whirlwind", "hook", "leap", "weak_point"],
+		["whirlwind", "leap", "shards", "weak_point"],
 		["whirlwind", "twice", "leap", "saved_up"],
 		["shockwave", "every_hit", "shards", "on_dodge"],
-		["hook", "wider", "relay", "weak_point"],
+		["leap", "wider", "relay", "weak_point"],
+		["every_hit", "whirlwind", "every_hit", "leap"],
 		["twice", "wider", "saved_up", "every_hit"],
 		["leap", "on_dodge", "whirlwind", "every_hit"],
 	]
@@ -283,7 +291,7 @@ func _check_presets(forge) -> void:
 	# A part that is no longer owned is left off, and the help plate says so.
 	forge._click("preset:0")
 	var was_owned = forge.owned
-	forge.owned = ["iron_broadsword", "wrapped_grip", "plain_pommel", "whirlwind", "hook", "leap", "weak_point"]
+	forge.owned = ["iron_broadsword", "wrapped_grip", "plain_pommel", "whirlwind", "leap", "weak_point"]
 	forge._click("preset:1")
 	if forge.build.blade != "iron_broadsword" or "shockwave" in forge.build.line:
 		_fail("a preset put on parts the player does not own: %s" % [forge.build.get_data()])

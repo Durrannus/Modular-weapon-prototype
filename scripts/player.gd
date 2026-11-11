@@ -229,6 +229,7 @@ var ability_charge: Array = [1.0, 1.0, 1.0]
 var ability_wait: Array = [0.0, 0.0, 0.0]
 var ability_denied: Array = [-9.0, -9.0, -9.0]  # game_time of the last press that wasn't ready
 var ability_used: Array = [-9.0, -9.0, -9.0]    # game_time it last went off
+var ability_refunded: Array = [-9.0, -9.0, -9.0]  # game_time a landed swing last brought it back sooner (Every Hit)
 var hold_button := -1           # which button's hold rune is going right now (-1: none)
 var hold_left := 0.0            # time left in its current turn
 var hold_turn := 0.28           # how long that turn takes
@@ -656,6 +657,7 @@ func _do_move(move: String) -> void:
 	if hits > 0:
 		Sfx.play(self, "hit", -8.0)
 		_trigger("hit", hit_list)
+		_hit_refund()
 
 
 const FINISHER_PAUSE := 0.07
@@ -961,6 +963,19 @@ func _update_abilities(delta: float) -> void:
 				var gap := LEAP_TIME + 0.12 if e["id"] == "leap" else REPEAT_GAP
 				for n in int(e["count"]):
 					_queue_rune(i, game_time + n * gap, float(e["size"]), [], float(e.get("power", 1.0)))
+
+
+## Every Hit on an active rune (Darren, 11 November): a swing that lands takes a
+## bit off that rune's recharge. One swing counts once, however many enemies it
+## catches, so a crowd doesn't hand the ability straight back.
+func _hit_refund() -> void:
+	var list := _abilities()
+	for b in mini(list.size(), ability_charge.size()):
+		var seconds := float(list[b].get("refund", 0.0))
+		if seconds <= 0.0 or b == hold_button or float(ability_charge[b]) >= 1.0:
+			continue
+		ability_charge[b] = minf(float(ability_charge[b]) + seconds / float(list[b]["recharge"]), 1.0)
+		ability_refunded[b] = game_time
 
 
 ## One more turn of a hold rune: spends a turn's worth of meter and fires its runes once.

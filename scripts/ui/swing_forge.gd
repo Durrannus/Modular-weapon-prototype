@@ -1006,6 +1006,8 @@ func _boost_text(band: String, rune: String) -> String:
 		"wider":
 			return {"shockwave": "a bigger wave", "hook": "reaches further", "shards": "jumps further", "weak_point": "a bigger spot", "leap": "leaps from further away", "whirlwind": "a bigger circle"}.get(rune, "bigger")
 		"every_hit":
+			if SwingBuild.FITTINGS.get(rune, {}).get("trigger", "") == "active":
+				return "back sooner with each hit"
 			return "on every hit, half strength"
 		"saved_up":
 			return "every third time, 3x strong"

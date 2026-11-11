@@ -127,7 +127,9 @@ const POMMEL_ORDER := ["plain_pommel", "keen_pommel", "heavy_pommel", "light_pom
 const FITTINGS := {
 	"shockwave": {"kind": "rune", "name": "Shockwave", "trigger": "finisher", "color": Color("#ffc850"),
 		"desc": "Your finisher sends a wave forward."},
-	"hook": {"kind": "rune", "name": "Hook", "trigger": "active", "use": "press", "recharge": 4.0, "color": Color("#ff9c32"),
+	# Hook left the sword for the hammer (Darren, 11 November afternoon). It waits
+	# here, out of the forge, until the hammer is built: its rules and effects stay.
+	"hook": {"kind": "rune", "name": "Hook", "trigger": "active", "use": "press", "recharge": 4.0, "color": Color("#ff9c32"), "parked": true,
 		"desc": "Press its button to yank nearby enemies in."},
 	# Shards replaced Cleave (Darren, 6 November).
 	"shards": {"kind": "rune", "name": "Shards", "trigger": "hit", "color": Color("#d0dcd8"),
@@ -146,8 +148,10 @@ const FITTINGS := {
 		"desc": "The rune above happens twice."},
 	"wider": {"kind": "band", "name": "Wider", "color": Color("#86d4a4"),
 		"desc": "The rune above is bigger."},
+	# On an active rune it is a different rule (Darren, 11 November afternoon): the
+	# rune stays on its button, and every swing you land brings it back sooner.
 	"every_hit": {"kind": "band", "name": "Every Hit", "color": Color("#86d4a4"),
-		"desc": "The rune above happens on every hit, at half strength."},
+		"desc": "A passive rune above fires on every hit at half strength. Your hits recharge an active one."},
 	"saved_up": {"kind": "band", "name": "Saved Up", "color": Color("#86d4a4"),
 		"desc": "The rune above is three times as strong, but comes a third as often."},
 	"on_dodge": {"kind": "band", "name": "On Dodge", "color": Color("#86d4a4"),
@@ -162,6 +166,8 @@ const FITTINGS := {
 const FITTING_ORDER := ["shockwave", "shards", "weak_point", "whirlwind", "hook", "leap",
 	"twice", "wider", "every_hit", "saved_up", "on_dodge", "mirror", "relay"]
 const EVERY_HIT_POWER := 0.5
+## Every Hit on an active rune: seconds off its recharge for each swing that lands.
+const EVERY_HIT_REFUND := 0.5
 const SAVED_UP_EVERY := 3
 const SAVED_UP_POWER := 3.0
 
@@ -174,15 +180,16 @@ const ACTIVE_BUTTONS := 3
 const ABILITY_KEYS := {"kbm": ["right mouse", "Q", "R"], "pad": ["RB", "LB", "B"]}
 const ABILITY_PROMPTS := {"kbm": ["mouse_right", "q", "r"], "pad": ["pad_rb", "pad_lb", "pad_b"]}
 
-## The test swords from the 3 November notes, bottom to top.
+## The test swords from the 3 November notes, bottom to top. (Leap stands where
+## Hook did until 11 November, when Hook left the sword for the hammer.)
 const TEST_SWORDS := {
-	"A": {"blade": "iron_broadsword", "grip": "wrapped_grip", "line": ["twice", "shockwave", "wider", "hook"]},
-	"B": {"blade": "iron_broadsword", "grip": "wrapped_grip", "line": ["shockwave", "twice", "wider", "hook"]},
-	# 10 November: both active runes and a passive one. Whirlwind sits lowest, so it
+	"A": {"blade": "iron_broadsword", "grip": "wrapped_grip", "line": ["twice", "shockwave", "wider", "leap"]},
+	"B": {"blade": "iron_broadsword", "grip": "wrapped_grip", "line": ["shockwave", "twice", "wider", "leap"]},
+	# 10 November: two active runes and a passive one. Whirlwind sits lowest, so it
 	# gets the first ability button (right mouse or RB), which is the easy one to hold.
-	"C": {"blade": "iron_broadsword", "grip": "wrapped_grip", "line": ["whirlwind", "hook", "twice", "shockwave"]},
-	# 11 November: all three active runes, one on each button, and the new passive.
-	"D": {"blade": "iron_broadsword", "grip": "wrapped_grip", "line": ["whirlwind", "hook", "leap", "weak_point"]},
+	"C": {"blade": "iron_broadsword", "grip": "wrapped_grip", "line": ["whirlwind", "leap", "twice", "shockwave"]},
+	# 11 November: the sword's active runes, one on each button, and two passives.
+	"D": {"blade": "iron_broadsword", "grip": "wrapped_grip", "line": ["whirlwind", "leap", "shards", "weak_point"]},
 }
 
 var blade := "wooden_blade"   # the sword everyone starts with: no slots on the blade, one on the grip
@@ -388,21 +395,16 @@ static func resolve(slots: Array, ruby := -1) -> Dictionary:
 			pending.append(i)
 			continue
 		if f["trigger"] == "active" and not (id in buttons) and buttons.size() >= ACTIVE_BUTTONS:
-			# A fourth kind of active rune has no button left, unless an Every Hit
-			# band below makes it fire by itself.
-			var automatic := false
-			for s in relay_bands + pending:
-				automatic = automatic or str(line[s]) == "every_hit"
-			if not automatic:
-				info[i] = {"unused": true, "why": "Only three active runes work on one sword."}
-				for s in pending:
-					info[s] = {"unused": true, "why": "The rune above it has no button."}
-				if relay_slot >= 0:
-					info[relay_slot] = {"unused": true, "relay": true, "why": "The rune above it has no button."}
-					relay_slot = -1
-					relay_bands = []
-				pending = []
-				continue
+			# A fourth kind of active rune has no button left.
+			info[i] = {"unused": true, "why": "Only three active runes work on one sword."}
+			for s in pending:
+				info[s] = {"unused": true, "why": "The rune above it has no button."}
+			if relay_slot >= 0:
+				info[relay_slot] = {"unused": true, "relay": true, "why": "The rune above it has no button."}
+				relay_slot = -1
+				relay_bands = []
+			pending = []
+			continue
 		var e := {"id": id, "slot": i, "bands": [], "band_slots": pending.duplicate(), "trigger": f["trigger"],
 			"count": 1, "size": 1.0, "power": 1.0, "every": 1, "also": [], "mirror": slots[i] == "mirror"}
 		var idx := effects.size()
@@ -476,13 +478,20 @@ static func _apply_band(e: Dictionary, band: String) -> String:
 			e["wider"] = int(e.get("wider", 0)) + 1
 			e["size"] = wider_size(int(e["wider"]))
 		"every_hit":
+			if e["trigger"] == "active":
+				# An active rune fires on its button, not on hits: each swing you land
+				# takes a bit off its recharge instead (see abilities()).
+				if float(e.get("refund", 0.0)) > 0.0:
+					return "Every Hit doesn't stack (max)."
+				e["refund"] = EVERY_HIT_REFUND
+				return ""
 			if e["trigger"] == "hit":
 				if e["id"] == "shards" and not e.get("splinter", false):
 					e["splinter"] = true  # each shard splits in two as it jumps, at half strength
 					e["power"] = float(e["power"]) * EVERY_HIT_POWER
 					return ""
 				return "%s already works on every hit." % FITTINGS[e["id"]]["name"]
-			e["trigger"] = "hit"  # an active rune stops needing its button
+			e["trigger"] = "hit"  # a finisher rune now fires on every hit
 			e["power"] = float(e["power"]) * EVERY_HIT_POWER
 		"saved_up":
 			if int(e["every"]) > 1:
@@ -572,6 +581,8 @@ static func _active_sentence(e: Dictionary, keys: Array) -> String:
 	if float(e.get("power", 1.0)) >= 3.0:
 		what += ", three times as strong"
 	var s := "%s %s: %s. Recharges in %d seconds." % ["Hold" if f["use"] == "hold" else "Press", key, what, roundi(float(f["recharge"]) * slow)]
+	if float(e.get("refund", 0.0)) > 0.0:
+		s += " Each hit you land takes half a second off."
 	if "dodge" in e.get("also", []):
 		s += " Every third dodge does it too." if slow > 1 else " Dodging does it too."
 	return s
@@ -582,9 +593,10 @@ static func _num(n: int) -> String:
 
 
 ## The sword's active runes, one entry per ability button, in button order:
-##   {id, use, effects (indexes into `effects`), recharge (seconds), turns, turn, slot}
+##   {id, use, effects (indexes into `effects`), recharge (seconds), turns, turn, slot, refund}
 ## Twice gives a hold rune that many times the turns; a press rune fires that
-## many times. Saved Up makes the recharge three times as long.
+## many times. Saved Up makes the recharge three times as long. Every Hit gives
+## a refund: seconds off the recharge for each swing that lands.
 static func abilities(effects: Array) -> Array:
 	var out: Array = []
 	for i in effects.size():
@@ -599,11 +611,13 @@ static func abilities(effects: Array) -> Array:
 			out.append({})
 		if out[b].is_empty():
 			out[b] = {"id": e["id"], "use": f["use"], "effects": [i], "recharge": recharge,
-				"turns": turns, "turn": float(f.get("turn", 0.0)), "slot": int(e["slot"])}
+				"turns": turns, "turn": float(f.get("turn", 0.0)), "slot": int(e["slot"]),
+				"refund": float(e.get("refund", 0.0))}
 		else:
 			out[b]["effects"].append(i)
 			out[b]["recharge"] = maxf(float(out[b]["recharge"]), recharge)
 			out[b]["turns"] = maxi(int(out[b]["turns"]), turns)
+			out[b]["refund"] = maxf(float(out[b]["refund"]), float(e.get("refund", 0.0)))
 	return out
 
 
