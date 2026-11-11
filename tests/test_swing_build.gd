@@ -34,6 +34,7 @@ func _init() -> void:
 	test_shards()
 	test_pommels()
 	test_blade_shapes()
+	test_presets()
 	print("%d checks, %d failed" % [checks, failures])
 	quit(1 if failures > 0 else 0)
 
@@ -418,3 +419,52 @@ func test_blade_shapes() -> void:
 	b.set_blade("iron_sabre")
 	eq(snappedf(b.compute()["crit"], 0.001), snappedf(SwingBuild.BASE_CRIT + 0.1, 0.001), "a sabre's crit chance reaches the sword")
 	eq(b.compute()["steps"][1]["name"], "backslash", "steps carry the move's name for the screen")
+
+
+## Loadout presets (Game Bible, 11 November): three saved swords, one click to switch.
+func test_presets() -> void:
+	check(SwingBuild.valid_data(SwingBuild.new().get_data()), "a new sword (wooden blade, wooden grip) is a valid one")
+	var b := SwingBuild.new()
+	var emitted := [0]
+	b.changed.connect(func(): emitted[0] += 1)
+	b.load_test("D")
+	var first: Array = b.get_data()
+	eq(b.preset, 0, "a sword starts on preset A")
+	eq(b.preset_sword(0), first, "the chosen preset is the sword in the hand")
+	check(b.preset_sword(1) == null and b.preset_sword(2) == null, "B and C start empty")
+	emitted[0] = 0
+	eq(b.use_preset(1), [], "switching to an empty preset leaves nothing off")
+	eq(emitted[0], 1, "switching presets announces the change once")
+	eq(b.preset, 1, "now on preset B")
+	eq(b.get_data(), first, "an empty preset starts as a copy of the sword in the hand")
+	b.set_blade("iron_greatsword")
+	b.set_grip("long_grip")
+	b.line = ["shockwave", "twice", "wider", "weak_point", "hook"]
+	b.set_pommel("heavy_pommel")
+	var second: Array = b.get_data()
+	eq(b.preset_sword(0), first, "preset A still holds the first sword")
+	b.use_preset(0)
+	eq(b.get_data(), first, "back on A: the whole first sword, in one go")
+	eq(b.preset_sword(1), second, "and B kept the second one (blade, grip, pommel, runes and bands)")
+	b.use_preset(1)
+	eq(b.get_data(), second, "back on B: the whole second sword")
+	check(SwingBuild.valid_data(b.get_data()), "a sword loaded from a preset is one the other computer accepts")
+	eq(b.use_preset(1), [], "choosing the preset you are on does nothing")
+	eq(b.use_preset(7), [], "there are only three")
+	eq(b.preset, 1, "still on B")
+	b.preset_names[1] = "Bossing"
+	eq(b.preset_title(1), "Preset B: Bossing", "a named preset reads as the Bible writes it")
+	eq(b.preset_title(2), "Preset C", "one with no name is just its letter")
+	# A saved part the player no longer owns is left off, and the rest still loads.
+	b.use_preset(0)
+	var owned := ["iron_broadsword", "iron_greatsword", "wrapped_grip", "plain_pommel", "heavy_pommel",
+		"shockwave", "twice", "weak_point", "whirlwind", "hook", "leap"]
+	eq(SwingBuild.parts_missing(b.preset_sword(1), owned), ["long_grip", "wider"], "the parts of B that aren't owned any more")
+	eq(SwingBuild.parts_missing(b.preset_sword(1), null), [], "owning everything, nothing is missing")
+	eq(SwingBuild.parts_missing(null, owned), [], "an empty preset has nothing missing")
+	eq(b.use_preset(1, owned), ["long_grip", "wider"], "loading B says what it left off")
+	eq(b.blade, "iron_greatsword", "the blade it does own goes on")
+	eq(b.grip, "wrapped_grip", "the grip it doesn't own stays as it was")
+	eq(b.pommel, "heavy_pommel", "the pommel goes on")
+	eq(b.line, ["shockwave", "twice", "weak_point", "hook"], "grip slots keep the grip's fittings, blade slots the blade's, the missing band is left off")
+	check(SwingBuild.valid_data(b.get_data()), "and the sword is still a valid one")

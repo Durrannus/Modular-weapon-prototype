@@ -175,6 +175,13 @@ func _arena_tick() -> void:
 				forge.selected = 0
 				forge._use_card(1 + me)
 				arena_step = 2
+			elif arena_step == 2:
+				# A loadout preset: the first visit starts B as a copy and changes it,
+				# the second switches back to A (the whole sword changes at once).
+				forge._use_preset(1 - forge.build.preset)
+				if forge.build.preset == 1:
+					forge.build.set_blade("iron_greatsword" if me == 0 else "iron_dagger")
+				arena_step = 3
 			else:
 				forge.close()
 				arena_step = 0

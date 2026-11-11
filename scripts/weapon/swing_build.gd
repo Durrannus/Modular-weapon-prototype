@@ -185,7 +185,7 @@ const TEST_SWORDS := {
 	"D": {"blade": "iron_broadsword", "grip": "wrapped_grip", "line": ["whirlwind", "hook", "leap", "weak_point"]},
 }
 
-var blade := "iron_dagger"
+var blade := "wooden_blade"   # the sword everyone starts with: no slots on the blade, one on the grip
 var grip := "wooden_grip"
 var pommel := "plain_pommel"
 ## Slot contents bottom to top: grip slots first, then blade slots. "" is empty.
@@ -268,6 +268,70 @@ func set_data(data: Array) -> void:
 	grip = data[1]
 	pommel = data[2]
 	line = (data[3] as Array).duplicate()
+
+
+# --- Loadout presets ----------------------------------------------------------
+# Game Bible, 11 November: three saved swords a player (A, B and C), which can be
+# given names. The chosen one is always the sword in the hand, so every change to
+# the sword is saved to it; the other two wait here as get_data() values. They
+# are this player's own notes: nothing about them is sent to the other computer
+# online (switching sends the new sword like any other change at the forge).
+
+const PRESET_LETTERS := ["A", "B", "C"]
+const PRESET_NAME_MAX := 12
+
+var preset := 0                              # the chosen one
+var preset_data: Array = [null, null, null]  # the saved swords (the chosen one's entry isn't used)
+var preset_names: Array = ["", "", ""]
+
+
+## What preset i holds: a get_data() value, or null if it has never been used.
+func preset_sword(i: int):
+	return get_data() if i == preset else preset_data[i]
+
+
+## "Preset B: Bossing", or just "Preset B".
+func preset_title(i: int) -> String:
+	var n := str(preset_names[i])
+	return "Preset %s" % PRESET_LETTERS[i] + ("" if n == "" else ": " + n)
+
+
+## The parts of a saved sword that aren't in `owned` (null = the player owns everything).
+static func parts_missing(data, owned) -> Array:
+	var out: Array = []
+	if data == null or owned == null:
+		return out
+	for id in [data[0], data[1], data[2]] + (data[3] as Array):
+		if id != "" and not (id in owned) and not (id in out):
+			out.append(id)
+	return out
+
+
+## Switches to preset i: one click at the forge. A preset that has never been used
+## starts as a copy of the sword in the hand. Parts of the saved sword the player
+## no longer owns are left off (`owned` is the list of part ids, null = everything)
+## and returned.
+func use_preset(i: int, owned = null) -> Array:
+	if i == preset or i < 0 or i >= preset_data.size():
+		return []
+	preset_data[preset] = get_data()
+	var data = preset_data[i]
+	preset = i
+	var missing := parts_missing(data, owned)
+	if data != null:
+		var saved_grip_slots := int(GRIPS[data[1]]["slots"])
+		if not (data[0] in missing):
+			blade = data[0]
+		if not (data[1] in missing):
+			grip = data[1]
+		if not (data[2] in missing):
+			pommel = data[2]
+		line = []
+		for id in data[3]:
+			line.append("" if id in missing else id)
+		_refit(saved_grip_slots)
+	changed.emit()
+	return missing
 
 
 func load_test(key: String) -> void:

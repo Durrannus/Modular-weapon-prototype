@@ -60,6 +60,7 @@ func _init() -> void:
 	forge._drop("")
 	print("press without drag = click, selected card: ", forge.card)
 	await _check_words(forge)
+	await _check_presets(forge)
 	forge._set_tab(0)
 	for i in forge._cards().size():
 		forge._use_card(i)
@@ -196,3 +197,127 @@ func _check_words(forge) -> void:
 							_fail("%s on a %s %s %s, pointing at %s: %d px wide, %d fit" % [key, blade, grip, pommel, id, w, room])
 							return
 	print("numbers fit: %d comparisons, the tightest is %s" % [pairs, tight])
+
+
+## Loadout presets on the forge screen: switching, naming, and help that fits.
+func _check_presets(forge) -> void:
+	forge.build.load_test("D")
+	forge.build.preset_names = ["", "", ""]
+	var first: Array = forge.build.get_data()
+	forge.root.queue_redraw()
+	await process_frame
+	await process_frame
+	for key in ["preset:0", "preset:1", "preset:2", "rename"]:
+		if not forge.buttons.has(key):
+			_fail("the forge has no %s button" % key)
+	forge._click("preset:1")
+	forge.build.set_blade("iron_greatsword")
+	forge.build.set_slot(0, "shockwave")
+	var second: Array = forge.build.get_data()
+	forge._click("preset:0")
+	if forge.build.get_data() != first:
+		_fail("clicking preset A did not bring the first sword back")
+	forge._click("preset:1")
+	if forge.build.get_data() != second:
+		_fail("clicking preset B did not bring the second sword back")
+	# Naming it: the keys write the name and do nothing else (T would leave for the dummy).
+	forge._click("rename")
+	for ch in "Bossing!":
+		var ev := InputEventKey.new()
+		ev.pressed = true
+		ev.keycode = OS.find_keycode_from_string(ch.to_upper())
+		ev.unicode = ch.unicode_at(0)
+		forge._input(ev)
+	# The same through the real input path: Tab leaves the forge and T tries the
+	# sword at the dummy, but not while a name is being typed.
+	for code in [KEY_TAB, KEY_T, KEY_BACKSPACE]:
+		for down in [true, false]:
+			var real := InputEventKey.new()
+			real.pressed = down
+			real.keycode = code
+			real.physical_keycode = code
+			real.unicode = 116 if code == KEY_T and down else 0
+			Input.parse_input_event(real)
+			await process_frame
+			await process_frame
+	if not forge.is_open or not forge.renaming or forge.finishing >= 0.0:
+		_fail("typing a preset's name closed the forge or stopped the naming")
+	if forge.rename_text != "Bossing!":
+		_fail("typed Bossing!, then t and backspace, and got '%s'" % forge.rename_text)
+	for l in forge.help_lines():
+		_fits_help(forge, l[0])
+	var enter := InputEventKey.new()
+	enter.pressed = true
+	enter.keycode = KEY_ENTER
+	enter.physical_keycode = KEY_ENTER
+	Input.parse_input_event(enter)
+	await process_frame
+	await process_frame
+	var card_was: Array = forge.build.get_data()
+	if forge.build.preset_names[1] != "Bossing!" or forge.build.preset_title(1) != "Preset B: Bossing!":
+		_fail("the preset's name was not kept: %s" % forge.build.preset_names)
+	await process_frame
+	await process_frame
+	await process_frame
+	if not forge.is_open or forge.finishing >= 0.0 or forge.build.get_data() != card_was:
+		_fail("the Enter that ended the naming also did something else")
+	enter = enter.duplicate()
+	enter.pressed = false
+	Input.parse_input_event(enter)
+	await process_frame
+	forge._click("rename")
+	var esc := InputEventKey.new()
+	esc.pressed = true
+	esc.keycode = KEY_ESCAPE
+	esc.physical_keycode = KEY_ESCAPE
+	Input.parse_input_event(esc)
+	await process_frame
+	await process_frame
+	await process_frame
+	if not forge.is_open or forge.finishing >= 0.0 or forge.renaming or forge.build.preset_names[1] != "Bossing!":
+		_fail("Esc while naming should only cancel the naming")
+	esc = esc.duplicate()
+	esc.pressed = false
+	Input.parse_input_event(esc)
+	await process_frame
+	# A part that is no longer owned is left off, and the help plate says so.
+	forge._click("preset:0")
+	var was_owned = forge.owned
+	forge.owned = ["iron_broadsword", "wrapped_grip", "plain_pommel", "whirlwind", "hook", "leap", "weak_point"]
+	forge._click("preset:1")
+	if forge.build.blade != "iron_broadsword" or "shockwave" in forge.build.line:
+		_fail("a preset put on parts the player does not own: %s" % [forge.build.get_data()])
+	if forge.note == "" or forge.help_lines().is_empty():
+		_fail("nothing said which parts were left off")
+	for l in forge.help_lines():
+		_fits_help(forge, l[0])
+	forge.root.queue_redraw()
+	await process_frame
+	forge.owned = was_owned
+	forge.note_until = -9.0
+	# Every set of help lines fits its plate: mouse, controller, pointing at the presets.
+	var was_keys = forge.keys
+	for keys in [SwingBuild.ABILITY_KEYS["kbm"], SwingBuild.ABILITY_KEYS["pad"]]:
+		forge.keys = keys
+		for h in ["", "preset:2", "rename"]:
+			forge.hover = h
+			for sandbox in [true, false]:
+				forge.sandbox = sandbox
+				var lines: Array = forge.help_lines()
+				if lines.size() > 3:
+					_fail("more than three lines of help")
+				for l in lines:
+					_fits_help(forge, l[0])
+			forge.root.queue_redraw()
+			await process_frame
+	forge.keys = was_keys
+	forge.hover = ""
+	forge.sandbox = true
+	forge._click("preset:0")
+	print("presets: switched, named and loaded with a part missing")
+
+
+func _fits_help(forge, text: String) -> void:
+	var w: float = preload("res://scripts/art.gd").font("PixelifySans-Regular").get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 11).x
+	if w > forge.HELP.size.x - 14.0:
+		_fail("help line too wide (%d px): %s" % [w, text])

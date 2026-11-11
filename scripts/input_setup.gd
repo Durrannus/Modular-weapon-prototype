@@ -30,6 +30,7 @@ func _ready() -> void:
 	_add("menu_prev", [_key(KEY_Q), _btn(JOY_BUTTON_LEFT_SHOULDER)])
 	_add("menu_next", [_key(KEY_E), _btn(JOY_BUTTON_RIGHT_SHOULDER)])
 	_add("menu_back", [_key(KEY_ESCAPE), _key(KEY_BACKSPACE), _btn(JOY_BUTTON_B)])
+	_add("menu_preset", [_key(KEY_C), _btn(JOY_BUTTON_BACK)])   # the forge: the next loadout preset
 
 
 func _add(action: String, events: Array) -> void:

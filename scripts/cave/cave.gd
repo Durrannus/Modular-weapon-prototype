@@ -1026,6 +1026,7 @@ func _talk_smith(_i: int) -> void:
 		ui.say("Old smith", "cave/smith_portrait.png", [
 			"You woke the forge. I'd stopped hoping anyone would. That thing has kept me in here since the roof came down.",
 			"That stone in your sword is a rune. A rune gives your swing a new trick: yours throws a shockwave off the last hit of the chain.",
+			"Round stones like yours work by themselves. Square ones are active: slot one into your sword and it gives you an ability on a button.",
 			"Bands are the other half. A band does nothing alone. It changes the next rune above it on the sword: twice, wider, and stranger things.",
 			"So read a sword from the bottom of the grip up to the tip. A band boosts the rune above it. You'll find bands out there soon enough.",
 			"That stick won't last on the surface. Here, take these.",

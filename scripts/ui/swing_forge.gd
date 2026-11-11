@@ -4,7 +4,8 @@ extends CanvasLayer
 ## active group; bands; rule-benders), then a plate with the name and one plain
 ## sentence for the part under the cursor, then how to use the screen.
 ## Centre: the sword upright over the anvil. Its sockets are the menu.
-## Right: what the sword does, a line per rune, and the sword's numbers on a
+## Right: the three loadout presets (A, B and C: whole saved swords, one click to
+## switch), what the sword does, a line per rune, and the sword's numbers on a
 ## plate of their own. Pointing at a part you could fit shows what it would
 ## change beside each number.
 ## Nothing on this screen may overlap (Game Bible, 11 November): every kind of
@@ -41,6 +42,7 @@ const TABS := ["sword", "runes", "bands", "rare"]
 const TRAY := Rect2(6, 30, 203, 188)        # tabs and part cards
 const INFO := Rect2(6, 221, 203, 88)        # the part under the cursor: its name and one sentence
 const HELP := Rect2(6, 312, 203, 42)        # how to use the screen
+const PRESETS := Rect2(396, 8, 238, 23)     # loadout presets A, B and C, and the chosen one's name
 const DOES := Rect2(396, 34, 238, 234)      # what the sword does, a line per rune
 const STATS := Rect2(396, 271, 238, 83)     # the sword's numbers
 const STAT_COL := 116.0                     # the width of a column of numbers
@@ -48,6 +50,7 @@ const PREVIEW := Rect2(211, 92, 184, 150)   # the picture shown while Alt is hel
 const GAIN := Color("#86d4a4")              # compare: this number would go up
 const LOSS := Color("#ff6a4a")              # compare: it would go down
 const SWORD_TOP := 4.0
+const SWORD_SLACK := 7.0     # what a sword too tall for that may borrow (4 above, 3 below)
 const CENTRE_X := 300.0
 const SWORD_BOTTOM := 326.0  # the pommel sits just above the anvil
 var sword_bottom := SWORD_BOTTOM
@@ -61,6 +64,11 @@ var card := 0              # keyboard cursor in the tray
 var hover := ""
 var keys_on_cards := false # the tray cursor was last moved with keys or a pad, not the mouse
 var buttons := {}          # key -> Rect2, rebuilt every draw
+var renaming := false      # typing a name for the chosen preset
+var rename_text := ""
+var _rename_guard := 0     # frames to ignore keys after typing ends (Enter and Esc mean other things too)
+var note := ""             # a line the help plate shows for a few seconds
+var note_until := -9.0
 var _styles := {}
 
 # Forge feel: heat, embers, sparks, the hammer strike and the finish.
@@ -218,6 +226,7 @@ func _really_close() -> void:
 	finishing = -1.0
 	dirty = false
 	is_open = false
+	renaming = false
 	root.visible = false
 	if pauses:
 		get_tree().paused = false
@@ -231,6 +240,10 @@ func _really_close() -> void:
 func _process(delta: float) -> void:
 	if is_open:
 		_update_fx(delta)
+	if renaming or _rename_guard > 0:
+		# The keyboard is writing a preset's name: its keys do nothing else.
+		_rename_guard = maxi(_rename_guard - 1, 0)
+		return
 	if Input.is_action_just_pressed("build") and (hotkey or is_open) and t - opened_at > 0.2:
 		if finishing >= 0.0:
 			_really_close()
@@ -270,6 +283,8 @@ func _process(delta: float) -> void:
 		_use_card(card)
 	if Input.is_action_just_pressed("menu_rotate"):
 		_put("")
+	if Input.is_action_just_pressed("menu_preset"):
+		_use_preset((build.preset + 1) % build.preset_data.size())
 	root.queue_redraw()
 
 
@@ -281,6 +296,15 @@ func _input(event: InputEvent) -> void:
 			_really_close()
 			get_viewport().set_input_as_handled()
 		return
+	if renaming:
+		if event is InputEventKey:
+			if event.pressed:
+				_rename_key(event as InputEventKey)
+			get_viewport().set_input_as_handled()
+			root.queue_redraw()
+			return
+		if event is InputEventMouseButton and event.pressed:
+			_end_rename(true)   # a click anywhere keeps the name, and still does what it would have
 	if event is InputEventKey and event.pressed and not event.echo:
 		if sandbox:
 			match (event as InputEventKey).physical_keycode:
@@ -382,10 +406,53 @@ func _click(key: String) -> void:
 			_use_card(card)
 		"test":
 			_load_test(p[1])
+		"preset":
+			_use_preset(int(p[1]))
+		"rename":
+			renaming = true
+			rename_text = str(build.preset_names[build.preset])
 		"try":
 			_try()
 			return
 	Sfx.play(self, "click", -14.0)
+
+
+## Switches to loadout preset i: the whole sword changes in one click.
+func _use_preset(i: int) -> void:
+	if i == build.preset:
+		return
+	var missing: Array = build.use_preset(i, owned)
+	selected = clampi(selected, 0, build.slot_count() - 1)
+	if not missing.is_empty():
+		var names: Array = []
+		for id in missing:
+			names.append(_name(id))
+		note = "Left off, you don't own it: " + ", ".join(names) + "."
+		note_until = t + 6.0
+
+
+## A key while a preset's name is being typed.
+func _rename_key(k: InputEventKey) -> void:
+	match k.keycode:
+		KEY_ENTER, KEY_KP_ENTER:
+			_end_rename(true)
+		KEY_ESCAPE:
+			_end_rename(false)
+		KEY_BACKSPACE:
+			rename_text = rename_text.left(-1) if rename_text != "" else ""
+		_:
+			var c := char(k.unicode) if k.unicode > 0 else ""
+			if c != "" and c.to_upper() in "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 -'&!" and rename_text.length() < SwingBuild.PRESET_NAME_MAX:
+				rename_text += c
+
+
+func _end_rename(keep: bool) -> void:
+	if not renaming:
+		return
+	renaming = false
+	_rename_guard = 2
+	if keep:
+		build.preset_names[build.preset] = rename_text.strip_edges()
 
 
 func _set_tab(t: int) -> void:
@@ -534,12 +601,12 @@ func _wrap(text: String, width: float) -> Array:
 	return lines
 
 
-func _icon(kind: String, id: String, center: Vector2, part_scale := 2.0) -> void:
+func _icon(kind: String, id: String, center: Vector2, part_scale := 2.0, tint := Color.WHITE) -> void:
 	match kind:
 		"runes", "bands", "rare":
 			var tex := Art.texture("swing/%s/%s_icon.png" % [kind, id])
 			if tex != null:
-				root.draw_texture(tex, (center - tex.get_size() * 0.5).round())
+				root.draw_texture(tex, (center - tex.get_size() * 0.5).round(), tint)
 			elif SwingBuild.FITTINGS.has(id):
 				# No art yet: a plain stone (rune), ring (band) or gem (rule-bender) in its colour.
 				var f: Dictionary = SwingBuild.FITTINGS[id]
@@ -556,7 +623,7 @@ func _icon(kind: String, id: String, center: Vector2, part_scale := 2.0) -> void
 		"pommels":
 			var ptex := Art.texture("swing/pommels/%s_icon.png" % id)
 			if ptex != null:
-				root.draw_texture(ptex, (center - ptex.get_size() * 0.5).round())
+				root.draw_texture(ptex, (center - ptex.get_size() * 0.5).round(), tint)
 				return
 			# No art: a round knob in the pommel's colour.
 			var pc: Color = SwingBuild.POMMELS[id]["color"]
@@ -567,7 +634,7 @@ func _icon(kind: String, id: String, center: Vector2, part_scale := 2.0) -> void
 			# Its own picture for the tray, lying down with the tip to the right.
 			var card_tex := Art.texture("swing/%s/%s_icon.png" % [kind, id])
 			if card_tex != null:
-				root.draw_texture(card_tex, (center - card_tex.get_size() * 0.5).round())
+				root.draw_texture(card_tex, (center - card_tex.get_size() * 0.5).round(), tint)
 				return
 			# No picture: the in-hand sprite at 2x, turned on its side.
 			var tex := Art.texture("swing/%s/%s_hand.png" % [kind, id])
@@ -590,6 +657,7 @@ func _draw_forge() -> void:
 	_nine("panel", TRAY)
 	_nine("panel_titled", INFO)
 	_nine("well", HELP)
+	_nine("well", PRESETS)
 	_nine("panel", DOES)
 	_nine("panel_titled", STATS)
 	_head("The forge", Vector2(14, 24), AMBER, 16)
@@ -598,6 +666,7 @@ func _draw_forge() -> void:
 	var stats := build.compute()
 	_draw_tray()
 	_draw_sword(stats)
+	_draw_presets()
 	_draw_does(stats)
 	_draw_info()
 	_draw_stats(stats)
@@ -718,6 +787,8 @@ func _badge(center: Vector2) -> void:
 ## The part the info plate is about: what the mouse is on (a card in the tray or
 ## a fitting on the sword), else the card the keys are on.
 func _info_id() -> String:
+	if _preset_hover() >= 0:
+		return ""
 	var cards := _cards()
 	if hover.begins_with("card:"):
 		var i := int(hover.split(":")[1])
@@ -754,6 +825,9 @@ func _on_pad() -> bool:
 ## of its own. A rune's picture shows while Alt (LT on a controller) is held.
 func _draw_info() -> void:
 	var at := INFO.position
+	if _preset_hover() >= 0:
+		_draw_preset_info(_preset_hover())
+		return
 	var id := _info_id()
 	if id == "":
 		_head("Parts", at + Vector2(14, 14), DIM)
@@ -775,9 +849,106 @@ func info_lines(id: String) -> Array:
 
 func _draw_help() -> void:
 	var at := HELP.position + Vector2(8, 0)
-	_body("Drag a part onto a slot to fit it.", at + Vector2(0, 13), DIM)
-	_body("Right-click a slot to take it off.", at + Vector2(0, 25), DIM)
-	_body("T: try at the dummy   Tab: leave" if sandbox else "Tab, Esc or B: done", at + Vector2(0, 37), FAINT)
+	var y := 13.0
+	for l in help_lines():
+		_body(l[0], at + Vector2(0, y), l[1])
+		y += 12.0
+
+
+## How to use the screen, three lines at most, as [words, colour]. It follows what
+## the player is doing: naming a preset, pointing at the presets, on a controller.
+func help_lines() -> Array:
+	if renaming:
+		return [["Type a name for this preset.", INK], ["Enter: keep it   Esc: cancel", DIM]]
+	if t < note_until:
+		var out: Array = []
+		for l in _wrap(note, HELP.size.x - 14).slice(0, 3):
+			out.append([l, INK])
+		return out
+	if _preset_hover() >= 0:
+		return [["A preset is a whole saved sword.", DIM], ["Click A, B or C to switch to it.", DIM], ["Click its name to change the name.", DIM]]
+	if _on_pad():
+		return [["Stick: pick   A: fit   X: take off", DIM], ["LB RB: tabs   Select: next preset", DIM], ["Y or B: done", FAINT]]
+	return [["Drag a part onto a slot to fit it.", DIM], ["Right-click a slot to take it off.", DIM],
+		["T: try at the dummy   Tab: leave" if sandbox else "Tab, Esc or B: done", FAINT]]
+
+
+## The preset the mouse is on (its tab, or the name beside the tabs), or the one
+## being named. -1 = none.
+func _preset_hover() -> int:
+	if renaming or hover == "rename":
+		return build.preset
+	if hover.begins_with("preset:"):
+		return int(hover.split(":")[1])
+	return -1
+
+
+## Top right: the three loadout presets as tabs, then the chosen one's name.
+func _draw_presets() -> void:
+	var at := PRESETS.position
+	_head("Preset", at + Vector2(8, 15), DIM)
+	for i in build.preset_data.size():
+		var r := Rect2(at.x + 50 + i * 21, at.y + 5, 18, 14)
+		var key := "preset:%d" % i
+		buttons[key] = r
+		var on: bool = i == build.preset
+		var drawn := Art.draw_nine(root, "swing/ui/tab_selected.png" if on else "swing/ui/tab.png", r, 4)
+		# A preset that has never been used is fainter.
+		var col := INK if on else (FOCUS if hover == key else (DIM if build.preset_data[i] != null else FAINT))
+		_head(SwingBuild.PRESET_LETTERS[i], Vector2(r.position.x + 1, at.y + 15), col, 8, r.size.x, HORIZONTAL_ALIGNMENT_CENTER)
+		if on and not drawn:
+			root.draw_rect(Rect2(r.position.x + 3, r.end.y - 1, r.size.x - 6, 1), AMBER)
+	var nr := Rect2(at.x + 116, at.y + 4, PRESETS.size.x - 122, 15)
+	buttons["rename"] = nr
+	var name := str(build.preset_names[build.preset])
+	if renaming:
+		root.draw_rect(nr, WELL)
+		root.draw_rect(nr, FOCUS, false, 1.0)
+		_head(rename_text + ("_" if fmod(t, 0.8) < 0.5 else ""), Vector2(nr.position.x + 4, at.y + 15), FOCUS)
+	elif name != "":
+		_head(name, Vector2(nr.position.x + 4, at.y + 15), FOCUS if hover == "rename" else INK)
+	else:
+		_head("Name it", Vector2(nr.position.x + 4, at.y + 15), FOCUS if hover == "rename" else FAINT)
+
+
+## The info plate while the mouse is on a preset: its name, and the sword it
+## holds as pictures (blade, grip and pommel, then what is in the slots). A part
+## the player no longer owns is greyed out under a padlock.
+func _draw_preset_info(i: int) -> void:
+	var at := INFO.position
+	root.draw_string(Art.font("PixelifySans-Regular"), at + Vector2(14, 16), build.preset_title(i), HORIZONTAL_ALIGNMENT_LEFT, -1, 13, AMBER)
+	var data = build.preset_sword(i)
+	if data == null:
+		var y := at.y + 35.0
+		for l in _wrap("Empty. Click it to start it as a copy of this sword.", INFO.size.x - 20):
+			_body(l, Vector2(at.x + 10, y))
+			y += 13
+		return
+	var missing := SwingBuild.parts_missing(data, owned)
+	_part_icon("blades", data[0], Vector2(at.x + 42, at.y + 38), missing)
+	_part_icon("grips", data[1], Vector2(at.x + 96, at.y + 38), missing)
+	_part_icon("pommels", data[2], Vector2(at.x + 130, at.y + 38), missing)
+	var x := at.x + 10.0
+	for id in data[3]:
+		if id == "":
+			root.draw_rect(Rect2(x + 8, at.y + 61, 14, 14), WELL)
+			root.draw_rect(Rect2(x + 8, at.y + 61, 14, 14), FAINT, false, 1.0)
+		else:
+			var kind: String = SwingBuild.FITTINGS[id]["kind"]
+			_part_icon("runes" if kind == "rune" else ("bands" if kind == "band" else "rare"), id, Vector2(x + 15, at.y + 68), missing)
+		x += 32.0
+
+
+func _part_icon(kind: String, id: String, center: Vector2, missing: Array) -> void:
+	if id in missing:
+		_icon(kind, id, center, 2.0, Color(0.42, 0.44, 0.5, 0.55))
+		var lock := Art.texture("swing/ui/padlock.png")
+		if lock != null:
+			root.draw_texture(lock, (center - lock.get_size() * 0.5).round())
+		return
+	_icon(kind, id, center)
+	if SwingBuild.FITTINGS.has(id) and SwingBuild.FITTINGS[id].get("trigger", "") == "active":
+		_badge(center)
 
 
 func _preview_held() -> bool:
@@ -878,16 +1049,19 @@ func _draw_sword(stats: Dictionary) -> void:
 	var size := SwordArt.frame_size(blade, grip, "forge")
 	# Twice its size whenever that fits. A taller sword is drawn smaller, by a
 	# whole number of screen pixels for each of its own, so they stay square.
+	# The very tallest (a greatsword on a long grip) may use the few pixels above
+	# SWORD_TOP and sit a little lower on the anvil, rather than drop a whole size.
 	var screen := maxf(roundf(float(get_window().size.y) / 360.0), 1.0)
-	var fit := minf((SWORD_BOTTOM - SWORD_TOP) / size.y, 2.0)
+	var fit := minf((SWORD_BOTTOM - SWORD_TOP + SWORD_SLACK) / size.y, 2.0)
 	zoom = maxf(floorf(fit * screen) / screen, 1.0 / screen)
-	sword_bottom = SWORD_BOTTOM
-	var top := Vector2(CENTRE_X - size.x * zoom * 0.5, sword_bottom - size.y * zoom).round()
+	var top_y := maxf(SWORD_BOTTOM - size.y * zoom, minf(SWORD_TOP, 0.0) if size.y * zoom > SWORD_BOTTOM - SWORD_TOP else SWORD_TOP)
+	sword_bottom = top_y + size.y * zoom
+	var top := Vector2(CENTRE_X - size.x * zoom * 0.5, top_y).round()
 	sword_top = top
 	sword_size = size * zoom
 	var anvil := Art.texture("swing/ui/anvil.png")
 	if anvil != null:
-		root.draw_texture(anvil, Vector2(CENTRE_X - anvil.get_width() * 0.5, sword_bottom - 2).round())
+		root.draw_texture(anvil, Vector2(CENTRE_X - anvil.get_width() * 0.5, SWORD_BOTTOM - 2).round())
 	root.draw_set_transform(top, 0.0, Vector2(zoom, zoom))
 	SwordArt.draw(root, blade, grip, build.line, "forge", {}, Vector2.ZERO, Color.WHITE, build.pommel)
 	root.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
