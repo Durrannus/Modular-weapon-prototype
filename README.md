@@ -279,7 +279,7 @@ Drawn but not used yet, because the game has nothing for them to show: the blank
 
 The 11 November pictures (asked for in the project files, `art/requests/nov11-prototype-art.md`, and drawn by the art thread the same day): the six blade shapes in the hand, on the forge screen and as tray cards, with their forge heat and shine strips; the swing smears (`art/swing/fx/sweep_smear.png`, `flick_smear.png`, `chop_smear.png`, `thrust_smear.png`, `slam_burst.png`); the Weak Point stone and its three effects (`art/fx/weak_mark.png`, `weak_mark_on.png`, `weak_break.png`); square stones for the three active runes with `art/swing/ui/active_badge.png`; the PASSIVE and ACTIVE tray headers; and the R, Q, RB and LB prompts. Sabre and falchion have one cutting edge, on the left of the picture: in the hand the picture is mirrored so the edge leads the cut.
 
-Stand-ins made by the prototype thread, for the art thread to redraw: the stat icons for slots and for walking while swinging (`art/swing/ui/stat_slots.png`, `stat_move.png` and their `_hot` versions). The six rune preview pictures are screenshots of the game, so they need retaking if a rune's effect is redrawn.
+The stat icons for slots and for walking while swinging (`art/swing/ui/stat_slots.png`, `stat_move.png` and their `_hot` versions) are the art thread's too. The six rune preview pictures are screenshots of the game, so they need retaking if a rune's effect is redrawn.
 
 ## Older notes: the grid sword on `main`
 
