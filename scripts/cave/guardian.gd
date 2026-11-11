@@ -76,7 +76,7 @@ func _setup() -> void:
 	kind = "guardian"
 	art_set = "cave"
 	flash_tint = 1.6   # he fills a third of the screen: a full white-out is too much
-	max_hp = 300.0
+	max_hp = 255.0
 	speed = 64.0
 	radius = 34.0
 	contact_damage = 0.0

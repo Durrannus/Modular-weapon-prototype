@@ -370,7 +370,7 @@ func _set_tab(t: int) -> void:
 
 
 ## Every part id, in tray order (the cave shows the owned ones from this list).
-const ALL_BLADES := ["wooden_blade", "tin_blade", "iron_shortblade", "iron_blade", "iron_longblade"]
+const ALL_BLADES := ["wooden_blade", "tin_blade", "iron_dagger", "iron_sabre", "iron_broadsword", "iron_rapier", "iron_falchion", "iron_greatsword"]
 const ALL_GRIPS := ["wooden_grip", "tin_grip", "wrapped_grip", "long_grip", "ringed_grip", "gilded_grip"]
 
 
@@ -602,9 +602,13 @@ func _draw_tray() -> void:
 			row_total[int(c["row"])] += 1
 	if cards.is_empty():
 		_body("Nothing here yet.", Vector2(14, 78), DIM)
+	# More than three blades go in rows of three (the greatsword's picture is 62
+	# wide), and the grip and pommel rows move down to make room.
+	var blade_rows := (int(row_total[0]) + 2) / 3 if int(row_total[0]) > 3 else 1
+	var push := (blade_rows - 1) * 26.0 - (7.0 if blade_rows > 1 else 0.0)
 	if TABS[tab] == "sword":
 		for ri in 3:
-			_head(["Blade", "Grip", "Pommel"][ri], Vector2(14, 66 + ri * 44), DIM)
+			_head(["Blade", "Grip", "Pommel"][ri], Vector2(14, 66 + ri * 44 + (push if ri > 0 else 0.0)), DIM)
 	for i in cards.size():
 		var c: Dictionary = cards[i]
 		var r := Rect2(14 + (i % 3) * 44, 60 + (i / 3) * 44, 38, 38)
@@ -612,12 +616,10 @@ func _draw_tray() -> void:
 		if c.has("row"):
 			var ri: int = c["row"]
 			var w := clampi(192 / maxi(int(row_total[ri]), 1), 30, 64 if ri == 0 else 34)
-			r = Rect2(14 + row_n[ri] * w, 70 + ri * 44, w - 3, 31)
+			r = Rect2(14 + row_n[ri] * w, 70 + ri * 44 + (push if ri > 0 else 0.0), w - 3, 31)
+			if ri == 0 and blade_rows > 1:
+				r = Rect2(14 + (row_n[ri] % 3) * 64, 70 + (row_n[ri] / 3) * 26, 62, 24)
 			row_n[ri] += 1
-			# The longest blade is 60 wide at double size. With more blades than fit
-			# that way, the whole row drops to single size so their lengths still compare.
-			if ri == 0 and r.size.x < 60.0:
-				icon_scale = 1.0
 		buttons["card:%d" % i] = r
 		_nine("well_selected" if i == card else "well", r)
 		if hover == "card:%d" % i and i != card:
@@ -635,20 +637,24 @@ func _draw_tray() -> void:
 			else:
 				root.draw_rect(Rect2(r.end.x - 6, r.position.y + 2, 4, 4), AMBER)
 	var di := card
+	var text_end := 0.0
 	if hover.begins_with("card:"):
 		di = int(hover.split(":")[1])
 	if di < cards.size():
 		var id: String = cards[di]["id"]
-		var y := 216.0 if TABS[tab] == "sword" else 166.0
+		var y := 216.0 + push if TABS[tab] == "sword" else 166.0
 		root.draw_string(Art.font("PixelifySans-Regular"), Vector2(14, y), cards[di]["name"], HORIZONTAL_ALIGNMENT_LEFT, -1, 13, AMBER)
 		y += 13
 		_body(_kind_line(id), Vector2(14, y), DIM)
 		y += 16
-		for l in _wrap(_desc(id), 136):
+		for l in _wrap(_desc(id), 186):
 			_body(l, Vector2(14, y))
 			y += 13
-	_body("Drag a part onto a slot, or", Vector2(14, 300), DIM)
-	_body("click a slot, then a part.", Vector2(14, 313), DIM)
+		text_end = y - 13.0
+	# The how-to lines give way to a long description: nothing here may overlap.
+	if text_end < 290.0:
+		_body("Drag a part onto a slot, or", Vector2(14, 300), DIM)
+		_body("click a slot, then a part.", Vector2(14, 313), DIM)
 	_body("Drag off or right-click: take off", Vector2(14, 332), FAINT)
 	_body("T: try at the dummy   Tab: leave" if sandbox else "Tab, Esc or B: done", Vector2(14, 345), FAINT)
 
@@ -684,7 +690,7 @@ func _desc(id: String) -> String:
 	if SwingBuild.POMMELS.has(id):
 		return SwingBuild.POMMELS[id]["desc"]
 	if SwingBuild.BLADES.has(id):
-		return SwingBuild.BLADES[id]["desc"]
+		return SwingBuild.blade_info(id)["desc"]
 	if SwingBuild.GRIPS.has(id):
 		return SwingBuild.GRIPS[id]["desc"]
 	return SwingBuild.FITTINGS[id]["desc"]
@@ -895,7 +901,7 @@ func _draw_banner() -> void:
 	var banner_tex := Art.texture("swing/forge-fx/forged_banner.png")
 	if heat_tex != null and banner_tex != null:
 		var start := t - finishing
-		var blade_pos := sword_top + Vector2(4.0 * 3.0, 0) * zoom
+		var blade_pos := sword_top + Vector2(SwordArt.blade_x(build.blade, "forge"), 0) * zoom
 		var bsrc := SwordArt.blade_size(build.blade, "forge")
 		var bsize := bsrc * zoom
 		# Heat cools from white-hot to steel, then a glint sweeps up the blade.
@@ -957,7 +963,7 @@ func _draw_does(stats: Dictionary) -> void:
 				_body(l, Vector2(X, y + 8), DIM)
 				y += 13
 			y += 6
-	var bl: Dictionary = SwingBuild.BLADES[build.blade]
+	var bl := SwingBuild.blade_info(build.blade)
 	var spd := float(stats["speed"])
 	var spd_word := "fast" if spd >= 1.15 else ("slow" if spd <= 0.85 else "normal")
 	var pm: Dictionary = SwingBuild.POMMELS[build.pommel]
@@ -966,7 +972,7 @@ func _draw_does(stats: Dictionary) -> void:
 	# The numbers, each with its icon. An icon lights for a moment when its number changes.
 	var reach := float(stats["reach"])
 	var reach_word := "long" if reach >= 1.1 else ("short" if reach <= 0.95 else "normal")
-	_stat("damage", "Damage %d" % int(bl["damage"]), Vector2(X, 312))
+	_stat("damage", "Damage %d" % roundi(float(stats["damage"])), Vector2(X, 312))
 	_stat("speed", "Speed %s" % spd_word, Vector2(X + 96, 312))
 	_stat("reach", "Reach %s" % reach_word, Vector2(X, 326))
 	_stat("crit", "Crit %d%%" % roundi(float(stats["crit"]) * 100.0), Vector2(X + 96, 326))

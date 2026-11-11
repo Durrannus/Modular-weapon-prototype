@@ -1,8 +1,8 @@
 extends RefCounted
 ## The swing path (3 November design). A sword is a blade plus a grip.
-## - The blade sets the basic three-hit chain you always swing (for now every
-##   blade but the wooden one is slash, slash, overhead; extra moves like lunge
-##   are meant to come from runes later).
+## - The blade's shape sets the three-hit chain you always swing, and how it
+##   feels: speed, reach, arc and one lean (11 November, the six blade shapes).
+##   Its metal sets the damage.
 ## - Grip and blade both have slots. Slots hold runes (effects) or bands (modifiers).
 ## - Read the sword as one line from the bottom of the grip to the tip of the blade.
 ##   A band boosts the next rune above it. Bands in a row stack onto that rune.
@@ -10,32 +10,96 @@ extends RefCounted
 
 signal changed
 
+## The six blade shapes (Game Bible, "Blade shapes", decided 11 November). Every
+## sword blade in the game is one of these. The numbers are multiples of the
+## broadsword of the same metal, and damage x speed stays within a tenth of the
+## broadsword's for every shape: a shape is a way of playing, not more power.
+##   chain       the three moves (tuned in MOVES in player.gd)
+##   swing_move  walking speed while swinging (most blades: 0.9)
+##   crit        extra crit chance
+const SHAPES := {
+	"dagger": {"name": "Dagger", "chain": ["dagger_stab", "dagger_slash", "dagger_finish"],
+		"damage": 0.6, "speed": 1.6, "reach": 0.6, "swing_move": 1.0,
+		"desc": "Stab, slash, stab: very fast with a short reach, and you keep your full speed while attacking."},
+	"sabre": {"name": "Sabre", "chain": ["sabre_slash", "sabre_back", "sabre_sweep"],
+		"damage": 0.85, "speed": 1.25, "reach": 0.9, "crit": 0.1,
+		"desc": "Slash, backslash, wide sweep: quick, wide cuts with 10% more crit chance."},
+	"broadsword": {"name": "Broadsword", "chain": ["slash", "slash", "overhead"],
+		"damage": 1.0, "speed": 1.0, "reach": 1.0,
+		"desc": "Slash, slash, overhead: the balanced blade."},
+	"rapier": {"name": "Rapier", "chain": ["thrust", "thrust", "long_thrust"],
+		"damage": 0.9, "speed": 1.1, "reach": 1.4,
+		"desc": "Thrust, thrust, lunge: a long reach in a straight line, and every thrust goes through to a second enemy."},
+	"falchion": {"name": "Falchion", "chain": ["chop", "chop", "cleave"],
+		"damage": 1.35, "speed": 0.8, "reach": 0.9,
+		"desc": "Chop, chop, cleave: slow, heavy hits that knock enemies back, and the cleave staggers them."},
+	"greatsword": {"name": "Greatsword", "chain": ["great_sweep", "great_back", "slam"],
+		"damage": 1.6, "speed": 0.65, "reach": 1.5, "swing_move": 0.7,
+		"desc": "Sweep, backswing, slam: huge reach and damage, but very slow, and you walk slower while swinging."},
+}
+const SHAPE_ORDER := ["dagger", "sabre", "broadsword", "rapier", "falchion", "greatsword"]
+const SWING_MOVE := 0.9        # walking speed while swinging, unless the shape says otherwise
+
+## What a move is called on screen.
+const MOVE_NAMES := {"slash": "slash", "overhead": "overhead",
+	"dagger_stab": "stab", "dagger_slash": "slash", "dagger_finish": "stab",
+	"sabre_slash": "slash", "sabre_back": "backslash", "sabre_sweep": "sweep",
+	"thrust": "thrust", "long_thrust": "lunge",
+	"chop": "chop", "cleave": "cleave",
+	"great_sweep": "sweep", "great_back": "backswing", "slam": "slam"}
+
+## A broadsword's damage in each metal. (Later metals each add about a quarter.)
+const METALS := {"wood": 5.0, "tin": 8.0, "iron": 11.0}
+
+## In the prototype every iron shape has two slots: slots come from a blade's
+## tier, never from its shape.
 const BLADES := {
 	# The tutorial cave's blades. Wooden is the training sword from the ship crate
 	# (no slots: its one slot is on the grip). Tin is the first real metal.
-	"wooden_blade": {"name": "Wooden Blade", "chain": ["slash", "slash", "overhead"], "damage": 5.0, "speed": 1.0, "reach": 1.0, "slots": 0, "element": "",
-		"desc": "Slash, slash, overhead. A training sword. No slots."},
-	"tin_blade": {"name": "Tin Blade", "chain": ["slash", "slash", "overhead"], "damage": 8.0, "speed": 1.0, "reach": 1.0, "slots": 1, "element": "",
-		"desc": "Slash, slash, overhead. Soft, but real metal. 1 slot."},
-	"iron_shortblade": {"name": "Iron Shortblade", "chain": ["slash", "slash", "slash"], "damage": 7.0, "speed": 1.3, "reach": 0.9, "slots": 1, "element": "",
-		"desc": "Slash, slash, slash. Short and fast, light hits. 1 slot."},
-	"iron_blade": {"name": "Iron Blade", "chain": ["slash", "slash", "overhead"], "damage": 11.0, "speed": 1.0, "reach": 1.0, "slots": 2, "element": "",
-		"desc": "Slash, slash, overhead. 2 slots."},
-	"iron_longblade": {"name": "Iron Longblade", "chain": ["slash", "slash", "overhead"], "damage": 16.0, "speed": 0.78, "reach": 1.15, "slots": 3, "element": "",
-		"desc": "Slash, slash, overhead. Long reach, slow, heavy hits. 3 slots."},
+	"wooden_blade": {"name": "Wooden Blade", "shape": "broadsword", "metal": "wood", "slots": 0, "element": "",
+		"desc": "Slash, slash, overhead: a training sword."},
+	"tin_blade": {"name": "Tin Blade", "shape": "broadsword", "metal": "tin", "slots": 1, "element": "",
+		"desc": "Slash, slash, overhead: soft, but real metal."},
+	"iron_dagger": {"name": "Iron Dagger", "shape": "dagger", "metal": "iron", "slots": 2, "element": ""},
+	"iron_sabre": {"name": "Iron Sabre", "shape": "sabre", "metal": "iron", "slots": 2, "element": ""},
+	"iron_broadsword": {"name": "Iron Broadsword", "shape": "broadsword", "metal": "iron", "slots": 2, "element": ""},
+	"iron_rapier": {"name": "Iron Rapier", "shape": "rapier", "metal": "iron", "slots": 2, "element": ""},
+	"iron_falchion": {"name": "Iron Falchion", "shape": "falchion", "metal": "iron", "slots": 2, "element": ""},
+	"iron_greatsword": {"name": "Iron Greatsword", "shape": "greatsword", "metal": "iron", "slots": 2, "element": ""},
 }
 ## Elemental blades are parked for now (Darren, 3 November), so only iron blades.
-const BLADE_ORDER := ["iron_shortblade", "iron_blade", "iron_longblade"]
+const BLADE_ORDER := ["iron_dagger", "iron_sabre", "iron_broadsword", "iron_rapier", "iron_falchion", "iron_greatsword"]
 
+
+## Everything about a blade in one place: its own entry, its shape's chain and
+## lean, and its numbers worked out from shape and metal.
+static func blade_info(id: String) -> Dictionary:
+	var b: Dictionary = BLADES[id]
+	var s: Dictionary = SHAPES[b["shape"]]
+	return {
+		"name": b["name"], "shape": b["shape"], "shape_name": s["name"], "metal": b["metal"],
+		"slots": int(b["slots"]), "element": b["element"],
+		"chain": s["chain"],
+		"damage": float(METALS[b["metal"]]) * float(s["damage"]),
+		"speed": float(s["speed"]),
+		"reach": float(s["reach"]),
+		"crit": float(s.get("crit", 0.0)),
+		"swing_move": float(s.get("swing_move", SWING_MOVE)),
+		"desc": str(b.get("desc", s["desc"])),
+	}
+
+
+## Slots never make a part weaker (Game Bible): a grip with more of them swings
+## just as fast.
 const GRIPS := {
-	"tin_grip": {"name": "Tin Grip", "slots": 1, "speed": 1.0, "desc": "1 slot. Quick."},
-	"wooden_grip": {"name": "Wooden Grip", "slots": 1, "speed": 1.0, "desc": "1 slot. Quick."},
-	"wrapped_grip": {"name": "Wrapped Grip", "slots": 2, "speed": 0.95, "desc": "2 slots. A touch slower."},
-	"long_grip": {"name": "Long Grip", "slots": 3, "speed": 0.88, "desc": "3 slots. Slower swings."},
-	"ringed_grip": {"name": "Ringed Grip", "slots": 2, "speed": 0.95, "built_in": "wider",
-		"desc": "2 slots. Special: a band in the pommel makes every rune a bit bigger."},
-	"gilded_grip": {"name": "Gilded Grip", "slots": 2, "speed": 0.95, "ruby_slot": 1,
-		"desc": "2 slots. Special: the ruby top slot doubles what's in it. A rune fires twice, a band counts as two (caps still apply)."},
+	"tin_grip": {"name": "Tin Grip", "slots": 1, "desc": "One slot."},
+	"wooden_grip": {"name": "Wooden Grip", "slots": 1, "desc": "One slot."},
+	"wrapped_grip": {"name": "Wrapped Grip", "slots": 2, "desc": "Two slots."},
+	"long_grip": {"name": "Long Grip", "slots": 3, "desc": "Three slots."},
+	"ringed_grip": {"name": "Ringed Grip", "slots": 2, "built_in": "wider",
+		"desc": "Two slots, and a band built into the pommel makes every rune a bit bigger."},
+	"gilded_grip": {"name": "Gilded Grip", "slots": 2, "ruby_slot": 1,
+		"desc": "Two slots, and the ruby top slot doubles what is in it: a rune fires twice, a band counts as two."},
 }
 const GRIP_ORDER := ["wooden_grip", "wrapped_grip", "long_grip", "ringed_grip", "gilded_grip"]
 
@@ -112,16 +176,16 @@ const ABILITY_PROMPTS := {"kbm": ["mouse_right", "q", "r"], "pad": ["pad_rb", "p
 
 ## The test swords from the 3 November notes, bottom to top.
 const TEST_SWORDS := {
-	"A": {"blade": "iron_blade", "grip": "wrapped_grip", "line": ["twice", "shockwave", "wider", "hook"]},
-	"B": {"blade": "iron_blade", "grip": "wrapped_grip", "line": ["shockwave", "twice", "wider", "hook"]},
+	"A": {"blade": "iron_broadsword", "grip": "wrapped_grip", "line": ["twice", "shockwave", "wider", "hook"]},
+	"B": {"blade": "iron_broadsword", "grip": "wrapped_grip", "line": ["shockwave", "twice", "wider", "hook"]},
 	# 10 November: both active runes and a passive one. Whirlwind sits lowest, so it
 	# gets the first ability button (right mouse or RB), which is the easy one to hold.
-	"C": {"blade": "iron_blade", "grip": "wrapped_grip", "line": ["whirlwind", "hook", "twice", "shockwave"]},
+	"C": {"blade": "iron_broadsword", "grip": "wrapped_grip", "line": ["whirlwind", "hook", "twice", "shockwave"]},
 	# 11 November: all three active runes, one on each button, and the new passive.
-	"D": {"blade": "iron_blade", "grip": "wrapped_grip", "line": ["whirlwind", "hook", "leap", "weak_point"]},
+	"D": {"blade": "iron_broadsword", "grip": "wrapped_grip", "line": ["whirlwind", "hook", "leap", "weak_point"]},
 }
 
-var blade := "iron_shortblade"
+var blade := "iron_dagger"
 var grip := "wooden_grip"
 var pommel := "plain_pommel"
 ## Slot contents bottom to top: grip slots first, then blade slots. "" is empty.
@@ -481,11 +545,11 @@ static func abilities(effects: Array) -> Array:
 
 ## Everything the player needs, as one plain dictionary.
 func compute() -> Dictionary:
-	var b: Dictionary = BLADES[blade]
+	var b := blade_info(blade)
 	var g: Dictionary = GRIPS[grip]
 	var steps: Array = []
 	for m in b["chain"]:
-		steps.append({"move": m, "from": b["name"]})
+		steps.append({"move": m, "name": MOVE_NAMES.get(m, m), "from": b["name"]})
 	var r := resolve(line, int(g.get("ruby_slot", -1)))
 	if g.get("built_in", "") == "wider":
 		for e in r["effects"]:
@@ -496,6 +560,7 @@ func compute() -> Dictionary:
 		hit_color = ELEMENT_COLORS[element]
 	return {
 		"blade": blade,
+		"shape": b["shape"],
 		"grip": grip,
 		"line": line.duplicate(),
 		"grip_slots": grip_slots(),
@@ -505,10 +570,11 @@ func compute() -> Dictionary:
 		"steps": steps,
 		"damage": float(b["damage"]),
 		"pommel": pommel,
-		"speed": float(b["speed"]) * float(g["speed"]) * (1.0 + float(POMMELS[pommel].get("speed", 0.0))),
+		"speed": float(b["speed"]) * (1.0 + float(POMMELS[pommel].get("speed", 0.0))),
 		"reach": float(b["reach"]),
-		"crit": 0.07 + float(POMMELS[pommel].get("crit", 0.0)),
-		"crit_damage": 1.6 + float(POMMELS[pommel].get("crit_damage", 0.0)),
+		"swing_move": float(b["swing_move"]),
+		"crit": BASE_CRIT + float(b["crit"]) + float(POMMELS[pommel].get("crit", 0.0)),
+		"crit_damage": BASE_CRIT_DAMAGE + float(POMMELS[pommel].get("crit_damage", 0.0)),
 		"area": 0.0,
 		"move_speed": 0.0,
 		"elements": [element] if element != "" else [],
@@ -516,6 +582,9 @@ func compute() -> Dictionary:
 		"hit_color": hit_color,
 	}
 
+
+const BASE_CRIT := 0.07
+const BASE_CRIT_DAMAGE := 1.6
 
 const ELEMENT_COLORS := {
 	"fire": Color(1.0, 0.5, 0.2),

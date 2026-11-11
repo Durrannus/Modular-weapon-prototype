@@ -5,6 +5,7 @@ extends SceneTree
 ## Prints each failed check and exits with code 1 if any failed.
 
 const SwingBuild := preload("res://scripts/weapon/swing_build.gd")
+const Player := preload("res://scripts/player.gd")
 
 var failures := 0
 var checks := 0
@@ -32,6 +33,7 @@ func _init() -> void:
 	test_active_runes()
 	test_shards()
 	test_pommels()
+	test_blade_shapes()
 	print("%d checks, %d failed" % [checks, failures])
 	quit(1 if failures > 0 else 0)
 
@@ -93,11 +95,11 @@ func test_caps() -> void:
 func test_refit_keeps_grip_and_blade_slots() -> void:
 	var b = SwingBuild.new()
 	b.set_grip("wrapped_grip")
-	b.set_blade("iron_blade")
+	b.set_blade("iron_broadsword")
 	b.line = ["twice", "shockwave", "wider", "hook"]
 	b.set_grip("wooden_grip")
 	eq(b.line, ["twice", "wider", "hook"], "a smaller grip drops its top grip slot, blade slots stay")
-	b.set_blade("iron_shortblade")
+	b.set_blade("tin_blade")
 	eq(b.line, ["twice", "wider"], "a smaller blade drops its top blade slot")
 	eq(b.line.size(), b.slot_count(), "line length matches slot count")
 
@@ -105,7 +107,7 @@ func test_refit_keeps_grip_and_blade_slots() -> void:
 func test_ringed_grip() -> void:
 	var b = SwingBuild.new()
 	b.set_grip("ringed_grip")
-	b.set_blade("iron_blade")
+	b.set_blade("iron_broadsword")
 	b.line = ["shockwave", "", "", ""]
 	eq(b.compute()["effects"][0]["size"], 1.3, "Ringed grip makes runes 1.3x")
 	b.line = ["wider", "wider", "wider", "shockwave"]
@@ -260,7 +262,7 @@ func test_one_bender_per_sword() -> void:
 func test_gilded_ruby() -> void:
 	var b = SwingBuild.new()
 	b.set_grip("gilded_grip")
-	b.set_blade("iron_blade")
+	b.set_blade("iron_broadsword")
 	check(not SwingBuild.GRIPS["gilded_grip"].get("locked", false), "the Gilded grip is unlocked")
 	b.line = ["", "shockwave", "", ""]
 	eq(b.compute()["effects"][0]["count"], 2, "a rune in the ruby slot fires twice")
@@ -358,3 +360,61 @@ func test_pommels() -> void:
 	b.set_pommel("light_pommel")
 	eq(snappedf(b.compute()["speed"] / base["speed"], 0.001), 1.1, "Light pommel: +10% swing speed")
 	eq(b.slot_count(), slots_before, "pommels add no slots")
+
+
+# --- The six blade shapes (Game Bible, 11 November) --------------------------------
+
+func test_blade_shapes() -> void:
+	eq(SwingBuild.SHAPE_ORDER.size(), 6, "there are six blade shapes")
+	eq(SwingBuild.BLADE_ORDER.size(), 6, "and an iron blade of each")
+	var broad := SwingBuild.blade_info("iron_broadsword")
+	eq(broad["damage"], 11.0, "the iron broadsword does 11 damage")
+	var base_time := 0.0
+	for id in SwingBuild.BLADE_ORDER:
+		var b := SwingBuild.blade_info(id)
+		eq(b["slots"], 2, id + ": every iron shape has two slots")
+		eq((b["chain"] as Array).size(), 3, id + ": a three-hit chain")
+		var power := 0.0
+		var time := 0.0
+		for m in b["chain"]:
+			check(Player.MOVES.has(m), id + ": the move '%s' exists" % m)
+			check(SwingBuild.MOVE_NAMES.has(m), id + ": the move '%s' has a name" % m)
+			power += float(Player.MOVES[m]["power"])
+			time += float(Player.MOVES[m]["time"])
+		eq(snappedf(power, 0.001), 3.5, id + ": a chain is 1 + 1 + 1.5 hits")
+		if base_time == 0.0:
+			base_time = time
+		eq(snappedf(time, 0.001), snappedf(base_time, 0.001), id + ": every chain takes the same time at speed 1")
+		# Shape is a way of playing, not more power: damage a second within a tenth of the broadsword's.
+		var dps: float = float(b["damage"]) * float(b["speed"]) / (float(broad["damage"]) * float(broad["speed"]))
+		check(dps >= 0.9 and dps <= 1.1, "%s: damage a second within 10%% of the broadsword (%.2f)" % [id, dps])
+	check(is_equal_approx(SwingBuild.blade_info("iron_dagger")["damage"], 6.6), "dagger: 0.6 of the broadsword's damage")
+	eq(SwingBuild.blade_info("iron_dagger")["speed"], 1.6, "dagger: 1.6x speed")
+	eq(SwingBuild.blade_info("iron_dagger")["swing_move"], 1.0, "dagger: full speed while attacking")
+	eq(SwingBuild.blade_info("iron_sabre")["crit"], 0.1, "sabre: +10% crit chance")
+	eq(SwingBuild.blade_info("iron_rapier")["reach"], 1.4, "rapier: 1.4x reach")
+	eq(int(Player.MOVES["thrust"]["max_hits"]), 2, "rapier: a thrust goes through to a second enemy")
+	eq(str(Player.MOVES["thrust"]["shape"]), "line", "rapier: thrusts are a straight line")
+	check(float(Player.MOVES["chop"]["knock"]) > float(Player.MOVES["slash"]["knock"]) * 1.5, "falchion: big knockback")
+	check(float(Player.MOVES["cleave"]["stun"]) >= 0.6, "falchion: the finisher staggers")
+	eq(SwingBuild.blade_info("iron_greatsword")["swing_move"], 0.7, "greatsword: 70% speed while swinging")
+	check(is_equal_approx(SwingBuild.blade_info("iron_greatsword")["damage"], 17.6), "greatsword: 1.6 of the broadsword's damage")
+	eq(float(Player.MOVES["great_sweep"]["arc"]), 180.0, "greatsword: sweeps half a circle")
+	eq(float(Player.MOVES["dagger_slash"]["arc"]), 60.0, "dagger: a 60 degree slash")
+	eq(float(Player.MOVES["sabre_slash"]["arc"]), 160.0, "sabre: 160 degree cuts")
+	eq(float(Player.MOVES["slash"]["arc"]), 120.0, "broadsword: 120 degree slashes")
+	eq(float(Player.MOVES["overhead"]["power"]), 1.5, "broadsword: the finisher is 1.5 hits")
+	# The tutorial's blades are broadswords in softer stuff.
+	eq(SwingBuild.blade_info("wooden_blade")["damage"], 5.0, "wooden blade: 5 damage")
+	eq(SwingBuild.blade_info("tin_blade")["damage"], 8.0, "tin blade: 8 damage")
+	eq(SwingBuild.blade_info("tin_blade")["chain"], broad["chain"], "tin blade: the broadsword's chain")
+	# Slots never make a part weaker: a grip with more of them swings just as fast.
+	var b = SwingBuild.new()
+	b.set_blade("iron_broadsword")
+	b.set_grip("wooden_grip")
+	var one: float = b.compute()["speed"]
+	b.set_grip("long_grip")
+	eq(b.compute()["speed"], one, "a three-slot grip swings as fast as a one-slot grip")
+	b.set_blade("iron_sabre")
+	eq(snappedf(b.compute()["crit"], 0.001), snappedf(SwingBuild.BASE_CRIT + 0.1, 0.001), "a sabre's crit chance reaches the sword")
+	eq(b.compute()["steps"][1]["name"], "backslash", "steps carry the move's name for the screen")

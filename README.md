@@ -146,6 +146,7 @@ Run these after changes (they need no window):
 godot --headless --path . -s tests/test_swing_build.gd                         # the sword rules
 godot --headless --path . --fixed-fps 60 -s tests/feel_check.gd                # movement and swing feel
 godot --headless --path . --fixed-fps 60 -s tests/active_runes.gd              # Whirlwind, Hook and Leap on their buttons, the bands on them, and Weak Point
+godot --headless --path . --fixed-fps 60 -s tests/blade_shapes.gd              # the six blade shapes: reach, what each move hits, each lean, damage a second
 godot --headless --path . --fixed-fps 60 -s tests/cave_playthrough.gd          # plays the whole cave
 godot --headless --path . --fixed-fps 60 -s tests/cave_playthrough.gd -- players=2 wipe down
 godot --path . -s tests/smoke_forge.gd                                         # opens the forge, fires every rune
@@ -197,7 +198,25 @@ This branch tests the **swing path** (design notes, 3 November). It replaces the
 - Effects are deliberately loud: each rune has its own visual, sound and name pop-up, the slots flash on the sword and in the HUD when they fire, and a finisher that connects gets a screen shake. Identical runes firing together merge into one bigger effect.
 - **Test swords (test arena):** you start with Test sword D (Whirlwind, Hook, Leap, Weak Point: one active rune on each of the three buttons, and the new passive). The forge also has Test sword A (Twice, Shockwave, Wider, Hook: two shockwaves and a wide hook), Test sword B (Shockwave, Twice, Wider, Hook: one shockwave and a double, wide hook) and Test sword C (Whirlwind, Hook, Twice, Shockwave). Keys 1, 2, 3 and 4 at the forge load A, B, C and D.
 - **Pause enemies:** the button at the top right, or P / Start.
-- Parts: iron shortblade / blade / longblade (1, 2, 3 slots) and wooden / wrapped / long grips (1, 2, 3 slots), and pommels (no slots, stats only: Plain, Keen +8% crit chance, Heavy +40% crit damage, Light +10% swing speed). The Ringed Grip is a special grip whose built-in band makes every rune a bit bigger; the Gilded Grip's ruby top slot doubles whatever is in it (a rune fires twice, a band counts as two, caps still apply).
+- **Blade shapes (11 November).** Every sword blade is one of six shapes. The shape sets the three-hit chain and how the sword feels; the metal sets the damage. The numbers are multiples of the broadsword's (iron broadsword = 11 damage):
+
+  | Shape | Chain | Damage | Speed | Reach | Arc | Its lean |
+  |---|---|---|---|---|---|---|
+  | Dagger | stab, slash, stab | 0.6 (6.6) | 1.6 | 0.6 | 60, stabs are a line | You walk at full speed while attacking. A stab hits one enemy |
+  | Sabre | slash, backslash, wide sweep | 0.85 (9.4) | 1.25 | 0.9 | 160 | +10% crit chance |
+  | Broadsword | slash, slash, overhead | 1 (11) | 1 | 1 | 120 | None: the balanced one. Wooden and tin blades are this shape |
+  | Rapier | thrust, thrust, lunge | 0.9 (9.9) | 1.1 | 1.4 | a straight line | Every thrust goes through to a second enemy. The lunge reaches a quarter further |
+  | Falchion | chop, chop, cleave | 1.35 (14.9) | 0.8 | 0.9 | 110 | Big knockback; the cleave staggers (0.8 s) |
+  | Greatsword | sweep, backswing, slam | 1.6 (17.6) | 0.65 | 1.5 | 180 | You walk at 70% speed while swinging |
+
+  - Balance (the Game Bible's approach): a shape is a way of playing, not more power. Every chain is 1 + 1 + 1.5 hits and takes the same time at speed 1, and the pause when a finisher lands is shorter on a fast blade, so a shape's damage a second is exactly its damage times its speed: 0.96 to 1.08 of the broadsword's. `tests/blade_shapes.gd` measures it in the arena. (The sabre's extra crit chance is on top of that: about 1.12 with crits counted.)
+  - Every iron shape has two slots: slots come from a blade's tier, never from its shape. Grips with more slots no longer swing slower (slots never make a part weaker).
+  - Reach multiplies the whole hit distance (the broadsword hits out to 91 px), so Leap lands further out with a rapier than with a dagger, and Whirlwind is as big as the blade.
+  - An arc hits an enemy if it touches its body, not only its middle.
+  - The broadsword's finisher is 1.5 hits (it was 2.1). The tutorial's burrower (17 health) and guardian (255) were lowered to match, so those fights are as long as they were.
+  - The rapier's lunge reaches further instead of moving you, because attacks never carry you into the enemy.
+  - The numbers: `SHAPES`, `METALS` and `BLADES` in `scripts/weapon/swing_build.gd`; the moves (`MOVES`) and `BASE_REACH` in `scripts/player.gd`.
+- Other parts: wooden / wrapped / long grips (1, 2, 3 slots), and pommels (no slots, stats only: Plain, Keen +8% crit chance, Heavy +40% crit damage, Light +10% swing speed). The Ringed Grip is a special grip whose built-in band makes every rune a bit bigger; the Gilded Grip's ruby top slot doubles whatever is in it (a rune fires twice, a band counts as two).
 - The forge follows the art thread's design: parts tray on the left, the sword over the anvil with slot numbers and band brackets, and "what this sword does" on the right. **T** or the button puts you next to the dummy. The forge glows: the hearth breathes behind the sword, embers drift up, every change is a hammer blow with sparks and a clang, and leaving after changes plays a short "Forged!" finish (white-hot, quench steam, a shine up the blade). Press Tab or click to skip it.
 - Art and numbers for all of this are in `art/swing/` (`swing_path.md` explains how the sword is assembled; `swing_path.json` has every slot, pivot and effect strip). Fonts are Silkscreen and Pixelify Sans (OFL), in `art/fonts/`.
 - Elemental blades are parked for now. Sounds are placeholders made in code (`scripts/sfx.gd`).
@@ -257,7 +276,7 @@ Readability tweaks made on top of the art's own lighting numbers: the cave's dar
 
 Drawn but not used yet, because the game has nothing for them to show: the blank rune stone and the broken band.
 
-Stand-in pictures drawn by the prototype thread on 11 November, until the art thread's versions land under the same names (the list is in the project files, `art/requests/nov11-prototype-art.md`): the Weak Point rune stone and its three effects (`art/fx/weak_mark.png`, `weak_mark_on.png`, `weak_break.png`), the square stones for the three active runes, `art/swing/ui/active_badge.png` and `art/cave/ui/prompt_r.png`.
+The 11 November pictures (asked for in the project files, `art/requests/nov11-prototype-art.md`, and drawn by the art thread the same day): the six blade shapes in the hand, on the forge screen and as tray cards, with their forge heat and shine strips; the swing smears (`art/swing/fx/sweep_smear.png`, `flick_smear.png`, `chop_smear.png`, `thrust_smear.png`, `slam_burst.png`); the Weak Point stone and its three effects (`art/fx/weak_mark.png`, `weak_mark_on.png`, `weak_break.png`); square stones for the three active runes with `art/swing/ui/active_badge.png`; the PASSIVE and ACTIVE tray headers; and the R, Q, RB and LB prompts. Sabre and falchion have one cutting edge, on the left of the picture: in the hand the picture is mirrored so the edge leads the cut.
 
 ## Older notes: the grid sword on `main`
 

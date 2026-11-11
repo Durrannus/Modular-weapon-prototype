@@ -748,48 +748,6 @@
    "glow": false,
    "note": "forge tray card: lying down, tip right, true proportions; sockets shown"
   },
-  "iron_shortblade_icon": {
-   "file": "swing/blades/iron_shortblade_icon.png",
-   "frame": [
-    30,
-    13
-   ],
-   "frames": 1,
-   "origin": [
-    0,
-    0
-   ],
-   "glow": false,
-   "note": "forge tray card: lying down, tip right, true proportions; sockets shown"
-  },
-  "iron_blade_icon": {
-   "file": "swing/blades/iron_blade_icon.png",
-   "frame": [
-    42,
-    13
-   ],
-   "frames": 1,
-   "origin": [
-    0,
-    0
-   ],
-   "glow": false,
-   "note": "forge tray card: lying down, tip right, true proportions; sockets shown"
-  },
-  "iron_longblade_icon": {
-   "file": "swing/blades/iron_longblade_icon.png",
-   "frame": [
-    56,
-    13
-   ],
-   "frames": 1,
-   "origin": [
-    0,
-    0
-   ],
-   "glow": false,
-   "note": "forge tray card: lying down, tip right, true proportions; sockets shown"
-  },
   "wooden_grip_icon": {
    "file": "swing/grips/wooden_grip_icon.png",
    "frame": [
@@ -1239,7 +1197,7 @@
     12
    ],
    "glow": false,
-   "note": "ADDITIVE. Weak Point: the spot on a big enemy's body, looping. STAND-IN from the prototype thread, 11 Nov",
+   "note": "ADDITIVE, loops. The spot on a big enemy: a crack of cold light with four marks closing on it. Drawn 1 : 1; scale 1.5 for the Wider band",
    "fps": 10
   },
   "weak_mark_on": {
@@ -1254,7 +1212,7 @@
     20
    ],
    "glow": false,
-   "note": "ADDITIVE. Weak Point: the moment a mark lands. STAND-IN from the prototype thread, 11 Nov",
+   "note": "ADDITIVE, once. The moment the mark lands; its last frame matches weak_mark, so start the loop straight after",
    "fps": 20
   },
   "weak_break": {
@@ -1269,8 +1227,279 @@
     36
    ],
    "glow": false,
-   "note": "ADDITIVE. Weak Point: the big crit when the mark is struck. STAND-IN from the prototype thread, 11 Nov",
+   "note": "ADDITIVE, once. The big crit when the mark is struck; play it in place of hit_spark_crit, not with it",
    "fps": 22
+  },
+  "sweep_smear": {
+   "file": "swing/fx/sweep_smear.png",
+   "frame": [
+    96,
+    96
+   ],
+   "frames": 4,
+   "origin": [
+    48,
+    48
+   ],
+   "glow": false,
+   "note": "ADDITIVE. As slash_smear but a wide flat sweep, clockwise from -85 to +85 degrees. Mirror for the backswing",
+   "fps": 40
+  },
+  "flick_smear": {
+   "file": "swing/fx/flick_smear.png",
+   "frame": [
+    96,
+    96
+   ],
+   "frames": 4,
+   "origin": [
+    48,
+    48
+   ],
+   "glow": false,
+   "note": "ADDITIVE. A short quick cut, -32 to +32 degrees, thin",
+   "fps": 40
+  },
+  "chop_smear": {
+   "file": "swing/fx/chop_smear.png",
+   "frame": [
+    96,
+    96
+   ],
+   "frames": 4,
+   "origin": [
+    48,
+    48
+   ],
+   "glow": false,
+   "note": "ADDITIVE. A short heavy chop, -60 to +20 degrees, thick",
+   "fps": 40
+  },
+  "thrust_smear": {
+   "file": "swing/fx/thrust_smear.png",
+   "frame": [
+    96,
+    96
+   ],
+   "frames": 4,
+   "origin": [
+    48,
+    48
+   ],
+   "glow": false,
+   "note": "ADDITIVE. A straight thrust along +x from the hand out to 40 px; rotate to the aim, scale x to the blade's reach",
+   "fps": 40
+  },
+  "slam_burst": {
+   "file": "swing/fx/slam_burst.png",
+   "frame": [
+    96,
+    64
+   ],
+   "frames": 6,
+   "origin": [
+    48,
+    40
+   ],
+   "glow": false,
+   "note": "ADDITIVE, once. Where the greatsword's overhead lands, seen from above; do not rotate it",
+   "fps": 20
+  },
+  "prompt_r": {
+   "file": "cave/ui/prompt_r.png",
+   "frame": [
+    16,
+    16
+   ],
+   "frames": 1,
+   "origin": [
+    0,
+    0
+   ],
+   "glow": false,
+   "note": "16 x 16, same make as prompt_e.png"
+  },
+  "prompt_q": {
+   "file": "cave/ui/prompt_q.png",
+   "frame": [
+    16,
+    16
+   ],
+   "frames": 1,
+   "origin": [
+    0,
+    0
+   ],
+   "glow": false,
+   "note": "16 x 16, same make as prompt_e.png"
+  },
+  "prompt_pad_rb": {
+   "file": "cave/ui/prompt_pad_rb.png",
+   "frame": [
+    24,
+    16
+   ],
+   "frames": 1,
+   "origin": [
+    0,
+    0
+   ],
+   "glow": false,
+   "note": "24 x 16 shoulder button, verdigris like the other pad buttons"
+  },
+  "prompt_pad_lb": {
+   "file": "cave/ui/prompt_pad_lb.png",
+   "frame": [
+    24,
+    16
+   ],
+   "frames": 1,
+   "origin": [
+    0,
+    0
+   ],
+   "glow": false,
+   "note": "24 x 16 shoulder button"
+  },
+  "glyph_whirlwind": {
+   "file": "hud/glyph_whirlwind.png",
+   "frame": [
+    12,
+    12
+   ],
+   "frames": 1,
+   "origin": [
+    0,
+    0
+   ],
+   "glow": false,
+   "note": "12 x 12, Whirlwind's rose: two arrows chasing round"
+  },
+  "active_badge": {
+   "file": "swing/ui/active_badge.png",
+   "frame": [
+    9,
+    9
+   ],
+   "frames": 1,
+   "origin": [
+    0,
+    0
+   ],
+   "glow": false,
+   "note": "9 x 9 key cap; draw it over the bottom-right corner of an active stone in the tray, about (18, 18) on the 26 x 26 icon"
+  },
+  "tray_passive": {
+   "file": "swing/ui/tray_passive.png",
+   "frame": [
+    60,
+    9
+   ],
+   "frames": 1,
+   "origin": [
+    0,
+    0
+   ],
+   "glow": false,
+   "note": "60 x 9 header for the passive group: verdigris, with a round mark"
+  },
+  "tray_active": {
+   "file": "swing/ui/tray_active.png",
+   "frame": [
+    60,
+    9
+   ],
+   "frames": 1,
+   "origin": [
+    0,
+    0
+   ],
+   "glow": false,
+   "note": "60 x 9 header for the active group: ember, with a square mark"
+  },
+  "iron_dagger_icon": {
+   "file": "swing/blades/iron_dagger_icon.png",
+   "frame": [
+    28,
+    13
+   ],
+   "frames": 1,
+   "origin": [
+    0,
+    0
+   ],
+   "glow": false,
+   "note": "forge tray card: lying down, tip right, true proportions; sockets shown"
+  },
+  "iron_broadsword_icon": {
+   "file": "swing/blades/iron_broadsword_icon.png",
+   "frame": [
+    42,
+    13
+   ],
+   "frames": 1,
+   "origin": [
+    0,
+    0
+   ],
+   "glow": false,
+   "note": "forge tray card: lying down, tip right, true proportions; sockets shown"
+  },
+  "iron_greatsword_icon": {
+   "file": "swing/blades/iron_greatsword_icon.png",
+   "frame": [
+    62,
+    13
+   ],
+   "frames": 1,
+   "origin": [
+    0,
+    0
+   ],
+   "glow": false,
+   "note": "forge tray card: lying down, tip right, true proportions; sockets shown"
+  },
+  "iron_sabre_icon": {
+   "file": "swing/blades/iron_sabre_icon.png",
+   "frame": [
+    40,
+    13
+   ],
+   "frames": 1,
+   "origin": [
+    0,
+    0
+   ],
+   "glow": false,
+   "note": "forge tray card: lying down, tip right, true proportions; sockets shown"
+  },
+  "iron_rapier_icon": {
+   "file": "swing/blades/iron_rapier_icon.png",
+   "frame": [
+    58,
+    13
+   ],
+   "frames": 1,
+   "origin": [
+    0,
+    0
+   ],
+   "glow": false,
+   "note": "forge tray card: lying down, tip right, true proportions; sockets shown"
+  },
+  "iron_falchion_icon": {
+   "file": "swing/blades/iron_falchion_icon.png",
+   "frame": [
+    40,
+    13
+   ],
+   "frames": 1,
+   "origin": [
+    0,
+    0
+   ],
+   "glow": false,
+   "note": "forge tray card: lying down, tip right, true proportions; sockets shown"
   }
  }
 }

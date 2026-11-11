@@ -24,7 +24,7 @@ var hit_someone := false
 func _setup() -> void:
 	kind = "burrower"
 	art_set = "cave"
-	max_hp = 18.0
+	max_hp = 17.0   # one wooden-sword chain (5 + 5 + 7.5), as it was before the finisher became 1.5 hits
 	speed = 105.0
 	radius = 12.0
 	contact_damage = 0.0

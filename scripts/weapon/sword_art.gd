@@ -1,8 +1,9 @@
 extends RefCounted
 ## Draws a swing path sword from the art in art/swing/ (see art/swing/swing_path.md).
-## Everything is in art pixels of the chosen scale ("hand" 1x, "forge" 5x); the
-## caller sets the transform. The sword frame is 15*k wide, tip at the top:
-## blade at (4k, 0), grip below it at (0, blade height).
+## Everything is in art pixels of the chosen scale ("hand" 1x, "forge" 3x); the
+## caller sets the transform. The sword frame is 9 wide in the hand and 45 on the
+## forge screen, tip at the top: the blade centred on the frame's middle column,
+## the grip below it at (0, blade height).
 
 const SwingBuild := preload("res://scripts/weapon/swing_build.gd")
 const Art := preload("res://scripts/art.gd")
@@ -26,10 +27,15 @@ static func frame_w(scale: String) -> float:
 	return 15.0 * _k(scale)
 
 
-static func blade_x(scale: String) -> float:
-	if scale == "hand":
-		return float(data().get("hand_frame", {}).get("blade_x", 2))
-	return 4.0 * _k(scale)
+## Blades are centred on the sword's centre line, whatever their width (a dagger
+## is 3 wide in the hand, a greatsword 7), so widths are odd numbers.
+static func blade_x(blade: String, scale: String) -> float:
+	return roundf((frame_w(scale) - blade_size(blade, scale).x) * 0.5)
+
+
+## A sabre or a falchion has one cutting edge, drawn on the left of its picture.
+static func one_edged(blade: String) -> bool:
+	return SwingBuild.BLADES.get(blade, {}).get("shape", "") in ["sabre", "falchion"]
 
 
 static func _pommel_h(scale: String) -> float:
@@ -76,7 +82,7 @@ static func slot_rect(blade: String, grip: String, scale: String, i: int) -> Rec
 		off = grip_origin(blade, scale)
 	elif i - grects.size() < brects.size():
 		r = brects[i - grects.size()]
-		off = Vector2(blade_x(scale), 0)
+		off = Vector2(blade_x(blade, scale), 0)
 	else:
 		return Rect2(Vector2(frame_w(scale) * 0.5 - 1.0, 0), Vector2(1, 1) * (1.0 if scale == "hand" else 3.0 * _k(scale)))
 	return Rect2(off + Vector2(r[0], r[1]), Vector2(r[2], r[3]))
@@ -87,13 +93,19 @@ static func slot_center(blade: String, grip: String, scale: String, i: int) -> V
 
 
 ## lit: slot index -> 0..1. A slot above 0.4 swaps to its _lit image.
+## flip_blade: the blade's picture mirrored left to right, so a one-edged blade
+## can cut the other way (its sockets sit on the centre line and stay put).
 static func draw(ci: CanvasItem, blade: String, grip: String, line: Array, scale: String,
-		lit: Dictionary, origin := Vector2.ZERO, tint := Color.WHITE, pommel := "plain_pommel") -> void:
+		lit: Dictionary, origin := Vector2.ZERO, tint := Color.WHITE, pommel := "plain_pommel", flip_blade := false) -> void:
 	var gs := int(SwingBuild.GRIPS[grip]["slots"])
 	var blade_tex := Art.texture(DIR + "blades/%s_%s.png" % [blade, scale])
 	var grip_tex := Art.texture(DIR + "grips/%s_%s.png" % [grip, scale])
 	if blade_tex != null:
-		ci.draw_texture(blade_tex, origin + Vector2(blade_x(scale), 0), tint)
+		var at := origin + Vector2(blade_x(blade, scale), 0)
+		if flip_blade:
+			ci.draw_texture_rect(blade_tex, Rect2(at + Vector2(blade_tex.get_width(), 0), Vector2(-blade_tex.get_width(), blade_tex.get_height())), false, tint)
+		else:
+			ci.draw_texture(blade_tex, at, tint)
 	if grip_tex != null:
 		ci.draw_texture(grip_tex, origin + grip_origin(blade, scale), tint)
 	var pommel_tex := Art.texture(DIR + "pommels/%s_%s.png" % [pommel, scale])

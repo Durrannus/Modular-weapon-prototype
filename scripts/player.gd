@@ -28,7 +28,6 @@ const MOVE_SPEED := 220.0      # about 3.7 body heights a second, like Core Keep
 const ACCEL := 3000.0          # full speed in about 4 frames
 const DECEL := 4200.0          # stops in about 3
 const TURN := 5200.0           # reversing is quicker than starting
-const SWING_MOVE := 0.9        # barely slowed while swinging
 const FACE_LINGER := 0.28      # keep facing the swing this long after it ends
 const DIAGONAL_GRACE := 0.07   # letting go of two keys a moment apart still ends on the diagonal
 const RADIUS := 16.0
@@ -40,15 +39,67 @@ const DODGE_TIME := 0.15
 const DODGE_MAX_CHARGES := 1
 const DODGE_REFILL := 0.8      # seconds per charge
 
-## The five sword moves. Times are at attack speed 1.0.
-## windup: time before the hit lands. time: whole move. reach in pixels (times blade reach).
-## arc: degrees for arcs. width: half-width for lines. power: damage multiplier.
+## The sword moves. A blade's shape picks three of them for its chain
+## (SHAPES in swing_build.gd). Times are at attack speed 1.0.
+##   windup   time before the hit lands          time    the whole move
+##   shape    "arc" (arc: degrees), "line" (width: half-width) or "circle"
+##   power    damage, in blade hits               max_hits  a line stops after this many enemies
+##   reach    extra reach for this move (1.0 = the blade's)
+##   curve    how the sword swings: [start, end, arm at start, arm at end], angles
+##            from the aim; a thrust starts and ends on the aim
+##   smear    the picture of the swing            mirror  swung the other way
+##   alternate  every other one in a chain is mirrored
+## Every light move takes the same time and every finisher the same time, and a
+## chain is always 1 + 1 + 1.5 hits, so a shape's damage a second is its damage
+## times its speed and nothing else.
+const LIGHT := 0.36
+const HEAVY := 0.45
 const MOVES := {
-	"slash": {"windup": 0.055, "time": 0.36, "shape": "arc", "arc": 140.0, "reach": 74.0, "power": 1.0, "knock": 240.0, "stun": 0.16, "freeze": 0.05},
-	"stab": {"windup": 0.06, "time": 0.25, "shape": "line", "width": 16.0, "reach": 115.0, "power": 1.15, "knock": 320.0},
-	"lunge": {"windup": 0.15, "time": 0.38, "shape": "line", "width": 24.0, "reach": 85.0, "power": 1.3, "knock": 300.0, "dash": 170.0},
-	"spin": {"windup": 0.07, "time": 0.44, "shape": "circle", "reach": 72.0, "power": 0.85, "knock": 260.0},
-	"overhead": {"windup": 0.14, "time": 0.45, "shape": "arc", "arc": 120.0, "reach": 95.0, "power": 2.1, "knock": 400.0, "stun": 0.3, "freeze": 0.1, "shake": 11.0},
+	# Broadsword (and the wooden and tin blades): slash, slash, overhead.
+	"slash": {"windup": 0.055, "time": LIGHT, "shape": "arc", "arc": 120.0, "power": 1.0, "knock": 240.0, "stun": 0.16, "freeze": 0.05,
+		"curve": [-0.9, 0.9, 13.0, 16.0], "smear": "slash_smear", "alternate": true},
+	"overhead": {"windup": 0.14, "time": HEAVY, "shape": "arc", "arc": 120.0, "power": 1.5, "knock": 400.0, "stun": 0.3, "freeze": 0.1, "shake": 11.0,
+		"curve": [-1.4, 0.45, 10.0, 18.0], "smear": "overhead_smear", "big": true},
+	# Dagger: stab, slash, stab. Quick pokes at one enemy and a short flick.
+	"dagger_stab": {"windup": 0.05, "time": LIGHT, "shape": "line", "width": 12.0, "max_hits": 1, "power": 1.0, "knock": 150.0, "stun": 0.1, "freeze": 0.03,
+		"curve": [0.0, 0.0, 4.0, 22.0], "smear": "thrust_smear"},
+	"dagger_slash": {"windup": 0.05, "time": LIGHT, "shape": "arc", "arc": 60.0, "power": 1.0, "knock": 170.0, "stun": 0.1, "freeze": 0.03,
+		"curve": [-0.56, 0.56, 12.0, 15.0], "smear": "flick_smear"},
+	"dagger_finish": {"windup": 0.09, "time": HEAVY, "shape": "line", "width": 14.0, "max_hits": 1, "power": 1.5, "knock": 300.0, "stun": 0.25, "freeze": 0.08, "shake": 7.0,
+		"curve": [0.0, 0.0, 2.0, 26.0], "smear": "thrust_smear"},
+	# Sabre: slash, backslash, wide sweep. Every cut is wide.
+	"sabre_slash": {"windup": 0.055, "time": LIGHT, "shape": "arc", "arc": 160.0, "power": 1.0, "knock": 220.0, "stun": 0.14, "freeze": 0.04,
+		"curve": [-1.3, 1.3, 13.0, 16.0], "smear": "sweep_smear"},
+	"sabre_back": {"windup": 0.055, "time": LIGHT, "shape": "arc", "arc": 160.0, "power": 1.0, "knock": 220.0, "stun": 0.14, "freeze": 0.04,
+		"curve": [-1.3, 1.3, 13.0, 16.0], "smear": "sweep_smear", "mirror": true},
+	"sabre_sweep": {"windup": 0.12, "time": HEAVY, "shape": "arc", "arc": 160.0, "power": 1.5, "knock": 340.0, "stun": 0.25, "freeze": 0.08, "shake": 9.0,
+		"curve": [-1.48, 1.48, 12.0, 18.0], "smear": "sweep_smear", "big": true},
+	# Rapier: thrust, thrust, lunge. A straight line that goes through to a second
+	# enemy. The lunge reaches further instead of moving you: attacks never carry
+	# you into the enemy (Darren, 9 November).
+	"thrust": {"windup": 0.06, "time": LIGHT, "shape": "line", "width": 13.0, "max_hits": 2, "power": 1.0, "knock": 200.0, "stun": 0.12, "freeze": 0.04,
+		"curve": [0.0, 0.0, 4.0, 26.0], "smear": "thrust_smear"},
+	"long_thrust": {"windup": 0.14, "time": HEAVY, "shape": "line", "width": 15.0, "max_hits": 2, "reach": 1.25, "power": 1.5, "knock": 340.0, "stun": 0.25, "freeze": 0.08, "shake": 8.0,
+		"curve": [0.0, 0.0, 0.0, 32.0], "smear": "thrust_smear", "big": true},
+	# Falchion: chop, chop, cleave. Everything shoves hard, and the cleave staggers.
+	"chop": {"windup": 0.08, "time": LIGHT, "shape": "arc", "arc": 110.0, "power": 1.0, "knock": 430.0, "stun": 0.2, "freeze": 0.06, "shake": 4.0,
+		"curve": [-1.05, 0.35, 11.0, 17.0], "smear": "chop_smear"},
+	"cleave": {"windup": 0.15, "time": HEAVY, "shape": "arc", "arc": 110.0, "power": 1.5, "knock": 560.0, "stun": 0.8, "freeze": 0.11, "shake": 12.0,
+		"curve": [-1.5, 0.4, 10.0, 18.0], "smear": "overhead_smear", "big": true},
+	# Greatsword: sweep, backswing, slam. Half a circle each way, then the ground breaks.
+	"great_sweep": {"windup": 0.1, "time": LIGHT, "shape": "arc", "arc": 180.0, "power": 1.0, "knock": 320.0, "stun": 0.2, "freeze": 0.06, "shake": 4.0,
+		"curve": [-1.48, 1.48, 13.0, 17.0], "smear": "sweep_smear"},
+	"great_back": {"windup": 0.1, "time": LIGHT, "shape": "arc", "arc": 180.0, "power": 1.0, "knock": 320.0, "stun": 0.2, "freeze": 0.06, "shake": 4.0,
+		"curve": [-1.48, 1.48, 13.0, 17.0], "smear": "sweep_smear", "mirror": true},
+	"slam": {"windup": 0.19, "time": HEAVY, "shape": "arc", "arc": 120.0, "power": 1.5, "knock": 480.0, "stun": 0.45, "freeze": 0.12, "shake": 15.0,
+		"curve": [-1.5, 0.3, 9.0, 19.0], "smear": "overhead_smear", "big": true, "burst": "slam_burst"},
+	# The old parts-grid moves (weapon_build.gd), kept so that screen still works.
+	"stab": {"windup": 0.06, "time": 0.25, "shape": "line", "width": 16.0, "range": 115.0, "power": 1.15, "knock": 320.0,
+		"curve": [0.0, 0.0, 4.0, 26.0], "smear": "thrust_smear"},
+	"lunge": {"windup": 0.15, "time": 0.38, "shape": "line", "width": 24.0, "range": 85.0, "power": 1.3, "knock": 300.0, "dash": 170.0,
+		"curve": [0.0, 0.0, 4.0, 26.0], "smear": "thrust_smear"},
+	"spin": {"windup": 0.07, "time": 0.44, "shape": "circle", "range": 72.0, "power": 0.85, "knock": 260.0,
+		"curve": [0.0, TAU, 14.0, 14.0], "smear": "slash_smear"},
 }
 
 var color := Color(0.35, 0.7, 1.0)
@@ -307,7 +358,8 @@ func _physics_process(delta: float) -> void:
 	if hold_button >= 0:
 		target *= HOLD_MOVE
 	elif current_step >= 0:
-		target *= SWING_MOVE
+		# Barely slowed while swinging; the blade's shape can change that.
+		target *= float(weapon.get("swing_move", SwingBuild.SWING_MOVE))
 	var rate := ACCEL
 	if move == Vector2.ZERO:
 		rate = DECEL
@@ -481,7 +533,9 @@ func _start_step() -> void:
 	anim_dir = aim_dir
 	face_dir = anim_dir
 	face_linger = FACE_LINGER
-	swing_side = 1.0 if current_step % 2 == 0 else -1.0
+	swing_side = 1.0
+	if info.get("mirror", false) or (info.get("alternate", false) and current_step % 2 == 1):
+		swing_side = -1.0
 	pose_from_angle = wrapf(pose_angle - anim_dir.angle(), -PI, PI)
 	stepped = false
 	settle = 0.0
@@ -517,26 +571,29 @@ const RETURN_TIME := 0.12
 func _do_move(move: String) -> void:
 	var info: Dictionary = MOVES.get(move, MOVES["slash"])
 	var area := 1.0 + float(weapon.get("area", 0.0))
-	var reach: float = float(info["reach"]) * float(weapon.get("reach", 1.0)) * area
 	var dmg: float = float(weapon.get("damage", 4.0)) * float(info["power"])
 	var knock: float = info["knock"]
 	var stun: float = float(info.get("stun", 0.12))
 	var freeze: float = float(info.get("freeze", 0.05))
 	var dir := anim_dir
-	var hits := 0
 	var hit_list: Array = []
 
-	# One arc in front, tested once on the hit frame (like Core Keeper): reach is
+	# One shape in front, tested once on the hit frame (like Core Keeper): reach is
 	# the blade's length plus a little margin, so it matches the sword you hold.
-	if weapon.has("blade"):
-		reach = _reach_px() + 18.0
+	var reach := _hit_reach() * float(info.get("reach", 1.0))
+	if not weapon.has("blade"):
+		reach = float(info.get("range", 74.0)) * float(weapon.get("reach", 1.0)) * area
+	var shape := str(info["shape"])
+	var swing := {"shape": shape, "dir": dir, "reach": reach,
+		"half_arc": deg_to_rad(float(info.get("arc", 120.0)) * 0.5), "width": float(info.get("width", 16.0))}
+	var found: Array = []   # [distance along the swing, enemy, knock direction]
 	for e in get_tree().get_nodes_in_group("enemies"):
 		if not is_instance_valid(e) or e.dead:
 			continue
 		var rel: Vector2 = e.global_position - global_position
 		var r: float = e.radius
 		var hit := false
-		match str(info["shape"]):
+		match shape:
 			"line":
 				var along := rel.dot(dir)
 				var side_d := absf(rel.dot(dir.orthogonal()))
@@ -544,27 +601,40 @@ func _do_move(move: String) -> void:
 			"circle":
 				hit = rel.length() <= reach + r
 			_:
-				var half_arc := deg_to_rad(float(info["arc"]) * 0.5)
-				hit = rel.length() <= reach + r and (rel.length() < r + RADIUS or absf(dir.angle_to(rel)) <= half_arc)
-		var kdir := rel.normalized() if rel.length() > 0.01 else dir
-		if str(info["shape"]) == "line":
-			kdir = dir
+				# The arc only has to touch the enemy's body, not reach its middle.
+				var d := rel.length()
+				var body := asin(minf(r / maxf(d, 1.0), 1.0))
+				hit = d <= reach + r and (d < r + RADIUS or absf(dir.angle_to(rel)) <= float(swing["half_arc"]) + body)
 		if hit:
-			_hit_enemy(e, dmg, kdir, knock, stun, freeze, {"shape": str(info["shape"]), "dir": dir, "reach": reach,
-				"half_arc": deg_to_rad(float(info.get("arc", 120.0)) * 0.5), "width": float(info.get("width", 16.0))})
-			hits += 1
-			hit_list.append(e)
+			var kdir := rel.normalized() if rel.length() > 0.01 else dir
+			if shape == "line":
+				kdir = dir
+			found.append([rel.dot(dir) if shape == "line" else rel.length(), e, kdir])
+	# A thrust stops after so many enemies, nearest first (the rapier goes through
+	# to a second one, the dagger's stab stays in the first).
+	if info.has("max_hits") and found.size() > int(info["max_hits"]):
+		found.sort_custom(func(x, y): return float(x[0]) < float(y[0]))
+		found.resize(int(info["max_hits"]))
+	for f in found:
+		_hit_enemy(f[1], dmg, f[2], knock, stun, freeze, swing)
+		hit_list.append(f[1])
+	var hits := hit_list.size()
+
+	if info.has("burst"):
+		# Where a slam lands: the ground breaks at the end of the blade. Seen from
+		# above, so it is never turned.
+		Art.play_piece(self, str(info["burst"]), global_position + dir * reach * 0.72 + Vector2(0, 8), 0.0, reach / 137.0)
 
 	var fx := Fx.new()
-	fx.kind = str(info["shape"])
-	if fx.kind == "arc":
-		fx.kind = "none"  # the sword's own trail shows the slash
+	fx.kind = shape
+	if shape == "arc" or (shape == "line" and Art.piece_texture(str(info.get("smear", ""))) != null):
+		fx.kind = "none"  # the sword's own smear shows the swing
 	fx.dir = dir
 	fx.radius = reach
 	fx.arc = float(info.get("arc", 120.0))
 	fx.width = float(info.get("width", 16.0)) * area
 	fx.color = weapon.get("hit_color", Color.WHITE)
-	fx.thick = move == "overhead"
+	fx.thick = info.get("big", false)
 	_fx_root().add_child(fx)
 	fx.global_position = global_position
 
@@ -574,8 +644,10 @@ func _do_move(move: String) -> void:
 		# A finisher that connects lands loud: you plant for a moment, the screen
 		# shakes and it thumps. A miss is just a swing. Nothing else in the game stops.
 		if hits > 0:
-			shake = maxf(shake, 10.0)
-			hit_pause = FINISHER_PAUSE
+			shake = maxf(shake, maxf(10.0, float(info.get("shake", 0.0))))
+			# (Shorter on a fast blade, longer on a slow one, so the pause never
+			# changes how one shape's damage a second compares with another's.)
+			hit_pause = FINISHER_PAUSE / _speed()
 			Sfx.play(self, "finisher", -4.0)
 		else:
 			shake = maxf(shake, 2.5)
@@ -606,8 +678,8 @@ func _hit_enemy(e, dmg: float, kdir: Vector2, knock: float, stun := 0.12, freeze
 			var bonus := (WEAK_CRIT - 1.0) * float(mark["power"]) + maxf(float(weapon.get("crit_damage", 1.6)) - 1.6, 0.0)
 			var col: Color = SwingBuild.FITTINGS["weak_point"]["color"]
 			e.take_hit(dmg * (1.0 + bonus), kdir, knock, true, col, maxf(stun, 0.3), maxf(freeze, 0.09))
+			# (The break is the hit's spark: it plays in place of the usual crit spark.)
 			Art.play_piece(self, "weak_break", spot_at, 0.0, 1.0 + 0.25 * minf(float(mark["power"]), 3.0))
-			Art.play_piece(self, "hit_spark_crit", e.global_position - kdir * float(e.radius) * 0.4, kdir.angle())
 			shake = maxf(shake, 9.0 + 2.0 * minf(float(mark["power"]), 3.0))
 			hit_pause = maxf(hit_pause, 0.05)
 			Sfx.play(self, "finisher", -3.0, 1.5)
@@ -1118,7 +1190,7 @@ func _run_leap() -> void:
 
 ## How far a swing reaches from the player's centre (see _do_move).
 func _hit_reach() -> float:
-	return _reach_px() + 18.0
+	return _reach_px() + REACH_MARGIN
 
 
 # --- Weak Point -------------------------------------------------------------------
@@ -1594,31 +1666,16 @@ func _sword_pose() -> Array:
 	return [pose_angle, pose_hand]
 
 
-## Blade lengths that set the hit range, in art pixels. Darren (7 Nov): the drawn
-## blades are a third shorter to suit the small crew, but the range stays as it was.
-const RANGE_BLADE_LEN := {"iron_shortblade": 23.0, "iron_blade": 33.0, "iron_longblade": 45.0,
-	"wooden_blade": 33.0, "tin_blade": 33.0}
+## How far the sword reaches from the hand, in world units, and what the smear
+## shows. The broadsword reaches 73 (a little past the drawn blade: Darren, 7 Nov,
+## drew the blades a third shorter to suit the small crew and kept the range). A
+## shape's reach multiplies the whole hit range, margin and all, so a rapier hits
+## at 1.4 times the distance a broadsword does.
+const BASE_REACH := 73.0
+const REACH_MARGIN := 18.0     # the hit lands this far past the smear
 
-
-## How far the sword reaches from the hand, in world units: the drawn sword plus
-## the gap between the drawn blade and its range length. The smear shows this reach.
 func _reach_px() -> float:
-	var blade: String = weapon.get("blade", "iron_blade")
-	var grip: String = weapon.get("grip", "wooden_grip")
-	var drawn := SwordArt.blade_size(blade, "hand").y
-	var extra := maxf(float(RANGE_BLADE_LEN.get(blade, drawn)) - drawn, 0.0)
-	return (SwordArt.pivot(blade, grip, "hand").y + extra) * Art.PIXEL
-
-
-## The swing curve for each move, as angles relative to the swing direction.
-## [start, end, arm at start, arm at end]. Slashes are mirrored on every other step.
-const SWING_CURVES := {
-	"slash": [-0.9, 0.9, 13.0, 16.0],
-	"overhead": [-1.4, 0.45, 10.0, 18.0],
-	"stab": [0.0, 0.0, 4.0, 26.0],
-	"lunge": [0.0, 0.0, 4.0, 26.0],
-	"spin": [0.0, TAU, 14.0, 14.0],
-}
+	return (BASE_REACH + REACH_MARGIN) * float(weapon.get("reach", 1.0)) - REACH_MARGIN
 
 
 ## Where the sword should be right now, during a swing. Returns [angle, hand, sweeping].
@@ -1629,22 +1686,32 @@ const SWING_PIVOT := Vector2(0, -14)
 const SWING_RADIUS := 9.0
 const SWEEP_TIME := 0.03
 
+## The move being swung (or the last one).
+func _move_info() -> Dictionary:
+	return MOVES.get(anim_move, MOVES["slash"])
+
+
+## A thrust goes straight out along the aim instead of round in an arc.
+static func _is_thrust(curve: Array) -> bool:
+	return absf(float(curve[1]) - float(curve[0])) < 0.05
+
+
 func _swing_times() -> Array:
-	var info: Dictionary = MOVES.get(anim_move, MOVES["slash"])
+	var info := _move_info()
 	var hit_at := float(info["windup"]) / _speed()
 	var sweep_start := maxf(hit_at - SWEEP_TIME * 0.5, 0.0)
 	return [sweep_start, sweep_start + SWEEP_TIME]
 
 
 func _attack_pose() -> Array:
-	var curve: Array = SWING_CURVES.get(anim_move, SWING_CURVES["slash"])
-	var side := swing_side if anim_move == "slash" else 1.0
+	var curve: Array = _move_info()["curve"]
+	var side := swing_side
 	var times := _swing_times()
 	var sweep_start: float = times[0]
 	var sweep_end: float = times[1]
 	var start_a: float = float(curve[0]) * side
 	var end_a: float = float(curve[1]) * side
-	var thrust := anim_move == "stab" or anim_move == "lunge"
+	var thrust := _is_thrust(curve)
 	var te := step_elapsed
 	var rel := end_a
 	var radius := SWING_RADIUS
@@ -1708,10 +1775,10 @@ func _update_pose(delta: float) -> void:
 			if not stepped:
 				# No step forward: swinging never moves you (it pushed you into enemies).
 				stepped = true
-				squash = Vector2(0.9, 1.1) if anim_move == "overhead" else Vector2(0.95, 1.06)
-		elif step_elapsed < float(MOVES.get(anim_move, MOVES["slash"])["windup"]) / _speed():
+				squash = Vector2(0.9, 1.1) if _move_info().get("big", false) else Vector2(0.95, 1.06)
+		elif step_elapsed < float(_move_info()["windup"]) / _speed():
 			# Wind up: crouch into it.
-			squash = squash.lerp(Vector2(1.1, 0.9) if anim_move == "overhead" else Vector2(1.04, 0.96), 1.0 - exp(-30.0 * delta))
+			squash = squash.lerp(Vector2(1.1, 0.9) if _move_info().get("big", false) else Vector2(1.04, 0.96), 1.0 - exp(-30.0 * delta))
 	else:
 		# At rest the sword snaps to its place (no spinning round when you turn).
 		# Straight after a swing it eases there from where the swing ended.
@@ -1741,8 +1808,8 @@ var smear_move := "slash"
 const SMEAR_LIFE := 0.1
 
 func _start_smear() -> void:
-	var curve: Array = SWING_CURVES.get(anim_move, SWING_CURVES["slash"])
-	var side := swing_side if anim_move == "slash" else 1.0
+	var curve: Array = _move_info()["curve"]
+	var side := swing_side
 	smear_t0 = game_time
 	smear_a0 = anim_dir.angle() + float(curve[0]) * side
 	smear_a1 = anim_dir.angle() + float(curve[1]) * side
@@ -1758,18 +1825,33 @@ func _draw_trail() -> void:
 	var age := (game_time - smear_t0) / SMEAR_LIFE
 	if age >= 1.0:
 		return
-	var length_px := _reach_px()
+	var info: Dictionary = MOVES.get(smear_move, MOVES["slash"])
+	var length_px := _reach_px() * float(info.get("reach", 1.0))
 	var r_in := 3.0 + length_px * 0.45
 	var r_out := 3.0 + length_px
 	var thrust := absf(smear_a1 - smear_a0) < 0.05
-	var piece := "overhead_smear" if smear_move == "overhead" else "slash_smear"
-	if not thrust and Art.piece_texture(piece) != null:
-		# The art's crescent reaches 40 px from the hand: scale it to this blade.
-		# The back-hand slash is the same picture mirrored across the aim (flipped
-		# left to right, then turned half round).
+	var piece := str(info.get("smear", "slash_smear"))
+	if Art.piece_texture(piece) != null:
+		# The art reaches 40 px from the hand: scale it to this blade. A swing the
+		# other way is the same picture mirrored across the aim (flipped left to
+		# right, then turned half round). A thrust is a straight streak, never mirrored.
 		var n := int(Art.piece(piece).get("frames", 4))
+		var frame := mini(int(age * n), n - 1)
+		if thrust:
+			# A streak from the hand to where the thrust lands: stretched along its
+			# length to the blade's reach, but kept thin, so a rapier's is a long
+			# needle and not a fat bar.
+			var tex := Art.piece_texture(piece)
+			var o: Array = Art.piece(piece).get("origin", [48, 48])
+			var fw := float(tex.get_width()) / n
+			var along := (r_out + REACH_MARGIN) / 40.0
+			var across := clampf(along, 1.6, 2.0) * (1.3 if info.get("big", false) else 1.0)
+			trail_layer.draw_set_transform(smear_center, smear_dir, Vector2(along, across))
+			trail_layer.draw_texture_rect_region(tex, Rect2(-float(o[0]), -float(o[1]), fw, tex.get_height()), Rect2(frame * fw, 0, fw, tex.get_height()))
+			trail_layer.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+			return
 		var back := smear_side < 0.0
-		Art.draw_piece(trail_layer, piece, mini(int(age * n), n - 1), smear_center,
+		Art.draw_piece(trail_layer, piece, frame, smear_center,
 			smear_dir + (PI if back else 0.0), back, Color.WHITE, Art.PIXEL * r_out / 80.0)
 		return
 	var col: Color = weapon.get("hit_color", Color.WHITE).lerp(Color(0.8, 0.9, 1.0), 0.5)
@@ -1825,13 +1907,23 @@ func _draw_weapon() -> void:
 		weapon_layer.draw_set_transform(hand, angle + PI * 0.5, Vector2(Art.PIXEL, Art.PIXEL))
 		var blade: String = weapon["blade"]
 		var grip: String = weapon["grip"]
-		SwordArt.draw(weapon_layer, blade, grip, weapon["line"], "hand", _slot_glow(), -SwordArt.pivot(blade, grip, "hand"), Color.WHITE, str(weapon.get("pommel", "plain_pommel")))
+		SwordArt.draw(weapon_layer, blade, grip, weapon["line"], "hand", _slot_glow(), -SwordArt.pivot(blade, grip, "hand"), Color.WHITE,
+			str(weapon.get("pommel", "plain_pommel")), SwordArt.one_edged(blade) and _edge_flipped(angle))
 	# The fist sits on the grip but is drawn upright, never spun with the sword.
 	var fist := Art.texture("body/hand.png")
 	if fist != null:
 		weapon_layer.draw_set_transform(hand, 0.0, Vector2(Art.PIXEL, Art.PIXEL))
 		weapon_layer.draw_texture(fist, -fist.get_size() * 0.5)
 	weapon_layer.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+
+
+## A one-edged blade (sabre, falchion) is drawn with its edge on the left of the
+## picture, which is the anticlockwise side of the sword in the hand. Mid-swing
+## the edge leads the cut; at rest it faces away from the body.
+func _edge_flipped(angle: float) -> bool:
+	if current_step >= 0 and not _is_thrust(_move_info()["curve"]):
+		return swing_side > 0.0   # a clockwise cut: the edge goes on the other side
+	return cos(angle) > 0.0
 
 
 ## How lit each slot is: a rune firing (and its bands), or the swing passing up the sword.
@@ -1863,7 +1955,7 @@ func _slot_world(i: int) -> Vector2:
 func _tip_world() -> Vector2:
 	var pose := _sword_pose()
 	var d := Vector2.RIGHT.rotated(float(pose[0]))
-	var blade: String = weapon.get("blade", "iron_blade")
+	var blade: String = weapon.get("blade", "iron_broadsword")
 	var grip: String = weapon.get("grip", "wooden_grip")
 	var length_px := SwordArt.pivot(blade, grip, "hand").y * Art.PIXEL
 	return global_position + pose[1] + d * length_px

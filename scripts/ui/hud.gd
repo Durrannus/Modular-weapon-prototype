@@ -248,7 +248,7 @@ func _draw_chain(p) -> void:
 	var y := SIZE.y - 62.0
 	_head("Chain", Vector2(x, y - 5), DIM)
 	for i in steps.size():
-		var label: String = steps[i]["move"]
+		var label: String = steps[i].get("name", steps[i]["move"])
 		if i == steps.size() - 1:
 			label += " (finisher)"
 		var w := _head_width(label) + 10.0

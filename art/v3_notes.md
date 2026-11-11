@@ -184,15 +184,70 @@ The prototype reported three pieces that read badly. All three keep their file n
 
 Preview: `preview/gaps_fixes.png`. Code: `concept-art-3/code/v3_gaps5.py`.
 
-## Added by the prototype for active runes (10 November, late)
+## Opening cutscene: the storm and the wreck (10 November, late evening)
 
-Four small stand-ins, made in the same make as their neighbours so the active runes could be shown at once. Redraw any of
-them under the same name and size and it drops in.
+Darren asked for an opening cutscene for the tutorial: the ship in a storm, and the crash. It is in `cutscene/intro/`.
 
-- `hud/glyph_whirlwind.png`, 12 x 12, the ability-slot glyph for Whirlwind (a ring with two arrowheads, in the rune's pink). The weakest of the four.
-- `cave/ui/prompt_q.png`, 16 x 16, the Q keycap (prompt_e with a Q).
-- `cave/ui/prompt_pad_rb.png` and `prompt_pad_lb.png`, 24 x 16, the controller's shoulder buttons.
+- `f_000.png` to `f_277.png`: 278 full frames, 320 x 180 art px, 12 frames a second (23 seconds). Show them at scale 2 with nearest filtering.
+- `p2/f_NNN.png`: the same size, mostly transparent. When a second player is in the game, draw it on top of the frame with the same number, where the file exists (238 of the 278). It adds player two (blue scarf) to every shot. Without it only player one (red scarf) is on board.
+- `intro.json`: `fps`, `frames`, `shots` (first frame and length of each), `captions` (from frame, to frame, text), `cues` (frame numbers for thunder, the wave, the strike, the rumble and the rockfall, for sound later), `flashes` (the full-white lightning frames, in case a "reduce flashing" option is wanted) and `p2_frames`.
 
-The ability slot (`hud/ability_slot.png`, `ability_ready.png`, `ability_cool.png`, `glyph_hook.png`) is now in use: under each
-player's health bar, one slot per active rune with its button beside it. `ability_cool.png` is drawn as frame
-`int(meter * 8)` while the meter is not full (0 = just used, 7 = nearly back).
+| Shot | Frames | What happens |
+| --- | --- | --- |
+| A | 0 to 65 | The ship in a heavy sea. Hatches in from black. |
+| B | 66 to 121 | On deck: the players, the weapons crate, the lantern. A flash shows land. A sea comes aboard. Ends on white. |
+| C | 122 to 177 | Starts on a flash: the cliff, the sea cave and the giant sword. The ship strikes the reef. Ends on black. |
+| D | 178 to 277 | The crew wade out with a lantern and into the cave. The roof of the arch comes down. Ends on black. |
+
+Captions are not in the pictures. Draw them with the game font on `cave/ui/hint_plate.png`, bottom centre. The words in `intro.json` can be changed freely. After the cutscene the game's "Shipwrecked" card only needs its last line ("The only way out is forward."), because the cutscene now shows the rest.
+
+Any button should skip to the end. The last frame is black, so the cave can fade in from it.
+
+Things in it that tie to the game: the sail with the madder stripe is the one lying in room 1, the crate on deck is the weapons crate, the lantern is the one by the crate, and the giant sword in the cliff is the blade that comes through the roof of room 1.
+
+Preview with captions: `preview/intro_cutscene.gif`. Code: `concept-art-3/code/cut_intro.py` (`build`, `export`, `preview`), with `cut_core.py`, `cut_ship.py`, `cut_cliff.py`, `cut_deck.py`.
+
+## Art for the 11 November decisions (blade shapes, Weak Point, active stones, third button)
+
+Answers `art/requests/nov11-prototype-art.md`. Every file has the name and size asked for, so each one drops in over the
+stand-in of the same name. Numbers to merge are in `swing/nov11.json` (blades, slot rects, tips, the Weak Point rune and
+its colour, forge strip sizes); the effect pieces and prompts are new entries in `gaps.json`.
+Previews: `preview/nov11_blades.png`, `nov11_stones_prompts.png`, `nov11_weak_point.png`, `nov11_smears.png`.
+
+**A1 Blade shapes** (`swing/blades/<id>_hand.png`, `_forge.png`, `_icon.png`):
+`iron_dagger` 3x11 / 15x63 / 28x13, `iron_sabre` 7x20 / 27x93 / 40x13, `iron_rapier` 3x33 / 13x135 / 58x13,
+`iron_falchion` 7x20 / 29x93 / 40x13, `iron_greatsword` 7x36 / 31x147 / 62x13. `iron_broadsword_*` are plain copies of
+`iron_blade_*` (and of its heat and shine strips), so the new id has files too.
+- Tip at the top, foot centred on the middle column, two sockets each at the rows and rects you gave.
+- Sabre and falchion are single-edged: the cutting edge is on the LEFT of the picture, the dark spine on the right. The
+  sabre's point sweeps to the right (tip pixel at x = 26 of 27 on the forge picture, x = 6 of 7 in the hand); the
+  falchion's belly swells to the left and its point is clipped. If a swing looks back to front, flip the blade picture.
+- Dagger and rapier: the bronze socket collars are wider than the steel.
+- The greatsword has a verdigris channel and two bronze-shod lugs above the collars.
+
+**A2 Weak Point** (passive, round): `swing/runes/weak_point_icon.png` 26x26, `_forge` and `_forge_lit` 9x9, `_hand` and
+`_hand_lit` 1x1. The stone is the same amber as every rune; the glyph is a ring broken in four with one ice-blue spot.
+Colour kept at `#b8f4ff` (`rune_colours.weak_point`, with a six-step ramp beside it).
+- `fx/weak_mark.png` 6 x 24x24, origin (12, 12), 10 fps, loops, additive.
+- `fx/weak_mark_on.png` 5 x 40x40, origin (20, 20), 20 fps, once, additive. Its last frame matches the loop.
+- `fx/weak_break.png` 6 x 72x72, origin (36, 36), 22 fps, once, additive. Play it in place of `hit_spark_crit`.
+
+**A3 Active stones are square:** `hook_icon`, `whirlwind_icon`, `leap_icon` (26x26; the stone is 24x24 inside the frame)
+and their `_forge` / `_forge_lit` (9x9) were redrawn square under the same names. Glyphs, colours and the 1x1 hand dots
+are unchanged. `swing/ui/active_badge.png` 9x9 is a small key cap; draw it at (18, 18) on the icon.
+`swing/ui/tray_passive.png` and `tray_active.png` are 60x9 headers (verdigris with a round mark, ember with a square one).
+The old round stones are kept in `art/concept-art-3/code/round_runes/`.
+
+**A4 Prompts:** `cave/ui/prompt_r.png`, `prompt_q.png` 16x16; `prompt_pad_rb.png`, `prompt_pad_lb.png` 24x16;
+`hud/glyph_whirlwind.png` 12x12 (two arrows chasing round, in Whirlwind's rose). These replace the prototype's stand-ins.
+
+**B1 Forge strips:** `swing/forge-fx/heat_<id>.png` and `shine_<id>.png` for the five shapes, 8 frames each the size of
+the forge picture, additive, same timing as `heat_iron_blade.png`.
+
+**B2 Smears** (`swing/fx/`, 4 x 96x96, origin (48, 48), 40 fps, additive, pointing right, outer radius 40):
+`sweep_smear` (-85 to +85), `flick_smear` (-32 to +32, thin), `chop_smear` (-60 to +20, thick), `thrust_smear` (a spear
+of light along +x to 40 px). `slam_burst.png` is 6 x 96x64, origin (48, 40), 20 fps, additive, seen from above: do not
+rotate it.
+
+Drawing code: `art/concept-art-3/code/v3_nov11.py` (blades, heat, shine) and `v3_nov11b.py` (everything else;
+`python3 v3_nov11b.py export`).

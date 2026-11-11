@@ -25,7 +25,7 @@ func _init() -> void:
 		["relay", "mirror", "wider", ""],
 	]
 	forge.build.set_grip("gilded_grip")
-	forge.build.set_blade("iron_blade")
+	forge.build.set_blade("iron_broadsword")
 	for l in lines:
 		forge.build.line = l.duplicate()
 		for t in forge.TABS.size():
