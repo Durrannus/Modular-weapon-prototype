@@ -15,7 +15,33 @@ This branch (`swing-path`) has four things to try:
 2. Open Godot, click **Import**, and pick the `project.godot` file in this folder.
 3. Press **F5** (or the Play button at the top right).
 
-The title screen asks who is playing and what to play.
+The game opens on the intro screen: a slowly moving picture of the world and the crew (first light over the sea, the colossal sword in the cliff, the two of them on a headland with their own sword and a lantern), with the buttons that start a game. For now those are **Tutorial**, **Arena**, **Play online** and **Quit**. "New game" and "Continue" will go on top of them later; the column already keeps the room.
+
+### The intro screen
+
+The picture is not built into the code. `art/title/title.json` lists its layers from back to front, and `scripts/ui/title.gd` draws whatever is listed, so the art can be swapped or added to without touching a script. Every layer is one picture in `art/title/`:
+
+| Key | What it does |
+|---|---|
+| `file` | The picture. |
+| `at` | Its top-left corner, `[x, y]`. Left out, it is the corner of the screen. |
+| `frames`, `fps` | A strip of frames side by side that loops: a scarf in the wind, the sea, someone breathing. |
+| `cols` | When one row of frames would be too wide a picture: the frames sit in rows of this many, read left to right and then down. |
+| `scroll` | `[x, y]` pixels a second. The picture drifts a whole pixel at a time and repeats in the direction it moves (clouds, mist), so it must be drawn to tile. |
+| `blend` | `"add"` for light: glows, light shafts, reflections. |
+| `pulse` | `[lowest, highest, seconds]`: how see-through it is breathes between the two (a lantern's light). |
+| `bob` | `[x, y, seconds]`: it sways that many pixels there and back (a boat, floating wreckage). |
+| `alpha` | How see-through it is all the time. |
+
+Beside the layers: `scale` (1 for a 640 x 360 picture, 2 for a 320 x 180 one like the opening cutscene), `embers` (sparks drawn in code that rise inside `area` `[left, top, right, bottom]`: `count`, `rise` in pixels a second, `sway`, `colors`), `logo` (`at`, and `file` if the name is a drawn picture; without one the words are set in the game's font), `menu` (`at` is the top-left of the button column, `width`, and `plate` from 0 to 1 for a dark plate behind it) and `music` (a track from `art/music/`, or nothing).
+
+Today's picture (12 November, from the art thread) is three layers at scale 2: the sky, a band of cloud that drifts, and one 48-frame loop of six seconds for everything in front of the sky (the sea, birds, sea-grass, the crew breathing, their scarves, the lantern and its sparks, the ember in the great sword). The calm cave music plays under it.
+
+Nothing in it may move the forge's flames: Darren's rule is that forge backdrops stay still. Motion is slow and small everywhere.
+
+Every few seconds a glint of light runs along the name. The name itself is a working one ("MODULAR WEAPON / PROTOTYPE"): the game has none yet, and it is one constant, `NAME`, in `scripts/ui/title.gd`.
+
+The bottom band of the screen says what the buttons do and who has joined; the version number sits under it. Picking a row fades the screen to black for a moment and then starts the game. `tests/title_screen.gd` checks the picture's files and numbers, that six rows fit above the bottom band, and that joining and choosing start the right game.
 
 ### Which version is this?
 
@@ -30,7 +56,7 @@ The number lives in `scripts/version.gd`. Don't edit it by hand: see "Checks" be
 Both players share one screen. One uses the keyboard and mouse and the other a controller, or both use controllers.
 
 1. On the title screen each player presses their own button to join: **Enter** (or a click) for keyboard and mouse, **A** for a controller. The first to press is player one.
-2. Either player then picks **Tutorial cave** or **Test arena**.
+2. Either player then picks **Tutorial** or **Arena**.
 
 Player one is blue and player two is orange (the ring under their feet and the bar by their health). The camera stays between you, and you can't walk further apart than one screen.
 
@@ -152,6 +178,7 @@ godot --headless --path . --fixed-fps 60 -s tests/blade_shapes.gd              #
 godot --headless --path . --fixed-fps 60 -s tests/cave_playthrough.gd          # plays the whole cave
 godot --headless --path . --fixed-fps 60 -s tests/cave_playthrough.gd -- players=2 wipe down
 godot --path . -s tests/smoke_forge.gd                                         # opens the forge, fires every rune
+godot --headless --path . --fixed-fps 60 -s tests/title_screen.gd              # the intro screen: its picture, its buttons, joining and choosing
 godot --headless --path . -s tests/version_check.gd                            # the version number was raised if anything changed
 ```
 
@@ -231,8 +258,8 @@ This branch tests the **swing path** (design notes, 3 November). It replaces the
 Code map:
 
 ```
-scenes/boot.tscn, scripts/boot.gd    Title screen, then the mode you pick
-scripts/ui/title.gd                  Who is playing, what to play
+scenes/boot.tscn, scripts/boot.gd    Intro screen, then the mode you pick
+scripts/ui/title.gd                  The intro screen: the moving picture (art/title/title.json), the buttons, who is playing
 scripts/ui/online_menu.gd            The "Play online" screen: host, join, start
 scripts/net/session.gd               Online play: connecting, sending controls, keeping both games in step
 scripts/net/net.gd                   Where game code asks "are we online, and which player am I?"

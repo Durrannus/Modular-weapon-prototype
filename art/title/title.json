@@ -1,0 +1,70 @@
+{
+ "note": "Title screen background, 12 November. 320 x 180 art pixels at scale 2, like the opening cutscene. Layers back to front. Everything that moves except the clouds is baked into the 'front' loop (sea, the sword's ember, birds, sea-grass, crew breathing, scarves, lantern, embers), so no code embers are needed.",
+ "scale": 2,
+ "size": [
+  320,
+  180
+ ],
+ "layers": [
+  {
+   "file": "sky.png"
+  },
+  {
+   "file": "clouds.png",
+   "at": [
+    0,
+    4
+   ],
+   "scroll": [
+    -2,
+    0
+   ],
+   "note": "640 x 96, tiles sideways"
+  },
+  {
+   "file": "front.png",
+   "frames": 48,
+   "fps": 8,
+   "cols": 8,
+   "frame": [
+    320,
+    180
+   ],
+   "note": "a 6 second loop as a GRID, 8 columns x 6 rows, read left to right then down (one row would be 15360 px wide). The same frames are also single pictures: front/f_00.png to front/f_47.png"
+  }
+ ],
+ "logo": {
+  "at": [
+   14,
+   12
+  ],
+  "note": "no logo picture: set the words here in Silkscreen. The sky is near-black there"
+ },
+ "menu": {
+  "at": [
+   14,
+   60
+  ],
+  "width": 100,
+  "height": 90,
+  "note": "art px (= 200 x 180 screen px). Dark sky above the horizon, dark sea below; nothing moves there but faint crest lines",
+  "plate": 0.45
+ },
+ "bottom_strip": 14,
+ "points": {
+  "sun": [
+   250,
+   86
+  ],
+  "horizon_y": 120,
+  "lantern": [
+   182,
+   145
+  ],
+  "giant_sword_socket": [
+   268,
+   49
+  ]
+ },
+ "music": "cave_calm"
+}
