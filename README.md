@@ -45,6 +45,20 @@ Every few seconds a glint of light runs along the name. The name itself is a wor
 
 The bottom band of the screen says what the buttons do and who has joined; the version number sits under it. Picking a row fades the screen to black for a moment and then starts the game. `tests/title_screen.gd` checks the picture's files and numbers, that six rows fit above the bottom band, and that joining and choosing start the right game.
 
+### One file to send to a friend (Windows)
+
+`tools/make_exe.gd` packs the whole game into a single `.exe` that runs with a double-click: no Godot to install and nothing to unzip.
+
+```
+godot --headless --path . -s tools/make_exe.gd -- template=/path/to/windows_release_x86_64.exe out="/path/to/Modular Weapon Prototype v16.exe"
+```
+
+`template` is Godot's own empty game runner for the same Godot version (4.7). It is inside the "Export templates" download on the Godot site (a `.tpz` file, which is a zip: `templates/windows_release_x86_64.exe`).
+
+The pack holds `project.godot` and every file of the game exactly as it is in this folder, so the packed game is the same game: the version number in the corner does not say "+ changes", and online play accepts it as the same copy as the folder run in Godot. The pack is put on the end of the runner the same way Godot's own export does with "Embed PCK" on. This is why the game's pictures, fonts and music are read through Godot's file system (`Art.image`, `Art.font`, `scripts/music.gd`) and never straight off the disk: a packed game has no folder to read from.
+
+The file is not signed, so the first time it is run Windows shows "Windows protected your PC": click **More info**, then **Run anyway**.
+
 ### Which version is this?
 
 The bottom-left corner of every screen says **Version 5** (or whatever the number is now). The number goes up by one with every change that is pushed, so after a pull you can see that you have the new one, and two people can check they have the same one.
@@ -266,6 +280,7 @@ scripts/ui/online_menu.gd            The "Play online" screen: host, join, start
 scripts/net/session.gd               Online play: connecting, sending controls, keeping both games in step
 scripts/net/net.gd                   Where game code asks "are we online, and which player am I?"
 scripts/net/port_opener.gd           Asks the home router to let the other player in
+tools/make_exe.gd                    Packs the game into one Windows .exe to send to a friend
 scripts/sim.gd                       Random numbers for anything that decides what happens (the same on both computers)
 scripts/game_base.gd                 What both modes share: players, swords, camera, HUD, forge
 scripts/cave/cave.gd                 The tutorial cave: map, rooms, stages

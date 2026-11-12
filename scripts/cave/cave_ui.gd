@@ -150,11 +150,8 @@ func _advance_cut(pressed: bool, delta: float) -> void:
 
 
 func _cut_picture(file: String) -> ImageTexture:
-	var path := Art.ART_DIR + cut_dir + "/" + file
-	if not FileAccess.file_exists(path):
-		return null
-	var img := Image.new()
-	if img.load(ProjectSettings.globalize_path(path)) != OK:
+	var img := Art.image(Art.ART_DIR + cut_dir + "/" + file)
+	if img == null:
 		return null
 	return ImageTexture.create_from_image(img)
 

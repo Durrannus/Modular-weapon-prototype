@@ -71,7 +71,8 @@ static func _load(track: String) -> AudioStream:
 	var path := DIR + track + ".ogg"
 	var s: AudioStreamOggVorbis = null
 	if FileAccess.file_exists(path):
-		s = AudioStreamOggVorbis.load_from_file(ProjectSettings.globalize_path(path))
+		# Through the game's own file system, so it also works packed into one file.
+		s = AudioStreamOggVorbis.load_from_buffer(FileAccess.get_file_as_bytes(path))
 		if s != null:
 			s.loop = true
 	_streams[track] = s

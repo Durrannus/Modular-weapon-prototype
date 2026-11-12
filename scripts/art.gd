@@ -27,12 +27,23 @@ static func texture(rel_path: String) -> Texture2D:
 		return _cache[rel_path]
 	var tex: Texture2D = null
 	var path := ART_DIR + rel_path
-	if FileAccess.file_exists(path):
-		var img := Image.new()
-		if img.load(ProjectSettings.globalize_path(path)) == OK:
-			tex = ImageTexture.create_from_image(img)
+	var img := image(path)
+	if img != null:
+		tex = ImageTexture.create_from_image(img)
 	_cache[rel_path] = tex
 	return tex
+
+
+## A PNG from the game's files, or null. It is read through the game's own file
+## system, not straight off the disk, so it also works when the whole game is
+## packed into one file (tools/make_windows_exe.gd).
+static func image(path: String) -> Image:
+	if not FileAccess.file_exists(path):
+		return null
+	var img := Image.new()
+	if img.load_png_from_buffer(FileAccess.get_file_as_bytes(path)) != OK:
+		return null
+	return img
 
 
 static func part_hand(id: String) -> Texture2D:
@@ -231,7 +242,8 @@ static func font(name: String) -> Font:
 	var path := ART_DIR + "fonts/%s.ttf" % name
 	if FileAccess.file_exists(path):
 		var ff := FontFile.new()
-		if ff.load_dynamic_font(ProjectSettings.globalize_path(path)) == OK:
+		ff.data = FileAccess.get_file_as_bytes(path)   # not off the disk: see image()
+		if not ff.data.is_empty():
 			ff.antialiasing = TextServer.FONT_ANTIALIASING_NONE
 			ff.hinting = TextServer.HINTING_NONE
 			ff.subpixel_positioning = TextServer.SUBPIXEL_POSITIONING_DISABLED
