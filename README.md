@@ -15,7 +15,7 @@ This branch (`swing-path`) has four things to try:
 2. Open Godot, click **Import**, and pick the `project.godot` file in this folder.
 3. Press **F5** (or the Play button at the top right).
 
-The game opens on the intro screen: a slowly moving picture of the world and the crew (first light over the sea, the colossal sword in the cliff, the two of them on a headland with their own sword and a lantern), with the buttons that start a game. For now those are **Tutorial**, **Arena**, **Play online** and **Quit**. "New game" and "Continue" will go on top of them later; the column already keeps the room.
+The game opens on the intro screen: a picture of the game at its best moment, alive with small movement (four players on the forge guardian at once, each with a different weapon and ability), with the buttons that start a game. For now those are **Tutorial**, **Arena**, **Play online** and **Quit**. "New game" and "Continue" will go on top of them later; the column already keeps the room.
 
 ### The intro screen
 
@@ -35,7 +35,9 @@ The picture is not built into the code. `art/title/title.json` lists its layers 
 
 Beside the layers: `scale` (1 for a 640 x 360 picture, 2 for a 320 x 180 one like the opening cutscene), `embers` (sparks drawn in code that rise inside `area` `[left, top, right, bottom]`: `count`, `rise` in pixels a second, `sway`, `colors`), `logo` (`at`, and `file` if the name is a drawn picture; without one the words are set in the game's font), `menu` (`at` is the top-left of the button column, `width`, and `plate` from 0 to 1 for a dark plate behind it) and `music` (a track from `art/music/`, or nothing).
 
-Today's picture (12 November, from the art thread) is three layers at scale 2: the sky, a band of cloud that drifts, and one 48-frame loop of six seconds for everything in front of the sky (the sea, birds, sea-grass, the crew breathing, their scarves, the lantern and its sparks, the ember in the great sword). The calm cave music plays under it.
+Today's picture (12 November, the art thread's second design) is the fight, frozen: the forge guardian in front of the blazing forge gate with its hammer over its head, and four players on it, each on their coloured ring with a different weapon and ability. Gold has the bow (Volley), violet the staff (Lance), blue the hammer (Quake) and red the sword (Leap). It is three layers at scale 2: the wall, gate and floor; a band of smoke that drifts under the roof; and one 48-frame loop of six seconds for everything else. Nothing travels: the trails, the beam, the cracks, the scarves, the guardian's heart and the sparks shimmer in place. The bow, staff and hammer are first drawings for this picture only, not weapons in the game yet, and players three and four are the two crew recoloured. The calm cave music plays under it.
+
+Darren asked for it after seeing the first design (sunrise, two of the crew on a headland looking at the colossal sword): with four players coming it made the game look like a two-player one, and he wanted something new and more exciting that remembers the different weapons and abilities. The first design was version 14 and is in the history.
 
 Nothing in it may move the forge's flames: Darren's rule is that forge backdrops stay still. Motion is slow and small everywhere.
 
