@@ -178,7 +178,7 @@ func _run() -> void:
 	_check(p.weapon.get("weapon") == "bow" and p._is_bow(), "and the player knows it is a bow")
 	_check(m.build.stowed.get("sword") == sword and not m.build.stowed.has("bow"), "the sword waits, exactly as it was")
 	_check(m.hud.swap_button.text == "SWAP TO SWORD (B)", "the button now offers the sword")
-	_check(is_equal_approx(float(p.weapon["damage"]), 11.0 * SwingBuild.BOW_DAMAGE) and is_equal_approx(float(p.weapon["damage"]), 8.25), "an iron arrow does 8.25: three quarters of an iron sword's 11")
+	_check(is_equal_approx(float(p.weapon["damage"]), 11.0 * SwingBuild.BOW_DAMAGE) and is_equal_approx(float(p.weapon["damage"]), 8.8), "an iron arrow does 8.8: four fifths of an iron sword's 11")
 	_check(is_equal_approx(float(p.weapon["range"]), 520.0) and is_equal_approx(float(p.weapon["flight"]), 1300.0), "it flies 520 px at 1300 a second")
 	var chain: Array = []
 	for st in p.weapon["steps"]:
@@ -201,7 +201,7 @@ func _run() -> void:
 	fresh.set_data(SwingBuild.STARTERS["sword"])
 	fresh.take("bow")
 	_check(fresh.get_data() == SwingBuild.STARTERS["bow"] and fresh.compute()["weapon"] == "bow", "someone who never had a bow gets the wooden shortbow")
-	_check(is_equal_approx(float(fresh.compute()["damage"]), 3.75), "whose wooden arrows do 3.75")
+	_check(is_equal_approx(float(fresh.compute()["damage"]), 4.0), "whose wooden arrows do 4: a chain of 4 + 4 + 6 is one crawler's 14")
 	fresh.take("staff")
 	_check(fresh.weapon() == "bow", "(asking for a weapon that doesn't exist changes nothing)")
 
@@ -227,7 +227,7 @@ func _run() -> void:
 	# The numbers plate: range where a sword has reach, and what a part would change.
 	var now: Dictionary = Forge.stat_values(forge.build.compute())
 	_check(now.has("range") and now.has("shoot_move") and not now.has("reach"), "a bow's numbers show range and walking while shooting")
-	_check(Forge.stat_text("damage", now["damage"]) == "Damage 8.3" and Forge.stat_text("range", now["range"]) == "Range 100%", "an iron shortbow reads Damage 8.3, Range 100%")
+	_check(Forge.stat_text("damage", now["damage"]) == "Damage 8.8" and Forge.stat_text("range", now["range"]) == "Range 100%", "an iron shortbow reads Damage 8.8, Range 100%")
 	var change: Dictionary = Forge.stat_changes(now, Forge.stat_values(forge.stats_with("iron_longbow")))
 	_check(str(change.get("range", "")) == "+35%" and str(change.get("damage", "")).begins_with("-") and str(change.get("shoot_move", "")) == "-10%", "pointing at the longbow shows more range, lighter arrows, slower feet: %s" % [change])
 	change = Forge.stat_changes(now, Forge.stat_values(forge.stats_with("tin_arrows")))
@@ -243,7 +243,7 @@ func _run() -> void:
 		if tray[i]["id"] in ["iron_longbow", "horn_bow_grip", "keen_string", "tin_arrows"]:
 			forge._use_card(i)
 	_check(m.build.get_data() == ["iron_longbow", "horn_bow_grip", "keen_string", ["volley", "snipe", "", "arrow_rain", "ricochet"], "tin_arrows"], "clicking limbs, a grip, a string and arrows fits them: %s" % [m.build.get_data()])
-	_check(is_equal_approx(float(p.weapon["damage"]), 8.0 * 0.75 * 0.9) and is_equal_approx(float(p.weapon["range"]), 702.0), "a longbow with tin arrows: 5.4 damage, 702 px")
+	_check(is_equal_approx(float(p.weapon["damage"]), 8.0 * 0.8 * 0.9) and is_equal_approx(float(p.weapon["range"]), 702.0), "a longbow with tin arrows: 5.76 damage, 702 px")
 	forge._load_test("A")
 	_check(m.build.weapon() == "bow", "the test-sword keys do nothing while a bow is on the anvil")
 	# Presets: a bow has three of its own.
@@ -267,15 +267,15 @@ func _run() -> void:
 	m.build.changed.emit()
 	await _frames(2)
 
-	# --- A chain at one enemy: 8.25, 8.25, 12.375 --------------------------------------
+	# --- A chain at one enemy: 8.8, 8.8, 13.2 --------------------------------------------
 	await _still()
 	var post = _slime(Vector2(200, 0))
 	await _frames(2)
 	await _shots(1)
-	_check(is_equal_approx(_lost(post), 8.25), "a quick shot hits an enemy 200 px away for 8.25 (%.3f)" % _lost(post))
+	_check(is_equal_approx(_lost(post), 8.8), "a quick shot hits an enemy 200 px away for 8.8 (%.3f)" % _lost(post))
 	post.hp = post.max_hp
 	await _shots(3)
-	_check(absf(_lost(post) - (8.25 + 8.25 + 12.375)) < 0.001, "the whole chain: 8.25 + 8.25 + a heavy 12.375 = 28.875 (%.3f)" % _lost(post))
+	_check(absf(_lost(post) - (8.8 + 8.8 + 13.2)) < 0.001, "the whole chain: 8.8 + 8.8 + a heavy 13.2 = 30.8 (%.3f)" % _lost(post))
 	_check(_arrows().is_empty(), "an arrow that hits is gone")
 	_check(is_equal_approx(p.global_position.x, home.x) and is_equal_approx(p.global_position.y, home.y), "shooting doesn't move you")
 	post.queue_free()
@@ -393,7 +393,7 @@ func _run() -> void:
 	await _frames(1)
 	_check(m.build.weapon() == "sword", "swapping to the sword while it flies")
 	await _frames(40)
-	_check(is_equal_approx(_lost(target), 8.25), "it still lands for its 8.25")
+	_check(is_equal_approx(_lost(target), 8.8), "it still lands for its 8.8")
 	_check(m.net_state().size() == before - 3, "(online, both computers compare where every arrow is while it flies)")
 	target.queue_free()
 	await _still()
@@ -423,7 +423,7 @@ func _run() -> void:
 	var far_post = _slime(Vector2(650, 0))
 	await _frames(2)
 	await _shots(1)
-	_check(is_equal_approx(_lost(far_post), 8.25 * 0.9 * 1.5), "a long shot reaches an enemy 650 px away for 11.1 (%.3f)" % _lost(far_post))
+	_check(is_equal_approx(_lost(far_post), 8.8 * 0.9 * 1.5), "a long shot reaches an enemy 650 px away for 11.9 (%.3f)" % _lost(far_post))
 	far_post.queue_free()
 	p.input.move = Vector2.LEFT
 	p.input.attack_held = true
@@ -453,7 +453,7 @@ func _run() -> void:
 	await _still()
 	var bow_dps: float = await _dps(Vector2(200, 0))
 	var ratio := bow_dps / sword_dps
-	_check(ratio > 0.6 and ratio < 0.85, "iron shortbow %.1f damage a second, iron broadsword %.1f: the bow does %.2f of the sword's" % [bow_dps, sword_dps, ratio])
+	_check(ratio > 0.6 and ratio < 0.9, "iron shortbow %.1f damage a second, iron broadsword %.1f: the bow does %.2f of the sword's" % [bow_dps, sword_dps, ratio])
 
 	print("RESULT: " + ("all passed" if fails == 0 else "%d FAILED" % fails))
 	quit(1 if fails > 0 else 0)

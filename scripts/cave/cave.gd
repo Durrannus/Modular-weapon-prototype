@@ -1,11 +1,11 @@
 extends "res://scripts/game_base.gd"
 ## The tutorial cave from the Game Plan: four rooms, climbed from south to north.
 ##
-##   Room 1  the wreck     find your weapon in the ship's crate, fight a few crawlers
+##   Room 1  the wreck     choose a sword or a bow from the ship's crate, fight a few crawlers
 ##   Room 2  the burrows   learn to dodge against burrowers that lunge
 ##   Room 3  the nest      a mixed fight; clearing it gives your first rune
 ##   Room 4  the forge     fitting the rune wakes the guardian; beat it, free the
-##                         smith, forge the tin sword, take the stairs up
+##                         smith, forge the tin sword or bow, take the stairs up
 ##
 ## The map is a grid of rock and floor built in code (see _carve). The ground the
 ## players see is one painted image made from that same map (art/cave/cave_ground.png).
@@ -38,6 +38,20 @@ const BUMPS := [
 const CENTRE_X := 20.5          # the cave's centre line, in tiles
 const SPAWN := Vector2(20.5, 64.6)
 const FORGE_AT := Vector2(20.5, 6.88)     # the forge's feet, in tiles
+const CRATE_AT := Vector2(14.5, 61.62)    # the ship's crate (its feet), in tiles
+## The wooden weapons in the crate, in the order their plates hang over it. The
+## Game Bible gives every player a choice of four; the staff and the hammer are
+## not built yet, so their plates (shown once their pictures exist) stay locked.
+## The two you can take hang in the middle, one each side of the crate.
+const CRATE_WEAPONS := ["staff", "sword", "bow", "hammer"]
+const PICK_GAP := 68.0          # from one plate to the next (34 art pixels)
+const PICK_LIFT := 106.0        # the plates' centres, above the crate's feet
+## Each weapon's first rune, from the pedestal in room 3 (Game Bible: the sword's
+## is Shockwave. The bow's was an open item: Steady Aim is Claude's choice, the
+## only bow passive that helps against a single boss, which a starter rune must).
+const STARTER_RUNE := {"sword": "shockwave", "bow": "steady_aim"}
+## What the smith hands over, by weapon.
+const TIN_PARTS := {"sword": ["tin_blade", "tin_grip"], "bow": ["tin_shortbow", "tin_bow_grip", "tin_arrows"]}
 const GUARDIAN_AT := Vector2(20.5, 12.62) # the casting circle he kneels on
 ## Light colours from the art notes.
 const WARM := Color(1.0, 0.60, 0.28)
@@ -57,7 +71,10 @@ var lights := {}                # name -> PointLight2D
 
 var stage := "intro"
 var owned: Array = []           # per player: the part ids they can use at the forge
-var armed: Array = []           # per player: has taken a sword
+var armed: Array = []           # per player: has taken a weapon from the crate
+var crate_open := false         # the crate has been searched: its weapons are on show
+var picks_ready := false        # a moment later they can be taken (so a second press of "use" doesn't take one unseen)
+var cards_seen := {}            # weapon -> its "how to use it" card has been shown
 var room_i := 0
 var fighting := false
 var fight_plan: Array = []      # the room's waves, kept so a wipe can restart it
@@ -97,7 +114,7 @@ func _ready() -> void:
 	for i in players.size():
 		players[i].auto_respawn = false
 		players[i].face_dir = Vector2.UP
-		owned.append(["wooden_blade", "wooden_grip", "plain_pommel"])
+		owned.append(_starter_parts("sword"))
 		armed.append(false)
 	# The forge towers over the north wall, so the camera may look above the map.
 	var ground: Dictionary = cave_data.get("ground", {})
@@ -288,7 +305,7 @@ func _mushrooms(tile: Vector2) -> void:
 func _make_props() -> void:
 	# Room 1: the wreck. The way in has come down behind you.
 	_prop("collapse", Vector2(CENTRE_X, 69.06), Vector2(570, 70))
-	crate = _prop("crate_closed", Vector2(14.5, 61.62), Vector2(62, 22))
+	crate = _prop("crate_closed", CRATE_AT, Vector2(62, 22))
 	_prop("lantern", Vector2(16.12, 61.5))
 	_prop_lamp("lantern", Vector2(16.12, 61.5), 96, Color(1.0, 0.8, 0.5), 0.95)
 	# Cold daylight falls through the crack the giant blade made in the roof.
@@ -425,7 +442,7 @@ func _make_props() -> void:
 	# Things you can walk up to and use.
 	interactables = [
 		{"at": Vector2(14.5, 61.5) * TILE, "radius": 70.0, "lift": 62.0, "text": "Search the crate",
-			"can": func(i): return not armed[i] and stage in ["crate", "fight1"], "use": _take_sword},
+			"can": func(_i): return not crate_open and stage == "crate", "use": _open_crate},
 		{"at": Vector2(CENTRE_X, 29.6) * TILE, "radius": 60.0, "lift": 96.0, "text": "Take the rune",
 			"can": func(_i): return stage == "rune", "use": _take_rune},
 		{"at": (FORGE_AT + Vector2(0, 0.3)) * TILE, "radius": 110.0, "lift": 120.0, "text": "Use the forge",
@@ -433,6 +450,18 @@ func _make_props() -> void:
 		{"at": Vector2(31.0, 13.2) * TILE, "radius": 60.0, "lift": 74.0, "text": "Talk",
 			"can": func(_i): return stage in ["smith", "tin", "stairs"], "use": _talk_smith},
 	]
+	# The crate's weapons: stand under a plate and take that one.
+	for kind in _crate_row():
+		if not SwingBuild.STARTERS.has(kind):
+			continue
+		var plate := _pick_at(kind)
+		# (Its prompt hangs over its plate and runs away from the crate's middle, so
+		# two players choosing side by side can both read theirs.)
+		var side := -1 if plate.x < CRATE_AT.x * TILE else 1
+		interactables.append({"at": Vector2(plate.x, CRATE_AT.y * TILE + 22.0), "radius": 84.0,
+			"prompt_at": plate - Vector2(30.0 * side, 52), "prompt_side": side,
+			"text": "Take the wooden %s" % kind, "swap_text": "Swap for the wooden %s" % kind, "pick": kind,
+			"can": func(i): return _can_take(i, kind), "use": func(i): _take_weapon(i, kind)})
 
 
 func _open_gate(i: int) -> void:
@@ -531,6 +560,7 @@ func _physics_process(delta: float) -> void:
 	was_busy = busy
 	pause_menu.locked = stage == "end"
 	ui.prompts = []
+	ui.picks = []
 	for p in players:
 		p.interact_ready = false
 	# In the forge room the camera looks a little north, to keep the forge in view.
@@ -544,6 +574,7 @@ func _physics_process(delta: float) -> void:
 	if busy and stage != "boss_wake":
 		return
 	_update_interactions()
+	_show_picks()
 	_update_stage(delta)
 	if fighting:
 		_update_fight(delta)
@@ -566,11 +597,12 @@ func _run_later(delta: float) -> void:
 
 
 func net_state() -> Array:
-	return super.net_state() + [stage, room_i, fighting, waves.size(), wave_wait, timer, run_time, knockouts, wiping, armed, at_forge, ui.busy()]
+	return super.net_state() + [stage, room_i, fighting, waves.size(), wave_wait, timer, run_time, knockouts, wiping, armed, at_forge, ui.busy(), crate_open, picks_ready]
 
 
 func _update_interactions() -> void:
 	var shown := {}
+	picking.clear()
 	for i in players.size():
 		var p = players[i]
 		if p.is_down:
@@ -589,9 +621,12 @@ func _update_interactions() -> void:
 		p.interact_ready = true
 		var pad: bool = p.input.using_pad
 		# (Online the prompt is for this computer's player, with their own button.)
+		if it.has("pick"):
+			picking[i] = it["pick"]
 		if not shown.has(best) and (not Net.online() or i == Net.me()):
 			shown[best] = true
-			ui.prompts.append({"at": it["at"] - Vector2(0, float(it["lift"])), "text": it["text"], "pad": pad})
+			var text: String = it["swap_text"] if it.has("swap_text") and armed[i] else it["text"]
+			ui.prompts.append({"at": it.get("prompt_at", it["at"] - Vector2(0, float(it.get("lift", 0.0)))), "text": text, "pad": pad, "side": int(it.get("prompt_side", 0))})
 		if p.input.interact_pressed or (pad and p.input.dash_pressed):
 			it["use"].call(i)
 			return
@@ -616,7 +651,7 @@ func _update_stage(delta: float) -> void:
 			if all_armed:
 				stage = "fight1"
 				ui.objective = "Fight off the crawlers"
-				ui.hint = _keys("Hold [mouse_left] to keep swinging. The third swing is the finisher.", "Hold [pad_x] to keep swinging. The third swing is the finisher.")
+				ui.hint = _fight1_hint()
 				_start_fight(0, [{"crawler": 3}, {"crawler": 4}])
 		"walk2":
 			if _in_room(1):
@@ -759,7 +794,7 @@ func _room_cleared() -> void:
 			_open_gate(0)
 			stage = "walk2"
 			ui.objective = "The gate is open: head north"
-			ui.hint = ""
+			ui.hint = "Want to try the other weapon? You can still swap at the crate."
 		"fight2":
 			_open_gate(1)
 			stage = "walk3"
@@ -774,23 +809,106 @@ func _room_cleared() -> void:
 
 # --- Room 1: the crate ----------------------------------------------------------
 
-func _take_sword(i: int) -> void:
-	armed[i] = true
+## The parts a wooden starter weapon is made of: what its owner has at the forge.
+func _starter_parts(kind: String) -> Array:
+	var out: Array = []
+	for part in SwingBuild.STARTERS[kind]:
+		if part is String:
+			out.append(part)
+	return out
+
+
+## The plates shown over the crate, left to right. The two weapons that aren't
+## built yet are shown (locked) only once their pictures exist.
+func _crate_row() -> Array:
+	var out: Array = []
+	for kind in CRATE_WEAPONS:
+		if SwingBuild.STARTERS.has(kind) or Art.texture("cave/ui/pick_%s.png" % kind) != null:
+			out.append(kind)
+	return out
+
+
+## Where a weapon's plate hangs (its centre, in the world).
+func _pick_at(kind: String) -> Vector2:
+	var row := _crate_row()
+	return CRATE_AT * TILE + Vector2((float(row.find(kind)) - float(row.size() - 1) * 0.5) * PICK_GAP, -PICK_LIFT)
+
+
+## You can change your mind at the crate until room 2's fight starts: after that
+## there are runes and tin parts that belong to one weapon. Not in the middle of
+## room 1's fight, though: on a controller the dodge button is also "use", and a
+## dodge beside the crate must not swap your weapon.
+func _can_take(i: int, kind: String) -> bool:
+	if not picks_ready or (armed[i] and builds[i].weapon() == kind):
+		return false
+	return stage in ["crate", "walk2"] or (stage == "fight1" and not armed[i])
+
+
+var picking := {}   # player index -> the weapon whose plate they stand under, this tick
+
+## The row of plates over the open crate, for the screen furniture to draw.
+func _show_picks() -> void:
+	if not crate_open or stage not in ["crate", "walk2"]:
+		return
+	for kind in _crate_row():
+		var who: Array = []    # the colours of the players standing under it
+		for i in players.size():
+			# (Online each player sees their own choice lit, like their own prompt.)
+			if picking.get(i, "") == kind and (not Net.online() or i == Net.me()):
+				who.append(Art.PLAYER_COLORS[i % Art.PLAYER_COLORS.size()])
+		ui.picks.append({"at": _pick_at(kind), "kind": kind, "locked": not SwingBuild.STARTERS.has(kind), "who": who})
+
+
+func _open_crate(_i: int) -> void:
+	crate_open = true
 	crate.show_strip("cave/crate_open.png")
+	Sfx.play(self, "pickup", -6.0, 0.8)
+	_dust_at(CRATE_AT * TILE + Vector2(0, 6))
+	_after(0.45, func(): picks_ready = true)
+	ui.objective = "Choose your weapon"
+	ui.hint = _keys("Stand under the sword or the bow and press [e].", "Stand under the sword or the bow and press [pad_a].")
+
+
+## One text when everyone holds a sword, another when everyone holds a bow, a
+## third when they differ. (It goes by every player, online too: the smith's
+## lines must be the same on both computers, or a press could end a line on one
+## and not on the other.)
+func _by_weapon(sword: String, bow: String, mixed: String) -> String:
+	var kinds := {}
+	for i in players.size():
+		kinds[builds[i].weapon()] = true
+	if kinds.size() > 1:
+		return mixed
+	return bow if kinds.has("bow") else sword
+
+
+func _fight1_hint() -> String:
+	return _by_weapon(
+		_keys("Hold [mouse_left] to keep swinging. The third swing is the finisher.", "Hold [pad_x] to keep swinging. The third swing is the finisher."),
+		_keys("Hold [mouse_left] to keep shooting. The third shot is the heavy one.", "Hold [pad_x] to keep shooting. The third shot is the heavy one."),
+		_keys("Hold [mouse_left] to keep attacking. The third swing or shot is the finisher.", "Hold [pad_x] to keep attacking. The third swing or shot is the finisher."))
+
+
+func _take_weapon(i: int, kind: String) -> void:
+	if not _can_take(i, kind):
+		return
 	var b: SwingBuild = builds[i]
-	b.blade = "wooden_blade"
-	b.grip = "wooden_grip"
-	b.pommel = "plain_pommel"
-	b.line = [""]
-	b.changed.emit()
+	armed[i] = true
+	if b.weapon() == kind:
+		b.changed.emit()     # (the wooden sword everyone's build starts as)
+	else:
+		b.take(kind)
+	owned[i] = _starter_parts(kind)
 	Sfx.play(self, "pickup", -4.0)
 	_given(players[i])
-	var first := true
-	for k in armed.size():
-		if k != i and armed[k]:
-			first = false
-	if first:
-		ui.card("Wooden sword", "A training sword from the ship's crate. (The bow, staff and hammer beside it aren't playable yet, so everyone takes a sword.)\n" + _keys("[mouse_left] swings where you point.", "[pad_x] swings the way you face, or aim with [stick_r]."))
+	if cards_seen.has(kind):
+		return
+	var later_ones := "" if not cards_seen.is_empty() else "\n(The staff and hammer aren't playable yet. You can swap at the crate once this room is clear.)"
+	cards_seen[kind] = true
+	if kind == "bow":
+		ui.card("Wooden bow", "A training bow. Its arrows never run out.\n" + _keys("[mouse_left] shoots where you point.", "[pad_x] shoots the way you face, or aim with [stick_r].") + later_ones)
+	else:
+		ui.card("Wooden sword", "A training sword from the ship's crate.\n" + _keys("[mouse_left] swings where you point.", "[pad_x] swings the way you face, or aim with [stick_r].") + later_ones)
 
 
 ## A small burst on a player who has just been given something.
@@ -801,9 +919,10 @@ func _given(p: Node2D) -> void:
 # --- Room 3: the rune -----------------------------------------------------------
 
 func _take_rune(_i: int) -> void:
-	for o in owned:
-		if not ("shockwave" in o):
-			o.append("shockwave")
+	for i in owned.size():
+		var rune: String = STARTER_RUNE[builds[i].weapon()]
+		if not (rune in owned[i]):
+			owned[i].append(rune)
 	pedestal.show_strip("cave/pedestal_empty.png")
 	# The rune brightens, lifts off the pedestal and is gone.
 	Art.play_piece(self, "rune_pickup", Vector2(CENTRE_X, 29.81) * TILE)
@@ -815,7 +934,12 @@ func _take_rune(_i: int) -> void:
 	Sfx.play(self, "pickup", -3.0)
 	stage = "rune_card"
 	ui.objective = ""
-	ui.card("Shockwave rune", "A rune gives your swing a new trick. This one hums in your hand, but your sword can't wake it.\nYou need a forge.", 0.0, func():
+	var title := _by_weapon("Shockwave rune", "Steady Aim rune", "A rune each")
+	var body := _by_weapon(
+		"A rune gives your swing a new trick. This one hums in your hand, but your sword can't wake it.",
+		"A rune gives your shots a new trick. This one hums in your hand, but your bow can't wake it.",
+		"A rune gives a weapon a new trick: Shockwave for the sword, Steady Aim for the bow. They hum in your hands, but your weapons can't wake them.")
+	ui.card(title, body + "\nYou need a forge.", 0.0, func():
 		_open_gate(2)
 		stage = "walk4"
 		ui.objective = "Find a forge")
@@ -899,11 +1023,16 @@ func _set_brazier(k: int, lit: bool) -> void:
 
 
 func _fitted(i: int) -> bool:
-	return "shockwave" in builds[i].line
+	return STARTER_RUNE[builds[i].weapon()] in builds[i].line
 
 
+## A tin sword is the tin blade; a tin bow is the tin limbs and the tin arrows
+## (the arrows are a bow's damage). The rune must be back in a slot.
 func _tin_done(i: int) -> bool:
-	return builds[i].blade == "tin_blade" and _fitted(i)
+	var b: SwingBuild = builds[i]
+	if b.weapon() == "bow":
+		return b.blade == "tin_shortbow" and b.arrows == "tin_arrows" and _fitted(i)
+	return b.blade == "tin_blade" and _fitted(i)
 
 
 func _waiting_on(check: Callable) -> String:
@@ -917,12 +1046,16 @@ func _waiting_on(check: Callable) -> String:
 
 
 func _forge_objective() -> void:
+	var what := _by_weapon("sword", "bow", "weapon")
 	if stage == "forge":
-		ui.objective = "Fit the rune to your sword at the forge" + _waiting_on(_fitted)
+		ui.objective = "Fit the rune to your %s at the forge" % what + _waiting_on(_fitted)
 		ui.hint = "The forge is the great sword in the north wall. Drag the rune onto the slot in the grip."
 	elif stage == "tin":
-		ui.objective = "Forge your tin sword at the forge" + _waiting_on(_tin_done)
-		ui.hint = "Sword tab: pick the tin blade and the tin grip. Keep the rune in a slot."
+		ui.objective = "Forge your tin %s at the forge" % what + _waiting_on(_tin_done)
+		ui.hint = _by_weapon(
+			"Sword tab: pick the tin blade and the tin grip. Keep the rune in a slot.",
+			"Bow tab: pick the tin limbs, the tin grip and the tin arrows. Keep the rune in a slot.",
+			"First tab: pick every tin part (a bow's arrows too). Keep the rune in a slot.")
 
 
 func _use_forge(i: int) -> void:
@@ -1029,30 +1162,43 @@ func _free_smith() -> void:
 func _talk_smith(_i: int) -> void:
 	smith.show_strip("cave/smith_talk.png", 2, 6.0)
 	var done := func(): smith.show_strip("cave/smith_idle.png", 4, 6.0)
+	var what := _by_weapon("sword", "bow", "weapon")
 	if stage == "smith":
 		ui.say("Old smith", "cave/smith_portrait.png", [
 			"You woke the forge. I'd stopped hoping anyone would. That thing has kept me in here since the roof came down.",
-			"That stone in your sword is a rune. A rune gives your swing a new trick: yours throws a shockwave off the last hit of the chain.",
-			"Round stones like yours work by themselves. Square ones are active: slot one into your sword and it gives you an ability on a button.",
-			"Bands are the other half. A band does nothing alone. It changes the next rune above it on the sword: twice, wider, and stranger things.",
-			"So read a sword from the bottom of the grip up to the tip. A band boosts the rune above it. You'll find bands out there soon enough.",
-			"That stick won't last on the surface. Here, take these.",
-			"Tin. Soft, but it's real metal, and the blade has a slot of its own. Forge it, set your rune, and take the stairs. I'll follow when I've banked the fire.",
+			_by_weapon(
+				"That stone in your sword is a rune. A rune gives your swing a new trick: yours throws a shockwave off the last hit of the chain.",
+				"That stone in your bow is a rune. A rune gives your shots a new trick: yours makes you shoot faster the longer you stand your ground.",
+				"Those stones in your weapons are runes. A rune gives a weapon a new trick: a shockwave off the sword's last hit, faster shots for the bow that stands its ground."),
+			"Round stones like yours work by themselves. Square ones are active: slot one into your %s and it gives you an ability on a button." % what,
+			"Bands are the other half. A band does nothing alone. It changes the next rune above it on the %s: twice, wider, and stranger things." % what,
+			_by_weapon(
+				"So read a sword from the bottom of the grip up to the tip. A band boosts the rune above it. You'll find bands out there soon enough.",
+				"So read a bow from the bottom of the grip up to the tip. A band boosts the rune above it. You'll find bands out there soon enough.",
+				"So read a weapon from the bottom of the grip up to the tip. A band boosts the rune above it. You'll find bands out there soon enough."),
+			_by_weapon("That stick won't last on the surface. Here, take these.", "That stick won't last on the surface. Here, take these.", "Those sticks won't last on the surface. Here, take these."),
+			_by_weapon(
+				"Tin. Soft, but it's real metal, and the blade has a slot of its own. Forge it, set your rune, and take the stairs. I'll follow when I've banked the fire.",
+				"Tin. Soft, but it's real metal, and the limbs have a slot of their own. Forge it, set your rune, and take the stairs. I'll follow when I've banked the fire.",
+				"Tin. Soft, but it's real metal, with a slot of its own. Forge it, set your runes, and take the stairs. I'll follow when I've banked the fire."),
 		], func():
 			done.call()
-			for o in owned:
-				for part in ["tin_blade", "tin_grip"]:
-					if not (part in o):
-						o.append(part)
+			for i in owned.size():
+				for part in TIN_PARTS[builds[i].weapon()]:
+					if not (part in owned[i]):
+						owned[i].append(part)
 			Sfx.play(self, "pickup", -3.0)
 			for p in players:
 				_given(p)
 			stage = "tin_card"
-			ui.card("Tin blade and tin grip", "Real metal, with a slot of its own. Take them to the forge.", 0.0, func():
+			ui.card(_by_weapon("Tin blade and tin grip", "Tin limbs, grip and arrows", "Tin parts"), "Real metal, with a slot of its own. Take them to the forge.", 0.0, func():
 				stage = "tin"
 				_forge_objective()))
 	elif stage == "tin":
-		ui.say("Old smith", "cave/smith_portrait.png", ["Blade and grip first, on the Sword tab. Then the rune. Read it from the grip up to the tip."], done)
+		ui.say("Old smith", "cave/smith_portrait.png", [_by_weapon(
+			"Blade and grip first, on the Sword tab. Then the rune. Read it from the grip up to the tip.",
+			"Limbs, grip and arrows first, on the Bow tab. Then the rune. Read it from the grip up to the tip.",
+			"The tin parts first, on the first tab. Then the rune. Read it from the grip up to the tip.")], done)
 	else:
 		ui.say("Old smith", "cave/smith_portrait.png", ["Go on, up the stairs. Mind your eyes: it's bright out there."], done)
 

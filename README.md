@@ -4,11 +4,11 @@ A Godot prototype for a co-op top-down game about building weapons from parts.
 
 This branch (`swing-path`) has four things to try:
 
-- **The tutorial cave** (Game Plan milestone 4): four rooms, from a shipwreck crate to a forge guardian, for one or two players.
+- **The tutorial cave** (Game Plan milestone 4): four rooms, from a shipwreck crate to a forge guardian, for one or two players. Since version 21 you choose a sword or a bow at the crate.
 - **Two players on one screen.**
 - **Two players online**, one on each computer (see "Playing online" below).
 - **The test arena**: the sandbox for trying weapons out, with every sword part unlocked. You can't be hurt there unless you switch that off, and you can stop the enemies where they stand (see "Controls").
-- **The bow** (versions 18 to 20, Game Bible milestone 6), in the test arena: press **B** (or click the right stick) to swap your sword for an iron shortbow and back, and open the forge with the bow in your hand to change its limbs, grip, string and arrows and to fit its own six runes (Pierce, Ricochet, Steady Aim, Volley, Snipe, Arrow Rain). See "The bow" below.
+- **The bow** (versions 18 to 21, Game Bible milestone 6). In the test arena press **B** (or click the right stick) to swap your sword for an iron shortbow and back, and open the forge with the bow in your hand to change its limbs, grip, string and arrows and to fit its own six runes (Pierce, Ricochet, Steady Aim, Volley, Snipe, Arrow Rain). In the tutorial cave take the wooden bow from the crate and play the whole cave with it. See "The bow" below.
 
 ## How to run it
 
@@ -164,17 +164,17 @@ It opens with a 23 second cutscene: the ship in the storm, the wreck on the rock
 
 The cave has music (version 11). A calm loop starts when the cutscene ends, fight music takes over when the forge guardian wakes (and stays through a knock-out and restart), and the calm loop comes back when the guardian falls. `scripts/music.gd` plays the tracks and fades one into the other; the two Ogg files and the scripts that made them are in `art/music/`, and how loud each sits is `VOLUME` in `scripts/music.gd`. Music is each screen's own, so it never touches the game state and is safe online.
 
-1. **The wreck.** Search the ship's crate for a wooden sword, then fight a few crawlers. They rear up before they bite, and a hit while they rear up stops the bite.
+1. **The wreck.** Search the ship's crate, choose a wooden sword or a wooden bow from the plates that rise over it (stand under one and press Use), then fight a few crawlers. They rear up before they bite, and a hit while they rear up stops the bite. Once the room is clear you can go back to the crate and swap, until the next fight starts.
 2. **The burrows.** Burrowers travel underground, come up, flash red and lunge in a straight line. Dodge aside and hit them while they lie stunned.
-3. **The nest.** A mixed fight. Clearing it lets you take your first rune (Shockwave), which your sword can't use yet.
-4. **The forge.** The forge is a colossal sword set in the north wall, with a knight kneeling asleep in front of it. Fit the rune to your sword there and the forge lights, molten metal runs down the floor channels, and the guardian wakes. It has four attacks, each marked on the floor in red before it lands, and a line under its health bar names the attack and says what to do. **Slam**: a circle fills, then the hammer comes down. **Charge**: a lane shows the path, and a charge that hits a wall stuns it. **Quake**: cracks run out from it like the spokes of a wheel, so stand between them. **Rockfall**: rocks drop one after another where you stand, so keep moving, and hit it while it stands still. The first four attacks are one of each, and it never does the same one twice running. Below half health it slams three times in a row, a second ring of cracks fills the gaps of the first, and more rocks fall. The timings are at the top of `scripts/cave/guardian.gd` (`SLAM_WINDUP`, `REST` and so on). Beat it and the old smith is freed: he explains runes (round ones work by themselves, square ones are active and give you an ability on a button once slotted into the sword) and bands, and hands over tin parts. Forge the tin sword and the stairs to the surface open.
+3. **The nest.** A mixed fight. Clearing it lets you take your first rune (Shockwave for a sword, Steady Aim for a bow), which your weapon can't use yet.
+4. **The forge.** The forge is a colossal sword set in the north wall, with a knight kneeling asleep in front of it. Fit the rune to your sword there and the forge lights, molten metal runs down the floor channels, and the guardian wakes. It has four attacks, each marked on the floor in red before it lands, and a line under its health bar names the attack and says what to do. **Slam**: a circle fills, then the hammer comes down. **Charge**: a lane shows the path, and a charge that hits a wall stuns it. **Quake**: cracks run out from it like the spokes of a wheel, so stand between them. **Rockfall**: rocks drop one after another where you stand, so keep moving, and hit it while it stands still. The first four attacks are one of each, and it never does the same one twice running. Below half health it slams three times in a row, a second ring of cracks fills the gaps of the first, and more rocks fall. The timings are at the top of `scripts/cave/guardian.gd` (`SLAM_WINDUP`, `REST` and so on). Beat it and the old smith is freed: he explains runes (round ones work by themselves, square ones are active and give you an ability on a button once slotted into the weapon) and bands, and hands over tin parts (a blade and a grip, or limbs, a grip and arrows). Forge the tin sword or the tin bow and the stairs to the surface open.
 
 Rules:
 
 - After each room everyone is healed and anyone knocked out gets back up. There are no revives mid-fight.
 - If everyone is knocked out, that room (or the boss) starts over.
 - With two players there are more enemies, the guardian has more health, its rockfall is longer, and it also brings rocks down after each charge.
-- Only the sword exists so far, so every player takes a sword from the crate (the Game Plan's bow, staff and hammer come later).
+- The crate offers the sword and the bow; the staff and the hammer hang beside them, dim and locked, because they aren't built yet (Game Bible: four wooden starters). Two players can take different weapons: each then gets their own weapon's rune and tin parts, and the smith's words and the hints fit whoever is there.
 
 ## How the movement and sword feel (9 November pass)
 
@@ -199,7 +199,9 @@ godot --headless --path . -s tests/test_swing_build.gd                         #
 godot --headless --path . --fixed-fps 60 -s tests/feel_check.gd                # movement and swing feel
 godot --headless --path . --fixed-fps 60 -s tests/active_runes.gd              # Whirlwind, Leap and Ghostwield on their buttons (and the parked Hook), the bands on them, and Weak Point
 godot --headless --path . --fixed-fps 60 -s tests/blade_shapes.gd              # the six blade shapes: reach, what each move hits, each lean, damage a second
-godot --headless --path . --fixed-fps 60 -s tests/cave_playthrough.gd          # plays the whole cave
+godot --headless --path . --fixed-fps 60 -s tests/cave_playthrough.gd          # plays the whole cave with a sword
+godot --headless --path . --fixed-fps 60 -s tests/cave_playthrough.gd -- bow   # with a bow ("swap": takes the sword, swaps it for the bow after room 1)
+godot --headless --path . --fixed-fps 60 -s tests/cave_playthrough.gd -- players=2 bow    # two players, a bow and a sword ("bows": two bows)
 godot --headless --path . --fixed-fps 60 -s tests/cave_playthrough.gd -- players=2 wipe down
 godot --path . -s tests/smoke_forge.gd                                         # opens the forge, fires every rune; every word fits its plate; BACK leaves; the bow on the anvil
 godot --headless --path . --fixed-fps 60 -s tests/title_screen.gd              # the intro screen: its picture, its buttons, joining and choosing
@@ -219,6 +221,7 @@ Online play (needs bash, so Linux, macOS or Git Bash on Windows). Each line runs
 
 ```
 tests/online.sh /path/to/godot                         # the cave, as fast as the computer can
+tests/online.sh /path/to/godot fast bow                # the cave with a bow for player one and a sword for player two (also "bows" and "swap")
 tests/online.sh /path/to/godot fast hard drop=0.1      # with knock-outs and 10% of messages lost
 tests/online.sh /path/to/godot fast arena              # the arena: forge, sword changes, the two switches, swapping to the bow, shooting, its runes (Volley, a Snipe let go on time and one held too long, Arrow Rain, Ricochet), and changing the bow at the forge
 tests/online.sh /path/to/godot real lag=45 drop=0.05   # at normal speed with a slow, lossy connection
@@ -227,18 +230,27 @@ tests/online.sh /path/to/godot real host:slow=22       # one computer that can't
 
 To skip the title screen while testing: `godot --path . -- cave` or `godot --path . -- arena`.
 
-## The bow (versions 18 to 20, 14 November)
+## The bow (versions 18 to 21, 14 November)
 
-Game Bible milestone 6 ("the bow is as fun as the sword, and you can finish the tutorial cave with it"), built a stage a version: a bow you can shoot in the test arena (18), the bow at the forge (19), its six runes (20). Still to come: the tutorial cave with a bow.
+Game Bible milestone 6 ("the bow is as fun as the sword, and you can finish the tutorial cave with it"), built a stage a version: a bow you can shoot in the test arena (18), the bow at the forge (19), its six runes (20), the tutorial cave with a bow (21). All four stages are built; whether it is as fun as the sword is for Darren to say.
 
 - **Swap** with **B** or a click of the right stick (one player also has a SWAP button at the top right). Everyone in the arena carries test sword D and an **iron shortbow** with iron arrows on a two-slot grip, fitted since version 20 with Volley, Snipe and Arrow Rain on the three buttons and Ricochet. Whatever you change on the sword is still there when you swap back.
 - **Shooting** is the same button as swinging, and holding it keeps shooting. The shortbow's chain is **quick shot, quick shot, heavy shot** (Game Bible). Each shot first draws the string (0.13 s, 0.22 s for the heavy one); the arrow leaves when the draw ends, **towards wherever you are aiming at that moment**, so you can turn while you draw. You walk at 80% speed while shooting ("you can move while shooting, slightly slowed").
 - **An arrow** flies straight at 1300 px a second for 520 px (a sword reaches 91), hits the **first** enemy on its line and stops there; a wall stops it too. A spent arrow stands where it stopped for a moment and fades. Arrows never run out (Game Bible: infinite once owned).
-- **Damage** (Claude's first numbers, for Darren to overturn): an arrow does **75% of a sword hit** in the same metal (iron: 8.25, heavy shot 12.4), and hits one enemy where a slash hits everything in its arc. Against a single enemy the iron shortbow does about 0.8 of the iron broadsword's damage a second (`tests/bow.gd` measures it). The reason is the Game Bible's rule that ranged must not beat melee.
+- **Damage** (Claude's numbers, for Darren to overturn): an arrow does **80% of a sword hit** in the same metal (iron: 8.8, heavy shot 13.2), and hits one enemy where a slash hits everything in its arc. Against a single enemy the iron shortbow does 0.85 of the iron broadsword's damage a second (`tests/bow.gd` measures it). The reason is the Game Bible's rule that ranged must not beat melee. It was 75% in versions 18 to 20; version 21 raised it so that one chain of the wooden bow (4 + 4 + 6) is exactly one crawler's 14 health, as one chain of the wooden sword is, and a burrower takes four arrows, not five.
 - **At the forge** (version 19): open the forge with the bow in your hand and the bow stands on the anvil. The first tab is called BOW and has four rows: **limbs** (they set the chain, the range and how fast you walk while shooting), **grip** (slots), **string** (numbers only, the pommels' four: plain, keen, heavy, light) and **arrows** (the damage: wooden, tin, iron). Pointing at a part shows what it would change on the numbers plate, which shows Range where a sword has Reach. Slots work as on a sword: the grip's are under the hand, the limbs' on the upper limb, and the line reads bottom to top. Each weapon has its own three loadout presets.
 - **Two sets of limbs so far.** The **shortbow** (quick shot, quick shot, heavy shot) and the **longbow** (three long shots: a slower draw, a faster arrow, 35% more range, a hard shove on every shot, and you walk at 70% while shooting). Three heavy shots would be more damage a second, so a longbow's arrows are a tenth lighter and the two bows come out the same (`tests/bow.gd` measures it). The recurve and the hunter's bow from the Game Bible are not built.
 - **Runes belong to a weapon.** The sword's runes can't be fitted to a bow and the bow's can't be fitted to a sword (`SwingBuild.fits()`); bands and rule-benders fit both. The bow's RUNES tab shows its own six (see "The bow's runes" below).
-- **Not yet:** the recurve and hunter's limbs, and the tutorial cave, which still hands out swords alone.
+- **Not yet:** the recurve and hunter's limbs.
+
+### The bow in the tutorial cave (version 21)
+
+- **The crate.** "Search the crate" opens it, and a row of plates rises over it: staff (locked), sword, bow, hammer (locked). The plate you stand under lights in your colour and the prompt names it; Use takes it. There are enough training weapons for everyone, so two players can both take the bow. While the room's fight is on the row is hidden (on a controller the dodge button is also Use, and a dodge beside the crate must not swap your weapon); once the room is clear it is back, and you can swap until room 2's fight starts.
+- **The first rune** is each weapon's own: Shockwave for the sword (Game Bible), **Steady Aim for the bow. That is Claude's choice**: the Bible lists the bow's starter rune as an open item, and says a starter rune must help against a single boss, which of the bow's three passive runes only Steady Aim does.
+- **The smith** hands a bow player tin limbs, a tin grip and tin arrows. A tin bow counts as forged when the limbs and the arrows are tin and the rune is in a slot (the arrows are a bow's damage).
+- **Words.** The cards, hints, objectives and the smith's lines fit the weapons in play: one text for swords, one for bows, one when the players differ. Online they go by every player, not by your own weapon, because a line of speech must be the same length on both computers.
+- **How long the fights take** with the test's scripted players (three runs each, seconds): crawlers 11.6 with the sword and 12.7 with the bow, burrowers 13.1 and 11.9, the nest 19.2 and 20.0, the guardian 24.3 and 22.3. The bow's player was hit less often. Scripted players are not people: this only says the cave is neither a slog nor a walkover with a bow.
+- Where it lives: `CRATE_WEAPONS`, `STARTER_RUNE`, `TIN_PARTS`, `_open_crate`, `_take_weapon`, `_can_take`, `_by_weapon` in `scripts/cave/cave.gd`; the plates are drawn by `scripts/cave/cave_ui.gd` (`picks`) from `art/cave/ui/pick_*.png`.
 
 ### The bow's runes (version 20)
 
@@ -252,7 +264,7 @@ Three passive and three active, like the sword (Game Bible). The Bible describes
 - **Arrow Rain** (active, press, 8 seconds): marks an oval on the ground, 112 by 80 px, and for 3 seconds arrows fall on it, ten falls of 0.35 of an arrow to everyone standing in it. With the mouse it lands on the pointer (up to 420 px away); with a controller on the enemy nearest your aim. Twice: a second shower where you are aiming as the first ends. Wider: a bigger oval. Saved Up: three times as heavy, and the arrows pin enemies in place for a moment. On Dodge: a small one-second shower where you dodged from.
 - **The bands on the active three** follow the sword's rules: Every Hit takes half a second off the recharge for each arrow of yours that lands, Saved Up is three times as strong and three times as slow, and an On Dodge Volley or Snipe is at half strength.
 - A rune's own arrows (the ricochet, the fan, the snipe, the rain) never crit and never set another rune off, so nothing chains for ever.
-- **Balance.** Steady Aim at full is 1.5 times the bow's damage a second on one enemy, about 1.2 times the iron broadsword's, for someone who has stood still and shot for five seconds. The others are area or burst on a recharge. This is the first pass; the Game Bible's rule is that ranged must not beat melee.
+- **Balance.** Steady Aim at full is 1.5 times the bow's damage a second on one enemy, about 1.3 times the iron broadsword's (1.2 before version 21 raised an arrow's damage), for someone who has stood still and shot for five seconds. The others are area or burst on a recharge. This is the first pass; the Game Bible's rule is that ranged must not beat melee.
 - Where it lives: the six entries in `FITTINGS` (they carry `"weapon": "bow"`) and the constants under them in `scripts/weapon/swing_build.gd` (`PIERCE_*`, `RICOCHET_*`, `STEADY_*`, `VOLLEY_*`, `SNIPE_*`, `RAIN_*`); "The bow's runes" section of `scripts/player.gd`; `scripts/arrow.gd` (an arrow can go through enemies, carry a rune's name and colour, and report how far it flew). Their pictures are in `art/swing/runes/`, `art/hud/` and `art/fx/`; the stills the forge shows on Alt were taken from the game. `tests/bow_runes.gd` checks every rune with every band.
 
 How it is built:

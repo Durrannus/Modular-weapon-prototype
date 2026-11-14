@@ -16,7 +16,9 @@ var objective := ""
 var hint := ""
 var boss = null                 # the guardian, while its bar shows
 var boss_shown := 1.0           # the pale "lost health" bar catches up to this
-var prompts: Array = []         # [{at: world position, text, pad: bool}], rebuilt every tick
+var prompts: Array = []         # [{at: world position, text, pad: bool, side: 0 centred on `at`, -1 ending there, 1 starting there}], rebuilt every tick
+var picks: Array = []           # the weapons on show over the crate: [{at: world position, kind, locked, who: [colours]}], rebuilt every tick
+var picks_age := 0.0            # seconds the row has been up (it rises out of the crate)
 var cam: Camera2D
 
 # Speech
@@ -234,6 +236,7 @@ func fade_in(time := 0.6) -> void:
 ## Call every tick with "someone pressed attack or interact".
 func advance(pressed: bool, delta: float) -> void:
 	t += delta
+	picks_age = 0.0 if picks.is_empty() else picks_age + delta
 	fade = move_toward(fade, fade_to, fade_speed * delta)
 	if cutting():
 		_advance_cut(pressed, delta)
@@ -382,12 +385,47 @@ func _draw_ui() -> void:
 		_draw_cut()
 		return
 	var silk := Art.font("Silkscreen-Regular")
+	# The weapons on show over the ship's crate: a plate each, lit in the colour
+	# of whoever stands under it. The ones that aren't built yet are dim and locked.
+	var rise := 1.0 - clampf(picks_age / 0.25, 0.0, 1.0)
+	for pk in picks:
+		var at := _to_screen(pk["at"]) + Vector2(0, roundf(rise * rise * 14.0))
+		var box := Rect2(at - Vector2(15, 15), Vector2(30, 30))
+		var who: Array = pk["who"]
+		var fade_in := Color(1, 1, 1, 1.0 - rise)
+		var plate := Art.texture("cave/ui/pick_plate.png")
+		if plate != null:
+			root.draw_texture(plate, box.position, fade_in)
+		else:
+			root.draw_rect(box, Color(PLATE, PLATE.a * fade_in.a))
+		var hot := Art.texture("cave/ui/pick_plate_hot.png")
+		for k in who.size():
+			# Two players under one plate share it: half each.
+			var part := Rect2(30.0 * float(k) / float(who.size()), 0, 30.0 / float(who.size()), 30)
+			if hot != null:
+				root.draw_texture_rect_region(hot, Rect2(box.position + part.position, part.size), part, who[k])
+			else:
+				root.draw_rect(Rect2(box.position + part.position, part.size), who[k], false, 2.0)
+		var icon := Art.texture("cave/ui/pick_%s.png" % pk["kind"])
+		if icon == null:
+			icon = Art.texture("hud/weapon_%s.png" % pk["kind"])
+		if icon != null:
+			var tint := Color(0.42, 0.40, 0.52, fade_in.a) if pk["locked"] else fade_in
+			root.draw_texture(icon, (at - icon.get_size() * 0.5).round(), tint)
+		if pk["locked"]:
+			var lock := Art.texture("swing/ui/padlock.png")
+			if lock != null:
+				root.draw_texture(lock, box.end - lock.get_size() - Vector2(2, 2), fade_in)
 	# Prompts over things you can use.
 	for pr in prompts:
 		var at := _to_screen(pr["at"])
 		var text: String = pr["text"]
 		var w := silk.get_string_size(text.to_upper(), HORIZONTAL_ALIGNMENT_LEFT, -1, 8).x
 		var x := at.x - (w + 22.0) * 0.5
+		if int(pr.get("side", 0)) < 0:
+			x = at.x - w - 25.0
+		elif int(pr.get("side", 0)) > 0:
+			x = at.x + 3.0
 		var bob := 1.0 if fmod(t, 0.8) < 0.4 else 0.0
 		if not Art.draw_nine(root, "cave/ui/prompt_plate.png", Rect2(x - 3, at.y - 10 - bob, w + 28, 18), 4):
 			root.draw_rect(Rect2(x - 3, at.y - 10 - bob, w + 28, 18), PLATE)

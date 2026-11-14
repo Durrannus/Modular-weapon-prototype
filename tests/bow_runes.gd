@@ -10,8 +10,8 @@ const Player := preload("res://scripts/player.gd")
 const Art := preload("res://scripts/art.gd")
 const BowArt := preload("res://scripts/weapon/bow_art.gd")
 
-const ARROW := 8.25          # one iron arrow from the shortbow
-const HEAVY := 12.375        # the chain's third shot
+const ARROW := 8.8           # one iron arrow from the shortbow
+const HEAVY := 13.2          # the chain's third shot
 const RUNES := ["pierce", "ricochet", "steady_aim", "volley", "snipe", "arrow_rain"]
 
 var m
@@ -462,7 +462,7 @@ func _run() -> void:
 	await _frames(600)
 	var full_dps: float = (_lost(post) - d0) / 10.0
 	p.input.attack_held = false
-	_check(full_dps > 22.5 * 1.4 and full_dps < 22.5 * 1.6, "at +50%% the bow does about half as much again a second: %.1f against 22.5" % full_dps)
+	_check(full_dps > 24.0 * 1.4 and full_dps < 24.0 * 1.6, "at +50%% the bow does about half as much again a second: %.1f against 24.0" % full_dps)
 	await _still()
 
 	# --- Volley ---------------------------------------------------------------------------------

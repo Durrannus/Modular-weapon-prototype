@@ -1,8 +1,11 @@
 extends SceneTree
 ## Plays the tutorial cave from start to finish with scripted players, to prove
 ## the whole run works: crate, crawlers, burrowers, the rune, the forge, the
-## guardian, the smith, the tin sword and the stairs.
-##   godot --headless --path . --fixed-fps 60 -s tests/cave_playthrough.gd -- [players=2] [shots] [mortal]
+## guardian, the smith, the tin sword or bow and the stairs.
+##   godot --headless --path . --fixed-fps 60 -s tests/cave_playthrough.gd -- [players=2] [bow] [shots] [mortal]
+## "bow": player one takes the bow from the crate (player two, if there is one,
+## the sword). "bows": everyone takes the bow. "swap": player one takes the sword,
+## then goes back to the crate after room 1 and swaps it for the bow.
 ## The bots can't be knocked out unless "mortal" is given (they dodge badly).
 ## "wipe" knocks everyone out once in room 2 and once at the boss, to prove both
 ## start over. "down" (two players) knocks player two out in room 1, to prove the
@@ -19,6 +22,9 @@ var shots := false
 var mortal := false
 var test_wipe := false
 var test_down := false
+var weapons: Array = []     # what each bot takes from the crate
+var test_swap := false      # player one swaps sword for bow once room 1 is clear
+var swapped := false
 var wipes_done := {}
 var down_seen := false
 var got_up := false
@@ -50,7 +56,26 @@ func _init() -> void:
 			test_wipe = true
 		elif a == "down":
 			test_down = true
+		elif a == "bow":
+			weapons = ["bow"]
+		elif a == "bows":
+			weapons = ["bow", "bow", "bow", "bow"]
+		elif a == "swap":
+			test_swap = true
 	_begin()
+
+
+## What bot i takes from the crate.
+func _wants(i: int) -> String:
+	return weapons[i] if i < weapons.size() else "sword"
+
+
+## Where to stand to take a weapon from the open crate.
+func _pick_spot(kind: String) -> Vector2:
+	for it in m.interactables:
+		if it.get("pick", "") == kind:
+			return it["at"]
+	return Vector2.ZERO
 
 
 ## Where bot i's presses go: straight into that player's controls. (The online
@@ -169,6 +194,7 @@ func _fight(i: int) -> void:
 		return
 	var rel: Vector2 = foe.global_position - p.global_position
 	var reach := 46.0 + float(foe.radius)
+	var bow: bool = m.builds[i].weapon() == "bow"
 	# Step out of the way of anything about to land.
 	for h in get_nodes_in_group("hazards"):
 		if h.shape == "circle" and h.global_position.distance_to(p.global_position) < h.radius + 30.0 and h.t > h.delay - 0.35:
@@ -199,6 +225,35 @@ func _fight(i: int) -> void:
 		inp.move = side2
 		if foe.mode_t < 0.2 and p.dodge_charges > 0:
 			inp.dash_pressed = true
+		elif bow and foe.mode == "warn":
+			# A bow can already shoot it while it warns, and step aside at the end.
+			inp.stick_aim = rel.normalized()
+			inp.attack_held = true
+			if p.current_step < 0:
+				inp.attack_pressed = true
+		return
+	if bow:
+		# With a bow: stand well out of a sword's reach and shoot, walking closer
+		# only when the enemy is too far off or something solid is in the way.
+		# (A rock or a prop stops an arrow, and a crawler can be stuck behind one:
+		# then the bot circles round it until it has a clear line, as a person would.)
+		var hit: Dictionary = p.get_world_2d().direct_space_state.intersect_ray(PhysicsRayQueryParameters2D.create(p.global_position, foe.global_position, 4))
+		if not hit.is_empty() and (rel.length() > 220.0 or _via(p.global_position, foe.global_position) != foe.global_position):
+			# Rock in the way, and it is a long way off or in the next room: walk to it.
+			_go(i, foe.global_position, reach)
+		elif not hit.is_empty():
+			var side := 1.0 if (frame / 150) % 2 == 0 else -1.0
+			var round_it: Vector2 = (rel.normalized() * 0.35 + rel.orthogonal().normalized() * side).normalized()
+			inp.move = round_it if not p.test_move(p.global_transform, round_it * 6.0) else -round_it
+		elif rel.length() > 400.0:
+			_go(i, foe.global_position, 300.0)
+		else:
+			inp.move = Vector2.ZERO
+		if rel.length() < 460.0:
+			inp.stick_aim = rel.normalized()
+			inp.attack_held = true
+			if p.current_step < 0:
+				inp.attack_pressed = true
 		return
 	if rel.length() > reach:
 		_go(i, foe.global_position, reach)
@@ -241,7 +296,7 @@ func _tick() -> void:
 		print("FAIL: ran out of time in stage '%s'" % m.stage)
 		for i in m.players.size():
 			var q = m.players[i]
-			print("  P%d at tile %s down=%s frozen=%s sword=%s+%s %s owned=%s" % [i + 1, str((q.global_position / m.TILE).snapped(Vector2(0.1, 0.1))), str(q.is_down), str(q.frozen), m.builds[i].blade, m.builds[i].grip, str(m.builds[i].line), str(m.owned[i])])
+			print("  P%d at tile %s down=%s frozen=%s weapon=%s owned=%s" % [i + 1, str((q.global_position / m.TILE).snapped(Vector2(0.1, 0.1))), str(q.is_down), str(q.frozen), str(m.builds[i].get_data()), str(m.owned[i])])
 		print("  forge open=%s forging=%d busy=%s forge_step=%d" % [str(m.build_menu.is_open), m.forging, str(m.ui.busy()), forge_step])
 		_done(false)
 		return
@@ -296,10 +351,16 @@ func _tick() -> void:
 	match stage:
 		"crate":
 			_shot("1_crate")
+			if m.crate_open and stage_frames % 20 == 0:
+				_shot("1_crate_open")
 			for i in m.players.size():
 				if m.armed[i]:
 					_inp(i).move = Vector2.ZERO
-				elif _go(i, Vector2(14.5, 62.6) * T, 20.0) and frame % 10 == 0:
+				elif not m.crate_open:
+					# Search the crate; then its weapons are on show.
+					if _go(i, Vector2(14.5, 62.6) * T, 20.0) and frame % 10 == 0:
+						_press(i, "interact")
+				elif _go(i, _pick_spot("sword" if (test_swap and i == 0) else _wants(i)), 6.0) and frame % 10 == 0:
 					_press(i, "interact")
 		"fight1", "fight2", "fight3", "boss":
 			if stage_frames == 150:
@@ -311,7 +372,17 @@ func _tick() -> void:
 				if not m.players[i].is_down:
 					_fight(i)
 		"walk2":
-			_all_go(Vector2(20.5, 49.0) * T)
+			if test_swap and not swapped:
+				# Back to the crate first: player one swaps the sword for the bow.
+				_shot("1_swap")
+				for i in m.players.size():
+					_inp(i).move = Vector2.ZERO
+				if m.builds[0].weapon() == "bow":
+					swapped = true
+				elif _go(0, _pick_spot("bow"), 6.0) and frame % 10 == 0:
+					_press(0, "interact")
+			else:
+				_all_go(Vector2(20.5, 49.0) * T)
 		"walk3":
 			_shot("3_gate_open")
 			_all_go(Vector2(20.5, 33.5) * T)
@@ -330,7 +401,8 @@ func _tick() -> void:
 				_inp(i).move = Vector2.ZERO
 		"smith":
 			_shot("7_smith")
-			if _go(0, Vector2(31.0, 14.6) * T, 22.0) and frame % 10 == 0:
+			# (Close enough to be inside the smith's 60 px from any side.)
+			if _go(0, Vector2(31.0, 14.6) * T, 12.0) and frame % 10 == 0:
 				_press(0, "interact")
 		"stairs":
 			_shot("8_stairs")
@@ -385,7 +457,7 @@ func _drive_forge() -> void:
 				forge._set_tab(0)
 				var cards: Array = forge._cards()
 				for c in cards.size():
-					if cards[c]["id"] in ["tin_blade", "tin_grip"]:
+					if cards[c]["id"] in ["tin_blade", "tin_grip", "tin_shortbow", "tin_bow_grip", "tin_arrows"]:
 						forge._use_card(c)
 			_:
 				_shot("5_tin_screen")
@@ -407,11 +479,19 @@ func _done(ok: bool) -> void:
 	if test_down and not got_up:
 		print("FAIL: player two never got back up after the room was cleared")
 		ok = false
+	# Everyone leaves with the weapon they chose, in tin, with its own first rune.
+	for i in m.players.size():
+		var kind: String = "bow" if (test_swap and i == 0) else _wants(i)
+		var data: Array = m.builds[i].get_data()
+		var right: Array = ["tin_shortbow", "tin_bow_grip", "plain_string", ["steady_aim", ""], "tin_arrows"] if kind == "bow" else ["tin_blade", "tin_grip", "plain_pommel", ["shockwave", ""]]
+		if data != right:
+			print("FAIL: P%d should leave with %s, not %s" % [i + 1, str(right), str(data)])
+			ok = false
 	if ok and missing.is_empty():
 		print("PASS: %d player(s) finished the cave in %.0f s of game time (%d hits taken, %d knock-outs)" % [n_players, m.run_time, hits_taken, m.knockouts])
 		print("  hits by stage: %s" % str(hits_by_stage))
 		for i in m.players.size():
-			print("  P%d sword: %s + %s %s" % [i + 1, m.builds[i].blade, m.builds[i].grip, str(m.builds[i].line)])
+			print("  P%d %s: %s" % [i + 1, m.builds[i].weapon(), str(m.builds[i].get_data())])
 	else:
 		print("FAIL: stages never reached: %s" % str(missing))
 	_quit(ok and missing.is_empty())

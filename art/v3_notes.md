@@ -287,6 +287,8 @@ Asked for in `/mnt/project-files/art/requests/nov14-bow-art.md` (parts A1 to A4 
 - **Six runes**: pierce, ricochet, steady_aim (passive, round), volley, snipe, arrow_rain (active, square). `swing/runes/<id>_icon.png`, `_forge(.png, _lit.png)`, `_hand(.png, _lit.png)`; `hud/glyph_<id>.png` for the actives; colours in bow.json `rune_colours`. Effects in `fx/` (not `swing/fx/`): pierce_trail, ricochet_spark, steady_ring, volley_fan, snipe_charge, snipe_sweet, snipe_trail, snipe_hit, rain_mark, rain_arrow, rain_hit.
 - **Previews** `swing/previews/<id>.png` (352x240) are MOCK-UPS composed from the art. Replace them with stills from the game once the runes fire.
 
+- **Crate pick row** (part C, asked in `requests/nov14-crate-pick.md`, 14 November 22:00 UTC): `cave/ui/pick_sword.png`, `pick_bow.png`, `pick_staff.png`, `pick_hammer.png` (26x26, wooden starter weapons on one diagonal, grip bottom left), `pick_plate.png` and `pick_plate_hot.png` (30x30; the icon sits at offset 2,2). The hot plate is drawn in neutral greys with a white rim so the game can tint it with the player's ring colour. Code `v3_crate_pick.py`; sheets `preview/crate_pick.png`, `crate_pick_row.png`. The staff (sea-green stone in a root crook) and the rope-bound mallet are first starter designs. Versions in the title picture's designs were tried for ten minutes on a misreading and withdrawn; they stay in the code as `staff()` / `hammer()`, sheet `preview/crate_pick_title_alt.png`.
+
 Look sheets: `preview/bow_in_hand.png`, `bow_shooting_fx.png`, `bow_at_forge.png`, `bow_icons.png`, `bow_runes_stones.png`, `bow_runes_fx_a.png`, `bow_runes_fx_b.png`, `bow_runes_previews.png`.
 
 ## Title screen background, second design (12 November, 16:05 UTC): THE CURRENT ONE

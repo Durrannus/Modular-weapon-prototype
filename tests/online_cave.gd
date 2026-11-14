@@ -11,6 +11,8 @@ extends "res://tests/cave_playthrough.gd"
 ##                      and once at the boss, to prove a room starts over on both computers
 ##          dump=/file  write every checksum and what went into it, to compare the two
 ##          arena       play the test arena for 40 seconds instead (forge hotkey, the two switches)
+##          bow         player one takes the bow from the cave's crate (player two the sword); "bows": both do;
+##                      "swap": player one takes the sword and swaps it for the bow once room 1 is clear
 ## Each bot only ever touches its own computer's controls, exactly like a person
 ## would; everything else has to arrive through the session.
 
@@ -138,17 +140,7 @@ func _via(from: Vector2, target: Vector2) -> Vector2:
 
 
 func _fight(i: int) -> void:
-	super._fight(i)
-	# With the bow in the hand: shoot whatever is nearest from well out of a sword's reach.
-	if arena and i == me and m.builds[i].weapon() == "bow":
-		var p = m.players[i]
-		var foe = _nearest_foe(p.global_position)
-		if foe != null and foe.global_position.distance_to(p.global_position) < 460.0:
-			var inp = _inp(i)
-			inp.stick_aim = (foe.global_position - p.global_position).normalized()
-			inp.attack_held = true
-			if p.current_step < 0:
-				inp.attack_pressed = true
+	super._fight(i)   # (with the bow in the hand it shoots from well out of a sword's reach)
 	if i == me and me == 1:
 		session.local.aim_offset = session.local.stick_aim * 90.0
 		session.local.stick_aim = Vector2.ZERO

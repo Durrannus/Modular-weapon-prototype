@@ -36,7 +36,7 @@ const PLATE := Color("#19142a")
 const SHADOW := Color(0.06, 0.04, 0.11, 0.9)
 const PLAYER_COLORS := Art.PLAYER_COLORS
 const ITEMS := [
-	["cave", "Tutorial", "The four-room cave: find a sword, fight through, fit a rune, beat the guardian."],
+	["cave", "Tutorial", "The four-room cave: pick a sword or a bow, fit a rune, beat the guardian."],
 	["arena", "Arena", "The sandbox: every part unlocked, endless enemies, the forge on Tab or Y."],
 	["online", "Play online", "Two players over the internet, one on each computer. One hosts, the other joins."],
 	["quit", "Quit", ""],

@@ -122,7 +122,10 @@ const BOW_SHAPES := {
 ## from range is safer than standing in reach, and Darren doesn't want everyone
 ## fighting from range (10 November, about Shockwave), so the bow does less a
 ## second than the sword, to one enemy at a time.
-const BOW_DAMAGE := 0.75
+## Four fifths (it was three quarters until the bow reached the tutorial cave):
+## a wooden bow's chain is then 4 + 4 + 6 = 14, exactly one crawler, the way one
+## wooden sword's chain is, and a burrower takes four arrows where it took five.
+const BOW_DAMAGE := 0.8
 const BOW_RANGE := 520.0       # how far a shortbow's arrow flies (a sword reaches 91)
 const BOW_FLIGHT := 1300.0     # how fast an arrow flies, a second
 const BOW_MOVE := 0.8          # walking speed while shooting ("slightly slowed")
