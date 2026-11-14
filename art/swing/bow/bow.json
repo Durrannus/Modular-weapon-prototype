@@ -4,22 +4,46 @@
   "plain_string": {
    "name": "Plain String",
    "text": "No bonus.",
-   "colour": "#a8ae98"
+   "colour": "#a8ae98",
+   "icon": {
+    "size": [
+     26,
+     22
+    ]
+   }
   },
   "keen_string": {
    "name": "Keen String",
    "text": "Crit chance.",
-   "colour": "#78c0cc"
+   "colour": "#78c0cc",
+   "icon": {
+    "size": [
+     26,
+     22
+    ]
+   }
   },
   "heavy_string": {
    "name": "Heavy String",
    "text": "Crit damage.",
-   "colour": "#cf8a48"
+   "colour": "#cf8a48",
+   "icon": {
+    "size": [
+     26,
+     22
+    ]
+   }
   },
   "light_string": {
    "name": "Light String",
    "text": "Draw speed.",
-   "colour": "#f6f0d4"
+   "colour": "#f6f0d4",
+   "icon": {
+    "size": [
+     26,
+     22
+    ]
+   }
   }
  },
  "limbs": {
@@ -70,6 +94,41 @@
      ]
     ],
     "slots": []
+   },
+   "forge_upper": {
+    "size": [
+     25,
+     38
+    ],
+    "foot": [
+     18,
+     37
+    ],
+    "tip": [
+     3,
+     2
+    ],
+    "slot_rects": []
+   },
+   "forge_lower": {
+    "size": [
+     25,
+     34
+    ],
+    "foot": [
+     18,
+     0
+    ],
+    "tip": [
+     3,
+     31
+    ]
+   },
+   "icon": {
+    "size": [
+     48,
+     16
+    ]
    }
   },
   "tin_shortbow": {
@@ -123,6 +182,48 @@
       8,
       6
      ]
+    ]
+   },
+   "forge_upper": {
+    "size": [
+     25,
+     47
+    ],
+    "foot": [
+     18,
+     46
+    ],
+    "tip": [
+     3,
+     2
+    ],
+    "slot_rects": [
+     [
+      14,
+      35,
+      9,
+      9
+     ]
+    ]
+   },
+   "forge_lower": {
+    "size": [
+     25,
+     34
+    ],
+    "foot": [
+     18,
+     0
+    ],
+    "tip": [
+     3,
+     31
+    ]
+   },
+   "icon": {
+    "size": [
+     48,
+     16
     ]
    }
   },
@@ -182,6 +283,54 @@
       4
      ]
     ]
+   },
+   "forge_upper": {
+    "size": [
+     25,
+     59
+    ],
+    "foot": [
+     18,
+     58
+    ],
+    "tip": [
+     3,
+     2
+    ],
+    "slot_rects": [
+     [
+      14,
+      47,
+      9,
+      9
+     ],
+     [
+      14,
+      35,
+      9,
+      9
+     ]
+    ]
+   },
+   "forge_lower": {
+    "size": [
+     25,
+     34
+    ],
+    "foot": [
+     18,
+     0
+    ],
+    "tip": [
+     3,
+     31
+    ]
+   },
+   "icon": {
+    "size": [
+     48,
+     16
+    ]
    }
   },
   "iron_longbow": {
@@ -240,6 +389,54 @@
       8
      ]
     ]
+   },
+   "forge_upper": {
+    "size": [
+     25,
+     65
+    ],
+    "foot": [
+     18,
+     64
+    ],
+    "tip": [
+     4,
+     2
+    ],
+    "slot_rects": [
+     [
+      14,
+      53,
+      9,
+      9
+     ],
+     [
+      14,
+      41,
+      9,
+      9
+     ]
+    ]
+   },
+   "forge_lower": {
+    "size": [
+     25,
+     40
+    ],
+    "foot": [
+     18,
+     0
+    ],
+    "tip": [
+     4,
+     37
+    ]
+   },
+   "icon": {
+    "size": [
+     58,
+     16
+    ]
    }
   }
  },
@@ -258,6 +455,38 @@
       5
      ]
     ]
+   },
+   "forge": {
+    "size": [
+     17,
+     33
+    ],
+    "top": [
+     8,
+     0
+    ],
+    "bottom": [
+     8,
+     32
+    ],
+    "hold": [
+     8,
+     9
+    ],
+    "slot_rects": [
+     [
+      4,
+      21,
+      9,
+      9
+     ]
+    ]
+   },
+   "icon": {
+    "size": [
+     21,
+     13
+    ]
    }
   },
   "tin_bow_grip": {
@@ -273,6 +502,38 @@
       0,
       5
      ]
+    ]
+   },
+   "forge": {
+    "size": [
+     17,
+     33
+    ],
+    "top": [
+     8,
+     0
+    ],
+    "bottom": [
+     8,
+     32
+    ],
+    "hold": [
+     8,
+     9
+    ],
+    "slot_rects": [
+     [
+      4,
+      21,
+      9,
+      9
+     ]
+    ]
+   },
+   "icon": {
+    "size": [
+     21,
+     13
     ]
    }
   },
@@ -293,6 +554,44 @@
       0,
       5
      ]
+    ]
+   },
+   "forge": {
+    "size": [
+     17,
+     45
+    ],
+    "top": [
+     8,
+     0
+    ],
+    "bottom": [
+     8,
+     44
+    ],
+    "hold": [
+     8,
+     9
+    ],
+    "slot_rects": [
+     [
+      4,
+      33,
+      9,
+      9
+     ],
+     [
+      4,
+      21,
+      9,
+      9
+     ]
+    ]
+   },
+   "icon": {
+    "size": [
+     27,
+     13
     ]
    }
   },
@@ -317,6 +616,50 @@
       0,
       5
      ]
+    ]
+   },
+   "forge": {
+    "size": [
+     17,
+     57
+    ],
+    "top": [
+     8,
+     0
+    ],
+    "bottom": [
+     8,
+     56
+    ],
+    "hold": [
+     8,
+     9
+    ],
+    "slot_rects": [
+     [
+      4,
+      45,
+      9,
+      9
+     ],
+     [
+      4,
+      33,
+      9,
+      9
+     ],
+     [
+      4,
+      21,
+      9,
+      9
+     ]
+    ]
+   },
+   "icon": {
+    "size": [
+     28,
+     13
     ]
    }
   }
@@ -345,6 +688,19 @@
     ],
     "frames": 2,
     "note": "points right like the flying arrow; the right end is in the floor or wall"
+   },
+   "forge": {
+    "size": [
+     39,
+     9
+    ],
+    "note": "lies across the grip's hold, pointing right"
+   },
+   "icon": {
+    "size": [
+     32,
+     13
+    ]
    }
   },
   "tin_arrows": {
@@ -370,6 +726,19 @@
     ],
     "frames": 2,
     "note": "points right like the flying arrow; the right end is in the floor or wall"
+   },
+   "forge": {
+    "size": [
+     39,
+     9
+    ],
+    "note": "lies across the grip's hold, pointing right"
+   },
+   "icon": {
+    "size": [
+     32,
+     13
+    ]
    }
   },
   "iron_arrows": {
@@ -395,6 +764,19 @@
     ],
     "frames": 2,
     "note": "points right like the flying arrow; the right end is in the floor or wall"
+   },
+   "forge": {
+    "size": [
+     39,
+     9
+    ],
+    "note": "lies across the grip's hold, pointing right"
+   },
+   "icon": {
+    "size": [
+     32,
+     13
+    ]
    }
   }
  },
@@ -454,7 +836,234 @@
    ],
    "loop": false,
    "note": "where an arrow lands in an enemy; the arrow came from the left (turn it to the arrow). Additive, once"
+  },
+  "pierce_trail": {
+   "folder": "fx",
+   "frames": 4,
+   "frame": [
+    64,
+    13
+   ],
+   "fps": 20,
+   "origin": [
+    63,
+    6
+   ],
+   "loop": true,
+   "note": "Pierce: a harder, longer streak than arrow_trail, same layout (points right, right end on the arrow's tail). Additive"
+  },
+  "ricochet_spark": {
+   "folder": "fx",
+   "frames": 4,
+   "frame": [
+    32,
+    32
+   ],
+   "fps": 22,
+   "origin": [
+    16,
+    16
+   ],
+   "loop": false,
+   "note": "Ricochet: the glance where the arrow turns. Additive, once; no need to turn it"
+  },
+  "steady_ring": {
+   "folder": "fx",
+   "frames": 6,
+   "frame": [
+    48,
+    24
+   ],
+   "fps": 0,
+   "origin": [
+    24,
+    12
+   ],
+   "loop": false,
+   "note": "Steady Aim: a ring at the feet, 6 frames: empty, then one to five steps lit (the code picks the frame, it is not played). Additive, never turned"
+  },
+  "volley_fan": {
+   "folder": "fx",
+   "frames": 5,
+   "frame": [
+    48,
+    48
+   ],
+   "fps": 22,
+   "origin": [
+    8,
+    24
+   ],
+   "loop": false,
+   "note": "Volley: the fan of light at the bow as the three arrows leave; points right, origin at the grip. The outer rays are 0.30 rad either side. Additive, once"
+  },
+  "snipe_charge": {
+   "folder": "fx",
+   "frames": 8,
+   "frame": [
+    64,
+    64
+   ],
+   "fps": 0,
+   "origin": [
+    32,
+    32
+   ],
+   "loop": false,
+   "note": "Snipe: a ring closing on the player as the charge builds, 8 frames picked from the charge (frame 7 = full). Additive"
+  },
+  "snipe_sweet": {
+   "folder": "fx",
+   "frames": 4,
+   "frame": [
+    64,
+    64
+   ],
+   "fps": 24,
+   "origin": [
+    32,
+    32
+   ],
+   "loop": false,
+   "note": "Snipe: the blink that says 'now'. Additive, once"
+  },
+  "snipe_trail": {
+   "folder": "fx",
+   "frames": 4,
+   "frame": [
+    96,
+    13
+   ],
+   "fps": 20,
+   "origin": [
+    95,
+    6
+   ],
+   "loop": true,
+   "note": "Snipe: the long bright line the shot leaves; points right, right end on the arrow's tail. Additive, loops"
+  },
+  "snipe_hit": {
+   "folder": "fx",
+   "frames": 6,
+   "frame": [
+    72,
+    72
+   ],
+   "fps": 22,
+   "origin": [
+    36,
+    36
+   ],
+   "loop": false,
+   "note": "Snipe: the heavy shot landing; the arrow came from the left (turn it to the arrow). Additive, once"
+  },
+  "rain_mark": {
+   "folder": "fx",
+   "frames": 4,
+   "frame": [
+    128,
+    96
+   ],
+   "fps": 8,
+   "origin": [
+    64,
+    48
+   ],
+   "loop": true,
+   "note": "Arrow Rain: the marked area on the floor, an ellipse 56 x 40 px (radius 56 across). Additive, loops, never turned"
+  },
+  "rain_arrow": {
+   "folder": "fx",
+   "frames": 5,
+   "frame": [
+    16,
+    48
+   ],
+   "fps": 20,
+   "origin": [
+    8,
+    44
+   ],
+   "loop": false,
+   "note": "Arrow Rain: one arrow falling in and sticking; origin is where it lands. Hold the last frame, then fade it in code. Additive (normal blending also works), never turned"
+  },
+  "rain_hit": {
+   "folder": "fx",
+   "frames": 4,
+   "frame": [
+    24,
+    24
+   ],
+   "fps": 22,
+   "origin": [
+    12,
+    12
+   ],
+   "loop": false,
+   "note": "Arrow Rain: a small burst where an arrow lands. Additive, once, never turned"
   }
  },
- "fx_note": "Merge 'fx' into the fx block of swing_path.json; the strips are in swing/fx/ like the other effects."
+ "fx_note": "Merge 'fx' into the fx block of swing_path.json; the strips are in swing/fx/ like the other effects.",
+ "bands_note": "Limb bands: swing/bands/<band>_limb_forge(.png, _lit) 13 x 9 and _limb_hand(_lit) 3 x 1. On the bow's grip use the sword's *_grip_* pictures.",
+ "runes": {
+  "pierce": {
+   "name": "Pierce",
+   "kind": "passive",
+   "text": "Your arrows go on through the enemies they hit."
+  },
+  "ricochet": {
+   "name": "Ricochet",
+   "kind": "passive",
+   "text": "An arrow that hits jumps on to the nearest other enemy."
+  },
+  "steady_aim": {
+   "name": "Steady Aim",
+   "kind": "passive",
+   "text": "Stand still while you shoot and you shoot faster and faster. Moving resets it."
+  },
+  "volley": {
+   "name": "Volley",
+   "kind": "active",
+   "text": "Three arrows in a spread."
+  },
+  "snipe": {
+   "name": "Snipe",
+   "kind": "active",
+   "text": "Hold, then let go: one heavy shot that does more the farther it flies."
+  },
+  "arrow_rain": {
+   "name": "Arrow Rain",
+   "kind": "active",
+   "text": "Mark an area and arrows pour down on it."
+  }
+ },
+ "rune_colours": {
+  "pierce": "#f4f0a8",
+  "ricochet": "#40d8c8",
+  "steady_aim": "#b8e068",
+  "volley": "#ff8c5a",
+  "snipe": "#6aa0ff",
+  "arrow_rain": "#c090ff"
+ },
+ "hud": {
+  "glyph_volley": {
+   "size": [
+    12,
+    12
+   ]
+  },
+  "glyph_snipe": {
+   "size": [
+    12,
+    12
+   ]
+  },
+  "glyph_arrow_rain": {
+   "size": [
+    12,
+    12
+   ]
+  }
+ },
+ "runes_note": "The six bow runes. Stones in swing/runes/ (icon 26 x 26, forge 9 x 9 and _lit, hand 1 x 1 and _lit), previews in swing/previews/ (352 x 240 mock-ups: replace them with stills from the game once the runes fire), glyphs for the actives in hud/. Their effect strips are in fx/ (not swing/fx/), listed under fx with folder fx."
 }

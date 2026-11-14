@@ -16,6 +16,7 @@ var panel: Control
 var pause_button: Button
 var invincible_button: Button
 var swap_button: Button
+var show_weapon := false   # a small sword or bow beside each health bar (where weapons can be swapped)
 var said := ""             # a line for everyone to read, for a few seconds (say())
 var said_until := -9.0
 var clock := 0.0
@@ -201,6 +202,11 @@ func _draw_hud() -> void:
 				if d == p.dodge_charges and p.dodge_charges < p.DODGE_MAX_CHARGES:
 					var back: float = clampf(p.dodge_refill / p.DODGE_REFILL, 0.0, 1.0)
 					panel.draw_texture(full_pip, at, Color(1, 1, 1, back * 0.55))
+		# Which weapon is in their hand, where they can swap (between the dodge pips and the number).
+		if show_weapon and not p.is_down:
+			var glyph := Art.texture("hud/weapon_%s.png" % ("bow" if _holds_bow(p) else "sword"))
+			if glyph != null:
+				panel.draw_texture(glyph, Vector2(bar.x + 44, y + 13))
 		_draw_abilities(p, right, x, y + 30.0, lead + BAR.x)
 		_draw_path(p, i, right)
 

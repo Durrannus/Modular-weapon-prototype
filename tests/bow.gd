@@ -205,11 +205,63 @@ func _run() -> void:
 	fresh.take("staff")
 	_check(fresh.weapon() == "bow", "(asking for a weapon that doesn't exist changes nothing)")
 
-	# --- The forge can't change a bow yet: it says so ---------------------------------
+	# --- The bow at the forge: its own parts, its own presets, no sword runes -----------
+	var Forge := preload("res://scripts/ui/swing_forge.gd")
+	var forge = m.build_menu
 	m.open_forge(0)
+	_check(forge.is_open and forge.build.weapon() == "bow", "with the bow in your hand the forge opens on the bow")
+	forge._set_tab(0)
+	_check(forge._tab_label(0) == "bow", "its first tab is called BOW")
+	var rows := {}
+	for c in forge._cards():
+		rows[c["kind"]] = int(rows.get(c["kind"], 0)) + 1
+	_check(rows == {"limbs": 2, "bow_grips": 3, "strings": 4, "arrows": 3}, "and offers limbs (shortbow, longbow), three grips, four strings and three kinds of arrows: %s" % [rows])
+	forge._set_tab(1)
+	_check(forge._cards().is_empty(), "the rune tray offers no sword runes for a bow (its own come next)")
+	_check(not SwingBuild.valid_data(["iron_shortbow", "wrapped_bow_grip", "plain_string", ["shockwave", "", "", ""], "iron_arrows"]), "a sword's rune can't be fitted to a bow")
+	_check(SwingBuild.valid_data(["iron_shortbow", "wrapped_bow_grip", "plain_string", ["twice", "", "wider", ""], "iron_arrows"]), "bands can")
+	_check(SwingBuild.fits("leap", "sword") and not SwingBuild.fits("leap", "bow") and SwingBuild.fits("twice", "bow"), "(every weapon has its own runes; bands fit them all)")
+	# The numbers plate: range where a sword has reach, and what a part would change.
+	var now: Dictionary = Forge.stat_values(forge.build.compute())
+	_check(now.has("range") and now.has("shoot_move") and not now.has("reach"), "a bow's numbers show range and walking while shooting")
+	_check(Forge.stat_text("damage", now["damage"]) == "Damage 8.3" and Forge.stat_text("range", now["range"]) == "Range 100%", "an iron shortbow reads Damage 8.3, Range 100%")
+	var change: Dictionary = Forge.stat_changes(now, Forge.stat_values(forge.stats_with("iron_longbow")))
+	_check(str(change.get("range", "")) == "+35%" and str(change.get("damage", "")).begins_with("-") and str(change.get("shoot_move", "")) == "-10%", "pointing at the longbow shows more range, lighter arrows, slower feet: %s" % [change])
+	change = Forge.stat_changes(now, Forge.stat_values(forge.stats_with("tin_arrows")))
+	_check(change.size() == 1 and str(change.get("damage", "")).begins_with("-"), "tin arrows only change the damage: %s" % [change])
+	change = Forge.stat_changes(now, Forge.stat_values(forge.stats_with("horn_bow_grip")))
+	_check(change == {"slots": "+1"}, "a horn grip only adds a slot")
+	change = Forge.stat_changes(now, Forge.stat_values(forge.stats_with("light_string")))
+	_check(change == {"speed": "+10%"}, "a light string only draws faster")
+	# Fitting parts from the tray.
+	forge._set_tab(0)
+	var tray: Array = forge._cards()
+	for i in tray.size():
+		if tray[i]["id"] in ["iron_longbow", "horn_bow_grip", "keen_string", "tin_arrows"]:
+			forge._use_card(i)
+	_check(m.build.get_data() == ["iron_longbow", "horn_bow_grip", "keen_string", ["", "", "", "", ""], "tin_arrows"], "clicking limbs, a grip, a string and arrows fits them: %s" % [m.build.get_data()])
+	_check(is_equal_approx(float(p.weapon["damage"]), 8.0 * 0.75 * 0.9) and is_equal_approx(float(p.weapon["range"]), 702.0), "a longbow with tin arrows: 5.4 damage, 702 px")
+	forge._load_test("A")
+	_check(m.build.weapon() == "bow", "the test-sword keys do nothing while a bow is on the anvil")
+	# Presets: a bow has three of its own.
+	var bow_a: Array = m.build.get_data()
+	forge._click("preset:1")
+	m.build.set_blade("iron_shortbow")
+	m.build.set_arrows("iron_arrows")
+	var bow_b: Array = m.build.get_data()
+	_check(m.build.preset == 1 and m.build.preset_sword(0) == bow_a, "preset B starts as a copy and is changed; A keeps the longbow")
+	forge._really_close()
 	await _frames(2)
-	_check(not m.build_menu.is_open and not m.is_forging(0), "with the bow in your hand the forge stays shut")
-	_check(m.hud.said.contains("swap to your sword") and m.hud.clock < m.hud.said_until, "and the screen says why")
+	m.swap_weapon(0)
+	await _frames(2)
+	_check(m.build.get_data() == sword and m.build.preset == 0 and m.build.preset_data == [null, null, null], "the sword's presets are its own: still on A, untouched by the bow's")
+	m.swap_weapon(0)
+	await _frames(2)
+	_check(m.build.get_data() == bow_b and m.build.preset == 1 and m.build.preset_sword(0) == bow_a, "back on the bow: still on its preset B, with A waiting")
+	m.build.use_preset(0)
+	m.build.set_data(test_bow)
+	m.build.changed.emit()
+	await _frames(2)
 
 	# --- A chain at one enemy: 8.25, 8.25, 12.375 --------------------------------------
 	await _still()
@@ -353,6 +405,38 @@ func _run() -> void:
 	m.swap_weapon(0)
 	_check(m.build.weapon() == "sword", "a player who is down can't swap")
 	p.is_down = false
+	await _still()
+
+	# --- The longbow: three slow heavy shots, further, within a tenth of the shortbow ----
+	m.swap_weapon(0)
+	await _frames(2)
+	m.build.set_blade("iron_longbow")
+	await _still()
+	var long_steps: Array = []
+	for st in p.weapon["steps"]:
+		long_steps.append(st["move"])
+	_check(long_steps == ["long_shot", "long_shot", "long_shot"], "longbow: three long shots")
+	var far_post = _slime(Vector2(650, 0))
+	await _frames(2)
+	await _shots(1)
+	_check(is_equal_approx(_lost(far_post), 8.25 * 0.9 * 1.5), "a long shot reaches an enemy 650 px away for 11.1 (%.3f)" % _lost(far_post))
+	far_post.queue_free()
+	p.input.move = Vector2.LEFT
+	p.input.attack_held = true
+	await _frames(40)
+	var v_long: float = p.walk_vel.length()
+	p.input.attack_held = false
+	p.input.move = Vector2.ZERO
+	_check(absf(v_long - Player.MOVE_SPEED * 0.7) < 1.0, "you walk at 70%% speed while shooting a longbow (%d of %d)" % [roundi(v_long), roundi(Player.MOVE_SPEED)])
+	p.global_position = home
+	p.reset_physics_interpolation()
+	await _still()
+	var long_dps: float = await _dps(Vector2(200, 0))
+	m.build.set_blade("iron_shortbow")
+	await _still()
+	var short_dps: float = await _dps(Vector2(200, 0))
+	_check(absf(long_dps / short_dps - 1.0) < 0.1, "longbow %.1f damage a second, shortbow %.1f: within a tenth (%.2f)" % [long_dps, short_dps, long_dps / short_dps])
+	m.swap_weapon(0)
 	await _still()
 
 	# --- Ranged must not beat melee: the bow does less a second than the sword ----------

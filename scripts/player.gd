@@ -104,6 +104,9 @@ const MOVES := {
 		"curve": [0.0, 0.0, 4.0, 22.0]},
 	"heavy_shot": {"windup": 0.22, "time": HEAVY, "shape": "shot", "power": 1.5, "knock": 300.0, "stun": 0.25, "freeze": 0.08, "shake": 6.0,
 		"curve": [0.0, 0.0, 4.0, 22.0], "big": true, "flight": 1.15},
+	# The longbow's only move: a long draw, a fast arrow and a hard shove.
+	"long_shot": {"windup": 0.25, "time": HEAVY, "shape": "shot", "power": 1.5, "knock": 340.0, "stun": 0.3, "freeze": 0.08, "shake": 6.0,
+		"curve": [0.0, 0.0, 4.0, 22.0], "big": true, "flight": 1.25},
 	# The old parts-grid moves (weapon_build.gd), kept so that screen still works.
 	"stab": {"windup": 0.06, "time": 0.25, "shape": "line", "width": 16.0, "range": 115.0, "power": 1.15, "knock": 320.0,
 		"curve": [0.0, 0.0, 4.0, 26.0], "smear": "thrust_smear"},

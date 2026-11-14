@@ -57,6 +57,7 @@ func _ready() -> void:
 
 	_make_ui()
 	hud.mode = "arena"
+	hud.show_weapon = true
 	hud.pause_pressed.connect(_toggle_paused)
 	hud.invincible_pressed.connect(_toggle_invincible)
 	hud.swap_pressed.connect(func(): _swap_weapon(mini(Net.me(), players.size() - 1)))

@@ -181,6 +181,25 @@ func _arena_tick() -> void:
 			var forge = m.build_menu
 			if forge.finishing >= 0.0:
 				forge._really_close()
+			elif forge.build.weapon() == "bow":
+				# A bow on the anvil: other limbs, a band, then its own preset B with other arrows.
+				if arena_step == 0:
+					forge.build.set_blade("iron_longbow" if me == 0 else "iron_shortbow")
+					forge.build.set_grip("horn_bow_grip")
+					arena_step = 1
+				elif arena_step == 1:
+					forge._set_tab(2)
+					forge.selected = 1 + me
+					forge._use_card(me)
+					arena_step = 2
+				elif arena_step == 2:
+					forge._use_preset(1 - forge.build.preset)
+					forge.build.set_arrows("tin_arrows" if forge.build.preset == 1 else "iron_arrows")
+					forge.build.set_pommel("keen_string")
+					arena_step = 3
+				else:
+					forge.close()
+					arena_step = 0
 			elif arena_step == 0:
 				forge._load_test("B" if me == 0 else "A")
 				arena_step = 1
@@ -201,7 +220,7 @@ func _arena_tick() -> void:
 				arena_step = 0
 		return
 	# Each player opens their forge at a different moment, and once at the same one.
-	if frame in [300 + me * 140, 1200]:
+	if frame in [300 + me * 140, 1200] or (me == 1 and frame == 1800):   # (player 2's last visit is with the bow)
 		Net.command(["forge_open"])
 	if me == 0 and frame in [700, 900]:
 		Net.command(["pause_enemies"])

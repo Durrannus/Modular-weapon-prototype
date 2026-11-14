@@ -16,6 +16,7 @@ extends CanvasLayer
 
 const SwingBuild := preload("res://scripts/weapon/swing_build.gd")
 const SwordArt := preload("res://scripts/weapon/sword_art.gd")
+const BowArt := preload("res://scripts/weapon/bow_art.gd")
 const Art := preload("res://scripts/art.gd")
 const Sfx := preload("res://scripts/sfx.gd")
 
@@ -173,7 +174,7 @@ func _on_changed() -> void:
 	heat = 1.0
 	strike_t = 0.0
 	var i := clampi(selected, 0, build.slot_count() - 1)
-	strike_at = sword_top + SwordArt.slot_center(build.blade, build.grip, "forge", i) * zoom
+	strike_at = sword_top + _slot_rect(i).get_center() * zoom
 	if sword_size == Vector2.ZERO:
 		strike_at = Vector2(CENTRE_X, 150)
 	playing.append(["sparks", strike_at, t])
@@ -471,6 +472,18 @@ func _set_tab(t: int) -> void:
 ## Every part id, in tray order (the cave shows the owned ones from this list).
 const ALL_BLADES := ["wooden_blade", "tin_blade", "iron_dagger", "iron_sabre", "iron_broadsword", "iron_rapier", "iron_falchion", "iron_greatsword"]
 const ALL_GRIPS := ["wooden_grip", "tin_grip", "wrapped_grip", "long_grip", "ringed_grip", "gilded_grip"]
+const ALL_LIMBS := ["wooden_shortbow", "tin_shortbow", "iron_shortbow", "iron_longbow"]
+const ALL_BOW_GRIPS := ["wooden_bow_grip", "tin_bow_grip", "wrapped_bow_grip", "horn_bow_grip"]
+
+
+## True while the weapon on the anvil is a bow.
+func _bow() -> bool:
+	return build.weapon() == "bow"
+
+
+## The first tab is the weapon's own parts, and is called after it.
+func _tab_label(i: int) -> String:
+	return build.weapon() if i == 0 else str(TABS[i])
 
 
 func _has(id: String) -> bool:
@@ -481,7 +494,22 @@ func _has(id: String) -> bool:
 func _cards() -> Array:
 	var out: Array = []
 	match TABS[tab]:
-		"sword":  # three rows: blades, grips, pommels
+		"sword":
+			if _bow():   # four rows: limbs, grips, strings, arrows
+				for id in (SwingBuild.LIMB_ORDER if owned == null else ALL_LIMBS):
+					if _has(id):
+						out.append({"id": id, "name": SwingBuild.LIMBS[id]["name"], "locked": false, "row": 0, "kind": "limbs"})
+				for id in (SwingBuild.BOW_GRIP_ORDER if owned == null else ALL_BOW_GRIPS):
+					if _has(id):
+						out.append({"id": id, "name": SwingBuild.BOW_GRIPS[id]["name"], "locked": false, "row": 1, "kind": "bow_grips"})
+				for id in SwingBuild.STRING_ORDER:
+					if _has(id):
+						out.append({"id": id, "name": SwingBuild.STRINGS[id]["name"], "locked": false, "row": 2, "kind": "strings"})
+				for id in SwingBuild.ARROW_ORDER:
+					if _has(id):
+						out.append({"id": id, "name": SwingBuild.ARROWS[id]["name"], "locked": false, "row": 3, "kind": "arrows"})
+				return out
+			# A sword: three rows, blades, grips, pommels.
 			for id in (SwingBuild.BLADE_ORDER if owned == null else ALL_BLADES):
 				if _has(id):
 					out.append({"id": id, "name": SwingBuild.BLADES[id]["name"], "locked": false, "row": 0, "kind": "blades"})
@@ -493,7 +521,7 @@ func _cards() -> Array:
 					out.append({"id": id, "name": SwingBuild.POMMELS[id]["name"], "locked": false, "row": 2, "kind": "pommels"})
 		"runes":
 			for id in SwingBuild.FITTING_ORDER:
-				if SwingBuild.FITTINGS[id]["kind"] == "rune" and not SwingBuild.FITTINGS[id].get("parked", false) and _has(id):
+				if SwingBuild.FITTINGS[id]["kind"] == "rune" and not SwingBuild.FITTINGS[id].get("parked", false) and _has(id) and SwingBuild.fits(id, build.weapon()):
 					out.append({"id": id, "name": SwingBuild.FITTINGS[id]["name"], "locked": false,
 						"group": "active" if SwingBuild.FITTINGS[id]["trigger"] == "active" else "passive"})
 		"bands":
@@ -512,12 +540,14 @@ func _use_card(i: int) -> void:
 	if i < 0 or i >= cards.size() or cards[i]["locked"]:
 		return
 	var id: String = cards[i]["id"]
-	if SwingBuild.BLADES.has(id):
+	if SwingBuild.BLADES.has(id) or SwingBuild.LIMBS.has(id):
 		build.set_blade(id)
-	elif SwingBuild.GRIPS.has(id):
+	elif SwingBuild.GRIPS.has(id) or SwingBuild.BOW_GRIPS.has(id):
 		build.set_grip(id)
-	elif SwingBuild.POMMELS.has(id):
+	elif SwingBuild.POMMELS.has(id) or SwingBuild.STRINGS.has(id):
 		build.set_pommel(id)
+	elif SwingBuild.ARROWS.has(id):
+		build.set_arrows(id)
 	else:
 		_put(id)
 	selected = clampi(selected, 0, build.slot_count() - 1)
@@ -533,6 +563,8 @@ func _put(id: String) -> void:
 
 
 func _load_test(k: String) -> void:
+	if _bow():
+		return   # the test swords are swords
 	build.load_test(k)
 	selected = clampi(selected, 0, build.slot_count() - 1)
 
@@ -638,6 +670,15 @@ func _icon(kind: String, id: String, center: Vector2, part_scale := 2.0, tint :=
 			root.draw_circle(center, 8.0, pc.darkened(0.55))
 			root.draw_circle(center, 6.5, pc)
 			root.draw_circle(center + Vector2(-2, -2), 2.0, pc.lightened(0.5))
+		"limbs", "bow_grips", "strings", "arrows":
+			var folder := "grips" if kind == "bow_grips" else kind
+			var btex := Art.texture("swing/bow/%s/%s_icon.png" % [folder, id])
+			if btex != null:
+				root.draw_texture(btex, (center - btex.get_size() * 0.5).round(), tint)
+			elif kind == "strings":
+				root.draw_rect(Rect2(center - Vector2(9, 1), Vector2(18, 2)), BowArt.string_color(id))
+			else:
+				root.draw_rect(Rect2(center - Vector2(10, 2), Vector2(20, 4)), Color("#8a6a48"))
 		"blades", "grips":
 			# Its own picture for the tray, lying down with the tip to the right.
 			var card_tex := Art.texture("swing/%s/%s_icon.png" % [kind, id])
@@ -730,12 +771,12 @@ func _draw_tray() -> void:
 	var x := 14.0
 	var f := Art.font("Silkscreen-Regular")
 	for i in TABS.size():
-		var w := f.get_string_size(str(TABS[i]).to_upper(), HORIZONTAL_ALIGNMENT_LEFT, -1, 8).x
+		var w := f.get_string_size(_tab_label(i).to_upper(), HORIZONTAL_ALIGNMENT_LEFT, -1, 8).x
 		var r := Rect2(x - 5, 38, w + 10, 14)
 		buttons["tab:%d" % i] = r
 		# The chosen tab stands proud (its picture starts 2 px higher than the others').
 		var drawn := Art.draw_nine(root, "swing/ui/tab_selected.png" if i == tab else "swing/ui/tab.png", r, 4)
-		_head(TABS[i], Vector2(x, 48), INK if i == tab else (FOCUS if hover == "tab:%d" % i else DIM))
+		_head(_tab_label(i), Vector2(x, 48), INK if i == tab else (FOCUS if hover == "tab:%d" % i else DIM))
 		if i == tab and not drawn:
 			root.draw_rect(Rect2(x, 51, w, 1), AMBER)
 		x += w + 13
@@ -743,6 +784,8 @@ func _draw_tray() -> void:
 	card = clampi(card, 0, maxi(cards.size() - 1, 0))
 	if cards.is_empty():
 		_body("Nothing here yet.", Vector2(14, 78), DIM)
+		if _bow() and TABS[tab] == "runes":
+			_body("The bow's own runes are being built.", Vector2(14, 92), DIM)
 	var rects := _place_cards(cards)
 	for i in cards.size():
 		var c: Dictionary = cards[i]
@@ -772,7 +815,20 @@ func _draw_tray() -> void:
 func _place_cards(cards: Array) -> Array:
 	var rects: Array = []
 	rects.resize(cards.size())
-	match TABS[tab]:
+	match TABS[tab] if not (_bow() and tab == 0) else "bow":
+		"bow":
+			# Four rows: limbs, grip, string, arrows.
+			var count := [0, 0, 0, 0]
+			for c in cards:
+				count[int(c["row"])] += 1
+			for ri in 4:
+				_head(["Limbs", "Grip", "String", "Arrows"][ri], Vector2(14, 64 + ri * 38), DIM)
+			var k := [0, 0, 0, 0]
+			for i in cards.size():
+				var ri: int = cards[i]["row"]
+				var w := clampi(192 / maxi(int(count[ri]), 1), 30, [64, 34, 34, 40][ri])
+				rects[i] = Rect2(14 + int(k[ri]) * w, 67 + ri * 38, w - 3, 26)
+				k[ri] += 1
 		"sword":
 			# Three rows: blades, grips, pommels. More than three blades go in rows
 			# of three (the greatsword's picture is 62 wide), and the rows below
@@ -848,12 +904,9 @@ func _info_id() -> String:
 
 
 func _name(id: String) -> String:
-	if SwingBuild.BLADES.has(id):
-		return SwingBuild.BLADES[id]["name"]
-	if SwingBuild.GRIPS.has(id):
-		return SwingBuild.GRIPS[id]["name"]
-	if SwingBuild.POMMELS.has(id):
-		return SwingBuild.POMMELS[id]["name"]
+	for table in [SwingBuild.BLADES, SwingBuild.GRIPS, SwingBuild.POMMELS, SwingBuild.LIMBS, SwingBuild.BOW_GRIPS, SwingBuild.STRINGS, SwingBuild.ARROWS]:
+		if table.has(id):
+			return table[id]["name"]
 	return SwingBuild.FITTINGS[id]["name"]
 
 
@@ -910,7 +963,7 @@ func help_lines() -> Array:
 			out.append([l, INK])
 		return out
 	if _preset_hover() >= 0:
-		return [["A preset is a whole saved sword.", DIM], ["Click A, B or C to switch to it.", DIM], ["Click its name to change the name.", DIM]]
+		return [["A preset is a whole saved %s." % build.weapon(), DIM], ["Click A, B or C to switch to it.", DIM], ["Click its name to change the name.", DIM]]
 	if _on_pad():
 		return [["Stick: pick   A: fit   X: take off", DIM], ["LB RB: tabs   Select: next preset", DIM], ["B or Y: back to the game", DIM]]
 	return [["Drag a part onto a slot to fit it.", DIM], ["Right-click a slot to take it off.", DIM],
@@ -964,14 +1017,21 @@ func _draw_preset_info(i: int) -> void:
 	var data = build.preset_sword(i)
 	if data == null:
 		var y := at.y + 35.0
-		for l in _wrap("Empty. Click it to start it as a copy of this sword.", INFO.size.x - 20):
+		for l in _wrap("Empty. Click it to start it as a copy of this %s." % build.weapon(), INFO.size.x - 20):
 			_body(l, Vector2(at.x + 10, y))
 			y += 13
 		return
 	var missing := SwingBuild.parts_missing(data, owned)
-	_part_icon("blades", data[0], Vector2(at.x + 42, at.y + 38), missing)
-	_part_icon("grips", data[1], Vector2(at.x + 96, at.y + 38), missing)
-	_part_icon("pommels", data[2], Vector2(at.x + 130, at.y + 38), missing)
+	if SwingBuild.LIMBS.has(data[0]):
+		_part_icon("limbs", data[0], Vector2(at.x + 42, at.y + 38), missing)
+		_part_icon("bow_grips", data[1], Vector2(at.x + 90, at.y + 38), missing)
+		_part_icon("strings", data[2], Vector2(at.x + 122, at.y + 38), missing)
+		if data.size() > 4:
+			_part_icon("arrows", data[4], Vector2(at.x + 158, at.y + 38), missing)
+	else:
+		_part_icon("blades", data[0], Vector2(at.x + 42, at.y + 38), missing)
+		_part_icon("grips", data[1], Vector2(at.x + 96, at.y + 38), missing)
+		_part_icon("pommels", data[2], Vector2(at.x + 130, at.y + 38), missing)
 	var x := at.x + 10.0
 	for id in data[3]:
 		if id == "":
@@ -1030,7 +1090,7 @@ func _short(name: String) -> String:
 
 
 func _on_sword(id: String) -> bool:
-	return id != "" and (id == build.blade or id == build.grip or id == build.pommel or id in build.line)
+	return id != "" and (id == build.blade or id == build.grip or id == build.pommel or id == build.arrows or id in build.line)
 
 
 func _desc(id: String) -> String:
@@ -1040,6 +1100,11 @@ func _desc(id: String) -> String:
 		return SwingBuild.blade_info(id)["desc"]
 	if SwingBuild.GRIPS.has(id):
 		return SwingBuild.GRIPS[id]["desc"]
+	if SwingBuild.LIMBS.has(id):
+		return SwingBuild.limb_info(id, build.arrows)["desc"]
+	for table in [SwingBuild.BOW_GRIPS, SwingBuild.STRINGS, SwingBuild.ARROWS]:
+		if table.has(id):
+			return table[id]["desc"]
 	return SwingBuild.FITTINGS[id]["desc"]
 
 
@@ -1092,11 +1157,30 @@ func _group_color(effect_index: int) -> Color:
 	return GROUP_COLORS[effect_index % GROUP_COLORS.size()]
 
 
-## Centre: the sword big over the anvil. Its sockets are the menu.
+## The weapon's frame at the forge, a slot's place in it, and the weapon itself:
+## a sword's from SwordArt, a bow's from BowArt.
+func _frame_size() -> Vector2:
+	if _bow():
+		return BowArt.forge_size(build.blade, build.grip)
+	return SwordArt.frame_size(build.blade, build.grip, "forge")
+
+
+func _slot_rect(i: int) -> Rect2:
+	if _bow():
+		return BowArt.forge_slot_rect(build.blade, build.grip, i)
+	return SwordArt.slot_rect(build.blade, build.grip, "forge", i)
+
+
+func _draw_weapon(ci: CanvasItem) -> void:
+	if _bow():
+		BowArt.draw_forge(ci, build.blade, build.grip, build.pommel, build.arrows, build.line)
+	else:
+		SwordArt.draw(ci, build.blade, build.grip, build.line, "forge", {}, Vector2.ZERO, Color.WHITE, build.pommel)
+
+
+## Centre: the sword (or bow) big over the anvil. Its sockets are the menu.
 func _draw_sword(stats: Dictionary) -> void:
-	var blade := build.blade
-	var grip := build.grip
-	var size := SwordArt.frame_size(blade, grip, "forge")
+	var size := _frame_size()
 	# Twice its size whenever that fits. A taller sword is drawn smaller, by a
 	# whole number of screen pixels for each of its own, so they stay square.
 	# The very tallest (a greatsword on a long grip) may use the few pixels above
@@ -1113,7 +1197,7 @@ func _draw_sword(stats: Dictionary) -> void:
 	if anvil != null:
 		root.draw_texture(anvil, Vector2(CENTRE_X - anvil.get_width() * 0.5, SWORD_BOTTOM - 2).round())
 	root.draw_set_transform(top, 0.0, Vector2(zoom, zoom))
-	SwordArt.draw(root, blade, grip, build.line, "forge", {}, Vector2.ZERO, Color.WHITE, build.pommel)
+	_draw_weapon(root)
 	root.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 	# Group outlines.
 	var info: Dictionary = stats["slot_info"]
@@ -1142,7 +1226,7 @@ func _draw_sword(stats: Dictionary) -> void:
 
 
 func _slot_screen(i: int) -> Rect2:
-	var r := SwordArt.slot_rect(build.blade, build.grip, "forge", i)
+	var r := _slot_rect(i)
 	return Rect2(sword_top + r.position * zoom, r.size * zoom)
 
 
@@ -1177,7 +1261,7 @@ func _update_fx(delta: float) -> void:
 func _draw_heat_mask() -> void:
 	if sword_size != Vector2.ZERO:
 		heat_mask.draw_set_transform(sword_top, 0.0, Vector2(zoom, zoom))
-		SwordArt.draw(heat_mask, build.blade, build.grip, build.line, "forge", {}, Vector2.ZERO, Color.WHITE, build.pommel)
+		_draw_weapon(heat_mask)
 		heat_mask.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 
@@ -1259,20 +1343,23 @@ func _draw_banner() -> void:
 		return
 	var heat_tex := Art.texture("swing/forge-fx/heat_%s.png" % build.blade)
 	var banner_tex := Art.texture("swing/forge-fx/forged_banner.png")
-	if heat_tex != null and banner_tex != null:
+	if banner_tex != null and (heat_tex != null or _bow()):
 		var start := t - finishing
-		var blade_pos := sword_top + Vector2(SwordArt.blade_x(build.blade, "forge"), 0) * zoom
-		var bsrc := SwordArt.blade_size(build.blade, "forge")
-		var bsize := bsrc * zoom
-		# Heat cools from white-hot to steel, then a glint sweeps up the blade.
-		var heat_k := (finishing - 0.1) * 10.0
-		if finishing >= 0.1 and heat_k < 8.0:
-			var hf := mini(int(heat_k), 7)
-			banner.draw_texture_rect_region(heat_tex, Rect2(blade_pos, bsize), Rect2(hf * bsrc.x, 0, bsrc.x, bsrc.y))
-		var shine_tex := Art.texture("swing/forge-fx/shine_%s.png" % build.blade)
-		var shine_k := (finishing - 0.9) * 16.0
-		if shine_tex != null and finishing >= 0.9 and shine_k < 8.0:
-			banner.draw_texture_rect_region(shine_tex, Rect2(blade_pos, bsize), Rect2(mini(int(shine_k), 7) * bsrc.x, 0, bsrc.x, bsrc.y))
+		if heat_tex != null:
+			var blade_pos := sword_top + Vector2(SwordArt.blade_x(build.blade, "forge"), 0) * zoom
+			var bsrc := SwordArt.blade_size(build.blade, "forge")
+			var bsize := bsrc * zoom
+			# Heat cools from white-hot to steel, then a glint sweeps up the blade.
+			var heat_k := (finishing - 0.1) * 10.0
+			if finishing >= 0.1 and heat_k < 8.0:
+				var hf := mini(int(heat_k), 7)
+				banner.draw_texture_rect_region(heat_tex, Rect2(blade_pos, bsize), Rect2(hf * bsrc.x, 0, bsrc.x, bsrc.y))
+			var shine_tex := Art.texture("swing/forge-fx/shine_%s.png" % build.blade)
+			var shine_k := (finishing - 0.9) * 16.0
+			if shine_tex != null and finishing >= 0.9 and shine_k < 8.0:
+				banner.draw_texture_rect_region(shine_tex, Rect2(blade_pos, bsize), Rect2(mini(int(shine_k), 7) * bsrc.x, 0, bsrc.x, bsrc.y))
+		# (A bow has no heat pictures of its own: the glow drawn in code, clipped
+		# to the bow, does it; see _draw_heat_fill.)
 		var fade := clampf((FINISH_TIME - finishing) / 0.3, 0.0, 1.0)
 		_fx_strip(banner, "forged_banner", Vector2(CENTRE_X, sword_top.y + 40), start + 0.2, true, fade)
 		return
@@ -1286,7 +1373,7 @@ func _draw_banner() -> void:
 	var names: Array = []
 	for e in build.compute()["effects"]:
 		names.append(SwingBuild.FITTINGS[e["id"]]["name"])
-	var sub := "%s + %s" % [SwingBuild.BLADES[build.blade]["name"], SwingBuild.GRIPS[build.grip]["name"]]
+	var sub := "%s + %s" % [_name(build.blade), _name(build.grip)]
 	if not names.is_empty():
 		sub += ":  " + ", ".join(names)
 	banner.draw_string(Art.font("PixelifySans-Regular"), Vector2(0, y + 18), sub, HORIZONTAL_ALIGNMENT_CENTER, 640, 11, Color(0.9, 0.86, 0.8, a))
@@ -1392,23 +1479,44 @@ const STAT_ROWS := [
 	["crit_damage", 0, 2], ["slots", 1, 2],
 	["move", 0, 3],
 ]
+## A bow's: how far its arrows fly where a sword has its reach, and walking while
+## shooting. (Range is a share of the shortbow's, as reach is of the broadsword's.)
+const BOW_STAT_ROWS := [
+	["damage", 0, 0], ["speed", 1, 0],
+	["range", 0, 1], ["crit", 1, 1],
+	["crit_damage", 0, 2], ["slots", 1, 2],
+	["shoot_move", 0, 3],
+]
+## The picture beside a number, where it isn't called what the number is.
+const STAT_ICONS := {"shoot_move": "move"}
 
 
-## A sword's numbers as the stats plate shows them.
+## Which numbers a weapon shows (`s` is its compute()).
+static func stat_rows(s: Dictionary) -> Array:
+	return BOW_STAT_ROWS if s.get("weapon", "sword") == "bow" else STAT_ROWS
+
+
+## A weapon's numbers as the stats plate shows them.
 static func stat_values(s: Dictionary) -> Dictionary:
-	return {
+	var out := {
 		"damage": float(s["damage"]),
 		"speed": roundf(float(s["speed"]) * 100.0),
-		"reach": roundf(float(s["reach"]) * 100.0),
 		"crit": roundf(float(s["crit"]) * 100.0),
 		"crit_damage": float(s["crit_damage"]),
 		"slots": float((s["line"] as Array).size()),
-		"move": roundf(float(s.get("swing_move", SwingBuild.SWING_MOVE)) * 100.0),
 	}
+	var walk := roundf(float(s.get("swing_move", SwingBuild.SWING_MOVE)) * 100.0)
+	if s.get("weapon", "sword") == "bow":
+		out["range"] = roundf(float(s.get("range", SwingBuild.BOW_RANGE)) / SwingBuild.BOW_RANGE * 100.0)
+		out["shoot_move"] = walk
+	else:
+		out["reach"] = roundf(float(s["reach"]) * 100.0)
+		out["move"] = walk
+	return out
 
 
 static func _plain(v: float) -> String:
-	return ("%d" % roundi(v)) if is_equal_approx(v, roundf(v)) else ("%.1f" % v)
+	return ("%d" % roundi(v)) if is_equal_approx(v, roundf(v)) else ("%.1f" % (roundf(v * 10.0) / 10.0))
 
 
 static func stat_text(key: String, v: float) -> String:
@@ -1416,6 +1524,8 @@ static func stat_text(key: String, v: float) -> String:
 		"damage": return "Damage %s" % _plain(v)
 		"speed": return "Speed %d%%" % roundi(v)
 		"reach": return "Reach %d%%" % roundi(v)
+		"range": return "Range %d%%" % roundi(v)
+		"shoot_move": return "Walk while shooting %d%%" % roundi(v)
 		"crit": return "Crit %d%%" % roundi(v)
 		"crit_damage": return "Crit hits x%s" % _plain(v)
 		"slots": return "Slots %d" % roundi(v)
@@ -1428,7 +1538,7 @@ static func delta_text(key: String, d: float) -> String:
 	if absf(d) < 0.05:
 		return ""
 	var amount := _plain(absf(d))
-	if key in ["speed", "reach", "crit", "move"]:
+	if key in ["speed", "reach", "crit", "move", "range", "shoot_move"]:
 		amount += "%"
 	return ("+" if d > 0.0 else "-") + amount
 
@@ -1454,12 +1564,14 @@ func _compare_id() -> String:
 func stats_with(id: String) -> Dictionary:
 	var b := SwingBuild.new()
 	b.set_data(build.get_data())
-	if SwingBuild.BLADES.has(id):
+	if SwingBuild.BLADES.has(id) or SwingBuild.LIMBS.has(id):
 		b.set_blade(id)
-	elif SwingBuild.GRIPS.has(id):
+	elif SwingBuild.GRIPS.has(id) or SwingBuild.BOW_GRIPS.has(id):
 		b.set_grip(id)
-	elif SwingBuild.POMMELS.has(id):
+	elif SwingBuild.POMMELS.has(id) or SwingBuild.STRINGS.has(id):
 		b.set_pommel(id)
+	elif SwingBuild.ARROWS.has(id):
+		b.set_arrows(id)
 	return b.compute()
 
 
@@ -1478,7 +1590,7 @@ func _draw_stats(stats: Dictionary) -> void:
 		_head("With the " + _name(with_id), at + Vector2(14, 14), FOCUS)
 		if stat_changes(now, then).is_empty():
 			_head("same numbers", at + Vector2(14, 14), DIM, 8, STATS.size.x - 26, HORIZONTAL_ALIGNMENT_RIGHT)
-	for row in STAT_ROWS:
+	for row in stat_rows(stats):
 		var key: String = row[0]
 		var d: float = float(then[key]) - float(now[key])
 		_stat(key, stat_text(key, now[key]), at + stat_at(row), delta_text(key, d), d > 0.0)
@@ -1516,7 +1628,7 @@ func _stat(name: String, text: String, pos: Vector2, change := "", gain := true)
 		_stat_lit[name] = t
 	_stat_last[name] = text
 	var lit: bool = t - float(_stat_lit.get(name, -9.0)) < 1.2
-	var icon := Art.texture("swing/ui/stat_%s%s.png" % [name, "_hot" if lit else ""])
+	var icon := Art.texture("swing/ui/stat_%s%s.png" % [STAT_ICONS.get(name, name), "_hot" if lit else ""])
 	var x := pos.x
 	if icon != null:
 		root.draw_texture(icon, Vector2(x, pos.y - 8))

@@ -48,7 +48,7 @@ const MOVE_NAMES := {"slash": "slash", "overhead": "overhead",
 	"thrust": "thrust", "long_thrust": "lunge",
 	"chop": "chop", "cleave": "cleave",
 	"great_sweep": "sweep", "great_back": "backswing", "slam": "slam",
-	"quick_shot": "quick shot", "heavy_shot": "heavy shot"}
+	"quick_shot": "quick shot", "heavy_shot": "heavy shot", "long_shot": "long shot"}
 
 ## A broadsword's damage in each metal. (Later metals each add about a quarter.)
 const METALS := {"wood": 5.0, "tin": 8.0, "iron": 11.0}
@@ -110,6 +110,13 @@ const BOW_SHAPES := {
 	"shortbow": {"name": "Shortbow", "chain": ["quick_shot", "quick_shot", "heavy_shot"],
 		"damage": 1.0, "speed": 1.0, "range": 1.0,
 		"desc": "Quick shot, quick shot, heavy shot: the balanced bow."},
+	# Three heavy shots are 4.5 hits in the time a shortbow makes 3.5 (1.35 s
+	# against 1.17), so each arrow is a tenth lighter and the two bows do the same
+	# a second. What the longbow buys is reach and a shove on every shot; what it
+	# costs is fewer arrows and slower feet.
+	"longbow": {"name": "Longbow", "chain": ["long_shot", "long_shot", "long_shot"],
+		"damage": 0.9, "speed": 1.0, "range": 1.35, "swing_move": 0.7,
+		"desc": "Three slow, heavy shots that fly a third further. You walk slower while shooting."},
 }
 ## An arrow is worth this much of a broadsword's hit in the same metal. Shooting
 ## from range is safer than standing in reach, and Darren doesn't want everyone
@@ -126,8 +133,9 @@ const LIMBS := {
 	"tin_shortbow": {"name": "Tin Shortbow", "shape": "shortbow", "slots": 1,
 		"desc": "Quick shot, quick shot, heavy shot: wood, shod with tin."},
 	"iron_shortbow": {"name": "Iron Shortbow", "shape": "shortbow", "slots": 2},
+	"iron_longbow": {"name": "Iron Longbow", "shape": "longbow", "slots": 2},
 }
-const LIMB_ORDER := ["iron_shortbow"]
+const LIMB_ORDER := ["iron_shortbow", "iron_longbow"]
 
 const BOW_GRIPS := {
 	"wooden_bow_grip": {"name": "Wooden Bow Grip", "slots": 1, "desc": "One slot."},
@@ -148,9 +156,9 @@ const STRING_ORDER := ["plain_string", "keen_string", "heavy_string", "light_str
 
 ## Arrows: the bow's damage. The first kinds are the three metals and nothing else.
 const ARROWS := {
-	"wooden_arrows": {"name": "Wooden Arrows", "metal": "wood", "desc": "Sharpened wood."},
-	"tin_arrows": {"name": "Tin Arrows", "metal": "tin", "desc": "Tin heads."},
-	"iron_arrows": {"name": "Iron Arrows", "metal": "iron", "desc": "Iron heads."},
+	"wooden_arrows": {"name": "Wooden Arrows", "metal": "wood", "desc": "Sharpened wood: the lightest hit. Arrows never run out."},
+	"tin_arrows": {"name": "Tin Arrows", "metal": "tin", "desc": "Tin heads: a harder hit. Arrows never run out."},
+	"iron_arrows": {"name": "Iron Arrows", "metal": "iron", "desc": "Iron heads: the hardest hit so far. Arrows never run out."},
 }
 const ARROW_ORDER := ["wooden_arrows", "tin_arrows", "iron_arrows"]
 
@@ -239,30 +247,30 @@ const POMMEL_ORDER := ["plain_pommel", "keen_pommel", "heavy_pommel", "light_pom
 ##   turns     hold only: how many turns a full meter holds
 ##   turn      hold only: how long one turn takes, in seconds
 const FITTINGS := {
-	"shockwave": {"kind": "rune", "name": "Shockwave", "trigger": "finisher", "color": Color("#ffc850"),
+	"shockwave": {"kind": "rune", "weapon": "sword", "name": "Shockwave", "trigger": "finisher", "color": Color("#ffc850"),
 		"desc": "Your finisher sends a wave forward."},
 	# Hook left the sword for the hammer (Darren, 11 November afternoon). It waits
 	# here, out of the forge, until the hammer is built: its rules and effects stay.
-	"hook": {"kind": "rune", "name": "Hook", "trigger": "active", "use": "press", "recharge": 4.0, "color": Color("#ff9c32"), "parked": true,
+	"hook": {"kind": "rune", "weapon": "sword", "name": "Hook", "trigger": "active", "use": "press", "recharge": 4.0, "color": Color("#ff9c32"), "parked": true,
 		"desc": "Press its button to yank nearby enemies in."},
 	# Shards replaced Cleave (Darren, 6 November).
-	"shards": {"kind": "rune", "name": "Shards", "trigger": "hit", "color": Color("#d0dcd8"),
+	"shards": {"kind": "rune", "weapon": "sword", "name": "Shards", "trigger": "hit", "color": Color("#d0dcd8"),
 		"desc": "Every hit sends shards jumping to the nearest enemies."},
 	# Weak Point (Darren, 11 November): the sword's single-target passive. The finisher
 	# marks the enemy it hit; the next sword hit on the mark is a big crit. Small
 	# enemies glow all over. Big ones get a spot on one side that you have to reach.
-	"weak_point": {"kind": "rune", "name": "Weak Point", "trigger": "finisher", "color": Color("#b8f4ff"),
+	"weak_point": {"kind": "rune", "weapon": "sword", "name": "Weak Point", "trigger": "finisher", "color": Color("#b8f4ff"),
 		"desc": "Your finisher marks an enemy, and your next hit on the mark is a big crit."},
-	"whirlwind": {"kind": "rune", "name": "Whirlwind", "trigger": "active", "use": "hold", "recharge": 5.0, "turns": 3, "turn": 0.28, "color": Color("#f078b4"),
+	"whirlwind": {"kind": "rune", "weapon": "sword", "name": "Whirlwind", "trigger": "active", "use": "hold", "recharge": 5.0, "turns": 3, "turn": 0.28, "color": Color("#f078b4"),
 		"desc": "Hold its button to spin and cut everything around you."},
 	# Leap is active since 11 November (it was "attack straight after a dodge").
-	"leap": {"kind": "rune", "name": "Leap", "trigger": "active", "use": "press", "recharge": 3.0, "color": Color("#f0c070"),
+	"leap": {"kind": "rune", "weapon": "sword", "name": "Leap", "trigger": "active", "use": "press", "recharge": 3.0, "color": Color("#f0c070"),
 		"desc": "Press its button to leap at the nearest enemy and strike it."},
 	# Ghostwield (Darren, 11 November afternoon): the sword's third active rune. A
 	# see-through copy of your sword appears in your other hand and copies every
 	# swing a moment later from the other side, at half strength, for `time`
 	# seconds. Its hits set your passive runes off again as ghosted effects.
-	"ghostwield": {"kind": "rune", "name": "Ghostwield", "trigger": "active", "use": "press", "recharge": 45.0, "time": 15.0, "color": Color("#a8b4ff"),
+	"ghostwield": {"kind": "rune", "weapon": "sword", "name": "Ghostwield", "trigger": "active", "use": "press", "recharge": 45.0, "time": 15.0, "color": Color("#a8b4ff"),
 		"desc": "Press its button: a ghost of your sword copies every swing for a while, at half strength."},
 	"twice": {"kind": "band", "name": "Twice", "color": Color("#86d4a4"),
 		"desc": "The rune above happens twice."},
@@ -283,6 +291,17 @@ const FITTINGS := {
 		"desc": "Rare: the bands under the rune below also boost the next rune above."},
 }
 ## Passive runes first, then active ones (the forge tray shows them as two groups).
+## Whether this fitting can go on that weapon ("sword" or "bow"). Every weapon has
+## its own runes (Game Bible: three passive and three active each); bands and
+## rule-benders fit them all. (Hook is the hammer's: it waits with the sword's
+## until there is a hammer.)
+static func fits(id: String, kind: String) -> bool:
+	if not FITTINGS.has(id):
+		return false
+	var w: String = FITTINGS[id].get("weapon", "")
+	return w == "" or w == kind
+
+
 const FITTING_ORDER := ["shockwave", "shards", "weak_point", "whirlwind", "hook", "leap", "ghostwield",
 	"twice", "wider", "every_hit", "saved_up", "on_dodge", "mirror", "relay"]
 const EVERY_HIT_POWER := 0.5
@@ -376,7 +395,11 @@ func _refit(old_grip_slots: int) -> void:
 		line.append("" if x == null else x)
 
 
+## The four setters take a part of the weapon in the hand; a part of the other
+## weapon is ignored (a blade doesn't go on a bow).
 func set_blade(id: String) -> void:
+	if LIMBS.has(id) != (weapon() == "bow") or not (LIMBS.has(id) or BLADES.has(id)):
+		return
 	var old := grip_slots()
 	blade = id
 	_refit(old)
@@ -384,6 +407,8 @@ func set_blade(id: String) -> void:
 
 
 func set_grip(id: String) -> void:
+	if BOW_GRIPS.has(id) != (weapon() == "bow") or not (BOW_GRIPS.has(id) or GRIPS.has(id)):
+		return
 	var old := grip_slots()
 	grip = id
 	_refit(old)
@@ -398,11 +423,15 @@ func set_slot(i: int, fitting: String) -> void:
 
 
 func set_pommel(id: String) -> void:
+	if STRINGS.has(id) != (weapon() == "bow") or not (STRINGS.has(id) or POMMELS.has(id)):
+		return
 	pommel = id
 	changed.emit()
 
 
 func set_arrows(id: String) -> void:
+	if weapon() != "bow" or not ARROWS.has(id):
+		return
 	arrows = id
 	changed.emit()
 
@@ -434,17 +463,25 @@ static func valid_data(data) -> bool:
 	if data[3].size() != int(grip_part(data[1])["slots"]) + int(head_part(data[0])["slots"]):
 		return false
 	for id in data[3]:
-		if not (id is String) or (id != "" and not FITTINGS.has(id)):
+		if not (id is String) or (id != "" and not fits(id, weapon_of(data[0]))):
 			return false
 	return true
 
 
 ## Sets the whole weapon at once. Doesn't announce it: emit `changed` yourself.
-## If it is the other weapon, the one in the hand is put away first.
+## If it is the other weapon, the one in the hand is put away first, and its
+## loadout presets with it: each weapon has its own three.
 func set_data(data: Array) -> void:
-	if weapon_of(data[0]) != weapon():
+	var kind := weapon_of(data[0])
+	if kind != weapon():
 		stowed[weapon()] = get_data()
-	stowed.erase(weapon_of(data[0]))
+		_presets_away[weapon()] = [preset, preset_data, preset_names]
+		var mine: Array = _presets_away.get(kind, [0, [null, null, null], ["", "", ""]])
+		_presets_away.erase(kind)
+		preset = mine[0]
+		preset_data = mine[1]
+		preset_names = mine[2]
+	stowed.erase(kind)
 	blade = data[0]
 	grip = data[1]
 	pommel = data[2]
@@ -458,6 +495,8 @@ func set_data(data: Array) -> void:
 # the sword is saved to it; the other two wait here as get_data() values. They
 # are this player's own notes: nothing about them is sent to the other computer
 # online (switching sends the new sword like any other change at the forge).
+# A bow has three of its own (14 November): the presets you see are the ones of
+# the weapon in your hand, and the other weapon's wait in `_presets_away`.
 
 const PRESET_LETTERS := ["A", "B", "C"]
 const PRESET_NAME_MAX := 12
@@ -465,6 +504,7 @@ const PRESET_NAME_MAX := 12
 var preset := 0                              # the chosen one
 var preset_data: Array = [null, null, null]  # the saved swords (the chosen one's entry isn't used)
 var preset_names: Array = ["", "", ""]
+var _presets_away := {}                      # weapon -> [preset, preset_data, preset_names] of the one not in the hand
 
 
 ## What preset i holds: a get_data() value, or null if it has never been used.
@@ -499,16 +539,10 @@ func use_preset(i: int, owned = null) -> Array:
 	preset_data[preset] = get_data()
 	var data = preset_data[i]
 	preset = i
-	var missing := parts_missing(data, owned)
 	if data != null and weapon_of(data[0]) != weapon():
-		# The saved one is the other weapon: it comes whole, or (a part of it is
-		# gone) not at all, since a sword's parts don't fit a bow.
-		var whole := true
-		for id in [data[0], data[1], data[2]] + (data as Array).slice(4):
-			whole = whole and not (id in missing)
-		if whole:
-			set_data([data[0], data[1], data[2], (data[3] as Array).map(func(id): return "" if id in missing else id)] + (data as Array).slice(4))
-	elif data != null:
+		data = null   # (can't happen: a weapon's presets only ever hold that weapon)
+	var missing := parts_missing(data, owned)
+	if data != null:
 		var saved_grip_slots := int(grip_part(data[1])["slots"])
 		if not (data[0] in missing):
 			blade = data[0]
@@ -526,10 +560,11 @@ func use_preset(i: int, owned = null) -> Array:
 	return missing
 
 
+## Loads one of the test swords. With a bow in the hand nothing happens: they are swords.
 func load_test(key: String) -> void:
 	var t: Dictionary = TEST_SWORDS[key]
 	if weapon() != "sword":
-		set_data(stowed.get("sword", STARTERS["sword"]))
+		return
 	blade = t["blade"]
 	grip = t["grip"]
 	line = (t["line"] as Array).duplicate()

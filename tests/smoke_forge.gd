@@ -62,6 +62,7 @@ func _init() -> void:
 	await _check_words(forge)
 	await _check_presets(forge)
 	await _check_back(forge)
+	await _check_bow(forge, main)
 	forge._set_tab(0)
 	for i in forge._cards().size():
 		forge._use_card(i)
@@ -385,6 +386,117 @@ func _check_back(forge) -> void:
 	forge.root.queue_redraw()
 	await process_frame
 	print("back button: fits its row, and a click leaves")
+
+
+## The bow on the anvil (14 November): every part has its pictures and a sentence
+## that fits, the four rows of the BOW tab stay inside the tray, every number fits
+## its column whatever is pointed at, and each tab draws.
+func _check_bow(forge, main) -> void:
+	var Forge := preload("res://scripts/ui/swing_forge.gd")
+	main.swap_weapon(0)
+	if forge.build.weapon() != "bow":
+		_fail("swapping in the arena did not put a bow on the anvil")
+		return
+	var parts: Array = []
+	for table in [SwingBuild.LIMBS, SwingBuild.BOW_GRIPS, SwingBuild.STRINGS, SwingBuild.ARROWS]:
+		parts.append_array(table.keys())
+	for id in parts:
+		if forge.info_lines(id).size() > 3:
+			_fail("%s: its sentence takes %d lines on the info plate (3 fit)" % [id, forge.info_lines(id).size()])
+	for id in SwingBuild.LIMBS:
+		for what in ["hand", "forge_upper", "forge_lower", "icon"]:
+			if not FileAccess.file_exists("res://art/swing/bow/limbs/%s_%s.png" % [id, what]):
+				_fail("%s has no %s picture" % [id, what])
+	for id in SwingBuild.BOW_GRIPS:
+		for what in ["hand", "forge", "icon"]:
+			if not FileAccess.file_exists("res://art/swing/bow/grips/%s_%s.png" % [id, what]):
+				_fail("%s has no %s picture" % [id, what])
+	for id in SwingBuild.ARROWS:
+		for what in ["fly", "stuck", "forge", "icon"]:
+			if not FileAccess.file_exists("res://art/swing/bow/arrows/%s_%s.png" % [id, what]):
+				_fail("%s has no %s picture" % [id, what])
+	for id in SwingBuild.STRINGS:
+		if not FileAccess.file_exists("res://art/swing/bow/strings/%s_icon.png" % id):
+			_fail("%s has no icon" % id)
+	# Every tab draws with the tallest and the smallest bow; the BOW tab's cards
+	# stay inside the tray and don't touch each other.
+	for bow in [["iron_longbow", "horn_bow_grip"], ["wooden_shortbow", "wooden_bow_grip"], ["iron_shortbow", "wrapped_bow_grip"]]:
+		forge.build.set_blade(bow[0])
+		forge.build.set_grip(bow[1])
+		for t in forge.TABS.size():
+			forge._set_tab(t)
+			forge.root.queue_redraw()
+			await process_frame
+			await process_frame
+		for i in forge.build.line.size():
+			var slot: Rect2 = forge._slot_screen(i)
+			if slot.position.y < 0.0 or slot.end.y > 360.0 or slot.position.x < forge.TRAY.end.x or slot.end.x > forge.DOES.position.x:
+				_fail("%s on a %s: slot %d is off the anvil's space %s" % [bow[0], bow[1], i, slot])
+	forge._set_tab(0)
+	var was_owned = forge.owned
+	for owned in [null, parts]:      # the arena's tray, and the fullest a cave could ever show
+		forge.owned = owned
+		forge.root.queue_redraw()
+		await process_frame
+		await process_frame
+		var rects: Array = []
+		for k in forge.buttons:
+			if str(k).begins_with("card:"):
+				rects.append(forge.buttons[k])
+		if rects.size() != forge._cards().size() or rects.is_empty():
+			_fail("the BOW tab drew %d cards for %d parts" % [rects.size(), forge._cards().size()])
+		for a in rects.size():
+			if not forge.TRAY.grow(-4).encloses(rects[a]):
+				_fail("a BOW tab card leaves the tray: %s" % rects[a])
+			for b in a:
+				if (rects[a] as Rect2).intersects(rects[b]):
+					_fail("two BOW tab cards overlap: %s %s" % [rects[a], rects[b]])
+	forge.owned = was_owned
+	# Bands with no rune to boost: "what it does" says so for each, and still fits.
+	forge.build.set_blade("iron_longbow")
+	forge.build.set_grip("horn_bow_grip")
+	forge.build.line = ["twice", "wider", "every_hit", "saved_up", "on_dodge"]
+	forge._set_tab(2)
+	forge.root.queue_redraw()
+	await process_frame
+	await process_frame
+	if not forge.does_fits:
+		_fail("what it does runs off its plate for a bow with five bands")
+	forge.build.line = ["", "", "", "", ""]
+	# Every bow, pointing at every part: each number and its change fit the column.
+	var widest := -999.0
+	var tight := ""
+	var pairs := 0
+	for limbs in SwingBuild.LIMBS:
+		for grip in SwingBuild.BOW_GRIPS:
+			for string in SwingBuild.STRINGS:
+				for arrows in SwingBuild.ARROWS:
+					forge.build.set_data([limbs, grip, string, [], arrows])
+					forge.build._refit(forge.build.grip_slots())
+					var stats: Dictionary = forge.build.compute()
+					var now: Dictionary = Forge.stat_values(stats)
+					for id in parts:
+						var then: Dictionary = Forge.stat_values(forge.stats_with(id))
+						pairs += 1
+						for row in Forge.stat_rows(stats):
+							var key: String = row[0]
+							var w: float = forge.stat_width(Forge.stat_text(key, now[key]), Forge.delta_text(key, float(then[key]) - float(now[key])))
+							var room: float = Forge.STAT_COL - 3.0
+							if key == "shoot_move" or int(row[1]) == 1:
+								room = Forge.STATS.size.x - Forge.stat_at(row).x - 6.0
+							if w - room > widest:
+								widest = w - room
+								tight = "%s on a %s %s %s %s, pointing at %s (%d of %d px)" % [key, limbs, grip, string, arrows, id, w, room]
+							if w > room:
+								_fail("%s on a %s %s %s %s, pointing at %s: %d px wide, %d fit" % [key, limbs, grip, string, arrows, id, w, room])
+								return
+	print("bow numbers fit: %d comparisons, the tightest is %s" % [pairs, tight])
+	forge.build.set_data(SwingBuild.TEST_BOW)
+	forge.build.changed.emit()
+	main.swap_weapon(0)
+	if forge.build.weapon() != "sword":
+		_fail("swapping back did not return the sword to the anvil")
+	print("bow at the forge: parts, pictures, tabs and numbers")
 
 
 func _fits_help(forge, text: String) -> void:
