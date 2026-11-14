@@ -22,7 +22,8 @@ func _ready() -> void:
 	_add("ability3", [_key(KEY_R), _btn(JOY_BUTTON_B)])   # a first guess, to settle in testing
 	_add("build", [_key(KEY_TAB), _btn(JOY_BUTTON_Y)])
 	_add("interact", [_key(KEY_E), _key(KEY_F), _btn(JOY_BUTTON_Y)])
-	_add("toggle_spawning", [_key(KEY_P), _btn(JOY_BUTTON_START)])
+	_add("toggle_spawning", [_key(KEY_P), _btn(JOY_BUTTON_START)])        # the test arena: pause the enemies
+	_add("toggle_invincible", [_key(KEY_H), _btn(JOY_BUTTON_BACK)])       # the test arena: can you be hurt?
 
 	# Crafting table controls
 	_add("menu_place", [_key(KEY_ENTER), _key(KEY_SPACE), _btn(JOY_BUTTON_A)])

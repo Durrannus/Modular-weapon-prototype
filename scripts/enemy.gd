@@ -33,6 +33,7 @@ var dead := false
 var art_set := "enemies"   # "enemies": art/enemies + anchors.json. "cave": art/cave + cave.json
 var show_bar := true       # small health bar over its head once hurt
 var immune := false        # can't be hurt right now (burrowed, a statue)
+var held := false          # "Pause enemies" in the test arena: it stands still and hurts nobody, but can still be hit
 
 var knock := Vector2.ZERO
 var flash := 0.0
@@ -164,7 +165,7 @@ func _physics_process(delta: float) -> void:
 
 	target = nearest_player()
 	var desired := Vector2.ZERO
-	if stun_time <= 0.0 and hit_stun <= 0.0:
+	if stun_time <= 0.0 and hit_stun <= 0.0 and not held:
 		desired = _think(delta)
 	if slow_time > 0.0:
 		desired *= 1.0 - slow_amount
@@ -466,7 +467,7 @@ func _die() -> void:
 
 
 func _process(delta: float) -> void:
-	if freeze <= 0.0:
+	if freeze <= 0.0 and not held:
 		anim_time += delta
 	_redraw()
 
@@ -542,7 +543,7 @@ func _update_glow() -> void:
 	if _glow == null:
 		_glow = Glow.new()
 		add_child(_glow)
-	if tex == null or flash > 0.0:
+	if tex == null or flash > 0.0 or held:   # held: its eyes and embers go out
 		_glow.put(null)
 	else:
 		_glow.put(tex, sp["frames"], sp["frame"], _feet(), sp["origin"], sp["flip"])
@@ -573,13 +574,16 @@ func _draw_shadow() -> void:
 var _over: Node2D      # on top of the sprite, never dimmed
 var _ground: Node2D    # on the floor under everyone, never dimmed
 
+## Held still by "Pause enemies": dull and cold, like the bronze it was.
+const HELD_TINT := Color(0.60, 0.68, 0.78)
+
 ## How far a charger's dash carries it (its speed times its dash time).
 const CHARGE_REACH := 560.0 * 0.35
 
 
 ## Warnings on the floor. The horned crab shows the lane it is about to dash down.
 func _draw_ground(ci: CanvasItem) -> void:
-	if kind == "charger" and state == "windup":
+	if kind == "charger" and state == "windup" and not held:
 		Warn.lane(ci, "thin", state_timer < 0.15, Vector2.ZERO, charge_dir, CHARGE_REACH + radius, anim_time)
 
 
@@ -619,8 +623,24 @@ func _draw_over(ci: CanvasItem) -> void:
 			for i in 3:
 				var ang := Time.get_ticks_msec() / 150.0 + i * TAU / 3.0
 				ci.draw_circle(Vector2(cos(ang), sin(ang) * 0.4) * radius * 0.8 + Vector2(0, -radius - 6.0), 2.5, Color(1.0, 0.95, 0.5))
-	if show_bar and hp < max_hp and kind != "dummy" and not dead:
+	var bar := show_bar and hp < max_hp and kind != "dummy" and not dead
+	if bar:
 		_draw_bar(ci)
+	if held and not dead:
+		_draw_held_mark(ci, _bar_y() - 4.0 if bar else _head_y() - 6.0)
+
+
+## The "paused" mark over a held enemy: two small bars, its bottom edge at y.
+func _draw_held_mark(ci: CanvasItem, y: float) -> void:
+	var px := Art.PIXEL
+	for x in [-3.0, 1.0]:
+		ci.draw_rect(Rect2((x - 1.0) * px, y - 7.0 * px, 4.0 * px, 7.0 * px), Color("#19142a"))
+		ci.draw_rect(Rect2(x * px, y - 6.0 * px, 2.0 * px, 5.0 * px), Color("#ffc850"))
+
+
+## Where the top of the health bar is (the stars circle between the head and the bar).
+func _bar_y() -> float:
+	return _head_y() - 18.0 - (22.0 if _starry() else 0.0)
 
 
 func _draw_bar(ci: CanvasItem) -> void:
@@ -628,7 +648,7 @@ func _draw_bar(ci: CanvasItem) -> void:
 	var fill := Art.piece_texture("enemy_bar_fill")
 	# In art pixels: the frame is a nine-patch with a 2 px edge, the fill sits 2 in and 1 down.
 	var w := clampf(roundf(radius * 1.2), 14.0, 40.0)
-	var at := Vector2(-w, _head_y() - 18.0 - (22.0 if _starry() else 0.0))   # the stars circle between the head and the bar
+	var at := Vector2(-w, _bar_y())
 	ci.draw_set_transform(at, 0.0, Vector2(Art.PIXEL, Art.PIXEL))
 	if fill != null and Art.draw_nine(ci, "hud/enemy_bar_frame.png", Rect2(0, 0, w, 5), 2):
 		var fw := roundf((w - 4.0) * frac)
@@ -644,6 +664,8 @@ func _draw_bar(ci: CanvasItem) -> void:
 
 func _draw() -> void:
 	var c := color
+	if held:
+		c = c.darkened(0.45)
 	if burn_time > 0.0:
 		c = c.lerp(WeaponBuild.ELEMENT_COLORS["fire"], 0.45)
 	elif slow_time > 0.0:
@@ -663,6 +685,8 @@ func _draw() -> void:
 			tint *= Color(1.0, 0.7, 0.55)
 		elif slow_time > 0.0:
 			tint *= Color(0.65, 0.8, 1.0)
+		elif held:
+			tint *= HELD_TINT
 		Art.draw_strip(self, sp["tex"], sp["frames"], sp["frame"], _feet(), sp["origin"], sp["flip"], tint)
 
 	if kind == "dummy":

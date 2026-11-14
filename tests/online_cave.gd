@@ -10,7 +10,7 @@ extends "res://tests/cave_playthrough.gd"
 ##          hard        nobody's health is topped up, and everyone is knocked out once in room 2
 ##                      and once at the boss, to prove a room starts over on both computers
 ##          dump=/file  write every checksum and what went into it, to compare the two
-##          arena       play the test arena for 40 seconds instead (forge hotkey, spawning)
+##          arena       play the test arena for 40 seconds instead (forge hotkey, the two switches)
 ## Each bot only ever touches its own computer's controls, exactly like a person
 ## would; everything else has to arrive through the session.
 
@@ -153,7 +153,8 @@ func _forge_stage(stage: String) -> void:
 
 
 ## The arena: fight, open the forge with the hotkey, change the sword, close it,
-## pause and restart spawning. Ends after 40 seconds of game time.
+## pause the enemies and let them go, switch Invincible off and on. Ends after
+## 40 seconds of game time.
 func _arena_tick() -> void:
 	frame += 1
 	_clear_presses()
@@ -190,7 +191,9 @@ func _arena_tick() -> void:
 	if frame in [300 + me * 140, 1200]:
 		Net.command(["forge_open"])
 	if me == 0 and frame in [700, 900]:
-		Net.command(["spawning"])
+		Net.command(["pause_enemies"])
+	if me == 1 and frame in [500, 1500]:
+		Net.command(["invincible"])
 	_fight(me)
 	# The active runes: a press on each button now and then, the first one held
 	# for a while (a Whirlwind there spins on), at different moments for each player.

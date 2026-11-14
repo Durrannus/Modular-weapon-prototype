@@ -2,19 +2,22 @@ extends CanvasLayer
 ## On-screen info, drawn from the art in art/hud at the game's own 640x360.
 ## Each player gets a health bar and dodge pips in a top corner, their sword's
 ## active runes (with the button for each and how full it is) under those, and
-## their swing path in the bottom corner. The test arena also shows kills, the
-## chain and the control hints.
+## their swing path in the bottom corner. The test arena also shows kills, its
+## two switches (pause the enemies, invincible), the chain and the control hints.
 
 var player = null          # player one
 var players: Array = []
 var kills := 0
-var spawning := true
+var enemies_paused := false   # the arena's "Pause enemies" switch
+var invincible := false       # the arena's "Invincible" switch
 var mode := "arena"        # "arena" or "cave"
 var panel: Control
 var pause_button: Button
+var invincible_button: Button
 var trail: Array = []      # per player: the pale bar that trails behind lost health, 0..1
 
 signal pause_pressed
+signal invincible_pressed
 
 const Net := preload("res://scripts/net/net.gd")
 const Art := preload("res://scripts/art.gd")
@@ -45,32 +48,43 @@ func _ready() -> void:
 	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(panel)
 	panel.draw.connect(_draw_hud)
-	# Clickable spawn pause, top right (P / Start does the same). Arena only.
-	pause_button = Button.new()
-	pause_button.size = Vector2(126, 18)
-	pause_button.position = Vector2(SIZE.x - MARGIN - pause_button.size.x, 6)
-	pause_button.focus_mode = Control.FOCUS_NONE
+	# The arena's two switches as buttons, top right (their keys do the same).
+	pause_button = _switch(6.0)
+	pause_button.pressed.connect(func(): pause_pressed.emit())
+	invincible_button = _switch(27.0)
+	invincible_button.pressed.connect(func(): invincible_pressed.emit())
+
+
+const SWITCH := Vector2(138, 18)
+
+func _switch(y: float) -> Button:
+	var b := Button.new()
+	b.size = SWITCH
+	b.position = Vector2(SIZE.x - MARGIN - SWITCH.x, y)
+	b.focus_mode = Control.FOCUS_NONE
 	var f := Art.font("Silkscreen-Regular")
 	if f != null:
-		pause_button.add_theme_font_override("font", f)
-	pause_button.add_theme_font_size_override("font_size", 8)
+		b.add_theme_font_override("font", f)
+	b.add_theme_font_size_override("font_size", 8)
 	var idle := Art.nine("swing/ui/button.png", 3)
 	var hot := Art.nine("swing/ui/button_hot.png", 3)
 	if idle != null and hot != null:
-		pause_button.add_theme_stylebox_override("normal", idle)
-		pause_button.add_theme_stylebox_override("hover", hot)
-		pause_button.add_theme_stylebox_override("pressed", hot)
-		pause_button.add_theme_color_override("font_color", INK)
-		pause_button.add_theme_color_override("font_hover_color", PLATE)
-		pause_button.add_theme_color_override("font_pressed_color", PLATE)
-		pause_button.add_theme_color_override("font_hover_pressed_color", PLATE)
-	pause_button.pressed.connect(func(): pause_pressed.emit())
-	panel.add_child(pause_button)
+		b.add_theme_stylebox_override("normal", idle)
+		b.add_theme_stylebox_override("hover", hot)
+		b.add_theme_stylebox_override("pressed", hot)
+		b.add_theme_color_override("font_color", INK)
+		b.add_theme_color_override("font_hover_color", PLATE)
+		b.add_theme_color_override("font_pressed_color", PLATE)
+		b.add_theme_color_override("font_hover_pressed_color", PLATE)
+	panel.add_child(b)
+	return b
 
 
 func _process(delta: float) -> void:
 	pause_button.visible = mode == "arena" and players.size() <= 1
-	pause_button.text = "PAUSE ENEMIES (P)" if spawning else "RESUME ENEMIES (P)"
+	pause_button.text = "RESUME ENEMIES (P)" if enemies_paused else "PAUSE ENEMIES (P)"
+	invincible_button.visible = pause_button.visible
+	invincible_button.text = "INVINCIBLE: ON (H)" if invincible else "INVINCIBLE: OFF (H)"
 	# Lost health lingers as a pale bar for a moment, then drains away.
 	trail.resize(players.size())
 	for i in players.size():
@@ -173,14 +187,28 @@ func _draw_hud() -> void:
 		# (Below player one's active runes, when their sword has any.)
 		var down := 26.0 if not players[0].weapon.get("abilities", []).is_empty() else 0.0
 		_head("Kills %d" % kills, Vector2(MARGIN, 46 + down), INK)
-		if not spawning:
-			_head("Enemies paused (P / Start)", Vector2(MARGIN, 58 + down), AMBER)
+		for line in arena_lines():
+			down += 12.0
+			_head(line[0], Vector2(MARGIN, 46 + down), line[1])
 		if players[mini(Net.me(), players.size() - 1)].knocked_out_timer > 0.0:
 			_head("Knocked out! Back to the start.", Vector2(0, 84), EMBER, 16, SIZE.x, HORIZONTAL_ALIGNMENT_CENTER)
 		if not many:
 			_draw_chain(player)
 			var hint := "Tab / Y: forge    Click / X: attack    Space / A: dodge"
 			panel.draw_string(Art.font("PixelifySans-Regular"), Vector2(0, SIZE.y - 16), hint, HORIZONTAL_ALIGNMENT_RIGHT, SIZE.x - MARGIN, 11, DIM)
+
+
+## The arena's switches in words, under the kills, as [words, colour]. Two players
+## have no room for the buttons, so these lines are how they see the switches.
+func arena_lines() -> Array:
+	var out: Array = []
+	if invincible:
+		out.append(["Invincible: you can't be hurt (H / Select)", TEAL])
+	elif players.size() > 1:
+		out.append(["Invincible is off (H / Select)", FAINT])
+	if enemies_paused:
+		out.append(["Enemies paused (P / Start)", AMBER])
+	return out
 
 
 ## The sword's active runes, under the health bar: a slot for each with the rune's

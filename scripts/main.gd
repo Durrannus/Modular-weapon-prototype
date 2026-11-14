@@ -3,7 +3,9 @@ extends "res://scripts/game_base.gd"
 const WeaponBuild := preload("res://scripts/weapon/weapon_build.gd")
 const PartLibrary := preload("res://scripts/parts/part_library.gd")
 ## The test arena: one big room, a training dummy, endless enemies, and a forge
-## you can open anywhere (Tab / Y) with every part unlocked.
+## you can open anywhere (Tab / Y) with every part unlocked. It is a room for
+## trying swords out, so nobody can be hurt in it unless they ask to be (H / Select
+## switches "Invincible"), and P / Start stops the enemies where they stand.
 ## Everything is built in code so there are few scene files to merge.
 
 const ARENA := Rect2(0, 0, 1792, 1088)  # 56 x 34 tiles
@@ -16,7 +18,9 @@ const SPAWN_EVERY := 1.6
 
 var parts: Array = []
 var spawn_timer := 1.0
-var spawning := true
+var spawning := true         # new enemies keep arriving (tests switch this off)
+var enemies_paused := false  # "Pause enemies": none arrive, and the ones here stand still and hurt nobody
+var invincible := true       # nobody can be hurt
 var kills := 0
 
 
@@ -48,27 +52,59 @@ func _ready() -> void:
 
 	_make_ui()
 	hud.mode = "arena"
-	hud.pause_pressed.connect(_toggle_spawning)
+	hud.pause_pressed.connect(_toggle_paused)
+	hud.invincible_pressed.connect(_toggle_invincible)
 	build_menu.hotkey = false  # handled below, so each player opens their own sword
 	build_menu.try_at_dummy.connect(_on_try_at_dummy)
 
 
-func _toggle_spawning() -> void:
+## The two switches. Online a switch is sent to both computers and flips on the
+## same tick there (see net_command below).
+func _toggle_paused() -> void:
 	if Net.online():
-		Net.command(["spawning"])
+		Net.command(["pause_enemies"])
 	else:
-		spawning = not spawning
+		_set_paused(not enemies_paused)
 
 
-## Online, the forge key and the spawning key are sent to both computers and act
-## on the same tick there (see net_command below).
+func _toggle_invincible() -> void:
+	if Net.online():
+		Net.command(["invincible"])
+	else:
+		_set_invincible(not invincible)
+
+
+func _set_paused(on: bool) -> void:
+	enemies_paused = on
+	_hold_enemies()
+
+
+## Everyone here now stands still (or wakes up again). Called every tick too, so
+## an enemy that arrives some other way while they are paused is held as well.
+func _hold_enemies() -> void:
+	for e in get_tree().get_nodes_in_group("enemies"):
+		e.held = enemies_paused and e.kind != "dummy"   # the dummy never does anything anyway
+
+
+## Switching it on also tops everyone's health back up.
+func _set_invincible(on: bool) -> void:
+	invincible = on
+	for p in players:
+		p.unhurt = on
+		if on:
+			p.hp = p.max_hp
+
+
+## Online, the forge key and the two switches' keys are sent to both computers.
 func _input(event: InputEvent) -> void:
 	if not Net.online():
 		return
 	if event.is_action_pressed("build") and not build_menu.is_open and not pause_menu.is_open():
 		Net.command(["forge_open"])
 	elif event.is_action_pressed("toggle_spawning"):
-		Net.command(["spawning"])
+		Net.command(["pause_enemies"])
+	elif event.is_action_pressed("toggle_invincible") and not build_menu.is_open:   # Select means "next preset" at the forge
+		Net.command(["invincible"])
 
 
 func net_command(i: int, cmd: Array) -> bool:
@@ -77,8 +113,10 @@ func net_command(i: int, cmd: Array) -> bool:
 	match str(cmd[0]):
 		"forge_open":
 			open_forge(i)
-		"spawning":
-			spawning = not spawning
+		"pause_enemies":
+			_set_paused(not enemies_paused)
+		"invincible":
+			_set_invincible(not invincible)
 		"try_dummy":
 			_stand_at_dummy(i)
 		_:
@@ -87,7 +125,7 @@ func net_command(i: int, cmd: Array) -> bool:
 
 
 func net_state() -> Array:
-	return super.net_state() + [kills, spawning, spawn_timer]
+	return super.net_state() + [kills, spawning, enemies_paused, invincible, spawn_timer]
 
 
 func _physics_process(delta: float) -> void:
@@ -96,10 +134,16 @@ func _physics_process(delta: float) -> void:
 		if Input.is_action_just_pressed("build") and not build_menu.is_open:
 			open_forge(_forge_hotkey_player())
 		if Input.is_action_just_pressed("toggle_spawning"):
-			spawning = not spawning
-	hud.spawning = spawning
+			_set_paused(not enemies_paused)
+		if Input.is_action_just_pressed("toggle_invincible"):
+			_set_invincible(not invincible)
+	_hold_enemies()
+	for p in players:
+		p.unhurt = invincible
+	hud.enemies_paused = enemies_paused
+	hud.invincible = invincible
 	hud.kills = kills
-	if not spawning:
+	if not spawning or enemies_paused:
 		return
 	spawn_timer -= delta
 	if spawn_timer <= 0.0:

@@ -7,7 +7,7 @@ This branch (`swing-path`) has four things to try:
 - **The tutorial cave** (Game Plan milestone 4): four rooms, from a shipwreck crate to a forge guardian, for one or two players.
 - **Two players on one screen.**
 - **Two players online**, one on each computer (see "Playing online" below).
-- **The test arena**: the older sandbox with every sword part unlocked.
+- **The test arena**: the sandbox for trying swords out, with every sword part unlocked. You can't be hurt there unless you switch that off, and you can stop the enemies where they stand (see "Controls").
 
 ## How to run it
 
@@ -144,9 +144,15 @@ Game code must follow these rules, or the two games drift apart:
 | Pause menu | Esc | Start (in the cave) |
 | Fullscreen on or off | F11 | |
 | Test arena only: open the forge anywhere | Tab | Y |
-| Test arena only: pause enemy spawning | P | Start |
+| Test arena only: pause the enemies, or let them go | P | Start |
+| Test arena only: Invincible on or off | H | Select |
 
-**At the forge** (the game pauses): drag a part onto a slot, or click a slot and then a part. Right-click or drag off to remove. Keys or controller: up and down pick a slot, left and right pick a part, Q/E or the shoulder buttons change tab, Enter or A fits it, Esc or B leaves. Point at a rune and hold Alt (the left trigger on a controller) to see a picture of it firing. Point at a blade, grip or pommel you could fit and the numbers show what it would change: gains in green with a plus, losses in red with a minus. **Presets:** A, B and C at the top right are three saved swords. Click one (or press C, or Select on a controller) and the whole sword changes to it; click the name beside them to type a name of your own.
+**The test arena's two switches.** With one player they are also two buttons at the top right, and the words under the kill count say how they stand.
+
+- **Invincible** is on when the arena starts: nothing can hurt you, because the room is for trying swords and runes out. Switch it off for a real fight; switching it back on refills your health.
+- **Pause enemies** really pauses them: nobody new arrives, and the ones in the room stand still, go dull, show a small pause mark and hurt nobody. You can still hit them, push them about and kill them, so they make good targets for a rune. (Before version 17 it only stopped new ones arriving.)
+
+**At the forge** (the game pauses): drag a part onto a slot, or click a slot and then a part. Right-click or drag off to remove. Keys or controller: up and down pick a slot, left and right pick a part, Q/E or the shoulder buttons change tab, Enter or A fits it. **To leave, click BACK at the top left, or press Esc (B on a controller); Tab or Y works too.** Point at a rune and hold Alt (the left trigger on a controller) to see a picture of it firing. Point at a blade, grip or pommel you could fit and the numbers show what it would change: gains in green with a plus, losses in red with a minus. **Presets:** A, B and C at the top right are three saved swords. Click one (or press C, or Select on a controller) and the whole sword changes to it; click the name beside them to type a name of your own.
 
 ## The tutorial cave
 
@@ -193,8 +199,9 @@ godot --headless --path . --fixed-fps 60 -s tests/active_runes.gd              #
 godot --headless --path . --fixed-fps 60 -s tests/blade_shapes.gd              # the six blade shapes: reach, what each move hits, each lean, damage a second
 godot --headless --path . --fixed-fps 60 -s tests/cave_playthrough.gd          # plays the whole cave
 godot --headless --path . --fixed-fps 60 -s tests/cave_playthrough.gd -- players=2 wipe down
-godot --path . -s tests/smoke_forge.gd                                         # opens the forge, fires every rune
+godot --path . -s tests/smoke_forge.gd                                         # opens the forge, fires every rune; every word fits its plate; BACK leaves
 godot --headless --path . --fixed-fps 60 -s tests/title_screen.gd              # the intro screen: its picture, its buttons, joining and choosing
+godot --headless --path . --fixed-fps 60 -s tests/arena_switches.gd            # the arena's two switches: Invincible, and Pause enemies
 godot --headless --path . -s tests/version_check.gd                            # the version number was raised if anything changed
 ```
 
@@ -209,7 +216,7 @@ Online play (needs bash, so Linux, macOS or Git Bash on Windows). Each line runs
 ```
 tests/online.sh /path/to/godot                         # the cave, as fast as the computer can
 tests/online.sh /path/to/godot fast hard drop=0.1      # with knock-outs and 10% of messages lost
-tests/online.sh /path/to/godot fast arena              # the arena: forge, sword changes, pausing enemies
+tests/online.sh /path/to/godot fast arena              # the arena: forge, sword changes, the two switches
 tests/online.sh /path/to/godot real lag=45 drop=0.05   # at normal speed with a slow, lossy connection
 tests/online.sh /path/to/godot real host:slow=22       # one computer that can't keep up
 ```
@@ -266,7 +273,7 @@ This branch tests the **swing path** (design notes, 3 November). It replaces the
   - The rapier's lunge reaches further instead of moving you, because attacks never carry you into the enemy.
   - The numbers: `SHAPES`, `METALS` and `BLADES` in `scripts/weapon/swing_build.gd`; the moves (`MOVES`) and `BASE_REACH` in `scripts/player.gd`.
 - Other parts: wooden / wrapped / long grips (1, 2, 3 slots), and pommels (no slots, stats only: Plain, Keen +8% crit chance, Heavy +40% crit damage, Light +10% swing speed). The Ringed Grip is a special grip whose built-in band makes every rune a bit bigger; the Gilded Grip's ruby top slot doubles whatever is in it (a rune fires twice, a band counts as two).
-- The forge screen (laid out again for the 11 November decisions, so that nothing on it overlaps): on the left the parts tray, with the runes in a PASSIVE group (round stones) and an ACTIVE group (square stones with a small button badge); under it a plate with the name and one plain sentence for the part under the cursor; under that how to use the screen. In the middle the sword over the anvil. On the right "what it does", a line per rune, which closes up its rows when a sword has a lot to say; and under it the sword's numbers on a plate of their own (damage, speed, reach, crit, crit hits, slots, walking while swinging). Pointing at a part you could fit shows what it would change beside each number. Holding Alt on a rune shows a still picture of it firing (`art/swing/previews/<rune>.png`, 352 x 240, taken from the game). `tests/smoke_forge.gd` checks that every sentence, every sword's "what it does" and every number with its change fit their plates.
+- The forge screen (laid out again for the 11 November decisions, so that nothing on it overlaps): at the top left a BACK button, the way out (it says the key that does the same: Esc, or B on a controller), then the screen's name; on the left the parts tray, with the runes in a PASSIVE group (round stones) and an ACTIVE group (square stones with a small button badge); under it a plate with the name and one plain sentence for the part under the cursor; under that how to use the screen. In the middle the sword over the anvil. On the right "what it does", a line per rune, which closes up its rows when a sword has a lot to say; and under it the sword's numbers on a plate of their own (damage, speed, reach, crit, crit hits, slots, walking while swinging). Pointing at a part you could fit shows what it would change beside each number. Holding Alt on a rune shows a still picture of it firing (`art/swing/previews/<rune>.png`, 352 x 240, taken from the game). `tests/smoke_forge.gd` checks that every sentence, every sword's "what it does" and every number with its change fit their plates.
 - **Loadout presets** (Game Bible, 11 November): each player has three saved swords, A, B and C, and can name them. The chosen preset is always the sword in the hand, so every change at the forge is saved to it; clicking another one swaps the whole sword (blade, grip, pommel, runes and bands) in one go, and only at the forge. A preset that has never been used starts as a copy of the sword you are holding. Pointing at a preset shows the sword it holds as pictures; a part you no longer own is greyed out under a padlock and is left off when you switch to it. They live in `scripts/weapon/swing_build.gd` (`preset`, `preset_data`, `preset_names`, `use_preset()`). Not built, because the prototype has nothing to hang them on: the warning when you break down or sell a part that is in a preset (there is no breaking down or selling yet), keeping presets after you close the game (nothing is saved between sessions yet), and typing a name with a controller. Online, presets are each player's own notes: switching sends the new sword to the other computer like any other change at the forge. **T** or the button puts you next to the dummy. The forge glows: the hearth breathes behind the sword, embers drift up, every change is a hammer blow with sparks and a clang, and leaving after changes plays a short "Forged!" finish (white-hot, quench steam, a shine up the blade). Press Tab or click to skip it.
 - Art and numbers for all of this are in `art/swing/` (`swing_path.md` explains how the sword is assembled; `swing_path.json` has every slot, pivot and effect strip). Fonts are Silkscreen and Pixelify Sans (OFL), in `art/fonts/`.
 - Elemental blades are parked for now. Sounds are placeholders made in code (`scripts/sfx.gd`). The tutorial cave's music is the exception: real tracks in `art/music/`.

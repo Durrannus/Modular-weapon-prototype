@@ -1,5 +1,7 @@
 extends CanvasLayer
 ## The forge for the swing path. Drawn at the 640x360 base size.
+## Top left: the BACK button (the way out, with the key that does the same) and
+## the screen's name.
 ## Left: the parts tray (blades, grips and pommels; runes in a passive and an
 ## active group; bands; rule-benders), then a plate with the name and one plain
 ## sentence for the part under the cursor, then how to use the screen.
@@ -39,6 +41,8 @@ const PLATE := Color("#19142a")
 const WELL := Color("#0f0b18")
 
 const TABS := ["sword", "runes", "bands", "rare"]
+const BACK_AT := Vector2(6, 9)              # the BACK button; the screen's name follows it on the same row
+const BACK_H := 18.0
 const TRAY := Rect2(6, 30, 203, 188)        # tabs and part cards
 const INFO := Rect2(6, 221, 203, 88)        # the part under the cursor: its name and one sentence
 const HELP := Rect2(6, 312, 203, 42)        # how to use the screen
@@ -411,6 +415,10 @@ func _click(key: String) -> void:
 		"rename":
 			renaming = true
 			rename_text = str(build.preset_names[build.preset])
+		"back":
+			Sfx.play(self, "click", -14.0)
+			close()
+			return
 		"try":
 			_try()
 			return
@@ -660,9 +668,10 @@ func _draw_forge() -> void:
 	_nine("well", PRESETS)
 	_nine("panel", DOES)
 	_nine("panel_titled", STATS)
-	_head("The forge", Vector2(14, 24), AMBER, 16)
+	_draw_back()
+	_head("The forge", title_at(), AMBER, 16)
 	if whose != "":
-		_head(whose, Vector2(150, 24), INK, 8)
+		_head(whose, whose_at(), INK, 8)
 	var stats := build.compute()
 	_draw_tray()
 	_draw_sword(stats)
@@ -679,6 +688,41 @@ func _draw_forge() -> void:
 		var f: Dictionary = SwingBuild.FITTINGS[drag_id]
 		var kind := "runes" if f["kind"] == "rune" else ("bands" if f["kind"] == "band" else "rare")
 		_icon(kind, drag_id, root.get_local_mouse_position())
+
+
+## The way out, top left: a button to click, saying the key that does the same.
+## With two players on one screen the row also says whose sword this is, so the
+## button keeps to the one word.
+func back_label() -> String:
+	if whose != "":
+		return "Back"
+	return "Back (B)" if _on_pad() else "Back (Esc)"
+
+
+func back_rect() -> Rect2:
+	return Rect2(BACK_AT, Vector2(_head_width(back_label()) + 14.0, BACK_H))
+
+
+func title_at() -> Vector2:
+	return Vector2(back_rect().end.x + 8.0, 24)
+
+
+func whose_at() -> Vector2:
+	return Vector2(title_at().x + _head_width("The forge", 16) + 7.0, 24)
+
+
+func _head_width(text: String, size := 8) -> float:
+	return ceilf(Art.font("Silkscreen-Regular").get_string_size(text.to_upper(), HORIZONTAL_ALIGNMENT_LEFT, -1, size).x)
+
+
+func _draw_back() -> void:
+	var r := back_rect()
+	buttons["back"] = r
+	var hot := hover == "back"
+	if not Art.draw_nine(root, "swing/ui/button_hot.png" if hot else "swing/ui/button.png", r, 3):
+		root.draw_rect(r, FOCUS if hot else PLATE)
+		root.draw_rect(r, FAINT, false, 1.0)
+	_head(back_label(), Vector2(r.position.x + 1, r.position.y + 12), PLATE if hot else INK, 8, r.size.x, HORIZONTAL_ALIGNMENT_CENTER)
 
 
 ## Left: tabs and icon-only cards.
@@ -868,9 +912,9 @@ func help_lines() -> Array:
 	if _preset_hover() >= 0:
 		return [["A preset is a whole saved sword.", DIM], ["Click A, B or C to switch to it.", DIM], ["Click its name to change the name.", DIM]]
 	if _on_pad():
-		return [["Stick: pick   A: fit   X: take off", DIM], ["LB RB: tabs   Select: next preset", DIM], ["Y or B: done", FAINT]]
+		return [["Stick: pick   A: fit   X: take off", DIM], ["LB RB: tabs   Select: next preset", DIM], ["B or Y: back to the game", DIM]]
 	return [["Drag a part onto a slot to fit it.", DIM], ["Right-click a slot to take it off.", DIM],
-		["T: try at the dummy   Tab: leave" if sandbox else "Tab, Esc or B: done", FAINT]]
+		["T: try at the dummy   Esc: back" if sandbox else "Esc or Tab: back to the game", DIM]]
 
 
 ## The preset the mouse is on (its tab, or the name beside the tabs), or the one

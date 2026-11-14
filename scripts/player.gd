@@ -118,6 +118,7 @@ var down_time := 0.0           # how long they've been down (plays the fall)
 var down_flip := false         # fell facing left
 var rise_timer := 0.0          # getting back up: the fall played backwards
 var auto_respawn := true       # get straight back up at spawn_point (the test arena)
+var unhurt := false            # nothing can hurt them (the test arena's "Invincible" switch)
 var show_marker := false       # coloured ring under the feet (two players)
 var light: PointLight2D     # the small light the player carries
 var interact_ready := false    # standing at something usable: A on a controller uses it and doesn't dodge
@@ -1675,7 +1676,7 @@ func _steam(target, dmg: float) -> void:
 
 ## from: where the hit came from (you're knocked away from it).
 func take_damage(amount: float, from: Vector2 = Vector2.INF) -> void:
-	if invuln > 0.0 or is_down:
+	if invuln > 0.0 or is_down or unhurt:
 		return
 	hp -= amount
 	invuln = 0.8

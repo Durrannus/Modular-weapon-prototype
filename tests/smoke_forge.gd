@@ -61,6 +61,7 @@ func _init() -> void:
 	print("press without drag = click, selected card: ", forge.card)
 	await _check_words(forge)
 	await _check_presets(forge)
+	await _check_back(forge)
 	forge._set_tab(0)
 	for i in forge._cards().size():
 		forge._use_card(i)
@@ -330,6 +331,60 @@ func _check_presets(forge) -> void:
 	forge.sandbox = true
 	forge._click("preset:0")
 	print("presets: switched, named and loaded with a part missing")
+
+
+## The way out: a BACK button at the top left. It, the screen's name and "Player 2"
+## share one row above the tray and must not touch; a click on it leaves.
+func _check_back(forge) -> void:
+	var was_keys = forge.keys
+	for keys in [SwingBuild.ABILITY_KEYS["kbm"], SwingBuild.ABILITY_KEYS["pad"]]:
+		forge.keys = keys
+		for whose in ["", "Player 2", "Player 4"]:
+			forge.whose = whose
+			forge.root.queue_redraw()
+			await process_frame
+			var what := "BACK button (%s%s)" % ["controller" if forge._on_pad() else "keyboard", ", " + whose if whose != "" else ""]
+			if not forge.buttons.has("back"):
+				_fail("%s: not drawn" % what)
+				continue
+			var r: Rect2 = forge.buttons["back"]
+			if forge._head_width(forge.back_label()) > r.size.x - 8.0:
+				_fail("%s: its words don't fit it" % what)
+			if r.end.y > forge.TRAY.position.y or r.position.x < 0.0 or r.position.y < 0.0:
+				_fail("%s: it leaves its row %s" % [what, r])
+			for k in forge.buttons:
+				if k != "back" and r.intersects(forge.buttons[k]):
+					_fail("%s: it covers the button %s" % [what, k])
+			var title_x: float = forge.title_at().x
+			var row_end: float = title_x + forge._head_width("The forge", 16)
+			if title_x < r.end.x + 4.0:
+				_fail("%s: the screen's name touches it" % what)
+			if whose != "":
+				if forge.whose_at().x < row_end + 4.0:
+					_fail("%s: '%s' touches the screen's name" % [what, whose])
+				row_end = forge.whose_at().x + forge._head_width(whose)
+			if row_end > forge.TRAY.end.x:
+				_fail("%s: the row runs past the tray (%d px, the tray ends at %d)" % [what, row_end, forge.TRAY.end.x])
+	forge.keys = was_keys
+	forge.whose = ""
+	# A click with nothing changed leaves at once; after a change the "forged"
+	# finish plays first, as it does for Esc and Tab.
+	forge.dirty = false
+	forge._click("back")
+	if forge.is_open or paused:
+		_fail("a click on BACK did not leave the forge")
+	forge.open()
+	forge.dirty = true
+	forge._click("back")
+	if not forge.is_open or forge.finishing < 0.0:
+		_fail("BACK after a change should play the forged finish first")
+	forge._really_close()
+	if forge.is_open or paused:
+		_fail("the forge did not close after the finish")
+	forge.open()
+	forge.root.queue_redraw()
+	await process_frame
+	print("back button: fits its row, and a click leaves")
 
 
 func _fits_help(forge, text: String) -> void:
