@@ -120,8 +120,25 @@ func _make_ui() -> void:
 	_set_cursor()
 
 
+## Whether players carry a second weapon here and can swap to it. Only the test
+## arena so far: the tutorial cave still hands out swords alone.
+var can_swap := false
+
+## Player i puts their other weapon in their hand (sword or bow).
+func swap_weapon(i: int) -> void:
+	if not can_swap or i < 0 or i >= builds.size() or is_forging(i) or players[i].is_down:
+		return
+	builds[i].take("sword" if builds[i].weapon() == "bow" else "bow")
+	Sfx.play(self, "click", -8.0)
+
+
 ## Puts player i's sword on the anvil and opens the forge screen.
 func open_forge(i: int) -> void:
+	if builds[i].weapon() != "sword":
+		# The forge screen only knows swords so far (the bow's parts come next).
+		if not Net.online() or i == Net.me():
+			hud.say("The forge can't change a bow yet: swap to your sword first (B / right stick click)")
+		return
 	if Net.online():
 		# This runs on both computers on the same tick. Only player i's own
 		# computer shows the screen; the other just knows they are at the forge.
@@ -211,6 +228,9 @@ func net_command(i: int, cmd: Array) -> bool:
 				at_forge[i] = false
 				_forge_done(i)
 			return true
+		"weapon":
+			swap_weapon(i)
+			return true
 		"test_ko":
 			if test_commands:
 				for p in players:
@@ -230,6 +250,9 @@ func net_state() -> Array:
 			p.ghost_left, p.ghost_swings.size()])
 	for b in builds:
 		out.append(b.get_data())
+	for a in get_tree().get_nodes_in_group("arrows"):
+		if is_instance_valid(a) and not a.is_queued_for_deletion():
+			out.append_array([a.global_position, a.left, a.flying])
 	for e in get_tree().get_nodes_in_group("foes"):
 		if is_instance_valid(e) and not e.is_queued_for_deletion():
 			out.append_array([e.kind, e.global_position, e.hp, e.dead, e.knock])

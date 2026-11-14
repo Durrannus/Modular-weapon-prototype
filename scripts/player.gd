@@ -18,6 +18,8 @@ const Fx := preload("res://scripts/fx/fx.gd")
 const Art := preload("res://scripts/art.gd")
 const SwingBuild := preload("res://scripts/weapon/swing_build.gd")
 const SwordArt := preload("res://scripts/weapon/sword_art.gd")
+const BowArt := preload("res://scripts/weapon/bow_art.gd")
+const Arrow := preload("res://scripts/arrow.gd")
 const RuneFx := preload("res://scripts/fx/rune_fx.gd")
 const Sfx := preload("res://scripts/sfx.gd")
 const SpriteOnce := preload("res://scripts/fx/sprite_once.gd")
@@ -93,6 +95,15 @@ const MOVES := {
 		"curve": [-1.48, 1.48, 13.0, 17.0], "smear": "sweep_smear", "mirror": true},
 	"slam": {"windup": 0.19, "time": HEAVY, "shape": "arc", "arc": 120.0, "power": 1.5, "knock": 480.0, "stun": 0.45, "freeze": 0.12, "shake": 15.0,
 		"curve": [-1.5, 0.3, 9.0, 19.0], "smear": "overhead_smear", "big": true, "burst": "slam_burst"},
+	# Bow shots (14 November). "windup" is the draw: the arrow leaves as it ends,
+	# towards wherever you are aiming at that moment, and the rest of the move is
+	# reaching for the next arrow. Same times as the sword's light and heavy moves,
+	# so a bow's damage a second is its damage times its speed too.
+	#   flight  this arrow's speed (1.0 = the bow's)
+	"quick_shot": {"windup": 0.13, "time": LIGHT, "shape": "shot", "power": 1.0, "knock": 130.0, "stun": 0.1, "freeze": 0.03,
+		"curve": [0.0, 0.0, 4.0, 22.0]},
+	"heavy_shot": {"windup": 0.22, "time": HEAVY, "shape": "shot", "power": 1.5, "knock": 300.0, "stun": 0.25, "freeze": 0.08, "shake": 6.0,
+		"curve": [0.0, 0.0, 4.0, 22.0], "big": true, "flight": 1.15},
 	# The old parts-grid moves (weapon_build.gd), kept so that screen still works.
 	"stab": {"windup": 0.06, "time": 0.25, "shape": "line", "width": 16.0, "range": 115.0, "power": 1.15, "knock": 320.0,
 		"curve": [0.0, 0.0, 4.0, 26.0], "smear": "thrust_smear"},
@@ -145,6 +156,7 @@ var return_t := 0.0            # easing the sword back to rest after the last sw
 var return_from: Array = [0.0, Vector2.ZERO]
 
 var weapon: Dictionary = {}
+var weapon_stamp := 0      # goes up every time the weapon changes (an arrow remembers which one loosed it)
 var step_index := 0        # next combo step
 var current_step := -1     # step being played, -1 when idle
 var step_timer := 0.0
@@ -349,6 +361,9 @@ func _ready() -> void:
 
 func set_weapon(stats: Dictionary) -> void:
 	weapon = stats
+	weapon_stamp += 1
+	bow_draw = 0.0
+	bow_nocked = false
 	rune_queue.clear()
 	slot_flash.clear()
 	sweep_flash.clear()
@@ -472,6 +487,11 @@ func _update_facing(delta: float, move: Vector2) -> void:
 		aim_dir = move.normalized()
 	elif current_step < 0:
 		aim_dir = face_dir
+	# A sword swing goes where you aimed as it began. A bow follows your aim
+	# until the arrow leaves.
+	if current_step >= 0 and hit_time >= 0.0 and _is_bow():
+		anim_dir = aim_dir
+		face_dir = aim_dir
 
 
 # --- Dodge ------------------------------------------------------------------
@@ -515,6 +535,10 @@ func _speed() -> float:
 
 func armed() -> bool:
 	return weapon.has("blade") and not _steps().is_empty()
+
+
+func _is_bow() -> bool:
+	return weapon.get("weapon", "sword") == "bow"
 
 
 func _update_combat(delta: float) -> void:
@@ -584,6 +608,7 @@ func _start_step() -> void:
 	if info.get("mirror", false) or (info.get("alternate", false) and current_step % 2 == 1):
 		swing_side = -1.0
 	pose_from_angle = wrapf(pose_angle - anim_dir.angle(), -PI, PI)
+	bow_from = [pose_angle, pose_hand]
 	stepped = false
 	settle = 0.0
 	return_t = 0.0
@@ -617,6 +642,9 @@ const RETURN_TIME := 0.12
 
 func _do_move(move: String) -> void:
 	var info: Dictionary = MOVES.get(move, MOVES["slash"])
+	if str(info["shape"]) == "shot":
+		_loose(info)
+		return
 	var area := 1.0 + float(weapon.get("area", 0.0))
 	var dmg: float = float(weapon.get("damage", 4.0)) * float(info["power"])
 	var knock: float = info["knock"]
@@ -685,6 +713,64 @@ func _do_move(move: String) -> void:
 const FINISHER_PAUSE := 0.07
 
 
+# --- The bow --------------------------------------------------------------------
+# A shot is a move like a swing: the draw is its wind-up, and where a swing would
+# land the arrow leaves (scripts/arrow.gd). What the arrow hits comes back here.
+
+## The arrow leaves the bow, towards the aim.
+func _loose(info: Dictionary) -> void:
+	var dir := aim_dir
+	anim_dir = dir
+	var finisher := current_step == _steps().size() - 1 and _steps().size() > 1
+	var a := Arrow.new()
+	a.shooter = self
+	a.stamp = weapon_stamp
+	a.dir = dir
+	a.speed = float(weapon.get("flight", SwingBuild.BOW_FLIGHT)) * float(info.get("flight", 1.0))
+	a.left = float(weapon.get("range", SwingBuild.BOW_RANGE))
+	a.damage = float(weapon.get("damage", 4.0)) * float(info["power"])
+	a.knock = float(info["knock"])
+	a.stun = float(info.get("stun", 0.1))
+	a.freeze = float(info.get("freeze", 0.03))
+	a.heavy = info.get("big", false)
+	a.finisher = finisher
+	a.kind = str(weapon.get("arrows", "wooden_arrows"))
+	a.crit = float(weapon.get("crit", 0.05))
+	a.crit_damage = float(weapon.get("crit_damage", 1.5))
+	get_parent().add_child(a)
+	a.global_position = global_position
+	a.reset_physics_interpolation()
+	bow_loosed = game_time
+	var snap := _strip("bow_loose", global_position + pose_hand, dir.angle())
+	if snap != null:
+		snap.follow = self
+		snap.follow_offset = pose_hand
+	Sfx.play(self, "bow", -5.0 if a.heavy else -9.0, 0.8 if a.heavy else 1.0)
+	squash = Vector2(1.06, 0.95) if a.heavy else Vector2(1.03, 0.98)
+	if finisher:
+		shake = maxf(shake, 2.5)
+		_trigger("finisher", [])
+
+
+## One of your arrows hit an enemy (called by the arrow, on the tick it lands).
+func arrow_hit(a, e) -> void:
+	_hit_enemy(e, a.damage, a.dir, a.knock, a.stun, a.freeze, {}, false, a)
+	Sfx.play(self, "hit", -6.0 if a.heavy else -9.0, 1.0 if a.heavy else 1.25)
+	if a.heavy:
+		shake = maxf(shake, float(MOVES["heavy_shot"].get("shake", 6.0)))
+	# Runes belong to the bow that loosed it: an arrow still in the air when you
+	# changed weapon is only an arrow.
+	if a.stamp != weapon_stamp:
+		return
+	_trigger("hit", [e])
+	_hit_refund()
+
+
+## One of your arrows stopped in a wall or on the floor without hitting anyone.
+func arrow_spent(_a) -> void:
+	pass
+
+
 ## How far this move reaches from the player's centre.
 func _move_reach(info: Dictionary) -> float:
 	if not weapon.has("blade"):
@@ -733,7 +819,9 @@ func _swing_hits(info: Dictionary, dir: Vector2, reach: float) -> Array:
 ## it reaches a Weak Point mark on the enemy. Empty for anything that isn't a swing.
 ## ghost: Ghostwield's copy of a hit, in the ghost's colour (it leaves marks alone:
 ## a mark is for your own sword).
-func _hit_enemy(e, dmg: float, kdir: Vector2, knock: float, stun := 0.12, freeze := 0.05, swing := {}, ghost := false) -> void:
+## spark: an effect strip to show where it lands in place of the blade's spark
+## (an arrow's). A crit always gets the crit spark.
+func _hit_enemy(e, dmg: float, kdir: Vector2, knock: float, stun := 0.12, freeze := 0.05, swing := {}, ghost := false, shot = null) -> void:
 	# A Weak Point mark turns this hit into a big crit, whoever's mark it is.
 	var mark: Dictionary = {}
 	if not swing.is_empty() and not e.weak_marks.is_empty():
@@ -756,11 +844,20 @@ func _hit_enemy(e, dmg: float, kdir: Vector2, knock: float, stun := 0.12, freeze
 			_label("WEAK POINT!", col)
 			_apply_elements(e, dmg * (1.0 + bonus))
 			return
-	var crit := Sim.chance() < float(weapon.get("crit", 0.05))
-	var final := dmg * (float(weapon.get("crit_damage", 1.5)) if crit else 1.0)
+	# An arrow carries its bow's luck with it (`shot` is the arrow): the weapon in
+	# the hand may have changed while it flew.
+	var crit_chance := float(shot.crit) if shot != null else float(weapon.get("crit", 0.05))
+	var crit_times := float(shot.crit_damage) if shot != null else float(weapon.get("crit_damage", 1.5))
+	var crit := Sim.chance() < crit_chance
+	var final := dmg * (crit_times if crit else 1.0)
 	e.take_hit(final, kdir, knock, crit, GHOST_COLOR if ghost else weapon.get("hit_color", Color.WHITE), stun, freeze)
 	# A spark where the blade lands, thrown the way the hit goes.
-	var spark := Art.play_piece(self, "hit_spark_crit" if crit else "hit_spark", e.global_position - kdir * float(e.radius) * 0.4, kdir.angle())
+	var spark_at: Vector2 = e.global_position - kdir * float(e.radius) * 0.4
+	var spark: Node2D = null
+	if shot != null and not crit:
+		spark = _strip("arrow_hit", spark_at + Arrow.HEIGHT * 0.5, kdir.angle())
+	if spark == null:
+		spark = Art.play_piece(self, "hit_spark_crit" if crit else "hit_spark", spark_at, kdir.angle())
 	if ghost and spark != null:
 		spark.material = _ghost_glow()
 	_apply_elements(e, final)
@@ -1565,7 +1662,7 @@ func _clear_marks() -> void:
 
 ## Plays one of the art's effect strips (art/swing/fx/) at a world position.
 func _strip(name: String, where: Vector2, angle := 0.0, size := 1.0) -> Node2D:
-	var info: Dictionary = SwordArt.data().get("fx", {}).get(name, {})
+	var info := BowArt.fx(name)
 	var tex := Art.texture("swing/fx/%s.png" % name)
 	if tex == null or info.is_empty():
 		return null
@@ -2044,10 +2141,67 @@ const READY_ANGLE := {"right": -0.85, "left": -(PI - 0.85), "down": -1.85, "up":
 	"down_right": -1.5, "down_left": -(PI - 1.5), "up_right": -1.1, "up_left": -(PI - 1.1)}
 
 func _rest_pose() -> Array:
+	if _is_bow():
+		var a: float = BOW_READY.get(facing8, BOW_READY.get(facing, 0.2))
+		return [a, _hand_point() + Vector2(BOW_OUT * signf(cos(a)), 0.0)]
 	return [READY_ANGLE.get(facing8, READY_ANGLE.get(facing, -1.85)), _hand_point()]
 
 
+## The bow at rest: held upright at the side in the same hand as the sword, its
+## back turned outwards and its string to the body, tipped a little forward. The
+## angle is the way an arrow on it would point (0 = right). Facing down that hand
+## is on screen-left and facing up on screen-right, as for the sword.
+const BOW_READY := {"right": 0.2, "down_right": 0.25, "up_right": 0.15, "up": 0.2,
+	"left": PI - 0.2, "down_left": PI - 0.25, "up_left": PI - 0.15, "down": PI - 0.2}
+const BOW_OUT := 4.0        # at rest it is held this far out from the hand's place
+const BOW_CHEST := Vector2(0, -10)
+const BOW_HOLD := 15.0      # shooting, the bow is held this far in front of the chest
+const BOW_RAISE := 0.05     # bringing it up from the side to the aim
+const BOW_SNAP := 0.03      # the string going back after the arrow leaves
+var bow_draw := 0.0         # how far the string is drawn, 0..1 (what is on screen)
+var bow_nocked := false     # an arrow is on the string
+var bow_from: Array = [0.0, Vector2.ZERO]   # the pose the shot began from
+var bow_loosed := -9.0      # game_time the last arrow left
+
+
+## The bow's pose. Shooting, it comes up to the aim and follows it; the string is
+## drawn through the wind-up, snaps back as the arrow leaves, and the next arrow
+## goes on just before the next shot of a chain.
+func _update_bow_pose(delta: float) -> void:
+	if current_step >= 0:
+		var wind := float(_move_info()["windup"]) / _speed()
+		var k := clampf(step_elapsed / BOW_RAISE, 0.0, 1.0)
+		pose_angle = lerp_angle(float(bow_from[0]), anim_dir.angle(), k)
+		pose_hand = (bow_from[1] as Vector2).lerp(BOW_CHEST + anim_dir * BOW_HOLD, k)
+		if hit_time >= 0.0:
+			var d := clampf(step_elapsed / maxf(wind * 0.8, 0.001), 0.0, 1.0)
+			bow_draw = 1.0 - (1.0 - d) * (1.0 - d)
+			bow_nocked = true
+			squash = squash.lerp(Vector2(1.03, 0.97) if _move_info().get("big", false) else Vector2.ONE, 1.0 - exp(-30.0 * delta))
+		else:
+			bow_draw = maxf(bow_draw - delta / BOW_SNAP, 0.0)
+			var chaining := queued or (input.attack_held and not need_release)
+			bow_nocked = chaining and step_elapsed > step_duration - 0.06
+	else:
+		var r := _rest_pose()
+		pose_angle = r[0]
+		pose_hand = r[1]
+		if return_t > 0.0:
+			return_t = maxf(return_t - delta, 0.0)
+			var k := return_t / RETURN_TIME
+			k = k * k
+			pose_angle = lerp_angle(r[0], float(return_from[0]), k)
+			pose_hand = (r[1] as Vector2).lerp(return_from[1], k)
+		bow_draw = maxf(bow_draw - delta / BOW_SNAP, 0.0)
+		bow_nocked = false
+	lean = lerpf(lean, 0.0, 1.0 - exp(-12.0 * delta))
+	squash = squash.lerp(Vector2.ONE, 1.0 - exp(-12.0 * delta))
+
+
 func _update_pose(delta: float) -> void:
+	if _is_bow():
+		_update_bow_pose(delta)
+		return
 	if hold_button >= 0:
 		# Spinning: the sword is held straight out and goes round with the body.
 		var a := _hold_angle_now()
@@ -2115,7 +2269,7 @@ func _start_smear() -> void:
 
 
 func _draw_trail() -> void:
-	if smear_t0 < 0.0 or not weapon.has("blade"):
+	if smear_t0 < 0.0 or not weapon.has("blade") or _is_bow():
 		return
 	_draw_smear(trail_layer, {"t0": smear_t0, "a0": smear_a0, "a1": smear_a1, "center": smear_center,
 		"dir": smear_dir, "side": smear_side, "move": smear_move})
@@ -2124,7 +2278,7 @@ func _draw_trail() -> void:
 ## Ghostwield's copies of your swings: the same smears from the other hand, in
 ## the ghost's colour (the layer's material recolours them).
 func _draw_ghost_trail() -> void:
-	if not weapon.has("blade"):
+	if not weapon.has("blade") or _is_bow():
 		return
 	for sm in ghost_smears:
 		_draw_smear(ghost_trail, sm)
@@ -2210,6 +2364,9 @@ func _draw_weapon() -> void:
 			weapon_layer.draw_texture(bare, -bare.get_size() * 0.5)
 			weapon_layer.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 		return
+	if _is_bow():
+		_draw_bow()
+		return
 	var pose := _sword_pose()
 	var angle: float = pose[0]
 	var hand: Vector2 = pose[1]
@@ -2229,6 +2386,35 @@ func _draw_weapon() -> void:
 	var fist := Art.texture("body/hand.png")
 	if fist != null:
 		weapon_layer.draw_set_transform(hand, 0.0, Vector2(Art.PIXEL, Art.PIXEL))
+		weapon_layer.draw_texture(fist, -fist.get_size() * 0.5)
+	weapon_layer.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+
+
+## Aiming to the left the bow's picture is turned over, so the grip's slots stay
+## towards the ground instead of ending up on top.
+func _bow_flipped() -> bool:
+	return cos(pose_angle) < 0.0
+
+
+## A place on the bow (BowArt's bow space, art pixels) as an offset from the
+## player's centre.
+func _bow_point(local: Vector2) -> Vector2:
+	if _bow_flipped():
+		local.y = -local.y
+	return pose_hand + (local * Art.PIXEL).rotated(pose_angle)
+
+
+## The bow in the hand: stave, string and arrow turned to the aim, then the fist
+## on the grip, upright as always. (A second fist on the string hid the face
+## whenever you aimed down, so the string is drawn back without one.)
+func _draw_bow() -> void:
+	var limbs: String = weapon["blade"]
+	weapon_layer.draw_set_transform(pose_hand, pose_angle, Vector2(Art.PIXEL, -Art.PIXEL if _bow_flipped() else Art.PIXEL))
+	BowArt.draw_hand(weapon_layer, limbs, str(weapon["grip"]), str(weapon.get("pommel", "plain_string")), str(weapon.get("arrows", "")),
+		weapon.get("line", []), _slot_glow(), bow_draw, bow_nocked)
+	var fist := Art.texture("body/hand.png")
+	if fist != null:
+		weapon_layer.draw_set_transform(pose_hand, 0.0, Vector2(Art.PIXEL, Art.PIXEL))
 		weapon_layer.draw_texture(fist, -fist.get_size() * 0.5)
 	weapon_layer.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
@@ -2291,7 +2477,7 @@ func _ghost_pose() -> Array:
 ## The ghost sword: your own sword, drawn in the other hand. (Its CanvasGroup's
 ## material turns the whole picture see-through and ghost-coloured.)
 func _draw_ghost() -> void:
-	if not weapon.has("blade"):
+	if not weapon.has("blade") or _is_bow():
 		return
 	var pose := _ghost_pose()
 	if pose[2]:
@@ -2330,6 +2516,8 @@ func _slot_glow() -> Dictionary:
 
 ## A slot's position in the world, following the sword in hand.
 func _slot_world(i: int) -> Vector2:
+	if _is_bow():
+		return global_position + _bow_point(BowArt.slot_at(str(weapon["blade"]), str(weapon["grip"]), i) + Vector2(0.5, 0.5))
 	var pose := _sword_pose()
 	var angle: float = pose[0]
 	var hand: Vector2 = pose[1]
@@ -2341,6 +2529,8 @@ func _slot_world(i: int) -> Vector2:
 
 ## The sword's tip in the world.
 func _tip_world() -> Vector2:
+	if _is_bow():
+		return global_position + _bow_point(BowArt.tips(str(weapon["blade"]), bow_draw)[0])
 	var pose := _sword_pose()
 	var d := Vector2.RIGHT.rotated(float(pose[0]))
 	var blade: String = weapon.get("blade", "iron_broadsword")

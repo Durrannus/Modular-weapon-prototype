@@ -251,3 +251,98 @@ rotate it.
 
 Drawing code: `art/concept-art-3/code/v3_nov11.py` (blades, heat, shine) and `v3_nov11b.py` (everything else;
 `python3 v3_nov11b.py export`).
+
+**Added 11 November, 13:45:** `swing/ui/stat_slots.png` (a socket) and `stat_move.png` (a boot with speed lines), each with
+a `_hot` version, 9x9 in the same three tones as the other stat icons. Preview: `preview/nov11_stat_icons.png`.
+
+## Ghostwield and teammate revives (11 November, late evening)
+
+Answers `art/requests/nov11-afternoon-prototype-art.md`. Same names and sizes as asked, so they drop in over the stand-ins.
+Numbers: `swing/nov11.json` (`runes.ghostwield`, `rune_colours.ghostwield` and a six-step ramp) and new entries in
+`gaps.json`. Previews: `preview/nov11b_ghostwield_stone.png`, `preview/nov11b_ghost_revive.png`.
+
+- **Ghostwield stone** (active, square): `swing/runes/ghostwield_icon.png` 26x26, `_forge` / `_forge_lit` 9x9, `_hand` /
+  `_hand_lit` 1x1. The glyph is a solid sword beside the same sword hollow, filled with the ghost colour.
+  `hud/glyph_ghostwield.png` 12x12.
+- **Colour** kept at `#a8b4ff`: it sits between Weak Point's ice and the benders' purple and no palette colour does.
+- **`fx/ghost_summon.png`** 6 x 48x48, 18 fps, once, additive, and **`fx/ghost_fade.png`** 6 x 48x48, 14 fps, once,
+  additive. THE ORIGIN IS (24, 36), NOT (24, 24): the blade is drawn tip-up standing on the hand, so put the origin on the
+  off hand and give the sprite the ghost sword's rotation. In ghost_summon show the tinted sword from frame 4; in
+  ghost_fade hide it from frame 2.
+- **`hud/down_mark.png`** 15x15, one frame, not additive: a broken heart on a dark disc 14 px across. Rings of radius 9
+  and 11 clear it.
+- **`fx/revive_up.png`** 7 x 56x56, origin (28, 40) on the feet, 18 fps, once, additive: a ring on the floor, a column
+  of ember-gold light and three marks climbing it. Draw it over the player.
+
+Drawing code: `art/concept-art-3/code/v3_nov11c.py` (`python3 v3_nov11c.py export`).
+
+## The bow (14 November): parts in the hand, at the forge, shooting effects, six runes
+
+Asked for in `/mnt/project-files/art/requests/nov14-bow-art.md` (parts A1 to A4 and B; part C waits until asked). All numbers are in ONE file, `swing/bow/bow.json`. Code: `concept-art-3/code/v3_bow.py` and `v3_bow_runes.py`.
+
+- **In the hand** (`swing/bow/limbs/<id>_hand.png`, 3 frames rest, half, full; `grips/<id>_hand.png`; `arrows/<id>_fly.png` 13x3 and `_stuck.png` 2 frames 8x3). No outline, no string (the code draws it between the tips in bow.json). The string is on the LEFT, the arrow leaves to the RIGHT. Limb ids wooden_shortbow, tin_shortbow, iron_shortbow, iron_longbow; grip ids wooden_bow_grip, tin_bow_grip, wrapped_bow_grip, horn_bow_grip; arrows wooden, tin, iron. The inner limb is stiff, so slot dots never move between draw frames.
+- **Shooting effects** (`swing/fx/`): arrow_trail, arrow_trail_heavy, bow_loose, arrow_hit. Additive, full alpha, fade drawn in.
+- **At the forge**: `limbs/<id>_forge_upper.png` and `_forge_lower.png`, `grips/<id>_forge.png`, `arrows/<id>_forge.png`, tray icons `_icon.png` for limbs, grips, arrows and `strings/<id>_icon.png` (plain, keen, heavy, light). Limb bands `swing/bands/<band>_limb_forge.png` (13x9) and `_limb_hand.png` (3x1), each with `_lit`. `swing/ui/stat_range.png` and `_hot`.
+- **HUD**: `hud/weapon_sword.png`, `hud/weapon_bow.png` (12x12).
+- **Six runes**: pierce, ricochet, steady_aim (passive, round), volley, snipe, arrow_rain (active, square). `swing/runes/<id>_icon.png`, `_forge(.png, _lit.png)`, `_hand(.png, _lit.png)`; `hud/glyph_<id>.png` for the actives; colours in bow.json `rune_colours`. Effects in `fx/` (not `swing/fx/`): pierce_trail, ricochet_spark, steady_ring, volley_fan, snipe_charge, snipe_sweet, snipe_trail, snipe_hit, rain_mark, rain_arrow, rain_hit.
+- **Previews** `swing/previews/<id>.png` (352x240) are MOCK-UPS composed from the art. Replace them with stills from the game once the runes fire.
+
+Look sheets: `preview/bow_in_hand.png`, `bow_shooting_fx.png`, `bow_at_forge.png`, `bow_icons.png`, `bow_runes_stones.png`, `bow_runes_fx_a.png`, `bow_runes_fx_b.png`, `bow_runes_previews.png`.
+
+## Title screen background, second design (12 November, 16:05 UTC): THE CURRENT ONE
+
+Darren on the first design: "there will be 4 players eventually so makes it look like a 2 player game. Think of something
+new and more exciting", then "Remember the different weapons and abilities". This design replaces the first in `title/`
+(same format, same `title.json` keys, so it drops in with no code change). The first design is kept in `title/design1/`.
+
+The picture: the fight, frozen at its best moment. The forge guardian stands in front of a blazing forge gate with its
+hammer over its head, and four players are on it at once, each with a different weapon and ability (Game Bible, 11 Nov):
+
+| Player | Weapon | Ability shown |
+| --- | --- | --- |
+| gold scarf (stand-in for player 3) | bow | Volley: three arrows in a spread |
+| violet scarf (stand-in for player 4) | staff | Lance: a beam held on the guardian's core, with Orbit lights circling |
+| blue scarf (player 2) | hammer | Quake: the floor splits and shards erupt under the guardian |
+| red scarf (player 1) | sword | Leap: in the air with a greatsword over the head |
+
+- Each ability glows in its player's colour and each player stands on the game's coloured ring (my choice, so four players
+  read at a glance; Darren has not seen it yet). Players 3 and 4 have no designs: they are the two real crew recoloured.
+- Everything is the game's own sprites at their real size, **320 x 180 art pixels at `"scale": 2`**. The hammer, bow and
+  staff are small first drawings for this picture only, not game parts yet.
+- `back.png` 320x180, opaque: wall, forge gate (a still blaze, it never moves), floor. `smoke.png` 640x30, tiles sideways,
+  at (0, 0), `"scroll": [-3, 0]`: smoke under the roof. `front.png`: the 48-frame, 8 fps loop as a grid, 8 columns x 6 rows
+  (`"cols": 8`), transparent where the back shows; same frames in `front/f_00.png` to `f_47.png`.
+- A living still: nothing travels. The trails, the beam, the cracks, scarves, the guardian's heart and hammer socket, the
+  Orbit lights and sparks shimmer, and the loop closes without a jump (checked).
+- `menu.at` [14, 60], 100 x 90 art px, and `logo.at` [14, 12]: dark wall and dark floor on the left. The bottom 14 art px
+  carry nothing that matters. `menu.plate` 0.45 and `music` "cave_calm" are kept from the prototype's copy.
+- Previews: `preview/title_loop.gif`, `title_still.png`, `title_spaces.png`.
+
+Drawing code: `art/concept-art-3/code/title2_art.py` (`still`, `sheet`, `gif`, `export`).
+
+## Title screen background, first design (12 November), now in `title/design1/`
+
+Darren: "I want an intro screen for the game so make a really cool slightly animated background of the game and
+characters" and "Looks at other games cover art and design something sick for this game". Files in `title/`, numbers in
+`title/title.json`, in the format of `art/requests/nov12-title-screen-art.md`.
+
+The picture: first light. The crew stand on a headland with their backs to us, their own sword planted beside them with
+both runes awake and a lantern at their feet, looking across the water at the colossal sword asleep in the cliff (the
+one from the opening cutscene), the sun coming up behind it. One ember breathes in the giant sword's socket.
+
+- **320 x 180 art pixels at `"scale": 2`**, the same chunkiness as the opening cutscene it leads into. The crew are the
+  game's own back-view sprites doubled (Scale2x), as foreground figures.
+- `sky.png` 320x180, opaque. `clouds.png` 640x96, tiles sideways, at (0, 4), `"scroll": [-2, 0]`.
+- `front.png`: the 48-frame, 8 fps loop (6 s) of everything in front of the sky, transparent where the sky shows.
+  **It is a grid, 8 columns x 6 rows of 320x180 (`"cols": 8`)**, read left to right then down, because one row would be
+  15360 px wide. The same frames are also `front/f_00.png` to `f_47.png` if single pictures suit the code better.
+- Baked into the loop: slow swell and the sun's road on the water, the ember in the giant sword's socket and a spark
+  climbing its channel, three birds round the pommel, sea-grass, the crew breathing, both scarves, the lantern, sparks
+  from the lantern. So no code embers. The loop closes without a jump (checked: the last-to-first step changes as many
+  pixels as any other step).
+- `menu.at` [14, 60], 100 x 90 art px (200 x 180 on screen): dark sky and dark sea. `logo.at` [14, 12]: near-black sky.
+  The bottom 14 art px carry nothing that matters. `preview/title_spaces.png` shows the kept spaces.
+- No logo picture: the game has no name, so the words are set in code.
+
+Previews: `preview/title_loop.gif` (640x360, clouds drifting as in the game), `preview/title_still.png`.
+Drawing code: `art/concept-art-3/code/title_art.py` (`still`, `sheet`, `gif`, `export`; a full export takes a few seconds).

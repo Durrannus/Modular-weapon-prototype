@@ -3,7 +3,8 @@ extends CanvasLayer
 ## Each player gets a health bar and dodge pips in a top corner, their sword's
 ## active runes (with the button for each and how full it is) under those, and
 ## their swing path in the bottom corner. The test arena also shows kills, its
-## two switches (pause the enemies, invincible), the chain and the control hints.
+## switches (pause the enemies, invincible, sword or bow), the chain and the
+## control hints.
 
 var player = null          # player one
 var players: Array = []
@@ -14,10 +15,15 @@ var mode := "arena"        # "arena" or "cave"
 var panel: Control
 var pause_button: Button
 var invincible_button: Button
+var swap_button: Button
+var said := ""             # a line for everyone to read, for a few seconds (say())
+var said_until := -9.0
+var clock := 0.0
 var trail: Array = []      # per player: the pale bar that trails behind lost health, 0..1
 
 signal pause_pressed
 signal invincible_pressed
+signal swap_pressed
 
 const Net := preload("res://scripts/net/net.gd")
 const Art := preload("res://scripts/art.gd")
@@ -53,6 +59,14 @@ func _ready() -> void:
 	pause_button.pressed.connect(func(): pause_pressed.emit())
 	invincible_button = _switch(27.0)
 	invincible_button.pressed.connect(func(): invincible_pressed.emit())
+	swap_button = _switch(48.0)
+	swap_button.pressed.connect(func(): swap_pressed.emit())
+
+
+## Shows a line in the middle of the screen for a few seconds.
+func say(text: String, seconds := 3.5) -> void:
+	said = text
+	said_until = clock + seconds
 
 
 const SWITCH := Vector2(138, 18)
@@ -85,6 +99,9 @@ func _process(delta: float) -> void:
 	pause_button.text = "RESUME ENEMIES (P)" if enemies_paused else "PAUSE ENEMIES (P)"
 	invincible_button.visible = pause_button.visible
 	invincible_button.text = "INVINCIBLE: ON (H)" if invincible else "INVINCIBLE: OFF (H)"
+	swap_button.visible = pause_button.visible
+	swap_button.text = "SWAP TO SWORD (B)" if _holds_bow(player) else "SWAP TO BOW (B)"
+	clock += delta
 	# Lost health lingers as a pale bar for a moment, then drains away.
 	trail.resize(players.size())
 	for i in players.size():
@@ -94,6 +111,10 @@ func _process(delta: float) -> void:
 		var frac := clampf(p.hp / p.max_hp, 0.0, 1.0)
 		trail[i] = maxf(frac, (trail[i] if trail[i] != null else frac) - delta * 0.45)
 	panel.queue_redraw()
+
+
+func _holds_bow(p) -> bool:
+	return is_instance_valid(p) and p.weapon.get("weapon", "sword") == "bow"
 
 
 func _head(text: String, pos: Vector2, col: Color, size := 8, width := -1.0, align := HORIZONTAL_ALIGNMENT_LEFT) -> void:
@@ -192,6 +213,10 @@ func _draw_hud() -> void:
 			_head(line[0], Vector2(MARGIN, 46 + down), line[1])
 		if players[mini(Net.me(), players.size() - 1)].knocked_out_timer > 0.0:
 			_head("Knocked out! Back to the start.", Vector2(0, 84), EMBER, 16, SIZE.x, HORIZONTAL_ALIGNMENT_CENTER)
+		if clock < said_until:
+			var w := _head_width(said) + 12.0
+			panel.draw_rect(Rect2((SIZE.x - w) * 0.5, 104, w, 14), SHADE)
+			_head(said, Vector2(0, 114), AMBER, 8, SIZE.x, HORIZONTAL_ALIGNMENT_CENTER)
 		if not many:
 			_draw_chain(player)
 			var hint := "Tab / Y: forge    Click / X: attack    Space / A: dodge"
@@ -208,6 +233,8 @@ func arena_lines() -> Array:
 		out.append(["Invincible is off (H / Select)", FAINT])
 	if enemies_paused:
 		out.append(["Enemies paused (P / Start)", AMBER])
+	if players.size() > 1:
+		out.append(["Sword or bow: B / right stick click", FAINT])
 	return out
 
 

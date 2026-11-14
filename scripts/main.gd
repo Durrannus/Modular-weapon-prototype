@@ -4,8 +4,9 @@ const WeaponBuild := preload("res://scripts/weapon/weapon_build.gd")
 const PartLibrary := preload("res://scripts/parts/part_library.gd")
 ## The test arena: one big room, a training dummy, endless enemies, and a forge
 ## you can open anywhere (Tab / Y) with every part unlocked. It is a room for
-## trying swords out, so nobody can be hurt in it unless they ask to be (H / Select
-## switches "Invincible"), and P / Start stops the enemies where they stand.
+## trying weapons out, so nobody can be hurt in it unless they ask to be (H / Select
+## switches "Invincible"), P / Start stops the enemies where they stand, and
+## B / a click of the right stick swaps your sword for your bow and back.
 ## Everything is built in code so there are few scene files to merge.
 
 const ARENA := Rect2(0, 0, 1792, 1088)  # 56 x 34 tiles
@@ -47,13 +48,18 @@ func _ready() -> void:
 	# each button, and the passive ones beside them. A and B are the 3 November
 	# test swords, C is two actives and Shockwave; keys 1 to 4 at the forge load
 	# A to D.
+	# Everyone also carries the test bow (B swaps): an iron shortbow with iron
+	# arrows, the iron sword's match.
+	can_swap = true
 	for b in builds:
 		b.load_test("D")
+		b.stowed["bow"] = SwingBuild.TEST_BOW.duplicate(true)
 
 	_make_ui()
 	hud.mode = "arena"
 	hud.pause_pressed.connect(_toggle_paused)
 	hud.invincible_pressed.connect(_toggle_invincible)
+	hud.swap_pressed.connect(func(): _swap_weapon(mini(Net.me(), players.size() - 1)))
 	build_menu.hotkey = false  # handled below, so each player opens their own sword
 	build_menu.try_at_dummy.connect(_on_try_at_dummy)
 
@@ -72,6 +78,25 @@ func _toggle_invincible() -> void:
 		Net.command(["invincible"])
 	else:
 		_set_invincible(not invincible)
+
+
+## Sword or bow. Online it is sent to both computers, like the switches.
+func _swap_weapon(i: int) -> void:
+	if Net.online():
+		Net.command(["weapon"])
+	else:
+		swap_weapon(i)
+
+
+## Whose swap key went down: the keyboard's player or that controller's.
+func _swap_key_player() -> int:
+	for i in players.size():
+		var inp = players[i].input
+		if inp.kind == "pad" and Input.is_joy_button_pressed(inp.device, JOY_BUTTON_RIGHT_STICK):
+			return i
+		if inp.kind == "kbm" and Input.is_physical_key_pressed(KEY_B):
+			return i
+	return 0
 
 
 func _set_paused(on: bool) -> void:
@@ -105,6 +130,8 @@ func _input(event: InputEvent) -> void:
 		Net.command(["pause_enemies"])
 	elif event.is_action_pressed("toggle_invincible") and not build_menu.is_open:   # Select means "next preset" at the forge
 		Net.command(["invincible"])
+	elif event.is_action_pressed("swap_weapon") and not build_menu.is_open and not pause_menu.is_open():
+		Net.command(["weapon"])
 
 
 func net_command(i: int, cmd: Array) -> bool:
@@ -137,6 +164,8 @@ func _physics_process(delta: float) -> void:
 			_set_paused(not enemies_paused)
 		if Input.is_action_just_pressed("toggle_invincible"):
 			_set_invincible(not invincible)
+		if Input.is_action_just_pressed("swap_weapon"):
+			swap_weapon(_swap_key_player())
 	_hold_enemies()
 	for p in players:
 		p.unhurt = invincible

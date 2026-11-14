@@ -1,5 +1,6 @@
 extends RefCounted
-## The swing path (3 November design). A sword is a blade plus a grip.
+## The swing path (3 November design). A sword is a blade plus a grip. A bow
+## (14 November) is put together the same way: see "Bows" below.
 ## - The blade's shape sets the three-hit chain you always swing, and how it
 ##   feels: speed, reach, arc and one lean (11 November, the six blade shapes).
 ##   Its metal sets the damage.
@@ -46,7 +47,8 @@ const MOVE_NAMES := {"slash": "slash", "overhead": "overhead",
 	"sabre_slash": "slash", "sabre_back": "backslash", "sabre_sweep": "sweep",
 	"thrust": "thrust", "long_thrust": "lunge",
 	"chop": "chop", "cleave": "cleave",
-	"great_sweep": "sweep", "great_back": "backswing", "slam": "slam"}
+	"great_sweep": "sweep", "great_back": "backswing", "slam": "slam",
+	"quick_shot": "quick shot", "heavy_shot": "heavy shot"}
 
 ## A broadsword's damage in each metal. (Later metals each add about a quarter.)
 const METALS := {"wood": 5.0, "tin": 8.0, "iron": 11.0}
@@ -86,6 +88,118 @@ static func blade_info(id: String) -> Dictionary:
 		"crit": float(s.get("crit", 0.0)),
 		"swing_move": float(s.get("swing_move", SWING_MOVE)),
 		"desc": str(b.get("desc", s["desc"])),
+	}
+
+
+# --- Bows -----------------------------------------------------------------------
+# Game Bible, the weapons table; built 14 November. A bow is four parts:
+#   limbs   the chain you always shoot and how it feels (draw speed, range), and
+#           slots by tier, like a blade
+#   grip    slots
+#   string  numbers only, like a sword's pommel
+#   arrows  the damage (their metal). Once owned you never run out.
+# The line reads the way a sword's does: grip slots first (they sit under the
+# hand), then the limb's (above it, on the upper limb).
+# In this file the limbs live where a sword's blade does (`blade`) and the string
+# where its pommel does (`pommel`), so whatever reads a sword can read a bow.
+
+## Limb shapes. The numbers are multiples of the shortbow with the same arrows,
+## and damage x speed stays within a tenth of it, as for blade shapes.
+##   range  how far an arrow flies, as a multiple of BOW_RANGE
+const BOW_SHAPES := {
+	"shortbow": {"name": "Shortbow", "chain": ["quick_shot", "quick_shot", "heavy_shot"],
+		"damage": 1.0, "speed": 1.0, "range": 1.0,
+		"desc": "Quick shot, quick shot, heavy shot: the balanced bow."},
+}
+## An arrow is worth this much of a broadsword's hit in the same metal. Shooting
+## from range is safer than standing in reach, and Darren doesn't want everyone
+## fighting from range (10 November, about Shockwave), so the bow does less a
+## second than the sword, to one enemy at a time.
+const BOW_DAMAGE := 0.75
+const BOW_RANGE := 520.0       # how far a shortbow's arrow flies (a sword reaches 91)
+const BOW_FLIGHT := 1300.0     # how fast an arrow flies, a second
+const BOW_MOVE := 0.8          # walking speed while shooting ("slightly slowed")
+
+const LIMBS := {
+	"wooden_shortbow": {"name": "Wooden Shortbow", "shape": "shortbow", "slots": 0,
+		"desc": "Quick shot, quick shot, heavy shot: a training bow."},
+	"tin_shortbow": {"name": "Tin Shortbow", "shape": "shortbow", "slots": 1,
+		"desc": "Quick shot, quick shot, heavy shot: wood, shod with tin."},
+	"iron_shortbow": {"name": "Iron Shortbow", "shape": "shortbow", "slots": 2},
+}
+const LIMB_ORDER := ["iron_shortbow"]
+
+const BOW_GRIPS := {
+	"wooden_bow_grip": {"name": "Wooden Bow Grip", "slots": 1, "desc": "One slot."},
+	"tin_bow_grip": {"name": "Tin Bow Grip", "slots": 1, "desc": "One slot."},
+	"wrapped_bow_grip": {"name": "Wrapped Bow Grip", "slots": 2, "desc": "Two slots."},
+	"horn_bow_grip": {"name": "Horn Bow Grip", "slots": 3, "desc": "Three slots."},
+}
+const BOW_GRIP_ORDER := ["wooden_bow_grip", "wrapped_bow_grip", "horn_bow_grip"]
+
+## Strings: no slots, numbers only. The same four fixed test rolls as the pommels.
+const STRINGS := {
+	"plain_string": {"name": "Plain String", "desc": "No bonus.", "color": Color("#dcd6b0")},
+	"keen_string": {"name": "Keen String", "crit": 0.08, "desc": "+8% crit chance.", "color": Color("#78c0cc")},
+	"heavy_string": {"name": "Heavy String", "crit_damage": 0.4, "desc": "+40% crit damage.", "color": Color("#cf8a48")},
+	"light_string": {"name": "Light String", "speed": 0.1, "desc": "+10% draw speed.", "color": Color("#f6faf0")},
+}
+const STRING_ORDER := ["plain_string", "keen_string", "heavy_string", "light_string"]
+
+## Arrows: the bow's damage. The first kinds are the three metals and nothing else.
+const ARROWS := {
+	"wooden_arrows": {"name": "Wooden Arrows", "metal": "wood", "desc": "Sharpened wood."},
+	"tin_arrows": {"name": "Tin Arrows", "metal": "tin", "desc": "Tin heads."},
+	"iron_arrows": {"name": "Iron Arrows", "metal": "iron", "desc": "Iron heads."},
+}
+const ARROW_ORDER := ["wooden_arrows", "tin_arrows", "iron_arrows"]
+
+## What everyone starts with, and the arena's test bow (the iron sword's match).
+const STARTERS := {
+	"sword": ["wooden_blade", "wooden_grip", "plain_pommel", [""]],
+	"bow": ["wooden_shortbow", "wooden_bow_grip", "plain_string", [""], "wooden_arrows"],
+}
+const TEST_BOW := ["iron_shortbow", "wrapped_bow_grip", "plain_string", ["", "", "", ""], "iron_arrows"]
+
+
+## Which weapon a blade or a pair of limbs makes: "sword" or "bow".
+static func weapon_of(head: String) -> String:
+	return "bow" if LIMBS.has(head) else "sword"
+
+
+## A sword's blade or a bow's limbs: the part that sets the chain.
+static func head_part(id: String) -> Dictionary:
+	return LIMBS[id] if LIMBS.has(id) else BLADES[id]
+
+
+## A grip of either weapon.
+static func grip_part(id: String) -> Dictionary:
+	return BOW_GRIPS[id] if BOW_GRIPS.has(id) else GRIPS[id]
+
+
+## A sword's pommel or a bow's string: the part that is numbers only.
+static func butt_part(id: String) -> Dictionary:
+	return STRINGS[id] if STRINGS.has(id) else POMMELS[id]
+
+
+## Everything about a bow's limbs in one place, like blade_info. `arrows` gives
+## the damage.
+static func limb_info(id: String, arrows: String) -> Dictionary:
+	var l: Dictionary = LIMBS[id]
+	var s: Dictionary = BOW_SHAPES[l["shape"]]
+	var metal: String = ARROWS[arrows]["metal"] if ARROWS.has(arrows) else "wood"
+	return {
+		"name": l["name"], "shape": l["shape"], "shape_name": s["name"], "metal": metal,
+		"slots": int(l["slots"]), "element": "",
+		"chain": s["chain"],
+		"damage": float(METALS[metal]) * BOW_DAMAGE * float(s["damage"]),
+		"speed": float(s["speed"]),
+		"reach": 1.0,
+		"range": BOW_RANGE * float(s["range"]),
+		"flight": BOW_FLIGHT * float(s.get("flight", 1.0)),
+		"crit": float(s.get("crit", 0.0)),
+		"swing_move": float(s.get("swing_move", BOW_MOVE)),
+		"desc": str(l.get("desc", s["desc"])),
 	}
 
 
@@ -217,14 +331,35 @@ var grip := "wooden_grip"
 var pommel := "plain_pommel"
 ## Slot contents bottom to top: grip slots first, then blade slots. "" is empty.
 var line: Array = [""]
+## A bow keeps its limbs in `blade` and its string in `pommel` (see "Bows"), and
+## has one part more: its arrows ("" on a sword).
+var arrows := ""
+## The weapons that aren't in the hand, as get_data() values: {"sword": ..} or
+## {"bow": ..}. A player has one of each and swaps between them (weapon_of).
+var stowed := {}
+
+
+## "sword" or "bow": the weapon in the hand.
+func weapon() -> String:
+	return weapon_of(blade)
+
+
+## Puts the other weapon in the hand; the one that was there waits in `stowed`.
+## A weapon that was never held starts as the plain wooden one.
+func take(kind: String) -> void:
+	if kind == weapon() or not STARTERS.has(kind):
+		return
+	var next: Array = stowed.get(kind, STARTERS[kind])
+	set_data(next)
+	changed.emit()
 
 
 func slot_count() -> int:
-	return int(GRIPS[grip]["slots"]) + int(BLADES[blade]["slots"])
+	return int(grip_part(grip)["slots"]) + int(head_part(blade)["slots"])
 
 
 func grip_slots() -> int:
-	return int(GRIPS[grip]["slots"])
+	return int(grip_part(grip)["slots"])
 
 
 ## Keeps the line the right length after a grip or blade change.
@@ -233,7 +368,7 @@ func _refit(old_grip_slots: int) -> void:
 	var g: Array = line.slice(0, old_grip_slots)
 	var b: Array = line.slice(old_grip_slots)
 	var gs := grip_slots()
-	var bs := int(BLADES[blade]["slots"])
+	var bs := int(head_part(blade)["slots"])
 	g.resize(gs)
 	b.resize(bs)
 	line = []
@@ -267,21 +402,36 @@ func set_pommel(id: String) -> void:
 	changed.emit()
 
 
-## The whole sword as plain values, to send to the other computer online.
+func set_arrows(id: String) -> void:
+	arrows = id
+	changed.emit()
+
+
+## The whole weapon as plain values, to send to the other computer online. A
+## sword is [blade, grip, pommel, line]; a bow is [limbs, grip, string, line, arrows].
 func get_data() -> Array:
-	return [blade, grip, pommel, line.duplicate()]
+	var out: Array = [blade, grip, pommel, line.duplicate()]
+	if weapon() == "bow":
+		out.append(arrows)
+	return out
 
 
-## True if `data` is a sword get_data() could have made (every part exists and
-## the slots fit), so nothing odd can arrive from the other computer.
+## True if `data` is a weapon get_data() could have made (every part exists,
+## belongs to the same weapon, and the slots fit), so nothing odd can arrive from
+## the other computer.
 static func valid_data(data) -> bool:
-	if not (data is Array) or data.size() != 4 or not (data[3] is Array):
+	if not (data is Array) or data.size() < 4 or not (data[3] is Array):
 		return false
 	if not (data[0] is String and data[1] is String and data[2] is String):
 		return false
-	if not (BLADES.has(data[0]) and GRIPS.has(data[1]) and POMMELS.has(data[2])):
+	if LIMBS.has(data[0]):
+		if data.size() != 5 or not (data[4] is String) or not ARROWS.has(data[4]):
+			return false
+		if not (BOW_GRIPS.has(data[1]) and STRINGS.has(data[2])):
+			return false
+	elif data.size() != 4 or not (BLADES.has(data[0]) and GRIPS.has(data[1]) and POMMELS.has(data[2])):
 		return false
-	if data[3].size() != int(GRIPS[data[1]]["slots"]) + int(BLADES[data[0]]["slots"]):
+	if data[3].size() != int(grip_part(data[1])["slots"]) + int(head_part(data[0])["slots"]):
 		return false
 	for id in data[3]:
 		if not (id is String) or (id != "" and not FITTINGS.has(id)):
@@ -289,12 +439,17 @@ static func valid_data(data) -> bool:
 	return true
 
 
-## Sets the whole sword at once. Doesn't announce it: emit `changed` yourself.
+## Sets the whole weapon at once. Doesn't announce it: emit `changed` yourself.
+## If it is the other weapon, the one in the hand is put away first.
 func set_data(data: Array) -> void:
+	if weapon_of(data[0]) != weapon():
+		stowed[weapon()] = get_data()
+	stowed.erase(weapon_of(data[0]))
 	blade = data[0]
 	grip = data[1]
 	pommel = data[2]
 	line = (data[3] as Array).duplicate()
+	arrows = data[4] if data.size() > 4 else ""
 
 
 # --- Loadout presets ----------------------------------------------------------
@@ -328,7 +483,7 @@ static func parts_missing(data, owned) -> Array:
 	var out: Array = []
 	if data == null or owned == null:
 		return out
-	for id in [data[0], data[1], data[2]] + (data[3] as Array):
+	for id in [data[0], data[1], data[2]] + (data[3] as Array) + (data as Array).slice(4):
 		if id != "" and not (id in owned) and not (id in out):
 			out.append(id)
 	return out
@@ -345,14 +500,24 @@ func use_preset(i: int, owned = null) -> Array:
 	var data = preset_data[i]
 	preset = i
 	var missing := parts_missing(data, owned)
-	if data != null:
-		var saved_grip_slots := int(GRIPS[data[1]]["slots"])
+	if data != null and weapon_of(data[0]) != weapon():
+		# The saved one is the other weapon: it comes whole, or (a part of it is
+		# gone) not at all, since a sword's parts don't fit a bow.
+		var whole := true
+		for id in [data[0], data[1], data[2]] + (data as Array).slice(4):
+			whole = whole and not (id in missing)
+		if whole:
+			set_data([data[0], data[1], data[2], (data[3] as Array).map(func(id): return "" if id in missing else id)] + (data as Array).slice(4))
+	elif data != null:
+		var saved_grip_slots := int(grip_part(data[1])["slots"])
 		if not (data[0] in missing):
 			blade = data[0]
 		if not (data[1] in missing):
 			grip = data[1]
 		if not (data[2] in missing):
 			pommel = data[2]
+		if data.size() > 4 and not (data[4] in missing):
+			arrows = data[4]
 		line = []
 		for id in data[3]:
 			line.append("" if id in missing else id)
@@ -363,6 +528,8 @@ func use_preset(i: int, owned = null) -> Array:
 
 func load_test(key: String) -> void:
 	var t: Dictionary = TEST_SWORDS[key]
+	if weapon() != "sword":
+		set_data(stowed.get("sword", STARTERS["sword"]))
 	blade = t["blade"]
 	grip = t["grip"]
 	line = (t["line"] as Array).duplicate()
@@ -649,10 +816,14 @@ static func abilities(effects: Array) -> Array:
 	return out
 
 
-## Everything the player needs, as one plain dictionary.
+## Everything the player needs, as one plain dictionary. A bow gives the same
+## things as a sword ("blade" is its limbs, "pommel" its string), and also
+## "arrows", "range" and "flight".
 func compute() -> Dictionary:
-	var b := blade_info(blade)
-	var g: Dictionary = GRIPS[grip]
+	var bow := weapon() == "bow"
+	var b := limb_info(blade, arrows) if bow else blade_info(blade)
+	var g: Dictionary = grip_part(grip)
+	var butt: Dictionary = butt_part(pommel)
 	var steps: Array = []
 	for m in b["chain"]:
 		steps.append({"move": m, "name": MOVE_NAMES.get(m, m), "from": b["name"]})
@@ -664,7 +835,8 @@ func compute() -> Dictionary:
 	var hit_color := Color.WHITE
 	if element != "":
 		hit_color = ELEMENT_COLORS[element]
-	return {
+	var out := {
+		"weapon": weapon(),
 		"blade": blade,
 		"shape": b["shape"],
 		"grip": grip,
@@ -676,17 +848,22 @@ func compute() -> Dictionary:
 		"steps": steps,
 		"damage": float(b["damage"]),
 		"pommel": pommel,
-		"speed": float(b["speed"]) * (1.0 + float(POMMELS[pommel].get("speed", 0.0))),
+		"speed": float(b["speed"]) * (1.0 + float(butt.get("speed", 0.0))),
 		"reach": float(b["reach"]),
 		"swing_move": float(b["swing_move"]),
-		"crit": BASE_CRIT + float(b["crit"]) + float(POMMELS[pommel].get("crit", 0.0)),
-		"crit_damage": BASE_CRIT_DAMAGE + float(POMMELS[pommel].get("crit_damage", 0.0)),
+		"crit": BASE_CRIT + float(b["crit"]) + float(butt.get("crit", 0.0)),
+		"crit_damage": BASE_CRIT_DAMAGE + float(butt.get("crit_damage", 0.0)),
 		"area": 0.0,
 		"move_speed": 0.0,
 		"elements": [element] if element != "" else [],
 		"combos": [],
 		"hit_color": hit_color,
 	}
+	if bow:
+		out["arrows"] = arrows
+		out["range"] = float(b["range"])
+		out["flight"] = float(b["flight"])
+	return out
 
 
 const BASE_CRIT := 0.07

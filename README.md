@@ -7,7 +7,8 @@ This branch (`swing-path`) has four things to try:
 - **The tutorial cave** (Game Plan milestone 4): four rooms, from a shipwreck crate to a forge guardian, for one or two players.
 - **Two players on one screen.**
 - **Two players online**, one on each computer (see "Playing online" below).
-- **The test arena**: the sandbox for trying swords out, with every sword part unlocked. You can't be hurt there unless you switch that off, and you can stop the enemies where they stand (see "Controls").
+- **The test arena**: the sandbox for trying weapons out, with every sword part unlocked. You can't be hurt there unless you switch that off, and you can stop the enemies where they stand (see "Controls").
+- **The first bow** (version 18, Game Bible milestone 6), in the test arena: press **B** (or click the right stick) to swap your sword for an iron shortbow and back. See "The bow" below.
 
 ## How to run it
 
@@ -134,7 +135,7 @@ Game code must follow these rules, or the two games drift apart:
 | Action | Keyboard and mouse | Controller |
 |---|---|---|
 | Move | WASD or arrows | Left stick or d-pad |
-| Attack | Left click (swings toward the mouse) | X or right trigger (swings the way you face, or aim with the right stick) |
+| Attack | Left click (swings, or shoots, toward the mouse) | X or right trigger (swings or shoots the way you face, or aim with the right stick) |
 | Keep attacking | Hold left click | Hold X |
 | Dodge | Space or Shift | A or left trigger |
 | First active rune (hold for Whirlwind) | Right click | RB |
@@ -146,8 +147,9 @@ Game code must follow these rules, or the two games drift apart:
 | Test arena only: open the forge anywhere | Tab | Y |
 | Test arena only: pause the enemies, or let them go | P | Start |
 | Test arena only: Invincible on or off | H | Select |
+| Test arena only: swap sword and bow | B | Click the right stick |
 
-**The test arena's two switches.** With one player they are also two buttons at the top right, and the words under the kill count say how they stand.
+**The test arena's switches.** With one player they are also buttons at the top right (the third one swaps sword and bow), and the words under the kill count say how they stand.
 
 - **Invincible** is on when the arena starts: nothing can hurt you, because the room is for trying swords and runes out. Switch it off for a real fight; switching it back on refills your health.
 - **Pause enemies** really pauses them: nobody new arrives, and the ones in the room stand still, go dull, show a small pause mark and hurt nobody. You can still hit them, push them about and kill them, so they make good targets for a rune. (Before version 17 it only stopped new ones arriving.)
@@ -202,6 +204,7 @@ godot --headless --path . --fixed-fps 60 -s tests/cave_playthrough.gd -- players
 godot --path . -s tests/smoke_forge.gd                                         # opens the forge, fires every rune; every word fits its plate; BACK leaves
 godot --headless --path . --fixed-fps 60 -s tests/title_screen.gd              # the intro screen: its picture, its buttons, joining and choosing
 godot --headless --path . --fixed-fps 60 -s tests/arena_switches.gd            # the arena's two switches: Invincible, and Pause enemies
+godot --headless --path . --fixed-fps 60 -s tests/bow.gd                       # the bow: swapping, its numbers, what an arrow hits and where it stops, damage a second against the sword's
 godot --headless --path . -s tests/version_check.gd                            # the version number was raised if anything changed
 ```
 
@@ -216,12 +219,29 @@ Online play (needs bash, so Linux, macOS or Git Bash on Windows). Each line runs
 ```
 tests/online.sh /path/to/godot                         # the cave, as fast as the computer can
 tests/online.sh /path/to/godot fast hard drop=0.1      # with knock-outs and 10% of messages lost
-tests/online.sh /path/to/godot fast arena              # the arena: forge, sword changes, the two switches
+tests/online.sh /path/to/godot fast arena              # the arena: forge, sword changes, the two switches, swapping to the bow and shooting
 tests/online.sh /path/to/godot real lag=45 drop=0.05   # at normal speed with a slow, lossy connection
 tests/online.sh /path/to/godot real host:slow=22       # one computer that can't keep up
 ```
 
 To skip the title screen while testing: `godot --path . -- cave` or `godot --path . -- arena`.
+
+## The bow (version 18, 14 November)
+
+The first stage of Game Bible milestone 6 ("the bow is as fun as the sword, and you can finish the tutorial cave with it"): a bow you can shoot in the test arena. Still to come, a version each: the bow at the forge, its six runes, and the tutorial cave with a bow.
+
+- **Swap** with **B** or a click of the right stick (one player also has a SWAP button at the top right). Everyone in the arena carries test sword D and an **iron shortbow** with iron arrows on a two-slot grip. Whatever you change on the sword is still there when you swap back.
+- **Shooting** is the same button as swinging, and holding it keeps shooting. The shortbow's chain is **quick shot, quick shot, heavy shot** (Game Bible). Each shot first draws the string (0.13 s, 0.22 s for the heavy one); the arrow leaves when the draw ends, **towards wherever you are aiming at that moment**, so you can turn while you draw. You walk at 80% speed while shooting ("you can move while shooting, slightly slowed").
+- **An arrow** flies straight at 1300 px a second for 520 px (a sword reaches 91), hits the **first** enemy on its line and stops there; a wall stops it too. A spent arrow stands where it stopped for a moment and fades. Arrows never run out (Game Bible: infinite once owned).
+- **Damage** (Claude's first numbers, for Darren to overturn): an arrow does **75% of a sword hit** in the same metal (iron: 8.25, heavy shot 12.4), and hits one enemy where a slash hits everything in its arc. Against a single enemy the iron shortbow does about 0.8 of the iron broadsword's damage a second (`tests/bow.gd` measures it). The reason is the Game Bible's rule that ranged must not beat melee.
+- **Not yet:** the forge can't change a bow (it says so, and asks you to swap to the sword first), the bow has no runes of its own, only the shortbow shape exists, and the tutorial cave still hands out swords alone.
+
+How it is built:
+
+- A bow is the same kind of thing as a sword in `scripts/weapon/swing_build.gd`: limbs in the blade's place, a bow grip, a string in the pommel's place, and arrows as a fifth part (`LIMBS`, `BOW_GRIPS`, `STRINGS`, `ARROWS`, `BOW_SHAPES`; `limb_info()` is the bow's `blade_info()`). `get_data()` is `[limbs, grip, string, slots, arrows]`. The weapon that isn't in the hand waits in `stowed`, and `take("bow")` / `take("sword")` swaps them.
+- Shots are chain moves like any other (`quick_shot`, `heavy_shot` in `scripts/player.gd` `MOVES`, shape `"shot"`): the wind-up is the draw, and `_loose()` makes the arrow.
+- `scripts/arrow.gd` is the arrow. It moves a whole physics tick at a time and tests the line it flew that tick, so a fast arrow can't skip through a thin enemy, and nothing in it is random: online, both computers fly the same arrow (arrows are part of the checksum, and swapping is a command sent to both).
+- `scripts/weapon/bow_art.gd` draws the bow in the hand from `art/swing/bow/` (numbers in `art/swing/bow/bow.json`): the limbs are a strip of three frames (rest, half drawn, full draw) and the string is a line drawn in code through the hand that pulls it.
 
 ## This branch: the swing path
 

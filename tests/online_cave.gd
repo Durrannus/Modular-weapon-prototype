@@ -28,6 +28,7 @@ var wait_frames := 0
 var linger := -1        # clock milliseconds to quit at, once this copy has finished
 var result_ok := false
 var arena_step := 0
+var arrows_seen := {}          # every arrow that flew in the arena run
 var hard := false
 var started := 0
 
@@ -136,6 +137,16 @@ func _via(from: Vector2, target: Vector2) -> Vector2:
 
 func _fight(i: int) -> void:
 	super._fight(i)
+	# With the bow in the hand: shoot whatever is nearest from well out of a sword's reach.
+	if arena and i == me and m.builds[i].weapon() == "bow":
+		var p = m.players[i]
+		var foe = _nearest_foe(p.global_position)
+		if foe != null and foe.global_position.distance_to(p.global_position) < 460.0:
+			var inp = _inp(i)
+			inp.stick_aim = (foe.global_position - p.global_position).normalized()
+			inp.attack_held = true
+			if p.current_step < 0:
+				inp.attack_pressed = true
 	if i == me and me == 1:
 		session.local.aim_offset = session.local.stick_aim * 90.0
 		session.local.stick_aim = Vector2.ZERO
@@ -158,9 +169,11 @@ func _forge_stage(stage: String) -> void:
 func _arena_tick() -> void:
 	frame += 1
 	_clear_presses()
+	for a in get_nodes_in_group("arrows"):
+		arrows_seen[a.get_instance_id()] = true
 	if frame > 60 * 40:
 		session.sampling.disconnect(_arena_tick)
-		_report(m.kills > 0)
+		_report(m.kills > 0 and arrows_seen.size() > 10)
 		return
 	if m.build_menu.is_open:
 		forge_wait += 1
@@ -194,6 +207,13 @@ func _arena_tick() -> void:
 		Net.command(["pause_enemies"])
 	if me == 1 and frame in [500, 1500]:
 		Net.command(["invincible"])
+	# Sword and bow: each player swaps at their own moments (player 1 has the bow
+	# out when both ask for the forge at 1200, so that one is turned away on both
+	# computers; player 2 ends the run with the bow).
+	if me == 0 and frame in [1000, 1400, 1900, 2150]:
+		Net.command(["weapon"])
+	if me == 1 and frame in [760, 1100, 1700]:
+		Net.command(["weapon"])
 	_fight(me)
 	# The active runes: a press on each button now and then, the first one held
 	# for a while (a Whirlwind there spins on), at different moments for each player.
@@ -222,7 +242,7 @@ func _report(ok: bool) -> void:
 		print("FAIL: the two games went out of sync (see user://out_of_sync_player%d.txt)" % (me + 1))
 		ok = false
 	if arena:
-		print("%s: arena, %d kills, swords %s" % ["PASS" if ok else "FAIL", m.kills, str([m.builds[0].get_data(), m.builds[1].get_data()])])
+		print("%s: arena, %d kills, %d arrows shot, weapons %s" % ["PASS" if ok else "FAIL", m.kills, arrows_seen.size(), str([m.builds[0].get_data(), m.builds[1].get_data()])])
 	print("[%s] %s at tick %d (waited on %d frames, %.0f s on the clock), last checksum %d" % [role, "ok" if ok else "FAILED", session.tick, session.waits, float(Time.get_ticks_msec() - started) / 1000.0, int(session._hashes.get(session._last_hash_tick, 0))])
 	result_ok = ok
 	linger = Time.get_ticks_msec() + 2500
