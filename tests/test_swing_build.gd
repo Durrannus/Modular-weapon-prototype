@@ -198,16 +198,17 @@ func test_weak_point() -> void:
 	eq(effect(SwingBuild.resolve(["on_dodge", "weak_point"]), "weak_point")["also"], ["dodge"], "On Dodge: a dodge marks too")
 	check(not SwingBuild.FITTINGS.has("second_wind"), "Second Wind is gone")
 	# Three passive and three active sword runes (Hook waits for the hammer).
-	var passive := 0
-	var active := 0
-	for id in SwingBuild.FITTINGS:
-		var f: Dictionary = SwingBuild.FITTINGS[id]
-		if f["kind"] == "rune" and not f.get("parked", false):
-			if f["trigger"] == "active":
-				active += 1
-			else:
-				passive += 1
-	eq([passive, active], [3, 3], "three passive and three active sword runes")
+	for kind in ["sword", "bow"]:
+		var passive := 0
+		var active := 0
+		for id in SwingBuild.FITTINGS:
+			var f: Dictionary = SwingBuild.FITTINGS[id]
+			if f["kind"] == "rune" and not f.get("parked", false) and f.get("weapon", "") == kind:
+				if f["trigger"] == "active":
+					active += 1
+				else:
+					passive += 1
+		eq([passive, active], [3, 3], "three passive and three active %s runes" % kind)
 
 
 # Up to three active runes, each on its own button (11 November; it was two).

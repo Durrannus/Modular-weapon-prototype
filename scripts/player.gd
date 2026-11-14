@@ -375,6 +375,10 @@ func set_weapon(stats: Dictionary) -> void:
 	_clear_marks()
 	_stop_hold(true)
 	_end_ghost(true)
+	steady_rune = _steady_rune()
+	_drop_steady()
+	dodge_arrow = false
+	snipe_button = -1
 	ability_charge = [1.0, 1.0, 1.0]
 	ability_wait = [0.0, 0.0, 0.0]
 	_reset_combo()
@@ -402,8 +406,11 @@ func _physics_process(delta: float) -> void:
 	_run_shards()
 	_run_leap()
 	_run_ghost(delta)
+	_run_rains()
 	if is_down:
 		_stop_hold(true)
+		snipe_button = -1
+		_drop_steady()
 		_refill_abilities(delta)
 		walk_vel = Vector2.ZERO
 		hurt_vel = hurt_vel.move_toward(Vector2.ZERO, 1800.0 * delta)
@@ -421,6 +428,8 @@ func _physics_process(delta: float) -> void:
 	var target := move * speed
 	if hold_button >= 0:
 		target *= HOLD_MOVE
+	elif snipe_button >= 0:
+		target *= SwingBuild.SNIPE_MOVE
 	elif current_step >= 0:
 		# Barely slowed while swinging; the blade's shape can change that.
 		target *= float(weapon.get("swing_move", SwingBuild.SWING_MOVE))
@@ -449,6 +458,7 @@ func _physics_process(delta: float) -> void:
 			global_position = kept
 	walk_phase += delta * 14.0 * clampf(velocity.length() / MOVE_SPEED, 0.55, 1.3)
 
+	_update_steady(delta, move)
 	_update_combat(delta)
 
 
@@ -495,6 +505,10 @@ func _update_facing(delta: float, move: Vector2) -> void:
 	if current_step >= 0 and hit_time >= 0.0 and _is_bow():
 		anim_dir = aim_dir
 		face_dir = aim_dir
+	if snipe_button >= 0:
+		anim_dir = aim_dir
+		face_dir = aim_dir
+		face_linger = FACE_LINGER
 
 
 # --- Dodge ------------------------------------------------------------------
@@ -521,6 +535,7 @@ func _update_dodge(delta: float, move: Vector2) -> void:
 		_reset_combo()
 		dodge_started = game_time
 		dodge_from = global_position
+		dodge_arrow = true
 		_dust(global_position + FEET)
 		Sfx.play(self, "dodge", -12.0)
 		_trigger("dodge", [])
@@ -533,7 +548,8 @@ func _steps() -> Array:
 
 
 func _speed() -> float:
-	return maxf(float(weapon.get("speed", 1.0)), 0.2)
+	# (Steady Aim's build-up is extra attack speed: nothing unless the bow has the rune.)
+	return maxf(float(weapon.get("speed", 1.0)) * (1.0 + steady), 0.2)
 
 
 func armed() -> bool:
@@ -554,7 +570,7 @@ func _update_combat(delta: float) -> void:
 	# One press, one swing. A press during a swing (or a dodge) queues the next one;
 	# holding the button keeps the chain going.
 	if input.attack_pressed:
-		if dodge_timer > 0.0 or hold_button >= 0 or not leap_landing.is_empty():
+		if dodge_timer > 0.0 or hold_button >= 0 or snipe_button >= 0 or not leap_landing.is_empty():
 			attack_buffered = true
 		elif current_step >= 0:
 			queued = true
@@ -564,7 +580,7 @@ func _update_combat(delta: float) -> void:
 		need_release = held
 		held = false
 	# (No swinging in the middle of a Whirlwind or a Leap: the swing starts as it ends.)
-	if current_step < 0 and dodge_timer <= 0.0 and hold_button < 0 and leap_landing.is_empty() and (input.attack_pressed or attack_buffered or held):
+	if current_step < 0 and dodge_timer <= 0.0 and hold_button < 0 and snipe_button < 0 and leap_landing.is_empty() and (input.attack_pressed or attack_buffered or held):
 		attack_buffered = false
 		_start_step()
 
@@ -740,6 +756,7 @@ func _loose(info: Dictionary) -> void:
 	a.kind = str(weapon.get("arrows", "wooden_arrows"))
 	a.crit = float(weapon.get("crit", 0.05))
 	a.crit_damage = float(weapon.get("crit_damage", 1.5))
+	_fit_arrow(a, finisher)
 	get_parent().add_child(a)
 	a.global_position = global_position
 	a.reset_physics_interpolation()
@@ -757,7 +774,14 @@ func _loose(info: Dictionary) -> void:
 
 ## One of your arrows hit an enemy (called by the arrow, on the tick it lands).
 func arrow_hit(a, e) -> void:
-	_hit_enemy(e, a.damage, a.dir, a.knock, a.stun, a.freeze, {}, false, a)
+	var dmg: float = a.damage
+	# Pierce: what is behind the first enemy may take less.
+	if a.through > 0:
+		dmg *= float(a.pierce_power)
+	if a.rune != "":
+		_rune_arrow_hit(a, e, dmg)
+		return
+	_hit_enemy(e, dmg, a.dir, a.knock, a.stun, a.freeze, {}, false, a)
 	Sfx.play(self, "hit", -6.0 if a.heavy else -9.0, 1.0 if a.heavy else 1.25)
 	if a.heavy:
 		shake = maxf(shake, float(MOVES["heavy_shot"].get("shake", 6.0)))
@@ -765,13 +789,416 @@ func arrow_hit(a, e) -> void:
 	# changed weapon is only an arrow.
 	if a.stamp != weapon_stamp:
 		return
+	if a.through == 0:
+		# Once for each arrow, however many enemies it goes on through.
+		if a.pierce > 0:
+			_label("PIERCE!", SwingBuild.FITTINGS["pierce"]["color"])
+		_hit_refund()
+		if steady_rune.get("per_hit", false):
+			_add_steady(SwingBuild.STEADY_HIT)
 	_trigger("hit", [e])
-	_hit_refund()
+	_ricochet(a, e, dmg)
 
 
 ## One of your arrows stopped in a wall or on the floor without hitting anyone.
 func arrow_spent(_a) -> void:
 	pass
+
+
+# --- The bow's runes ----------------------------------------------------------------
+# Pierce, Ricochet and Steady Aim are passive; Volley, Snipe and Arrow Rain go on
+# the ability buttons. An arrow that a rune looses (a Volley's, a Snipe's, a
+# Ricochet's jump) is a real arrow in the rune's colour. It never crits and sets
+# no other rune off, like the strike at the end of the sword's Leap.
+
+var steady := 0.0             # Steady Aim: the attack speed built up so far (0.3 is +30%)
+var steady_rune := {}         # what the bow's Steady Aim runes come to ({} with none): see _steady_rune
+var steady_full := false      # it is at its most (said once, when it gets there)
+var steady_arrows := 0        # Saved Up on Steady Aim: arrows loosed at full speed
+var dodge_arrow := false      # the next arrow is the first one after a dodge (Pierce with On Dodge)
+var snipe_button := -1        # the button whose Snipe is being drawn (-1: none)
+var snipe_t := 0.0            # how long it has been held
+var snipe_perfect := false    # the last one was let go in the sweet spot
+var rains: Array = []         # Arrow Rain's showers that are falling: [{at, ticks, next, scale, dmg, col, pin}]
+const SNIPE_RING := Vector2(0, -8)   # where Snipe's closing ring is drawn, from the player's centre
+
+
+## Saved Up: true on every third time rune `i` would fire (always, without it).
+func _counts(i: int) -> bool:
+	var every := int(weapon["effects"][i].get("every", 1))
+	if every <= 1:
+		return true
+	rune_counts[i] = int(rune_counts.get(i, 0)) + 1
+	return int(rune_counts[i]) % every == 0
+
+
+## How long after one firing of a rune its Twice comes.
+func _repeat_gap(id: String, why: String) -> float:
+	match id:
+		"leap":
+			return LEAP_TIME + 0.12 if why == "" else REPEAT_GAP   # one leap has to land before the next sets off
+		"arrow_rain":
+			# The second shower comes as the first one ends.
+			return SwingBuild.RAIN_DODGE_TIME if why == "dodge" else float(SwingBuild.FITTINGS[id]["time"])
+	return REPEAT_GAP
+
+
+## Pierce and Steady Aim's burst change an arrow of the chain as it leaves the bow.
+## Pierce is on the finisher's arrow (Every Hit: on every arrow; On Dodge: also on
+## the first arrow after a dodge).
+func _fit_arrow(a, finisher: bool) -> void:
+	var after_dodge := dodge_arrow
+	dodge_arrow = false
+	var effects: Array = weapon.get("effects", [])
+	for i in effects.size():
+		var e: Dictionary = effects[i]
+		if e["id"] != "pierce":
+			continue
+		var on: bool = e["trigger"] == "hit" or (finisher and e["trigger"] == "finisher") or (after_dodge and "dodge" in e.get("also", []))
+		if not on or not _counts(i):
+			continue
+		a.pierce = mini(int(a.pierce) + SwingBuild.pierce_count(e), SwingBuild.PIERCE_MAX)
+		a.pierce_power = minf(float(e.get("power", 1.0)), 1.0)
+		a.half_width = maxf(float(a.half_width), Arrow.HALF_WIDTH + SwingBuild.PIERCE_WIDTH * (float(e["size"]) - 1.0))
+		a.streak = "pierce_trail"
+		_flash_effect(i)
+	# Saved Up on Steady Aim: once it is full, every third arrow is three times as heavy.
+	if steady_rune.get("burst", false) and steady >= float(steady_rune["cap"]) - 0.001:
+		steady_arrows += 1
+		if steady_arrows % SwingBuild.SAVED_UP_EVERY == 0:
+			a.damage = float(a.damage) * SwingBuild.SAVED_UP_POWER
+			a.knock = float(a.knock) * 1.3
+			a.heavy = true
+			for i in steady_rune["effects"]:
+				_flash_effect(i)
+			_label("STEADY AIM x3!", SwingBuild.FITTINGS["steady_aim"]["color"])
+
+
+## One of a rune's own arrows hit an enemy.
+func _rune_arrow_hit(a, e, dmg: float) -> void:
+	var at: Vector2 = e.global_position - a.dir * float(e.radius) * 0.4 + Arrow.HEIGHT * 0.5
+	if a.rune == "snipe":
+		# The farther it flew, the harder it lands.
+		dmg *= lerpf(SwingBuild.SNIPE_NEAR, SwingBuild.SNIPE_FAR, clampf(float(a.hit_flown) / SwingBuild.SNIPE_DISTANCE, 0.0, 1.0))
+	e.take_hit(dmg, a.dir, a.knock, false, a.color, a.stun, a.freeze)
+	if a.rune == "snipe":
+		_strip("snipe_hit", at, a.dir.angle())
+		shake = maxf(shake, 9.0)
+		Sfx.play(self, "finisher", -5.0, 1.3)
+	else:
+		if _strip("arrow_hit", at, a.dir.angle()) == null:
+			Art.play_piece(self, "hit_spark", at, a.dir.angle())
+		Sfx.play(self, "hit", -10.0, 1.35)
+	if a.rune == "ricochet" and int(a.bounce.get("jumps", 0)) > 0:
+		_bounce(e.global_position, a.struck, float(a.damage), int(a.bounce["jumps"]), float(a.bounce["range"]), a.bounce.get("splinter", false), a.color, str(a.kind))
+
+
+## Ricochet: an arrow of the chain that hit `e` jumps on to the nearest other enemy.
+func _ricochet(a, e, dmg: float) -> void:
+	var effects: Array = weapon.get("effects", [])
+	var fired: Array = []
+	var jumps := 0
+	var share := 0.0
+	var reach := 0.0
+	var splinter := false
+	for i in effects.size():
+		var f: Dictionary = effects[i]
+		if f["id"] != "ricochet" or not _counts(i):
+			continue
+		fired.append(i)
+		jumps += int(f["count"])
+		share = maxf(share, SwingBuild.RICOCHET_DAMAGE * float(f.get("power", 1.0)))
+		reach = maxf(reach, SwingBuild.RICOCHET_RANGE * float(f["size"]))
+		splinter = splinter or f.get("splinter", false)
+	if fired.is_empty():
+		return
+	var col: Color = SwingBuild.FITTINGS["ricochet"]["color"]
+	if _bounce(e.global_position, a.struck, dmg * share, mini(jumps, SwingBuild.MAX_COUNT), reach, splinter, col, str(a.kind)) > 0:
+		for i in fired:
+			_flash_effect(i)
+		_label("RICOCHET!", col)
+
+
+## Sends a Ricochet arrow from `from` to the nearest enemy that isn't in `struck`
+## (two of them, to the two nearest, when it splits). Returns how many went.
+func _bounce(from: Vector2, struck: Dictionary, dmg: float, jumps: int, reach: float, splinter: bool, col: Color, kind: String) -> int:
+	var taken := struck.duplicate()
+	var made := 0
+	for k in (2 if splinter else 1):
+		var best = null
+		var best_d := reach
+		for e in get_tree().get_nodes_in_group("enemies"):
+			if not is_instance_valid(e) or e.dead or e.immune or taken.has(e.get_instance_id()):
+				continue
+			var d: float = e.global_position.distance_to(from) - float(e.radius)
+			if d < best_d:
+				best_d = d
+				best = e
+		if best == null:
+			break
+		taken[best.get_instance_id()] = true
+		var to: Vector2 = best.global_position - from
+		var b := _rune_arrow("ricochet", to.normalized() if to.length() > 0.5 else aim_dir, dmg, col)
+		b.global_position = from
+		b.reset_physics_interpolation()
+		b.kind = kind
+		b.left = to.length() + 24.0
+		b.knock = 90.0
+		b.stun = 0.08
+		b.freeze = 0.02
+		b.struck = struck.duplicate()
+		b.flown = Arrow.HIDE_FIRST   # it is drawn from where it turns
+		b.bounce = {"jumps": jumps - 1, "range": reach, "splinter": splinter}
+		made += 1
+	if made > 0:
+		_strip("ricochet_spark", from + Arrow.HEIGHT * 0.5)
+		Sfx.play(self, "click", -9.0, 1.5)
+	return made
+
+
+## An arrow loosed by a rune, from the bow in the hand.
+func _rune_arrow(rune: String, dir: Vector2, dmg: float, col: Color) -> Node2D:
+	var a := Arrow.new()
+	a.shooter = self
+	a.stamp = weapon_stamp
+	a.rune = rune
+	a.color = col
+	a.dir = dir
+	a.speed = float(weapon.get("flight", SwingBuild.BOW_FLIGHT))
+	a.left = float(weapon.get("range", SwingBuild.BOW_RANGE))
+	a.damage = dmg
+	a.knock = 180.0
+	a.stun = 0.12
+	a.freeze = 0.04
+	a.kind = str(weapon.get("arrows", "wooden_arrows"))
+	get_parent().add_child(a)
+	a.global_position = global_position
+	a.reset_physics_interpolation()
+	return a
+
+
+## What the bow's Steady Aim runes come to: how fast it builds, how far, and
+## what the bands add. Empty when the bow has none.
+func _steady_rune() -> Dictionary:
+	var out := {}
+	var effects: Array = weapon.get("effects", [])
+	for i in effects.size():
+		var e: Dictionary = effects[i]
+		if e["id"] != "steady_aim":
+			continue
+		if out.is_empty():
+			out = {"rate": 0.0, "cap": 0.0, "per_hit": false, "burst": false, "keep": false, "effects": []}
+		out["rate"] = float(out["rate"]) + SwingBuild.steady_rate(e)
+		out["cap"] = maxf(float(out["cap"]), SwingBuild.steady_cap(e))
+		out["per_hit"] = out["per_hit"] or e.get("per_hit", false)
+		out["burst"] = out["burst"] or int(e.get("every", 1)) > 1
+		out["keep"] = out["keep"] or "dodge" in e.get("also", [])
+		out["effects"].append(i)
+	return out
+
+
+func _drop_steady() -> void:
+	steady = 0.0
+	steady_full = false
+	steady_arrows = 0
+
+
+## Steady Aim: stand still while you shoot and the bow gets faster and faster.
+## Walking empties it at once. So does a dodge, unless the rune has On Dodge.
+func _update_steady(delta: float, move: Vector2) -> void:
+	if steady_rune.is_empty():
+		return
+	var keep: bool = steady_rune["keep"]
+	var dodging := dodge_timer > 0.0 or game_time - dodge_started < DODGE_TIME + 0.12
+	if (dodging and not keep) or (move.length() > 0.2 and not (dodging and keep)):
+		_drop_steady()
+		return
+	# It only builds while you are shooting (drawing a Snipe counts).
+	if current_step >= 0 or snipe_button >= 0:
+		_add_steady(float(steady_rune["rate"]) * delta)
+
+
+## More Steady Aim. Each fifth of the way lights a step of the ring at your feet.
+func _add_steady(more: float) -> void:
+	if steady_rune.is_empty():
+		return
+	var cap := float(steady_rune["cap"])
+	var before := steady_step()
+	steady = minf(steady + more, cap)
+	if steady_step() > before:
+		for i in steady_rune["effects"]:
+			_flash_effect(i)
+		Sfx.play(self, "click", -15.0, 1.0 + 0.12 * float(steady_step()))
+	if steady >= cap - 0.0001 and not steady_full:
+		steady_full = true
+		_label("STEADY AIM +%d%%!" % roundi(cap * 100.0), SwingBuild.FITTINGS["steady_aim"]["color"])
+
+
+## How many of the ring's five steps are lit.
+func steady_step() -> int:
+	if steady_rune.is_empty():
+		return 0
+	return clampi(int(steady / maxf(float(steady_rune["cap"]), 0.01) * 5.0 + 0.001), 0, 5)
+
+
+## Volley: a fan of arrows from the bow. Up close all of them hit one enemy.
+func _volley(size: float, power: float, col: Color) -> void:
+	var n := SwingBuild.volley_arrows(size)
+	var dmg := float(weapon.get("damage", 8.0)) * SwingBuild.VOLLEY_DAMAGE * power
+	for k in n:
+		var a := _rune_arrow("volley", aim_dir.rotated((float(k) - float(n - 1) * 0.5) * SwingBuild.VOLLEY_SPREAD), dmg, col)
+		a.knock = 200.0
+		a.stun = 0.15
+	_loosed_by_rune(aim_dir)
+	var fan := _strip("volley_fan", global_position + pose_hand, aim_dir.angle(), 1.0 + 0.25 * float(n - 3) * 0.5)
+	if fan != null:
+		fan.follow = self
+		fan.follow_offset = pose_hand
+	Sfx.play(self, "bow", -3.0, 0.85)
+	shake = maxf(shake, 4.0)
+	squash = Vector2(1.07, 0.94)
+
+
+## Snipe: one heavy arrow that flies fast and far, and lands harder the farther
+## it flew (see _rune_arrow_hit).
+func _snipe_shot(power: float, col: Color) -> void:
+	var a := _rune_arrow("snipe", aim_dir, float(weapon.get("damage", 8.0)) * power, col)
+	a.speed = float(a.speed) * 1.6
+	a.left = float(a.left) * SwingBuild.SNIPE_RANGE
+	a.knock = 380.0
+	a.stun = 0.35
+	a.freeze = 0.09
+	a.heavy = true
+	a.streak = "snipe_trail"
+	_loosed_by_rune(aim_dir)
+	var snap := _strip("bow_loose", global_position + pose_hand, aim_dir.angle(), 1.4)
+	if snap != null:
+		snap.follow = self
+		snap.follow_offset = pose_hand
+	Sfx.play(self, "bow", -2.0, 0.6)
+	shake = maxf(shake, 5.0)
+	squash = Vector2(1.1, 0.92)
+
+
+## A rune's arrow just left the bow: the string snaps and the body looks that way.
+func _loosed_by_rune(dir: Vector2) -> void:
+	bow_loosed = game_time
+	if current_step < 0:
+		face_dir = dir
+		face_linger = FACE_LINGER
+		return_from = [dir.angle(), BOW_CHEST + dir * BOW_HOLD]
+		return_t = RETURN_TIME
+
+
+## The button's Snipe is let go: how long it was drawn says how good it is.
+func _loose_snipe() -> void:
+	var b := snipe_button
+	var held := snipe_t
+	snipe_button = -1
+	var list := _abilities()
+	if b < 0 or b >= list.size():
+		return
+	var a: Dictionary = list[b]
+	ability_charge[b] = 0.0
+	ability_used[b] = game_time
+	# Wider gives a longer sweet spot.
+	var sweet := 0.0
+	for i in a["effects"]:
+		sweet = maxf(sweet, SwingBuild.SNIPE_SWEET * float(weapon["effects"][i]["size"]))
+	var quality := 1.0
+	if held < SwingBuild.SNIPE_CHARGE:
+		quality = SwingBuild.SNIPE_EARLY
+	elif held <= SwingBuild.SNIPE_CHARGE + sweet:
+		quality = SwingBuild.SNIPE_PERFECT
+	snipe_perfect = quality > 1.0
+	for i in a["effects"]:
+		var e: Dictionary = weapon["effects"][i]
+		for n in int(e["count"]):
+			_queue_rune(i, game_time + n * REPEAT_GAP, float(e["size"]), [], float(e.get("power", 1.0)) * quality)
+	_run_rune_queue()   # this tick: the arrow leaves as the button comes up
+
+
+## Where a rune that needs a place lands. With a mouse it is the pointer, no
+## further than `reach`. Without one it is the enemy nearest your aim, or else a
+## fixed way ahead.
+func _aim_point(reach: float) -> Vector2:
+	if input.uses_mouse():
+		var off: Vector2 = input.aim_offset if input.kind == "net" else get_global_mouse_position() - global_position
+		return global_position + off.limit_length(reach)
+	var best = null
+	var best_d := reach
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if not is_instance_valid(e) or e.dead or e.immune:
+			continue
+		var rel: Vector2 = e.global_position - global_position
+		if rel.length() < best_d and absf(aim_dir.angle_to(rel)) <= 0.6:
+			best_d = rel.length()
+			best = e
+	return best.global_position if best != null else global_position + aim_dir * minf(200.0, reach)
+
+
+## Arrow Rain: marks the ground at `at`, and arrows pour down on it. Counted in
+## game ticks, so every computer has the same arrows land on the same tick.
+func _rain(at: Vector2, time: float, scale: float, dmg: float, col: Color, pin: bool) -> void:
+	var tps := float(Engine.physics_ticks_per_second)
+	rains.append({"at": at, "ticks": maxi(roundi(time * tps), 1), "next": maxi(roundi(SwingBuild.RAIN_TICK * tps), 1),
+		"scale": scale, "dmg": dmg, "col": col, "pin": pin})
+	var mark := _strip("rain_mark", at, 0.0, scale)
+	if mark != null:
+		mark.life = time + 0.15
+		mark.fade_tail = 0.3
+	_loosed_by_rune(aim_dir)
+	Sfx.play(self, "bow", -5.0, 0.7)
+
+
+func _run_rains() -> void:
+	var tick := maxi(roundi(SwingBuild.RAIN_TICK * float(Engine.physics_ticks_per_second)), 1)
+	for r in rains.duplicate():
+		r["ticks"] = int(r["ticks"]) - 1
+		r["next"] = int(r["next"]) - 1
+		if int(r["next"]) <= 0:
+			r["next"] = tick
+			_rain_falls(r)
+		if int(r["ticks"]) <= 0:
+			rains.erase(r)
+
+
+## One fall of a shower: every enemy standing on the marked ground is hit.
+func _rain_falls(r: Dictionary) -> void:
+	var at: Vector2 = r["at"]
+	var rad: Vector2 = SwingBuild.RAIN_RADIUS * float(r["scale"])
+	var hits := 0
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if not is_instance_valid(e) or e.dead or e.immune:
+			continue
+		var rel: Vector2 = (e.global_position - at) / (rad + Vector2.ONE * float(e.radius))
+		if rel.length_squared() > 1.0:
+			continue
+		e.take_hit(float(r["dmg"]), Vector2.ZERO, 0.0, false, r["col"], SwingBuild.RAIN_PIN if r["pin"] else 0.0, 0.0)
+		if r["pin"]:
+			e.apply_stun(SwingBuild.RAIN_PIN)
+		_rain_arrow(e.global_position + Vector2(randf_range(-4.0, 4.0), randf_range(-2.0, 4.0)), true)
+		hits += 1
+	# More arrows where nobody stands. (Only for the eye: they are thrown with the
+	# picture's dice, not the game's.)
+	for k in 4:
+		var turn := randf() * TAU
+		_rain_arrow(at + Vector2(cos(turn) * rad.x, sin(turn) * rad.y) * sqrt(randf()) * 0.92, false)
+	Sfx.play(self, "hit" if hits > 0 else "swing", -13.0 if hits > 0 else -20.0, 1.5)
+
+
+## One arrow of the rain coming down at `where`. landed: it is already there (it
+## hit someone this tick), so the fall is skipped.
+func _rain_arrow(where: Vector2, landed: bool) -> void:
+	var a := _strip("rain_arrow", where)
+	if a != null:
+		a.hold = 0.35
+		if landed:
+			a.t = 2.0 / maxf(a.fps, 1.0)
+		else:
+			a.wait = randf() * 0.2
+	if landed:
+		_strip("rain_hit", where)
 
 
 ## How far this move reaches from the player's centre.
@@ -880,6 +1307,10 @@ func _trigger(trigger: String, hits: Array, ghost: Dictionary = {}) -> Array:
 		var e: Dictionary = effects[i]
 		if e["trigger"] != trigger and not (trigger in e.get("also", [])):
 			continue
+		# The bow's passive runes don't fire like this (see "The bow's runes"): only
+		# a dodge sends a Ricochet through here.
+		if e["id"] in ["pierce", "steady_aim"] or (e["id"] == "ricochet" and trigger != "dodge"):
+			continue
 		# Saved Up: count the triggers and only fire on every third one. The ghost
 		# doesn't count: it copies a saved-up rune when the swing it copies set it off.
 		var every := int(e.get("every", 1))
@@ -894,8 +1325,9 @@ func _trigger(trigger: String, hits: Array, ghost: Dictionary = {}) -> Array:
 		fired.append(i)
 		var power := float(e.get("power", 1.0)) * (1.0 if ghost.is_empty() else float(ghost["power"]))
 		# (Twice on Weak Point is two marks from one firing, not two firings.)
-		for n in (1 if e["id"] == "weak_point" else int(e["count"])):
-			_queue_rune(i, game_time + n * REPEAT_GAP, float(e["size"]), hits, power, false, trigger, not ghost.is_empty())
+		# (And on Ricochet it is two jumps, not two arrows.)
+		for n in (1 if e["id"] in ["weak_point", "ricochet"] else int(e["count"])):
+			_queue_rune(i, game_time + n * _repeat_gap(str(e["id"]), trigger), float(e["size"]), hits, power, false, trigger, not ghost.is_empty())
 	return fired
 
 
@@ -1045,6 +1477,31 @@ func _fire_rune_now(q: Dictionary) -> void:
 			# (Its button calls the ghost straight away, so this is On Dodge.)
 			_ghost_dodge_cut(power)
 			return
+		"ricochet":
+			# (An arrow's hit sends its own on, see _ricochet. This is On Dodge: one
+			# leaps from you to the nearest enemy.)
+			var f: Dictionary = weapon["effects"][effect]
+			if _bounce(global_position, {}, dmg * SwingBuild.RICOCHET_DAMAGE * power, mini(int(f["count"]) + (q["merged"] as Array).size(), SwingBuild.MAX_COUNT),
+					SwingBuild.RICOCHET_RANGE * size, f.get("splinter", false), col, str(weapon.get("arrows", "wooden_arrows"))) == 0:
+				return
+		"volley":
+			_volley(size, power * (SwingBuild.DODGE_SHARE if q.get("why", "") == "dodge" else 1.0), col)
+		"snipe":
+			# On a dodge it is a quick one: not drawn at all, and half of that.
+			if q.get("why", "") == "dodge":
+				_snipe_shot(power * SwingBuild.SNIPE_EARLY * SwingBuild.DODGE_SHARE, col)
+			else:
+				_snipe_shot(power, col)
+				if snipe_perfect:
+					_label("PERFECT SNIPE!", col)
+					return
+		"arrow_rain":
+			var wide := SwingBuild.rain_scale(size)
+			# (Saved Up: much heavier arrows, and they pin what they hit.)
+			if q.get("why", "") == "dodge":
+				_rain(dodge_from, SwingBuild.RAIN_DODGE_TIME, wide * SwingBuild.RAIN_DODGE_SIZE, dmg * SwingBuild.RAIN_DAMAGE * power, col, power >= 3.0)
+			else:
+				_rain(_aim_point(SwingBuild.RAIN_REACH), float(SwingBuild.FITTINGS[id]["time"]), wide, dmg * SwingBuild.RAIN_DAMAGE * power, col, power >= 3.0)
 		"whirlwind":
 			# One full turn. Held on its button, each turn starts where the spin began
 			# and turns the same way; fired by a band (Every Hit, On Dodge) it starts
@@ -1087,7 +1544,11 @@ func _fire_rune_now(q: Dictionary) -> void:
 	if id == "weak_point":
 		_label("MARKED", col)
 	else:
-		_label(str(SwingBuild.FITTINGS[id]["name"]).to_upper() + ("!" if power <= 1.0 else " x%s!" % str(snappedf(power, 0.5)).trim_suffix(".0")), col)
+		# (A Snipe's strength also says how well it was let go, so only Saved Up is named.)
+		var shown := power
+		if id == "snipe":
+			shown = 3.0 if int(weapon["effects"][effect].get("every", 1)) > 1 else 1.0
+		_label(str(SwingBuild.FITTINGS[id]["name"]).to_upper() + ("!" if shown <= 1.0 else " x%s!" % str(snappedf(shown, 0.5)).trim_suffix(".0")), col)
 
 
 # --- Active runes ---------------------------------------------------------------
@@ -1138,16 +1599,44 @@ func _update_abilities(delta: float) -> void:
 					_start_turn(hold_button)
 				else:
 					_stop_hold(false)
+	# A Snipe being drawn: it goes when its button comes up (or has been held too
+	# long). A dodge drops it, and it isn't used up.
+	if snipe_button >= 0:
+		if snipe_button >= list.size() or frozen or dodge_timer > 0.0 or not armed():
+			snipe_button = -1
+		else:
+			var before := snipe_t
+			snipe_t += delta
+			if before < SwingBuild.SNIPE_CHARGE and snipe_t >= SwingBuild.SNIPE_CHARGE:
+				# The ring has closed: now is the moment.
+				var blink := _strip("snipe_sweet", global_position + SNIPE_RING)
+				if blink != null:
+					blink.follow = self
+					blink.follow_offset = SNIPE_RING
+				Sfx.play(self, "click", -6.0, 1.8)
+			if not input.ability_held[snipe_button] or snipe_t >= SwingBuild.SNIPE_HOLD:
+				_loose_snipe()
 	if frozen or not armed() or dodge_timer > 0.0:
 		return
 	for b in mini(list.size(), ability_charge.size()):
-		if not input.ability_pressed[b] or hold_button == b:
+		if not input.ability_pressed[b] or hold_button == b or snipe_button == b:
 			continue
 		if not ability_ready(b):
 			ability_denied[b] = game_time
 			Sfx.play(self, "dodge", -20.0, 0.6)
 			continue
 		var a: Dictionary = list[b]
+		if a["use"] == "charge":
+			# Drawing a Snipe drops the shot you were in the middle of.
+			if snipe_button < 0:
+				_stop_hold(true)
+				_reset_combo()
+				hit_pause = 0.0
+				snipe_button = b
+				snipe_t = 0.0
+				bow_from = [pose_angle, pose_hand]
+				Sfx.play(self, "swing", -12.0, 0.6)
+			continue
 		if a["use"] == "hold":
 			# Starting a spin drops the swing you were in the middle of.
 			_stop_hold(true)
@@ -1165,8 +1654,7 @@ func _update_abilities(delta: float) -> void:
 				continue
 			for i in a["effects"]:
 				var e: Dictionary = weapon["effects"][i]
-				# (One leap has to land before the next one sets off.)
-				var gap := LEAP_TIME + 0.12 if e["id"] == "leap" else REPEAT_GAP
+				var gap := _repeat_gap(str(e["id"]), "")
 				for n in int(e["count"]):
 					_queue_rune(i, game_time + n * gap, float(e["size"]), [], float(e.get("power", 1.0)))
 
@@ -1666,7 +2154,7 @@ func _clear_marks() -> void:
 ## Plays one of the art's effect strips (art/swing/fx/) at a world position.
 func _strip(name: String, where: Vector2, angle := 0.0, size := 1.0) -> Node2D:
 	var info := BowArt.fx(name)
-	var tex := Art.texture("swing/fx/%s.png" % name)
+	var tex := BowArt.fx_texture(name)
 	if tex == null or info.is_empty():
 		return null
 	var n := SpriteOnce.new()
@@ -1932,6 +2420,7 @@ func _draw_shadow() -> void:
 
 ## Two players: a coloured ring under the feet says who is who.
 func _draw_ring() -> void:
+	_draw_steady_ring()
 	if not show_marker:
 		return
 	var fade := Color(1, 1, 1, 0.45 if is_down else 1.0)
@@ -1942,6 +2431,59 @@ func _draw_ring() -> void:
 	under_bright.draw_set_transform(FEET, 0.0, Vector2(1.0, 0.45))
 	under_bright.draw_arc(Vector2.ZERO, 17.0, 0.0, TAU, 24, mc, 2.0)
 	under_bright.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+
+
+## Steady Aim's ring at the feet: five steps, one lit for each fifth of the way.
+func _draw_steady_ring() -> void:
+	if steady_rune.is_empty() or is_down or (steady <= 0.0 and current_step < 0):
+		return
+	var tex := BowArt.fx_texture("steady_ring")
+	var info := BowArt.fx("steady_ring")
+	if tex == null or info.is_empty():
+		under_bright.draw_set_transform(FEET, 0.0, Vector2(1.0, 0.45))
+		under_bright.draw_arc(Vector2.ZERO, 22.0, -PI * 0.5, -PI * 0.5 + TAU * float(steady_step()) / 5.0, 24, SwingBuild.FITTINGS["steady_aim"]["color"], 2.0)
+		under_bright.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+		return
+	var size: Array = info.get("frame", [48, 24])
+	var o: Array = info.get("origin", [24, 12])
+	under_bright.draw_set_transform(FEET, 0.0, Vector2(Art.PIXEL, Art.PIXEL))
+	under_bright.draw_texture_rect_region(tex, Rect2(-float(o[0]), -float(o[1]), float(size[0]), float(size[1])),
+		Rect2(float(steady_step()) * float(size[0]), 0, float(size[0]), float(size[1])))
+	under_bright.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+
+
+## Snipe's ring, closing on you as you draw. It is closed when the shot is at its
+## best, and dims once that moment has gone.
+func _draw_snipe_ring() -> void:
+	if snipe_button < 0:
+		return
+	var tex := BowArt.fx_texture("snipe_charge")
+	var info := BowArt.fx("snipe_charge")
+	var full := snipe_t >= SwingBuild.SNIPE_CHARGE
+	var late := full and not _snipe_sweet_now()
+	var tint := Color(1, 1, 1, 0.55 if late else 1.0)
+	if tex == null or info.is_empty():
+		var col: Color = SwingBuild.FITTINGS["snipe"]["color"]
+		trail_layer.draw_arc(SNIPE_RING, lerpf(56.0, 14.0, clampf(snipe_t / SwingBuild.SNIPE_CHARGE, 0.0, 1.0)), 0.0, TAU, 32, Color(col, tint.a), 2.0)
+		return
+	var n := maxi(int(info.get("frames", 8)), 1)
+	var size: Array = info.get("frame", [64, 64])
+	var o: Array = info.get("origin", [32, 32])
+	var f := clampi(int(snipe_t / SwingBuild.SNIPE_CHARGE * float(n - 1)), 0, n - 1)
+	trail_layer.draw_set_transform(SNIPE_RING, 0.0, Vector2(Art.PIXEL, Art.PIXEL))
+	trail_layer.draw_texture_rect_region(tex, Rect2(-float(o[0]), -float(o[1]), float(size[0]), float(size[1])),
+		Rect2(float(f) * float(size[0]), 0, float(size[0]), float(size[1])), tint)
+	trail_layer.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+
+
+## True while a Snipe let go right now would be a perfect one.
+func _snipe_sweet_now() -> bool:
+	if snipe_button < 0 or snipe_button >= _abilities().size():
+		return false
+	var sweet := 0.0
+	for i in _abilities()[snipe_button]["effects"]:
+		sweet = maxf(sweet, SwingBuild.SNIPE_SWEET * float(weapon["effects"][i]["size"]))
+	return snipe_t >= SwingBuild.SNIPE_CHARGE and snipe_t <= SwingBuild.SNIPE_CHARGE + sweet
 
 
 ## The thin lit edge along the top of the body (the strip's _glow image).
@@ -2171,7 +2713,16 @@ var bow_loosed := -9.0      # game_time the last arrow left
 ## drawn through the wind-up, snaps back as the arrow leaves, and the next arrow
 ## goes on just before the next shot of a chain.
 func _update_bow_pose(delta: float) -> void:
-	if current_step >= 0:
+	if snipe_button >= 0:
+		# Drawing a Snipe: the bow is up at the aim and the string comes all the way back.
+		var k := clampf(snipe_t / BOW_RAISE, 0.0, 1.0)
+		pose_angle = lerp_angle(float(bow_from[0]), aim_dir.angle(), k)
+		pose_hand = (bow_from[1] as Vector2).lerp(BOW_CHEST + aim_dir * BOW_HOLD, k)
+		var d := clampf(snipe_t / SwingBuild.SNIPE_CHARGE, 0.0, 1.0)
+		bow_draw = 1.0 - (1.0 - d) * (1.0 - d)
+		bow_nocked = true
+		squash = squash.lerp(Vector2(1.04, 0.96), 1.0 - exp(-30.0 * delta))
+	elif current_step >= 0:
 		var wind := float(_move_info()["windup"]) / _speed()
 		var k := clampf(step_elapsed / BOW_RAISE, 0.0, 1.0)
 		pose_angle = lerp_angle(float(bow_from[0]), anim_dir.angle(), k)
@@ -2272,6 +2823,7 @@ func _start_smear() -> void:
 
 
 func _draw_trail() -> void:
+	_draw_snipe_ring()
 	if smear_t0 < 0.0 or not weapon.has("blade") or _is_bow():
 		return
 	_draw_smear(trail_layer, {"t0": smear_t0, "a0": smear_a0, "a1": smear_a1, "center": smear_center,

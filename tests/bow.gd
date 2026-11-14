@@ -217,7 +217,10 @@ func _run() -> void:
 		rows[c["kind"]] = int(rows.get(c["kind"], 0)) + 1
 	_check(rows == {"limbs": 2, "bow_grips": 3, "strings": 4, "arrows": 3}, "and offers limbs (shortbow, longbow), three grips, four strings and three kinds of arrows: %s" % [rows])
 	forge._set_tab(1)
-	_check(forge._cards().is_empty(), "the rune tray offers no sword runes for a bow (its own come next)")
+	var offered: Array = []
+	for c in forge._cards():
+		offered.append(c["id"])
+	_check(offered == ["pierce", "ricochet", "steady_aim", "volley", "snipe", "arrow_rain"], "the rune tray offers the bow's six runes and none of the sword's: %s" % [offered])
 	_check(not SwingBuild.valid_data(["iron_shortbow", "wrapped_bow_grip", "plain_string", ["shockwave", "", "", ""], "iron_arrows"]), "a sword's rune can't be fitted to a bow")
 	_check(SwingBuild.valid_data(["iron_shortbow", "wrapped_bow_grip", "plain_string", ["twice", "", "wider", ""], "iron_arrows"]), "bands can")
 	_check(SwingBuild.fits("leap", "sword") and not SwingBuild.fits("leap", "bow") and SwingBuild.fits("twice", "bow"), "(every weapon has its own runes; bands fit them all)")
@@ -239,7 +242,7 @@ func _run() -> void:
 	for i in tray.size():
 		if tray[i]["id"] in ["iron_longbow", "horn_bow_grip", "keen_string", "tin_arrows"]:
 			forge._use_card(i)
-	_check(m.build.get_data() == ["iron_longbow", "horn_bow_grip", "keen_string", ["", "", "", "", ""], "tin_arrows"], "clicking limbs, a grip, a string and arrows fits them: %s" % [m.build.get_data()])
+	_check(m.build.get_data() == ["iron_longbow", "horn_bow_grip", "keen_string", ["volley", "snipe", "", "arrow_rain", "ricochet"], "tin_arrows"], "clicking limbs, a grip, a string and arrows fits them: %s" % [m.build.get_data()])
 	_check(is_equal_approx(float(p.weapon["damage"]), 8.0 * 0.75 * 0.9) and is_equal_approx(float(p.weapon["range"]), 702.0), "a longbow with tin arrows: 5.4 damage, 702 px")
 	forge._load_test("A")
 	_check(m.build.weapon() == "bow", "the test-sword keys do nothing while a bow is on the anvil")
@@ -259,7 +262,8 @@ func _run() -> void:
 	await _frames(2)
 	_check(m.build.get_data() == bow_b and m.build.preset == 1 and m.build.preset_sword(0) == bow_a, "back on the bow: still on its preset B, with A waiting")
 	m.build.use_preset(0)
-	m.build.set_data(test_bow)
+	# (No runes on it from here: this is about the bow itself. tests/bow_runes.gd has the runes.)
+	m.build.set_data(["iron_shortbow", "wrapped_bow_grip", "plain_string", ["", "", "", ""], "iron_arrows"])
 	m.build.changed.emit()
 	await _frames(2)
 

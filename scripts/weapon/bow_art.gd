@@ -34,6 +34,12 @@ static func fx(name: String) -> Dictionary:
 	return own if not own.is_empty() else Art.json("swing/swing_path.json").get("fx", {}).get(name, {})
 
 
+## An effect strip's picture. Most are in art/swing/fx/; the bow runes' are in
+## art/fx/ and say so ("folder").
+static func fx_texture(name: String) -> Texture2D:
+	return Art.texture("%s/%s.png" % [str(fx(name).get("folder", "swing/fx")), name])
+
+
 ## Which of the limbs' three frames shows a string drawn this far (0..1).
 static func frame_for(draw: float) -> int:
 	return 0 if draw < 0.3 else (1 if draw < 0.75 else 2)

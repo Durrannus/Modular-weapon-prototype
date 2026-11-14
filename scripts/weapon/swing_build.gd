@@ -167,7 +167,7 @@ const STARTERS := {
 	"sword": ["wooden_blade", "wooden_grip", "plain_pommel", [""]],
 	"bow": ["wooden_shortbow", "wooden_bow_grip", "plain_string", [""], "wooden_arrows"],
 }
-const TEST_BOW := ["iron_shortbow", "wrapped_bow_grip", "plain_string", ["", "", "", ""], "iron_arrows"]
+const TEST_BOW := ["iron_shortbow", "wrapped_bow_grip", "plain_string", ["volley", "snipe", "arrow_rain", "ricochet"], "iron_arrows"]
 
 
 ## Which weapon a blade or a pair of limbs makes: "sword" or "bow".
@@ -272,6 +272,24 @@ const FITTINGS := {
 	# seconds. Its hits set your passive runes off again as ghosted effects.
 	"ghostwield": {"kind": "rune", "weapon": "sword", "name": "Ghostwield", "trigger": "active", "use": "press", "recharge": 45.0, "time": 15.0, "color": Color("#a8b4ff"),
 		"desc": "Press its button: a ghost of your sword copies every swing for a while, at half strength."},
+	# The bow's own runes (14 November). Steady Aim, Volley, Snipe and Arrow Rain are
+	# Darren's (11 November); Pierce and Ricochet were only names, so what they do
+	# is a first design. Pierce and Steady Aim don't "fire": Pierce changes the
+	# arrow as it leaves the bow, and Steady Aim (trigger "still") builds while you
+	# stand and shoot. See player.gd, "The bow's runes".
+	"pierce": {"kind": "rune", "weapon": "bow", "name": "Pierce", "trigger": "finisher", "color": Color("#f4f0a8"),
+		"desc": "Your finisher's arrow goes on through the enemy it hits."},
+	"ricochet": {"kind": "rune", "weapon": "bow", "name": "Ricochet", "trigger": "hit", "color": Color("#40d8c8"),
+		"desc": "An arrow that hits jumps on to the nearest other enemy, for half its damage."},
+	"steady_aim": {"kind": "rune", "weapon": "bow", "name": "Steady Aim", "trigger": "still", "color": Color("#b8e068"),
+		"desc": "Stand still while you shoot and you shoot faster and faster. Moving resets it."},
+	"volley": {"kind": "rune", "weapon": "bow", "name": "Volley", "trigger": "active", "use": "press", "recharge": 4.0, "color": Color("#ff8c5a"),
+		"desc": "Press its button to loose three arrows in a spread. Up close all three hit."},
+	# "charge": hold the button to draw, let go to shoot.
+	"snipe": {"kind": "rune", "weapon": "bow", "name": "Snipe", "trigger": "active", "use": "charge", "recharge": 6.0, "color": Color("#6aa0ff"),
+		"desc": "Hold its button and let go as the ring closes: a heavy shot that does more the farther it flies."},
+	"arrow_rain": {"kind": "rune", "weapon": "bow", "name": "Arrow Rain", "trigger": "active", "use": "press", "recharge": 8.0, "time": 3.0, "color": Color("#c090ff"),
+		"desc": "Press its button to mark the ground where you aim. Arrows pour down on it."},
 	"twice": {"kind": "band", "name": "Twice", "color": Color("#86d4a4"),
 		"desc": "The rune above happens twice."},
 	"wider": {"kind": "band", "name": "Wider", "color": Color("#86d4a4"),
@@ -302,7 +320,8 @@ static func fits(id: String, kind: String) -> bool:
 	return w == "" or w == kind
 
 
-const FITTING_ORDER := ["shockwave", "shards", "weak_point", "whirlwind", "hook", "leap", "ghostwield",
+const FITTING_ORDER := ["shockwave", "shards", "weak_point", "pierce", "ricochet", "steady_aim",
+	"whirlwind", "hook", "leap", "ghostwield", "volley", "snipe", "arrow_rain",
 	"twice", "wider", "every_hit", "saved_up", "on_dodge", "mirror", "relay"]
 const EVERY_HIT_POWER := 0.5
 ## Every Hit on an active rune: seconds off its recharge for each swing that lands.
@@ -323,6 +342,63 @@ static func ghost_power(power: float) -> float:
 ## longer (20 seconds for 15).
 static func ghost_time(size: float) -> float:
 	return float(FITTINGS["ghostwield"]["time"]) * (1.0 + (size - 1.0) / 1.8)
+
+## The bow's runes, in numbers. Damage is a share of one arrow from the same bow.
+const PIERCE_MAX := 6            # the most enemies one arrow goes on through
+const PIERCE_WIDTH := 14.0       # Wider: how much thicker the arrow's path is, at twice the size
+const RICOCHET_DAMAGE := 0.5     # a jump, as a share of the arrow that hit
+const RICOCHET_RANGE := 150.0    # how far away the next enemy can be
+const STEADY_RATE := 0.1         # attack speed gained each second you stand and shoot
+const STEADY_CAP := 0.5          # the most it gives (Wider: 0.8)
+const STEADY_HIT := 0.05         # Every Hit: what each arrow that lands adds
+const VOLLEY_SPREAD := 0.2       # radians between one arrow of the fan and the next
+const VOLLEY_DAMAGE := 1.0       # each arrow
+const SNIPE_CHARGE := 0.7        # seconds of holding until the ring closes
+const SNIPE_SWEET := 0.25        # how long after that the shot is a perfect one
+const SNIPE_HOLD := 2.5          # held this long, it goes by itself
+const SNIPE_NEAR := 2.0          # its damage at no distance, in arrows...
+const SNIPE_FAR := 6.0           # ...and after SNIPE_DISTANCE or more
+const SNIPE_DISTANCE := 480.0
+const SNIPE_RANGE := 1.5         # how much further than an arrow it flies
+const SNIPE_PERFECT := 1.5       # let go in the sweet spot
+const SNIPE_EARLY := 0.5         # let go before the ring closed
+const SNIPE_MOVE := 0.5          # walking speed while drawing it
+const RAIN_DAMAGE := 0.35        # each time the rain hits an enemy standing in it
+const RAIN_TICK := 0.3           # how often that is
+const RAIN_RADIUS := Vector2(112, 80)   # the marked ground (an oval: the floor is seen from above)
+const RAIN_REACH := 420.0        # how far away you can mark
+const RAIN_PIN := 0.4            # Saved Up: each hit holds an enemy this long
+const DODGE_SHARE := 0.5         # On Dodge on Volley and Snipe: the dodge's shot, as a share of the button's
+const RAIN_DODGE_TIME := 1.0     # On Dodge on Arrow Rain: the small shower's length...
+const RAIN_DODGE_SIZE := 0.6     # ...and size
+
+
+## How many enemies a Pierce rune's arrow goes on through. Saved Up is three
+## times as many (its strength is the number).
+static func pierce_count(e: Dictionary) -> int:
+	return mini(int(e["count"]) * (3 if float(e.get("power", 1.0)) >= 3.0 else 1), PIERCE_MAX)
+
+
+## How fast Steady Aim builds, as attack speed a second. Twice doubles it; Saved
+## Up builds a third as fast (and then every third arrow hits three times as hard).
+static func steady_rate(e: Dictionary) -> float:
+	return STEADY_RATE * float(e["count"]) / float(maxi(int(e.get("every", 1)), 1))
+
+
+## The most Steady Aim gives. Wider raises it (one Wider: +80%).
+static func steady_cap(e: Dictionary) -> float:
+	return STEADY_CAP * float(e["size"])
+
+
+## How many arrows a Volley looses: three, and two more for each step of Wider.
+static func volley_arrows(size: float) -> int:
+	return 7 if size >= 1.8 else (5 if size >= 1.25 else 3)
+
+
+## How much bigger Arrow Rain's ground is across for this size (Wider).
+static func rain_scale(size: float) -> float:
+	return 1.0 + (size - 1.0) * 0.6
+
 
 ## Active runes take the ability buttons in the order they sit on the sword, grip
 ## to tip. Two of the same rune share a button. Up to three active runes work on
@@ -707,9 +783,15 @@ static func _apply_band(e: Dictionary, band: String) -> String:
 					return "Every Hit doesn't stack (max)."
 				e["refund"] = EVERY_HIT_REFUND
 				return ""
+			if e["id"] == "steady_aim":
+				# Steady Aim doesn't fire: each arrow that lands adds to what it has built.
+				if e.get("per_hit", false):
+					return "Every Hit doesn't stack (max)."
+				e["per_hit"] = true
+				return ""
 			if e["trigger"] == "hit":
-				if e["id"] == "shards" and not e.get("splinter", false):
-					e["splinter"] = true  # each shard splits in two as it jumps, at half strength
+				if e["id"] in ["shards", "ricochet"] and not e.get("splinter", false):
+					e["splinter"] = true  # each shard (or arrow) splits in two as it jumps, at half strength
 					e["power"] = float(e["power"]) * EVERY_HIT_POWER
 					return ""
 				return "%s already works on every hit." % FITTINGS[e["id"]]["name"]
@@ -743,6 +825,8 @@ static func sentence(e: Dictionary, keys: Array = ABILITY_KEYS["kbm"]) -> String
 	var trig: String = e["trigger"]
 	if trig == "active":
 		return _active_sentence(e, keys)
+	if str(e["id"]) in ["pierce", "ricochet", "steady_aim"]:
+		return _bow_sentence(e)
 	var when: String = (WHEN_NTH if int(e.get("every", 1)) > 1 else WHEN).get(trig, "It")
 	var what := ""
 	match str(e["id"]):
@@ -781,6 +865,58 @@ static func sentence(e: Dictionary, keys: Array = ABILITY_KEYS["kbm"]) -> String
 	return s
 
 
+## The sentence for one of the bow's passive runes. They are about arrows, not
+## swings, so they have their own words.
+static func _bow_sentence(e: Dictionary) -> String:
+	var n: int = e["count"]
+	var big: bool = float(e["size"]) > 1.0
+	var third := int(e.get("every", 1)) > 1
+	var power := float(e.get("power", 1.0))
+	var dodge: bool = "dodge" in e.get("also", [])
+	match str(e["id"]):
+		"pierce":
+			# Every Hit: every arrow, and what is behind the first enemy takes half.
+			var every_arrow: bool = e["trigger"] == "hit"
+			var who := "Every arrow" if every_arrow else ("Every third finisher's arrow" if third else "Your finisher's arrow")
+			var through := pierce_count(e)
+			var s := "%s goes on through %s" % [who, "the enemy it hits" if through == 1 else "%s enemies" % _num(through)]
+			if power < 1.0:
+				s += ", hitting those behind at half strength"
+			if big:
+				s += ", on a wider path"
+			s += "."
+			if dodge:
+				s += " The first arrow after %s does it too." % ("every third dodge" if third else "a dodge")
+			return s
+		"ricochet":
+			var who := "Every third arrow that hits" if third else "An arrow that hits"
+			var jumps := "jumps on to the nearest other enemy" if n == 1 else "jumps on %s, from enemy to enemy" % ("twice" if n == 2 else "%s times" % _num(n))
+			var share := RICOCHET_DAMAGE * power
+			var strength := "half its damage"
+			if share < 0.3:
+				strength = "a quarter of its damage"
+			elif share > 0.75 and share < 1.0:
+				strength = "three quarters of its damage"
+			elif share >= 1.0:
+				strength = "%s times its damage" % str(snappedf(share, 0.25)).trim_suffix(".0")
+			var s := "%s %s%s%s, for %s." % [who, jumps, ", splitting in two" if e.get("splinter", false) else "", ", from further away" if big else "", strength]
+			if dodge:
+				s += " %s sends one from you too." % ("Every third dodge" if third else "A dodge")
+			return s
+		"steady_aim":
+			var quick := "" if n == 1 else (" twice as quickly" if n == 2 else " %s times as quickly" % _num(n))
+			if third:
+				quick = " slowly" if n == 1 else ""
+			var s := "Stand still while you shoot and you shoot faster and faster%s, up to +%d%%." % [quick, roundi(steady_cap(e) * 100.0)]
+			if e.get("per_hit", false):
+				s += " Each arrow that lands adds to it."
+			if third:
+				s += " Once it is full, every third arrow hits three times as hard."
+			s += " Walking resets it, dodging doesn't." if dodge else " Moving resets it."
+			return s
+	return ""
+
+
 ## The sentence for a rune on an ability button: what to press, what it does, and
 ## how long it takes to come back.
 static func _active_sentence(e: Dictionary, keys: Array) -> String:
@@ -801,17 +937,35 @@ static func _active_sentence(e: Dictionary, keys: Array) -> String:
 			# Its strength is how much of your swing the ghost copies, so say that.
 			what = "a ghost of your sword copies every swing%s for %d seconds, at %s strength" % ["" if n == 1 else (" twice" if n == 2 else " %d times" % n),
 				roundi(ghost_time(float(e["size"]))), "full" if ghost_power(float(e.get("power", 1.0))) >= 1.0 else "half"]
+		"volley":
+			what = "looses %s arrows in a spread%s" % [_num(volley_arrows(float(e["size"]))), "" if n == 1 else (", twice" if n == 2 else ", %s times" % _num(n))]
+		"snipe":
+			what = "%s that %s more the farther %s%s" % ["one heavy shot" if n == 1 else "%s heavy shots" % _num(n), "does" if n == 1 else "do",
+				"it flies" if n == 1 else "they fly", ", with a longer moment for the perfect shot" if big else ""]
+		"arrow_rain":
+			what = "marks the ground where you aim, and arrows pour down on it for %d seconds%s%s" % [roundi(float(f["time"])),
+				" over a bigger area" if big else "", "" if n == 1 else (", then again" if n == 2 else ", then %s more times" % _num(n - 1))]
 		_:
 			return ""
 	var slow := int(e.get("every", 1))
 	if float(e.get("power", 1.0)) >= 3.0 and e["id"] != "ghostwield":
 		what += ", three times as strong"
-	var s := "%s %s: %s. Recharges in %d seconds." % ["Hold" if f["use"] == "hold" else "Press", key, what, roundi(float(f["recharge"]) * slow)]
+		if e["id"] == "arrow_rain":
+			what += " and pinning enemies"
+	var how: String = {"hold": "Hold %s", "charge": "Hold %s, then let go"}.get(f["use"], "Press %s") % key
+	var s := "%s: %s. Recharges in %d seconds." % [how, what, roundi(float(f["recharge"]) * slow)]
 	if float(e.get("refund", 0.0)) > 0.0:
 		s += " Each hit you land takes half a second off."
 	if "dodge" in e.get("also", []):
+		var dodging := "Every third dodge" if slow > 1 else "Dodging"
 		if e["id"] == "ghostwield":
 			s += " The ghost also cuts along %s." % ("every third dodge" if slow > 1 else "every dodge")
+		elif e["id"] == "volley":
+			s += " %s looses one too, at half strength." % dodging
+		elif e["id"] == "snipe":
+			s += " %s looses a quick, weak one too." % dodging
+		elif e["id"] == "arrow_rain":
+			s += " %s drops a small shower where you were." % dodging
 		else:
 			s += " Every third dodge does it too." if slow > 1 else " Dodging does it too."
 	return s

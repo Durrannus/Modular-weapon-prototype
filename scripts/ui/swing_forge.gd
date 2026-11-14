@@ -784,8 +784,6 @@ func _draw_tray() -> void:
 	card = clampi(card, 0, maxi(cards.size() - 1, 0))
 	if cards.is_empty():
 		_body("Nothing here yet.", Vector2(14, 78), DIM)
-		if _bow() and TABS[tab] == "runes":
-			_body("The bow's own runes are being built.", Vector2(14, 92), DIM)
 	var rects := _place_cards(cards)
 	for i in cards.size():
 		var c: Dictionary = cards[i]

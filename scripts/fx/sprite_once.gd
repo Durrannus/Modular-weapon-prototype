@@ -24,6 +24,8 @@ var follow: Node2D = null
 var follow_offset := Vector2.ZERO
 var fade_out := false
 var wait := 0.0           # > 0: stay hidden this long before playing (a row of bursts going off in turn)
+var hold := 0.0           # > 0: once the strip has played, its last frame stays this long and fades
+var fade_tail := 0.0      # > 0 (with life): it fades out over this many of its last seconds
 var t := 0.0
 
 
@@ -49,7 +51,7 @@ func _process(delta: float) -> void:
 		visible = wait <= 0.0
 		return
 	t += delta
-	var end := life if life > 0.0 else float(frames) / fps
+	var end := life if life > 0.0 else float(frames) / fps + hold
 	if t >= end:
 		queue_free()
 		return
@@ -76,4 +78,8 @@ func _draw() -> void:
 	var tint := Color.WHITE
 	if fade_out and life > 0.0:
 		tint.a = clampf(1.0 - t / life, 0.0, 1.0) * 1.5
+	elif fade_tail > 0.0 and life > 0.0:
+		tint.a = clampf((life - t) / fade_tail, 0.0, 1.0)
+	elif hold > 0.0 and life <= 0.0 and t > float(frames) / fps:
+		tint.a = clampf(1.0 - (t - float(frames) / fps) / hold, 0.0, 1.0)
 	Art.draw_strip(self, texture, frames, frame, feet, origin, flip, tint, Art.PIXEL * size, angle)

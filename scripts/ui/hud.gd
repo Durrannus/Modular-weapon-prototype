@@ -271,7 +271,7 @@ func _draw_abilities(p, right: bool, x: float, y: float, block_w: float) -> void
 		var a: Dictionary = list[b]
 		var charge := clampf(float(p.ability_charge[b]), 0.0, 1.0)
 		var ready: bool = p.ability_ready(b)
-		var going: bool = p.hold_button == b or p.game_time - float(p.ability_used[b]) < 0.12
+		var going: bool = p.hold_button == b or p.snipe_button == b or p.game_time - float(p.ability_used[b]) < 0.12
 		var since_no: float = p.game_time - float(p.ability_denied[b])
 		var sx := at + (roundf(sin(since_no * 70.0) * 1.5) if since_no < 0.2 else 0.0)
 		var frame := Art.texture("hud/ability_ready.png" if ready else "hud/ability_slot.png")

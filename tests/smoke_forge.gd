@@ -462,6 +462,47 @@ func _check_bow(forge, main) -> void:
 	await process_frame
 	if not forge.does_fits:
 		_fail("what it does runs off its plate for a bow with five bands")
+	# The fullest bows (five slots on the longbow with the horn grip, four on the
+	# shortbow with the wrapped one), with keyboard and with controller button names.
+	var full := [
+		["volley", "snipe", "arrow_rain", "ricochet", "pierce"],
+		["volley", "snipe", "arrow_rain", "steady_aim", "pierce"],
+		["on_dodge", "snipe", "every_hit", "arrow_rain", "volley"],
+		["saved_up", "arrow_rain", "on_dodge", "volley", "steady_aim"],
+		["twice", "arrow_rain", "every_hit", "snipe", "ricochet"],
+		["on_dodge", "wider", "steady_aim", "every_hit", "pierce"],
+		["saved_up", "steady_aim", "on_dodge", "pierce", "ricochet"],
+		["every_hit", "ricochet", "on_dodge", "ricochet", "pierce"],
+		["wider", "on_dodge", "snipe", "every_hit", "volley"],
+		["on_dodge", "arrow_rain", "on_dodge", "snipe", "volley"],
+		["every_hit", "saved_up", "on_dodge", "arrow_rain", "snipe"],
+	]
+	var was_keys = forge.keys
+	var bows := 0
+	for keys in [SwingBuild.ABILITY_KEYS["kbm"], SwingBuild.ABILITY_KEYS["pad"]]:
+		forge.keys = keys
+		for kit in [["iron_longbow", "horn_bow_grip", 5], ["iron_shortbow", "wrapped_bow_grip", 4], ["iron_shortbow", "wooden_bow_grip", 3]]:
+			forge.build.set_blade(kit[0])
+			forge.build.set_grip(kit[1])
+			for l in full:
+				forge.build.line = l.slice(0, kit[2])
+				forge.root.queue_redraw()
+				await process_frame
+				await process_frame
+				bows += 1
+				if not forge.does_fits:
+					_fail("what it does runs off its plate: %s %s" % [kit, forge.build.line])
+	forge.keys = was_keys
+	print("what it does fits: ", bows, " bows")
+	# The bow's tray of runes: its own six and the bands, and none of the sword's.
+	forge._set_tab(1)
+	var tray: Array = []
+	for c in forge._cards():
+		tray.append(str(c.get("id", "")))
+	if tray != ["pierce", "ricochet", "steady_aim", "volley", "snipe", "arrow_rain"]:
+		_fail("the bow's rune tray should offer its six runes: %s" % [tray])
+	forge.build.set_blade("iron_longbow")
+	forge.build.set_grip("horn_bow_grip")
 	forge.build.line = ["", "", "", "", ""]
 	# Every bow, pointing at every part: each number and its change fit the column.
 	var widest := -999.0

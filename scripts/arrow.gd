@@ -33,9 +33,19 @@ var crit_damage := 1.5
 var heavy := false             # the chain's heavy shot: a thicker streak, and it lands harder
 var finisher := false
 var kind := "wooden_arrows"    # whose picture
-var pierce := 0                # how many enemies it goes on through
+var pierce := 0                # how many more enemies it goes on through (the Pierce rune)
+var pierce_power := 1.0        # what it does to the ones behind the first, as a share
+var through := 0               # how many it has hit so far
+var half_width := HALF_WIDTH   # Pierce with Wider: a thicker path
 var struck := {}               # the enemies it has hit already
+## A rune's own arrow ("volley", "snipe", "ricochet"; "" for a shot of the chain).
+## It is drawn in the rune's colour and sets no other rune off.
+var rune := ""
+var color := Color.WHITE       # the rune's colour: the number over the enemy, and the streak's tint
+var streak := ""               # the streak's strip, if not the usual one ("pierce_trail", "snipe_trail")
+var bounce := {}               # Ricochet: what its next jump is like ({jumps, range, splinter})
 var flown := 0.0
+var hit_flown := 0.0           # how far it had flown when it last hit someone (Snipe counts it)
 var flying := true
 var rest := 0.0                # seconds since it stopped
 var in_wall := false
@@ -82,7 +92,7 @@ func _physics_process(delta: float) -> void:
 		var rel: Vector2 = e.global_position - from
 		var along := rel.dot(dir)
 		var side := absf(rel.dot(dir.orthogonal()))
-		var r: float = float(e.radius) + HALF_WIDTH
+		var r: float = float(e.radius) + half_width
 		if side > r:
 			continue
 		var enter := along - sqrt(r * r - side * side)
@@ -94,8 +104,10 @@ func _physics_process(delta: float) -> void:
 		var e = f[1]
 		struck[e.get_instance_id()] = true
 		global_position = from + dir * float(f[0])
+		hit_flown = flown + float(f[0])
 		if is_instance_valid(shooter):
 			shooter.arrow_hit(self, e)
+		through += 1
 		if pierce > 0:
 			pierce -= 1
 			continue
@@ -159,26 +171,28 @@ func _draw() -> void:
 func _draw_trail() -> void:
 	if not flying or flown < HIDE_FIRST:
 		return
-	var name := "arrow_trail_heavy" if heavy else "arrow_trail"
-	var tex := Art.texture("swing/fx/%s.png" % name)
+	var name := streak if streak != "" else ("arrow_trail_heavy" if heavy else "arrow_trail")
+	var tex := BowArt.fx_texture(name)
 	var info := BowArt.fx(name)
-	# It grows out of the bow: never longer than the arrow has flown.
-	var length := minf(flown - HIDE_FIRST, 96.0 if heavy else 64.0)
+	var o: Array = info.get("origin", [31, 4])
+	# It grows out of the bow: never longer than the arrow has flown (or the strip).
+	var length := minf(flown - HIDE_FIRST, (float(o[0]) + 1.0) * Art.PIXEL)
 	var tail := HEIGHT - dir * 24.0
 	if length <= 0.0:
 		return
 	if tex != null and not info.is_empty():
 		var n := maxi(int(info.get("frames", 4)), 1)
-		var o: Array = info.get("origin", [31, 4])
 		var frame := int(Time.get_ticks_msec() / 1000.0 * float(info.get("fps", 20))) % n
 		var fw := float(tex.get_width()) / n
 		var show := clampf(ceilf(length / Art.PIXEL), 1.0, float(o[0]) + 1.0)   # art pixels, counted back from the arrow's tail
 		_trail.draw_set_transform(tail, dir.angle(), Vector2(Art.PIXEL, Art.PIXEL))
 		_trail.draw_texture_rect_region(tex, Rect2(1.0 - show, -float(o[1]), show, tex.get_height()),
-			Rect2(frame * fw + float(o[0]) + 1.0 - show, 0, show, tex.get_height()))
+			Rect2(frame * fw + float(o[0]) + 1.0 - show, 0, show, tex.get_height()), _streak_tint())
 		_trail.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 		return
 	var col := Color(1.0, 0.82, 0.55) if heavy else Color(0.86, 0.9, 0.8)
+	if rune != "":
+		col = color
 	var width := 4.0 if heavy else 2.0
 	var steps := 6
 	for i in steps:
@@ -186,3 +200,11 @@ func _draw_trail() -> void:
 		var b := tail - dir * length * (float(i + 1) / steps)
 		var k := 1.0 - float(i) / steps
 		_trail.draw_line(a, b, Color(col.r, col.g, col.b, 0.5 * k * k), maxf(width * k, 1.0))
+
+
+## A rune's arrow has the usual streak in the rune's colour (the strips drawn for
+## one rune, like Snipe's, are that colour already).
+func _streak_tint() -> Color:
+	if rune == "" or streak != "":
+		return Color.WHITE
+	return color.lerp(Color.WHITE, 0.25)

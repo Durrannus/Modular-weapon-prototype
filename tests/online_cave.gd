@@ -29,6 +29,8 @@ var linger := -1        # clock milliseconds to quit at, once this copy has fini
 var result_ok := false
 var arena_step := 0
 var arrows_seen := {}          # every arrow that flew in the arena run
+var runes_seen := {}           # the bow's runes that went off in the arena run
+var second_held := 0           # ticks the second ability button stays down
 var hard := false
 var started := 0
 
@@ -171,9 +173,19 @@ func _arena_tick() -> void:
 	_clear_presses()
 	for a in get_nodes_in_group("arrows"):
 		arrows_seen[a.get_instance_id()] = true
+		if a.rune != "":
+			runes_seen[a.rune] = true
+	for p in m.players:
+		if p.rains.size() > 0:
+			runes_seen["arrow_rain"] = true
 	if frame > 60 * 40:
 		session.sampling.disconnect(_arena_tick)
-		_report(m.kills > 0 and arrows_seen.size() > 10)
+		var runes := true
+		for id in ["volley", "snipe", "arrow_rain", "ricochet"]:
+			if not runes_seen.has(id):
+				print("FAIL: the bow's %s never went off" % id)
+				runes = false
+		_report(m.kills > 0 and arrows_seen.size() > 10 and runes)
 		return
 	if m.build_menu.is_open:
 		forge_wait += 1
@@ -236,9 +248,15 @@ func _arena_tick() -> void:
 	_fight(me)
 	# The active runes: a press on each button now and then, the first one held
 	# for a while (a Whirlwind there spins on), at different moments for each player.
+	# The second is held too: with the bow that draws a Snipe, let go as its ring
+	# closes by player 1 and held until it goes by itself by player 2 (who presses
+	# the third button, Arrow Rain, in the middle of that draw).
 	var beat := (frame + me * 55) % 200
+	if beat == 120:
+		second_held = 44 if me == 0 else 170
+	second_held -= 1
 	session.local.ability_pressed = [beat == 40, beat == 120, beat == 160]
-	session.local.ability_held = [beat >= 40 and beat < 85, beat == 120, beat == 160]
+	session.local.ability_held = [beat >= 40 and beat < 85, second_held >= 0, beat == 160]
 
 
 func _done(ok: bool) -> void:
@@ -261,6 +279,7 @@ func _report(ok: bool) -> void:
 		print("FAIL: the two games went out of sync (see user://out_of_sync_player%d.txt)" % (me + 1))
 		ok = false
 	if arena:
+		print("        bow runes that went off: %s" % ", ".join(runes_seen.keys()))
 		print("%s: arena, %d kills, %d arrows shot, weapons %s" % ["PASS" if ok else "FAIL", m.kills, arrows_seen.size(), str([m.builds[0].get_data(), m.builds[1].get_data()])])
 	print("[%s] %s at tick %d (waited on %d frames, %.0f s on the clock), last checksum %d" % [role, "ok" if ok else "FAILED", session.tick, session.waits, float(Time.get_ticks_msec() - started) / 1000.0, int(session._hashes.get(session._last_hash_tick, 0))])
 	result_ok = ok

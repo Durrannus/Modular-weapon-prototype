@@ -8,7 +8,7 @@ This branch (`swing-path`) has four things to try:
 - **Two players on one screen.**
 - **Two players online**, one on each computer (see "Playing online" below).
 - **The test arena**: the sandbox for trying weapons out, with every sword part unlocked. You can't be hurt there unless you switch that off, and you can stop the enemies where they stand (see "Controls").
-- **The bow** (versions 18 and 19, Game Bible milestone 6), in the test arena: press **B** (or click the right stick) to swap your sword for an iron shortbow and back, and open the forge with the bow in your hand to change its limbs, grip, string and arrows. See "The bow" below.
+- **The bow** (versions 18 to 20, Game Bible milestone 6), in the test arena: press **B** (or click the right stick) to swap your sword for an iron shortbow and back, and open the forge with the bow in your hand to change its limbs, grip, string and arrows and to fit its own six runes (Pierce, Ricochet, Steady Aim, Volley, Snipe, Arrow Rain). See "The bow" below.
 
 ## How to run it
 
@@ -138,7 +138,7 @@ Game code must follow these rules, or the two games drift apart:
 | Attack | Left click (swings, or shoots, toward the mouse) | X or right trigger (swings or shoots the way you face, or aim with the right stick) |
 | Keep attacking | Hold left click | Hold X |
 | Dodge | Space or Shift | A or left trigger |
-| First active rune (hold for Whirlwind) | Right click | RB |
+| First active rune (hold for Whirlwind; hold and let go for Snipe, on whichever button it is) | Right click | RB |
 | Second active rune | Q | LB |
 | Third active rune | R | B |
 | Use (crate, rune, forge, talk) | E or F | A or Y, when the prompt shows |
@@ -205,6 +205,7 @@ godot --path . -s tests/smoke_forge.gd                                         #
 godot --headless --path . --fixed-fps 60 -s tests/title_screen.gd              # the intro screen: its picture, its buttons, joining and choosing
 godot --headless --path . --fixed-fps 60 -s tests/arena_switches.gd            # the arena's two switches: Invincible, and Pause enemies
 godot --headless --path . --fixed-fps 60 -s tests/bow.gd                       # the bow: swapping, its numbers, the forge and presets, what an arrow hits and where it stops, the longbow, damage a second against the sword's
+godot --headless --path . --fixed-fps 60 -s tests/bow_runes.gd                 # the bow's six runes: their rules, pictures and sentences, and each one with every band in the arena (takes about two minutes)
 godot --headless --path . -s tests/version_check.gd                            # the version number was raised if anything changed
 ```
 
@@ -219,25 +220,40 @@ Online play (needs bash, so Linux, macOS or Git Bash on Windows). Each line runs
 ```
 tests/online.sh /path/to/godot                         # the cave, as fast as the computer can
 tests/online.sh /path/to/godot fast hard drop=0.1      # with knock-outs and 10% of messages lost
-tests/online.sh /path/to/godot fast arena              # the arena: forge, sword changes, the two switches, swapping to the bow, shooting, and changing the bow at the forge
+tests/online.sh /path/to/godot fast arena              # the arena: forge, sword changes, the two switches, swapping to the bow, shooting, its runes (Volley, a Snipe let go on time and one held too long, Arrow Rain, Ricochet), and changing the bow at the forge
 tests/online.sh /path/to/godot real lag=45 drop=0.05   # at normal speed with a slow, lossy connection
 tests/online.sh /path/to/godot real host:slow=22       # one computer that can't keep up
 ```
 
 To skip the title screen while testing: `godot --path . -- cave` or `godot --path . -- arena`.
 
-## The bow (versions 18 and 19, 14 November)
+## The bow (versions 18 to 20, 14 November)
 
-Game Bible milestone 6 ("the bow is as fun as the sword, and you can finish the tutorial cave with it"), built a stage a version: a bow you can shoot in the test arena (18), the bow at the forge (19). Still to come: its six runes, and the tutorial cave with a bow.
+Game Bible milestone 6 ("the bow is as fun as the sword, and you can finish the tutorial cave with it"), built a stage a version: a bow you can shoot in the test arena (18), the bow at the forge (19), its six runes (20). Still to come: the tutorial cave with a bow.
 
-- **Swap** with **B** or a click of the right stick (one player also has a SWAP button at the top right). Everyone in the arena carries test sword D and an **iron shortbow** with iron arrows on a two-slot grip. Whatever you change on the sword is still there when you swap back.
+- **Swap** with **B** or a click of the right stick (one player also has a SWAP button at the top right). Everyone in the arena carries test sword D and an **iron shortbow** with iron arrows on a two-slot grip, fitted since version 20 with Volley, Snipe and Arrow Rain on the three buttons and Ricochet. Whatever you change on the sword is still there when you swap back.
 - **Shooting** is the same button as swinging, and holding it keeps shooting. The shortbow's chain is **quick shot, quick shot, heavy shot** (Game Bible). Each shot first draws the string (0.13 s, 0.22 s for the heavy one); the arrow leaves when the draw ends, **towards wherever you are aiming at that moment**, so you can turn while you draw. You walk at 80% speed while shooting ("you can move while shooting, slightly slowed").
 - **An arrow** flies straight at 1300 px a second for 520 px (a sword reaches 91), hits the **first** enemy on its line and stops there; a wall stops it too. A spent arrow stands where it stopped for a moment and fades. Arrows never run out (Game Bible: infinite once owned).
 - **Damage** (Claude's first numbers, for Darren to overturn): an arrow does **75% of a sword hit** in the same metal (iron: 8.25, heavy shot 12.4), and hits one enemy where a slash hits everything in its arc. Against a single enemy the iron shortbow does about 0.8 of the iron broadsword's damage a second (`tests/bow.gd` measures it). The reason is the Game Bible's rule that ranged must not beat melee.
 - **At the forge** (version 19): open the forge with the bow in your hand and the bow stands on the anvil. The first tab is called BOW and has four rows: **limbs** (they set the chain, the range and how fast you walk while shooting), **grip** (slots), **string** (numbers only, the pommels' four: plain, keen, heavy, light) and **arrows** (the damage: wooden, tin, iron). Pointing at a part shows what it would change on the numbers plate, which shows Range where a sword has Reach. Slots work as on a sword: the grip's are under the hand, the limbs' on the upper limb, and the line reads bottom to top. Each weapon has its own three loadout presets.
 - **Two sets of limbs so far.** The **shortbow** (quick shot, quick shot, heavy shot) and the **longbow** (three long shots: a slower draw, a faster arrow, 35% more range, a hard shove on every shot, and you walk at 70% while shooting). Three heavy shots would be more damage a second, so a longbow's arrows are a tenth lighter and the two bows come out the same (`tests/bow.gd` measures it). The recurve and the hunter's bow from the Game Bible are not built.
-- **Runes belong to a weapon.** The sword's runes can't be fitted to a bow (`SwingBuild.fits()`); bands and rule-benders fit both. Until the bow's own six are built its RUNES tab is empty, so its slots can only hold bands, which do nothing without a rune above them.
-- **Not yet:** the bow's runes, the recurve and hunter's limbs, and the tutorial cave, which still hands out swords alone.
+- **Runes belong to a weapon.** The sword's runes can't be fitted to a bow and the bow's can't be fitted to a sword (`SwingBuild.fits()`); bands and rule-benders fit both. The bow's RUNES tab shows its own six (see "The bow's runes" below).
+- **Not yet:** the recurve and hunter's limbs, and the tutorial cave, which still hands out swords alone.
+
+### The bow's runes (version 20)
+
+Three passive and three active, like the sword (Game Bible). The Bible describes Steady Aim, Volley, Snipe and Arrow Rain; **Pierce and Ricochet are only names there, so what they do is Claude's design**, and so is every number below. All of it is for Darren to overturn.
+
+- **Pierce** (passive): your finisher's arrow goes on through the enemy it hits and strikes the next one on its line at full damage. Twice: through two enemies. Wider: a wider path. Every Hit: every arrow goes through, at half damage behind the first enemy. Saved Up: every third finisher goes through three. On Dodge: the first arrow after a dodge goes through too.
+- **Ricochet** (passive): an arrow that hits jumps on, as a teal arrow of its own, to the nearest other enemy within 150 px for half its damage. Twice: it jumps twice. Wider: it finds enemies further away. Every Hit: it splits in two as it jumps, a quarter of the damage each. Saved Up: every third hit, at one and a half times the arrow. On Dodge: a dodge sends one out from you.
+- **Steady Aim** (passive, the Bible's numbers): while you stand still and shoot you shoot faster, 10% more each second up to +50%, shown as a ring that fills at your feet. Walking resets it; standing without shooting keeps what you have. Twice: builds twice as fast. Wider: up to +80%. Every Hit: each arrow that lands adds 5%. Saved Up: builds a third as fast, and once full every third arrow hits three times as hard. On Dodge: a dodge no longer resets it (walking still does).
+- **Volley** (active, press, 4 seconds): three full arrows in a fan, so up close all three hit one enemy and from far only the middle one does. It doesn't interrupt the shot you were in. Wider: five arrows (seven with two). Twice: a second fan a beat later.
+- **Snipe** (active, hold and let go, 6 seconds): holding its button draws the bow while a ring closes on you (0.7 seconds, at half walking speed). Let go as the ring closes, within a quarter of a second, and it is a PERFECT SNIPE at one and a half times the damage; let go early and it is half; hold on for 2.5 seconds and it goes by itself. The arrow flies half as far again as an ordinary one and does more the farther it flew: 2 arrows' worth up close, rising to 6 at 480 px. A dodge drops the draw without spending it. Wider: a longer perfect moment.
+- **Arrow Rain** (active, press, 8 seconds): marks an oval on the ground, 112 by 80 px, and for 3 seconds arrows fall on it, ten falls of 0.35 of an arrow to everyone standing in it. With the mouse it lands on the pointer (up to 420 px away); with a controller on the enemy nearest your aim. Twice: a second shower where you are aiming as the first ends. Wider: a bigger oval. Saved Up: three times as heavy, and the arrows pin enemies in place for a moment. On Dodge: a small one-second shower where you dodged from.
+- **The bands on the active three** follow the sword's rules: Every Hit takes half a second off the recharge for each arrow of yours that lands, Saved Up is three times as strong and three times as slow, and an On Dodge Volley or Snipe is at half strength.
+- A rune's own arrows (the ricochet, the fan, the snipe, the rain) never crit and never set another rune off, so nothing chains for ever.
+- **Balance.** Steady Aim at full is 1.5 times the bow's damage a second on one enemy, about 1.2 times the iron broadsword's, for someone who has stood still and shot for five seconds. The others are area or burst on a recharge. This is the first pass; the Game Bible's rule is that ranged must not beat melee.
+- Where it lives: the six entries in `FITTINGS` (they carry `"weapon": "bow"`) and the constants under them in `scripts/weapon/swing_build.gd` (`PIERCE_*`, `RICOCHET_*`, `STEADY_*`, `VOLLEY_*`, `SNIPE_*`, `RAIN_*`); "The bow's runes" section of `scripts/player.gd`; `scripts/arrow.gd` (an arrow can go through enemies, carry a rune's name and colour, and report how far it flew). Their pictures are in `art/swing/runes/`, `art/hud/` and `art/fx/`; the stills the forge shows on Alt were taken from the game. `tests/bow_runes.gd` checks every rune with every band.
 
 How it is built:
 
@@ -253,7 +269,7 @@ This branch tests the **swing path** (design notes, 3 November). It replaces the
 
 - A sword is a **blade** plus a **grip**. The blade sets the basic three-hit chain (the last hit is the finisher). Grip and blade both have **slots**.
 - Slots hold **runes** (effects) or **bands** (modifiers). Read the sword as one line from the bottom of the grip to the tip: a band boosts the next rune above it, bands in a row stack, and a band with nothing above it does nothing.
-- Runes are **passive** or **active** (Darren, 10 November). The sword has three of each (11 November).
+- Runes are **passive** or **active** (Darren, 10 November). The sword has three of each (11 November), and so has the bow (version 20, see "The bow's runes" above).
   - Passive runes fire by themselves: **Shockwave** (finisher: a rolling wave, a light hit that shoves enemies back), **Shards** (every hit sends metal shards jumping to the closest enemy, then the next), **Weak Point** (the finisher marks the enemy it hit, and the next sword hit on the mark is a big crit).
   - Active runes wait for a button: **Whirlwind** (hold: you spin, cutting everything around you once a turn, walking at three quarters speed) and **Leap** (press: you jump to an enemy and land at your blade's reach from it, with a strike).
   - **Hook left the sword for the hammer** (Darren, 11 November afternoon). It is marked `"parked"` in `FITTINGS`, so the forge no longer offers it and no test sword carries it; its rules, effects and pictures stay for the hammer, and `tests/active_runes.gd` still puts it on a sword by hand so they stay checked.
