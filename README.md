@@ -1,4 +1,4 @@
-# Game prototype download (version 16, Windows)
+# Game prototype download (version 17, Windows)
 
 Download: [game-prototype.zip](game-prototype.zip) (49 MB), then press "Download raw file".
 
