@@ -3,7 +3,8 @@ extends SceneTree
 ## really there in the game and inside its limits, a change reaches the game and
 ## comes back out again, the file keeps it, an online game never sees it, the
 ## screen works in the arena and the cave, and the arena's spawner makes every
-## enemy in the game. Prints FAIL lines and a RESULT line.
+## enemy in the game. The search finds a number on any page. Prints FAIL lines
+## and a RESULT line.
 ##   godot --headless --path . --fixed-fps 60 -s tests/lab.gd [-- show]
 
 const Lab := preload("res://scripts/lab.gd")
@@ -39,6 +40,20 @@ func _frames(n: int) -> void:
 		await physics_frame
 
 
+## Typed letters, the way the keyboard sends them (each with its key, so a
+## typed L is also the lab's key and a typed B the arena's weapon swap).
+func _type(text: String) -> void:
+	for ch in text:
+		for down in [true, false]:
+			var ev := InputEventKey.new()
+			ev.pressed = down
+			ev.keycode = KEY_SLASH if ch == "/" else (KEY_SPACE if ch == " " else (ch.to_upper().unicode_at(0) as Key))
+			ev.physical_keycode = ev.keycode
+			ev.unicode = ch.unicode_at(0) if down else 0
+			Input.parse_input_event(ev)
+			await _frames(2)
+
+
 ## A real key press, the way the keyboard sends it.
 func _key(code: Key) -> void:
 	for down in [true, false]:
@@ -61,6 +76,7 @@ func _run() -> void:
 	Lab.file = FILE
 	_wipe()
 	_rows()
+	_search()
 	_changes()
 	_file()
 	await _arena()
@@ -111,6 +127,66 @@ func _rows() -> void:
 		if font != null and Lab.PAGE_NOTES.has(page):
 			_check(font.get_string_size(str(Lab.PAGE_NOTES[page]), HORIZONTAL_ALIGNMENT_LEFT, -1, 11).x <= 492.0, "the page %s's note fits" % page)
 	_check(Lab.changed_count() == 0, "nothing is left changed")
+
+
+func _ids(found: Array) -> Array:
+	var ids: Array = []
+	for row in found:
+		ids.append(row["id"])
+	return ids
+
+
+## The search (Lab.find): a word finds every number that holds it, on any page.
+func _search() -> void:
+	_check(Lab.find("").is_empty() and Lab.find("   ").is_empty(), "nothing typed finds nothing")
+	_check(Lab.find("zzz").is_empty(), "a word nothing is called finds nothing")
+	var dagger := Lab.find("dagger")
+	var all_dagger := dagger.size() == 4
+	for row in dagger:
+		all_dagger = all_dagger and row["page"] == "Sword" and row["group"] == "Dagger"
+	_check(all_dagger, "dagger finds the dagger's four numbers and nothing else (%d)" % dagger.size())
+	_check(_ids(Lab.find("DAGGER")) == _ids(dagger) and _ids(Lab.find(" Dagger ")) == _ids(dagger), "capitals and spaces around it make no difference")
+	_check(_ids(Lab.find("damage dagger")) == ["build:SHAPES/dagger/damage"] and _ids(Lab.find("dagger damage")) == ["build:SHAPES/dagger/damage"], "two words find what holds both, in either order")
+	var recharges: Array = []
+	for row in Lab.rows:
+		if row["label"] == "Recharge":
+			recharges.append(row["id"])
+	var found_recharge := _ids(Lab.find("recharge"))
+	var has_all := recharges.size() >= 12
+	for id in recharges:
+		has_all = has_all and id in found_recharge
+	_check(has_all and "build:EVERY_HIT_REFUND" in found_recharge, "recharge finds every rune's Recharge, and Every Hit's \"recharges it by\" (%d)" % found_recharge.size())
+	_check(_ids(Lab.find("cooldown")) == found_recharge, "cooldown finds the same")
+	var hp := _ids(Lab.find("hp"))
+	_check("player:MAX_HP" in hp and "guardian:HP" in hp and "enemy:STATS/brute/hp" in hp and "crawler:HP" in hp, "hp finds the players', the guardian's and the enemies' health")
+	var sword_damage := _ids(Lab.find("sword damage"))
+	_check("build:SHAPES/dagger/damage" in sword_damage and "build:METALS/iron" in sword_damage and "player:SHOCKWAVE_DAMAGE" in sword_damage, "sword damage finds the shapes' damage, the metals and the sword runes' damage")
+	_check(not ("build:SHAPES/dagger/reach" in sword_damage) and not ("guardian:SLAM_DAMAGE" in sword_damage), "...and not a sword's reach or the guardian's slam")
+	var crabs := Lab.find("crabs")
+	_check(crabs.size() == 9, "crabs finds the three crabs' numbers (%d)" % crabs.size())
+	var boss: Array = []
+	for row in Lab.rows:
+		if row["page"] == "Forge guardian":
+			boss.append(row["id"])
+	_check(_ids(Lab.find("boss")) == boss, "boss finds the forge guardian's page")
+	# Every number is found by its own page, group and name, and what is found
+	# comes in the lab's own order.
+	for row in Lab.rows:
+		var who := "%s %s %s" % [row["page"], row["group"], row["label"]]
+		_check(row["id"] in _ids(Lab.find(who)), "%s: its own words find it" % who)
+		_check(row["id"] in _ids(Lab.find(str(row["label"]))), "%s: its name alone finds it" % who)
+	var at := -1
+	var in_order := true
+	for row in Lab.find("speed"):
+		var i := Lab.rows.find(row)
+		in_order = in_order and i > at
+		at = i
+	_check(in_order and at > 0, "what a search finds comes in the lab's own order")
+	var font := Art.font("PixelifySans-Regular")
+	if font != null:
+		for text in [LabScreen.FOUND_NOTE, LabScreen.NONE_NOTE]:
+			var w := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 11).x
+			_check(w <= 492.0, "the line above a search fits (%d of 492)" % w)
 
 
 ## A change reaches the game's own code, and a reset takes it out again.
@@ -345,6 +421,58 @@ func _arena() -> void:
 	s._reset("player:MAX_HP")
 	s.close()
 	_check(is_equal_approx(p.max_hp, 100.0), "(health back to 100)")
+	# The search box: "/" goes to it, and typing finds numbers on every page.
+	var kind_before := str(p.weapon.get("kind", ""))
+	var switches := [m.invincible, m.enemies_paused]
+	m.open_lab()
+	s._pick_page("Players")
+	_check(s._reset_page_button.text == "RESET THIS PAGE", "(the first button reads Reset this page)")
+	await _type("/")
+	_check(s._search.has_focus() and s._search.text == "", "the / key goes to the search box, and isn't typed into it")
+	await _type("leap")
+	_check(s.is_open and s.query == "leap", "typing searches, and a typed L doesn't close the lab (%s)" % s.query)
+	_check(s._rows.size() == Lab.find("leap").size() and s._rows.has("player:LEAP_DAMAGE"), "Leap's numbers show (%d)" % s._rows.size())
+	_check(s._reset_page_button.text == "RESET THESE", "the first button now reads Reset these")
+	for i in 4:
+		await _key(KEY_BACKSPACE)
+	_check(s.query == "" and s.page == "Players" and s._rows.has("player:MAX_HP"), "rubbing it all out shows the page again")
+	await _type("dagger")
+	_check(s._rows.size() == 4 and s._note.text == LabScreen.FOUND_NOTE, "dagger: its four numbers, and the line above says what they are (%d)" % s._rows.size())
+	Lab.set_value("player:MAX_HP", 150.0)
+	s._nudge("build:SHAPES/dagger/damage", 1)
+	_check(is_equal_approx(float(SwingBuild.SHAPES["dagger"]["damage"]), 0.65), "a number that was found changes like any other")
+	s._reset_page()
+	_check(is_equal_approx(float(SwingBuild.SHAPES["dagger"]["damage"]), 0.6) and is_equal_approx(Player.MAX_HP, 150.0), "Reset these resets what the search shows and nothing else")
+	Lab.reset("player:MAX_HP")
+	await _key(KEY_ESCAPE)
+	_check(s.is_open and s.query == "" and s._search.text == "" and s._search.has_focus() and s._rows.has("player:MAX_HP"), "Esc in the box empties it: the page again, the lab still open")
+	await _type("zzz")
+	_check(s._rows.is_empty() and s._note.text == LabScreen.NONE_NOTE, "a word nothing is called finds nothing, and the line above says so")
+	await _key(KEY_ESCAPE)
+	await _type("hp bow")
+	_check(s.query == "hp bow" and s._rows.is_empty(), "(two words, a space between them: %s)" % s.query)
+	for i in 4:
+		await _key(KEY_BACKSPACE)
+	await _key(KEY_ENTER)
+	_check(not s._search.has_focus() and s.query == "hp" and s._rows.size() == Lab.find("hp").size(), "Enter leaves the box with the search still showing")
+	await _key(KEY_L)
+	_check(not s.is_open, "out of the box, L closes the lab as before")
+	await _frames(5)
+	_check(m.invincible == switches[0] and m.enemies_paused == switches[1] and str(p.weapon.get("kind", "")) == kind_before, "the H, P and B that were typed flipped no switch and swapped no weapon")
+	m.open_lab()
+	_check(s.query == "hp" and s._search.text == "hp" and s._rows.size() == Lab.find("hp").size(), "the search is still there when the lab opens again")
+	_check(s._close_button.has_focus(), "...and no page's button is lit over it (Close is)")
+	await _key(KEY_ESCAPE)
+	_check(s.is_open and s.query == "" and s._rows.has("player:MAX_HP"), "Esc over a search goes back to the page first...")
+	await _key(KEY_ESCAPE)
+	_check(not s.is_open, "...and Esc again closes the lab")
+	m.open_lab()
+	s._search.grab_focus()
+	await _type("bow")
+	s._pick_page("Sword")
+	_check(s.query == "" and s._search.text == "" and s.page == "Sword" and s._rows.has("build:SHAPES/dagger/damage"), "a page's button puts the search away")
+	s.close()
+	_check(Lab.changed_count() == 0, "(nothing is left changed)")
 	# The pause menu's way in.
 	m.pause_menu.open()
 	_check(m.pause_menu.is_open(), "(the pause menu is open)")

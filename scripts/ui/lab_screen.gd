@@ -1,6 +1,7 @@
 extends CanvasLayer
 ## The lab's screen: the game's numbers in pages, each with - and + and a box to
-## type in, and (in the test arena) a page that puts any enemy in the room.
+## type in, a search box that finds a number on any page, and (in the test
+## arena) a page that puts any enemy in the room.
 ## The numbers themselves live in scripts/lab.gd.
 ##
 ## It pauses the game while it is open, like the pause menu. It is never there
@@ -18,6 +19,8 @@ const AMBER := Color("#ffc850")
 const DARK := Color("#19142a")
 const SPAWN := "Spawn"
 const HINT := "Hold - or + to keep going. Shift: bigger steps. Click a number to type it. Distances: the screen is 640 wide."
+const FOUND_NOTE := "Every number with those words, from all the pages. Esc or a page's button goes back."
+const NONE_NOTE := "No number has those words. Try one word: dagger, recharge, health."
 const LABEL_W := 238.0      # room for a number's name
 const WAS_W := 98.0         # room for "GAME: 0.45 SEC" beside a changed number
 const LIST_W := 478.0       # the list's width, without its scroll bar
@@ -28,6 +31,7 @@ var is_open := false
 var game = null             # the arena or the cave behind this screen
 var page := "All weapons"
 var dirty := false          # a number changed since the screen opened
+var query := ""             # what the search box holds ("": a page is showing)
 
 var _root: Control
 var _pages: VBoxContainer
@@ -44,6 +48,9 @@ var _said_left := 0.0
 var _count_label: Label     # the Spawn page's "in the arena now" line
 var _arrive_button: Button
 var _closed_tick := -10     # the game tick it was last closed on
+var _search: SearchBox
+var _reset_page_button: Button   # "Reset this page", or "Reset these" over a search
+var _close_button: Button
 
 
 func _ready() -> void:
@@ -72,9 +79,14 @@ func _ready() -> void:
 	var title := _words("THE LAB", AMBER, 16, true)
 	title.position = Vector2(18, 12)
 	_root.add_child(title)
-	var about := _words("Changes are in force at once, in the arena and the cave, and saved on this computer.", DIM)
-	about.position = Vector2(104, 15)
+	var about := _words("Changes work at once, in the arena and the cave, and are saved.", DIM)
+	about.position = Vector2(102, 15)
 	_root.add_child(about)
+	_search = SearchBox.new()
+	_search.position = Vector2(478, 13)
+	_search.size = Vector2(144, 16)
+	_search.changed.connect(_searched)
+	_root.add_child(_search)
 	# The pages, down the left.
 	_pages = VBoxContainer.new()
 	_pages.position = Vector2(18, 38)
@@ -121,6 +133,9 @@ func _ready() -> void:
 		var b := _button(str(item[0]), float(item[1]), 18.0)
 		b.pressed.connect(item[2])
 		bar.add_child(b)
+		if _reset_page_button == null:
+			_reset_page_button = b
+		_close_button = b   # (the last one)
 	_hint = _words(HINT, FAINT)
 	_hint.position = Vector2(18, 332)
 	_hint.size = Vector2(604, 14)
@@ -135,10 +150,20 @@ func open() -> void:
 	is_open = true
 	dirty = false
 	_make_pages()
-	_show_page(page if _page_buttons.has(page) else Lab.PAGES[0])
+	if not _page_buttons.has(page):
+		page = Lab.PAGES[0]
+	if query != "":
+		_show_found()   # (the search you left is still there)
+	else:
+		_show_page(page)
 	_root.visible = true
 	get_tree().paused = true
-	(_page_buttons[page] as Button).grab_focus()
+	# The lit button is the page that is showing. Over a search no page is, so
+	# Close is lit.
+	if query != "":
+		_close_button.grab_focus()
+	else:
+		(_page_buttons[page] as Button).grab_focus()
 
 
 ## Closing puts the changes to work: weapons are worked out again and everyone
@@ -168,7 +193,18 @@ func just_closed() -> bool:
 func _unhandled_input(event: InputEvent) -> void:
 	if not is_open:
 		return
-	var esc: bool = event is InputEventKey and event.pressed and not event.echo and (event as InputEventKey).keycode == KEY_ESCAPE
+	var key := event as InputEventKey if event is InputEventKey and event.pressed and not event.echo else null
+	# "/" (or Ctrl+F) goes to the search box.
+	if key != null and (key.unicode == 47 or key.keycode == KEY_SLASH or (key.keycode == KEY_F and key.ctrl_pressed)):
+		_search.grab_focus()
+		get_viewport().set_input_as_handled()
+		return
+	var esc: bool = key != null and key.keycode == KEY_ESCAPE
+	# Esc over a search goes back to the page first.
+	if esc and query != "":
+		_pick_page(page)
+		get_viewport().set_input_as_handled()
+		return
 	var back: bool = event is InputEventJoypadButton and event.pressed and (event as InputEventJoypadButton).button_index == JOY_BUTTON_B
 	if esc or back or event.is_action_pressed("lab"):
 		close()
@@ -206,7 +242,7 @@ func _make_pages() -> void:
 	for n in names:
 		var b := _button(str(n), 104.0, 17.0)
 		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
-		b.pressed.connect(_show_page.bind(str(n)))
+		b.pressed.connect(_pick_page.bind(str(n)))
 		_pages.add_child(b)
 		_page_buttons[n] = b
 
@@ -215,8 +251,14 @@ func _can_spawn() -> bool:
 	return is_instance_valid(game) and game.has_method("spawn_enemies")
 
 
-func _show_page(which: String) -> void:
-	page = which
+## A page's button: the page, and the search is put away.
+func _pick_page(which: String) -> void:
+	query = ""
+	_search.put_text("")
+	_show_page(which)
+
+
+func _empty_list() -> void:
 	for c in _list.get_children():
 		_list.remove_child(c)
 		c.queue_free()
@@ -224,6 +266,11 @@ func _show_page(which: String) -> void:
 	_count_label = null
 	_arrive_button = null
 	_scroll.scroll_vertical = 0
+
+
+func _show_page(which: String) -> void:
+	page = which
+	_empty_list()
 	if which == SPAWN:
 		_note.text = "Puts enemies in the arena, near you. Close the lab to fight them."
 		_make_spawn_page()
@@ -240,13 +287,40 @@ func _show_page(which: String) -> void:
 	_refresh_status()
 
 
+# --- The search -------------------------------------------------------------------------
+
+## The search box changed: its numbers from every page, or (emptied) the page again.
+func _searched(text: String) -> void:
+	query = text.strip_edges()
+	if query == "":
+		_show_page(page)
+	else:
+		_show_found()
+
+
+## Every number the search finds, each lot under "PAGE > GROUP".
+func _show_found() -> void:
+	_empty_list()
+	var found := Lab.find(query)
+	_note.text = NONE_NOTE if found.is_empty() else FOUND_NOTE
+	var under := ""
+	for row in found:
+		var head := "%s > %s" % [row["page"], row["group"]]
+		if head != under:
+			under = head
+			_list.add_child(_heading(head, _list.get_child_count() > 0))
+		_list.add_child(_make_row(row))
+	_refresh_status()
+
+
 ## The page you are on is marked, and a page with changed numbers says how many.
 func _refresh_status() -> void:
+	_reset_page_button.text = "RESET THIS PAGE" if query == "" else "RESET THESE"
 	for n in _page_buttons:
 		var b: Button = _page_buttons[n]
 		var changed := Lab.changed_on(str(n)) if n != SPAWN else 0
 		b.text = ("%s (%d)" % [n, changed] if changed > 0 else str(n)).to_upper()
-		b.add_theme_color_override("font_color", AMBER if n == page else (INK if changed == 0 else Color("#86d4a4")))
+		b.add_theme_color_override("font_color", AMBER if n == page and query == "" else (INK if changed == 0 else Color("#86d4a4")))
 	var total := Lab.changed_count()
 	_status.text = "Every number is the game's own." if total == 0 else ("1 number changed." if total == 1 else "%d numbers changed." % total)
 	_status.add_theme_color_override("font_color", DIM if total == 0 else AMBER)
@@ -339,10 +413,14 @@ func _let_go() -> void:
 	_held = Callable()
 
 
+## Over a search it resets the numbers the search is showing.
 func _reset_page() -> void:
-	if page == SPAWN:
+	if query != "":
+		Lab.reset_these(_rows.keys())
+	elif page == SPAWN:
 		return
-	Lab.reset_page(page)
+	else:
+		Lab.reset_page(page)
 	dirty = true
 	for id in _rows:
 		_refresh_row(id)
@@ -565,3 +643,85 @@ class NumberBox extends Control:
 		elif typing:
 			tint = Color("#8ba688")
 		draw_string(f, Vector2(0, size.y * 0.5 + 3.0), text, HORIZONTAL_ALIGNMENT_CENTER, size.x, 8, tint)
+
+
+## The search box. Click it (or press "/") and type: every key changes what the
+## list shows. Esc empties it, and Esc again leaves it; Enter leaves it with the
+## search still showing.
+class SearchBox extends Control:
+	signal changed(text)
+
+	const Art := preload("res://scripts/art.gd")
+	const EMPTY := "SEARCH EVERY PAGE ( / )"
+	const LONGEST := 28
+	var text := ""
+	var blink := 0.0
+
+	func _ready() -> void:
+		focus_mode = Control.FOCUS_CLICK
+		mouse_default_cursor_shape = Control.CURSOR_IBEAM
+		focus_entered.connect(queue_redraw)
+		focus_exited.connect(queue_redraw)
+
+	## Sets what it holds without telling anyone (the screen put the search away).
+	func put_text(to: String) -> void:
+		text = to
+		queue_redraw()
+
+	func _take(to: String) -> void:
+		if to == text:
+			return
+		text = to
+		blink = 0.0
+		queue_redraw()
+		changed.emit(text)
+
+	func _process(delta: float) -> void:
+		if has_focus():
+			blink += delta
+			queue_redraw()
+
+	func _gui_input(event: InputEvent) -> void:
+		if event is InputEventMouseButton and event.pressed and (event as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT:
+			grab_focus()
+			accept_event()
+			return
+		if not has_focus() or not (event is InputEventKey) or not event.pressed:
+			return
+		var k := event as InputEventKey
+		match k.keycode:
+			KEY_TAB, KEY_UP, KEY_DOWN:
+				return   # (these walk on to the buttons)
+			KEY_ENTER, KEY_KP_ENTER:
+				release_focus()
+			KEY_ESCAPE:
+				if text == "":
+					release_focus()
+				else:
+					_take("")
+			KEY_BACKSPACE, KEY_DELETE:
+				_take(text.left(-1))
+			_:
+				if k.unicode >= 32 and k.unicode != 127 and text.length() < LONGEST and not (k.unicode == 32 and text == "") and not k.ctrl_pressed:
+					_take(text + char(k.unicode))
+		accept_event()   # (so a letter typed here never reaches the game: L would close the lab)
+
+	func _draw() -> void:
+		var on := has_focus()
+		draw_rect(Rect2(Vector2.ZERO, size), Color("#0f0c1c"))
+		draw_rect(Rect2(Vector2(0.5, 0.5), size - Vector2.ONE), Color("#ffc850") if on else Color("#5f8072"), false, 1.0)
+		var f := Art.font("Silkscreen-Regular")
+		if f == null:
+			return
+		var room := size.x - 10.0
+		var shown := text.to_upper()
+		var tint := Color("#ffc850") if on else Color("#e8e4bc")
+		if text == "" and not on:
+			shown = EMPTY
+			tint = Color("#5f8072")
+		# A search longer than the box shows its end.
+		while shown.length() > 1 and f.get_string_size(shown + "_", HORIZONTAL_ALIGNMENT_LEFT, -1, 8).x > room:
+			shown = shown.substr(1)
+		if on:
+			shown += "_" if fmod(blink, 0.8) < 0.5 else ""
+		draw_string(f, Vector2(5, size.y * 0.5 + 3.0), shown, HORIZONTAL_ALIGNMENT_LEFT, -1, 8, tint)

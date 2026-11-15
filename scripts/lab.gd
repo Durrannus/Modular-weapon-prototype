@@ -62,6 +62,22 @@ const PAGE_NOTES := {
 	"Forge guardian": "The tutorial cave's boss. You can also put him in the arena: see Spawn.",
 }
 
+## The search: other words people use for the lab's own. Typing the left one
+## also finds the right ones.
+const ALSO := {
+	"hp": ["health"], "life": ["health"],
+	"cooldown": ["recharge"], "cd": ["recharge"],
+	"damage": ["power", "against", "what its", "one hit"],
+	"dmg": ["damage", "power", "against", "what its", "one hit"],
+	"boss": ["forge guardian"],
+	"range": ["reach", "how far"], "distance": ["how far"], "radius": ["reach"],
+	"duration": ["lasts", "stays"],
+	"windup": ["warning", "time to draw"], "telegraph": ["warning"],
+	"move": ["walking"], "movement": ["walking"],
+	"attack": ["swing", "shooting", "casting"],
+	"stun": ["stuns", "stunned"],
+}
+
 static var rows: Array = []        # every number the lab shows, in order
 static var by_id := {}             # id -> its row
 static var defaults := {}          # id -> the game's own number
@@ -82,6 +98,7 @@ static func _add(page: String, group: String, label: String, at, unit := "", ste
 	var u: Dictionary = UNITS[unit]
 	var row := {"id": str(places[0]) if id == "" else id, "page": page, "group": group, "label": label, "at": places, "unit": unit,
 		"step": float(u["step"]) if step < 0.0 else step, "lo": float(u["lo"]) if lo < 0.0 else lo, "hi": float(u["hi"]) if hi < 0.0 else hi}
+	row["find"] = _find_words(row)
 	rows.append(row)
 	by_id[row["id"]] = row
 
@@ -431,6 +448,46 @@ static func start() -> void:
 	_apply_all()
 
 
+## The words a number can be found by: its page, group and name, and its place
+## in the code ("SLAM_DAMAGE" gives "slam damage"), all in small letters. A
+## number kept in several places (the chain's times sit in every shape's moves)
+## goes by its page, group and name alone, or "dagger" would find it.
+static func _find_words(row: Dictionary) -> String:
+	var text := "%s %s %s" % [row["page"], row["group"], row["label"]]
+	if (row["at"] as Array).size() == 1:
+		text += " " + str(row["at"][0]).get_slice(":", 1).replace("_", " ").replace("/", " ")
+	return text.to_lower()
+
+
+## The search: every number that holds every word typed, in the lab's own order.
+## A word also counts through ALSO ("cooldown" finds Recharge) and without a
+## last "s" ("crabs" finds crab). Nothing typed finds nothing.
+static func find(text: String) -> Array:
+	setup()
+	var found: Array = []
+	var words := text.to_lower().split(" ", false)
+	if words.is_empty():
+		return found
+	for row in rows:
+		var all := true
+		for word in words:
+			var tries: Array = [word]
+			tries.append_array(ALSO.get(word, []))
+			if word.length() > 3 and word.ends_with("s"):
+				tries.append(word.left(-1))
+			var any := false
+			for t in tries:
+				if (row["find"] as String).contains(str(t)):
+					any = true
+					break
+			if not any:
+				all = false
+				break
+		if all:
+			found.append(row)
+	return found
+
+
 ## What the lab holds for this number: the change, or the game's own.
 static func value(id: String) -> float:
 	setup()
@@ -488,6 +545,14 @@ static func reset_page(page: String) -> void:
 	for row in rows:
 		if row["page"] == page and changes.has(row["id"]):
 			set_value(row["id"], float(defaults[row["id"]]), false)
+	save()
+
+
+## Back to the game's own for these numbers (what a search is showing).
+static func reset_these(ids: Array) -> void:
+	for id in ids:
+		if changes.has(id):
+			set_value(str(id), float(defaults[id]), false)
 	save()
 
 
