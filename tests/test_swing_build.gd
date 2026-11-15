@@ -232,7 +232,7 @@ func test_three_buttons() -> void:
 	eq(d_ids, ["whirlwind", "leap", "ghostwield"], "test sword D has the sword's three abilities, one on each button")
 	for id in SwingBuild.TEST_SWORDS:
 		check(not ("hook" in SwingBuild.TEST_SWORDS[id]["line"]), "test sword %s has no Hook (it left for the hammer)" % id)
-	check(SwingBuild.FITTINGS["hook"].get("parked", false), "Hook is parked: kept out of the forge until the hammer is built")
+	check(SwingBuild.fits("hook", "hammer") and not SwingBuild.fits("hook", "sword") and not SwingBuild.FITTINGS["hook"].get("parked", false), "Hook is the hammer's now: no sword can carry it")
 
 
 # Ghostwield (11 November afternoon): the sword's third active rune.
@@ -487,7 +487,7 @@ func test_presets() -> void:
 	eq(b.get_data(), first, "an empty preset starts as a copy of the sword in the hand")
 	b.set_blade("iron_greatsword")
 	b.set_grip("long_grip")
-	b.line = ["shockwave", "twice", "wider", "weak_point", "hook"]
+	b.line = ["shockwave", "twice", "wider", "weak_point", "leap"]
 	b.set_pommel("heavy_pommel")
 	var second: Array = b.get_data()
 	eq(b.preset_sword(0), first, "preset A still holds the first sword")
@@ -506,7 +506,7 @@ func test_presets() -> void:
 	# A saved part the player no longer owns is left off, and the rest still loads.
 	b.use_preset(0)
 	var owned := ["iron_broadsword", "iron_greatsword", "wrapped_grip", "plain_pommel", "heavy_pommel",
-		"shockwave", "twice", "weak_point", "whirlwind", "hook", "leap"]
+		"shockwave", "twice", "weak_point", "whirlwind", "leap"]
 	eq(SwingBuild.parts_missing(b.preset_sword(1), owned), ["long_grip", "wider"], "the parts of B that aren't owned any more")
 	eq(SwingBuild.parts_missing(b.preset_sword(1), null), [], "owning everything, nothing is missing")
 	eq(SwingBuild.parts_missing(null, owned), [], "an empty preset has nothing missing")
@@ -514,5 +514,5 @@ func test_presets() -> void:
 	eq(b.blade, "iron_greatsword", "the blade it does own goes on")
 	eq(b.grip, "wrapped_grip", "the grip it doesn't own stays as it was")
 	eq(b.pommel, "heavy_pommel", "the pommel goes on")
-	eq(b.line, ["shockwave", "twice", "weak_point", "hook"], "grip slots keep the grip's fittings, blade slots the blade's, the missing band is left off")
+	eq(b.line, ["shockwave", "twice", "weak_point", "leap"], "grip slots keep the grip's fittings, blade slots the blade's, the missing band is left off")
 	check(SwingBuild.valid_data(b.get_data()), "and the sword is still a valid one")

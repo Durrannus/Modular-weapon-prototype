@@ -63,7 +63,27 @@ func _init() -> void:
 	await _check_presets(forge)
 	await _check_back(forge)
 	await _check_bow(forge, main)
-	await _check_other(forge, main, "hammer", [["iron_maul", "studded_haft"], ["wooden_maul", "wooden_haft"], ["iron_warhammer", "bound_haft"]])
+	await _check_other(forge, main, "hammer", [["iron_maul", "studded_haft"], ["wooden_maul", "wooden_haft"], ["iron_warhammer", "bound_haft"]],
+		["momentum", "stagger", "aftershock", "quake", "bulwark", "hook"], [
+			["quake", "bulwark", "hook", "aftershock", "momentum"],
+			["quake", "bulwark", "hook", "stagger", "momentum"],
+			["on_dodge", "bulwark", "every_hit", "quake", "hook"],
+			["saved_up", "bulwark", "on_dodge", "quake", "aftershock"],
+			["twice", "quake", "every_hit", "hook", "stagger"],
+			["on_dodge", "wider", "momentum", "every_hit", "aftershock"],
+			["saved_up", "momentum", "on_dodge", "stagger", "aftershock"],
+			["every_hit", "saved_up", "aftershock", "on_dodge", "stagger"],
+			["wider", "on_dodge", "bulwark", "every_hit", "quake"],
+			["on_dodge", "quake", "on_dodge", "bulwark", "hook"],
+			["every_hit", "saved_up", "on_dodge", "bulwark", "quake"],
+			["twice", "wider", "saved_up", "on_dodge", "momentum"],
+			["twice", "wider", "saved_up", "on_dodge", "stagger"],
+			["twice", "wider", "saved_up", "on_dodge", "aftershock"],
+			["twice", "wider", "saved_up", "on_dodge", "bulwark"],
+			["twice", "wider", "saved_up", "on_dodge", "quake"],
+			["wider", "saved_up", "on_dodge", "momentum", "quake"],
+			["wider", "saved_up", "on_dodge", "stagger", "bulwark"],
+		])
 	await _check_other(forge, main, "staff", [["iron_storm", "twisted_shaft"], ["wooden_apprentice", "wooden_shaft"], ["iron_apprentice", "carved_shaft"]])
 	forge._set_tab(0)
 	for i in forge._cards().size():
@@ -546,7 +566,9 @@ func _check_bow(forge, main) -> void:
 ## part has its pictures and a sentence that fits, the rows of the first tab stay
 ## inside the tray, the slots stay on the anvil, each tab draws, and every number
 ## fits its column whatever is pointed at. `kits` are [head, grip] pairs to draw.
-func _check_other(forge, main, weapon: String, kits: Array) -> void:
+## `runes`: what its rune tray must offer.  `full`: the fullest lines of runes and
+## bands to read out in "what it does" (cut to the slots each kit has).
+func _check_other(forge, main, weapon: String, kits: Array, runes: Array = [], full: Array = []) -> void:
 	var Forge := preload("res://scripts/ui/swing_forge.gd")
 	main.swap_weapon(0, weapon)
 	if forge.build.weapon() != weapon:
@@ -616,6 +638,37 @@ func _check_other(forge, main, weapon: String, kits: Array) -> void:
 	await process_frame
 	if not forge.does_fits:
 		_fail("what it does runs off its plate for a %s full of bands" % weapon)
+	# Its fullest lines of runes, with keyboard and with controller button names.
+	var was_keys = forge.keys
+	var read := 0
+	for keys in [SwingBuild.ABILITY_KEYS["kbm"], SwingBuild.ABILITY_KEYS["pad"]]:
+		forge.keys = keys
+		for kit in (kits if not full.is_empty() else []):
+			forge.build.set_blade(kit[0])
+			forge.build.set_grip(kit[1])
+			for l in full:
+				forge.build.line = l.slice(0, forge.build.slot_count())
+				forge.root.queue_redraw()
+				await process_frame
+				await process_frame
+				read += 1
+				if not forge.does_fits:
+					_fail("what it does runs off its plate: %s %s" % [kit, forge.build.line])
+	forge.keys = was_keys
+	if read > 0:
+		print("what it does fits: ", read, " ", weapon, "s")
+	# Its tray of runes: its own and none of another weapon's.
+	forge._set_tab(1)
+	var offered: Array = []
+	for c in forge._cards():
+		offered.append(str(c.get("id", "")))
+	if offered != runes:
+		_fail("the %s's rune tray should offer %s: %s" % [weapon, runes, offered])
+	for id in runes:
+		if forge.info_lines(id).size() > 3:
+			_fail("%s: its sentence takes %d lines on the info plate (3 fit)" % [id, forge.info_lines(id).size()])
+	forge.build.set_blade(kits[0][0])
+	forge.build.set_grip(kits[0][1])
 	forge.build.line = ["", "", "", "", ""].slice(0, forge.build.slot_count())
 	# Every one of them, pointing at every part: each number and its change fit the column.
 	var tables: Array = []

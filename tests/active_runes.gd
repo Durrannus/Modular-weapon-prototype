@@ -174,7 +174,7 @@ func _run() -> void:
 	# --- The starting sword: Whirlwind and Leap on buttons one and two ---
 	var list: Array = p.weapon["abilities"]
 	_check(list.size() == 3 and list[0]["id"] == "whirlwind" and list[1]["id"] == "leap" and list[2]["id"] == "ghostwield", "the arena's sword has Whirlwind, Leap and Ghostwield on buttons one, two and three")
-	_check(not ("hook" in p.weapon["line"]) and SwingBuild.FITTINGS["hook"].get("parked", false), "Hook is off the sword and out of the forge, waiting for the hammer")
+	_check(not ("hook" in p.weapon["line"]) and not SwingBuild.fits("hook", "sword") and SwingBuild.fits("hook", "hammer"), "Hook is off the sword: it is the hammer's (this test still swings it from a sword, put there by hand)")
 
 	# --- Hook: one press pulls enemies in, then it has to recharge ---
 	# (Hook left the sword for the hammer on 11 November. Until the hammer is built

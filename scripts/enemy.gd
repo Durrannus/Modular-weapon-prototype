@@ -151,6 +151,7 @@ func _physics_process(delta: float) -> void:
 	if dead:
 		return
 	_tick_marks(delta)
+	_tick_stagger(delta)
 	flash = maxf(flash - delta, 0.0)
 	hit_anim += delta
 	if freeze > 0.0:
@@ -405,6 +406,44 @@ func apply_stun(duration: float) -> void:
 	stun_time = maxf(stun_time, duration)
 
 
+# Stagger (the hammer's passive rune, 15 November): a hammer's swings fill a meter
+# on the enemy. Full, it breaks: a heavy blow and a long stun (player.gd,
+# _add_stagger). The meter is the enemy's own, so two hammers fill it together.
+const STAGGER_FULL := 4.0       # in swings (a slam counts as one and a half)
+const STAGGER_HOLD := 3.0       # seconds without a hit before it starts to empty...
+const STAGGER_DRAIN := 2.0      # ...this fast, in swings a second
+var stagger := 0.0              # the meter, 0 to STAGGER_FULL
+var stagger_idle := 0.0         # seconds since it was last added to
+var staggered := 0.0            # seconds of a break's stun left; the meter stays empty meanwhile
+
+
+## Adds to the meter. True when that fills it: the caller then breaks it.
+func add_stagger(points: float) -> bool:
+	if dead or immune or staggered > 0.0 or points <= 0.0:
+		return false
+	stagger_idle = 0.0
+	stagger = minf(stagger + points, STAGGER_FULL)
+	return stagger >= STAGGER_FULL - 0.001
+
+
+## The meter breaks: it empties, and the enemy is stunned for `time` seconds.
+## (What nothing stuns, like the forge guardian, only takes the blow.)
+func stagger_break(time: float) -> void:
+	stagger = 0.0
+	stagger_idle = 0.0
+	apply_stun(time)
+	if stun_time > 0.0 or kind == "dummy":
+		staggered = maxf(staggered, time)
+
+
+func _tick_stagger(delta: float) -> void:
+	staggered = maxf(staggered - delta, 0.0)
+	if stagger > 0.0:
+		stagger_idle += delta
+		if stagger_idle > STAGGER_HOLD:
+			stagger = maxf(stagger - STAGGER_DRAIN * delta, 0.0)
+
+
 func _apply_damage(dmg: float, crit: bool, num_color: Color) -> void:
 	hp -= dmg
 	var n := DamageNumber.new()
@@ -611,21 +650,25 @@ func _head_y() -> float:
 
 ## Is it reeling with stars round its head?
 func _starry() -> bool:
-	return stun_time > 0.0
+	return stun_time > 0.0 or staggered > 0.0
 
 
 ## Stars and the health bar, above the head.
 func _draw_over(ci: CanvasItem) -> void:
 	if _starry():
-		var stars := Art.piece("stun_stars")
+		# (A Stagger break has its own stars, in the rune's colour.)
+		var which := "stagger_stars" if staggered > 0.0 and Art.piece_texture("stagger_stars") != null else "stun_stars"
+		var stars := Art.piece(which)
 		var n := int(stars.get("frames", 6))
-		if not Art.draw_piece(ci, "stun_stars", int(Time.get_ticks_msec() / 1000.0 * float(stars.get("fps", 10))) % maxi(n, 1), Vector2(0, _head_y() - 10.0)):
+		if not Art.draw_piece(ci, which, int(Time.get_ticks_msec() / 1000.0 * float(stars.get("fps", 10))) % maxi(n, 1), Vector2(0, _head_y() - 10.0)):
 			for i in 3:
 				var ang := Time.get_ticks_msec() / 150.0 + i * TAU / 3.0
 				ci.draw_circle(Vector2(cos(ang), sin(ang) * 0.4) * radius * 0.8 + Vector2(0, -radius - 6.0), 2.5, Color(1.0, 0.95, 0.5))
 	var bar := show_bar and hp < max_hp and kind != "dummy" and not dead
 	if bar:
 		_draw_bar(ci)
+	if stagger > 0.0 and not dead:
+		_draw_stagger(ci)
 	if held and not dead:
 		_draw_held_mark(ci, _bar_y() - 4.0 if bar else _head_y() - 6.0)
 
@@ -641,6 +684,24 @@ func _draw_held_mark(ci: CanvasItem, y: float) -> void:
 ## Where the top of the health bar is (the stars circle between the head and the bar).
 func _bar_y() -> float:
 	return _head_y() - 18.0 - (22.0 if _starry() else 0.0)
+
+
+## The Stagger meter, right under where the health bar is.
+func _draw_stagger(ci: CanvasItem) -> void:
+	var frac := clampf(stagger / STAGGER_FULL, 0.0, 1.0)
+	var frame := Art.texture("hud/stagger_frame.png")
+	var fill := Art.texture("hud/stagger_fill.png")
+	var at := Vector2(-13.0 * Art.PIXEL, _bar_y() + 5.0 * Art.PIXEL)
+	if frame == null or fill == null:
+		ci.draw_rect(Rect2(at, Vector2(26.0, 3.0) * Art.PIXEL), Color(0, 0, 0, 0.6))
+		ci.draw_rect(Rect2(at + Vector2(2, 1) * Art.PIXEL, Vector2(22.0 * frac, 1.0) * Art.PIXEL), Color("#a8b8ff"))
+		return
+	ci.draw_set_transform(at, 0.0, Vector2(Art.PIXEL, Art.PIXEL))
+	ci.draw_texture(frame, Vector2.ZERO)
+	var fw := roundf(22.0 * frac)
+	if fw > 0.0:
+		ci.draw_texture_rect_region(fill, Rect2(2, 1, fw, 2), Rect2(0, 0, fw, 2))
+	ci.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 
 func _draw_bar(ci: CanvasItem) -> void:

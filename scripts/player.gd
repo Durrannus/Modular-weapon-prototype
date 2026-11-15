@@ -399,6 +399,11 @@ func set_weapon(stats: Dictionary) -> void:
 	_end_ghost(true)
 	steady_rune = _steady_rune()
 	_drop_steady()
+	momentum_rune = _momentum_rune()
+	stagger_rune = _stagger_rune()
+	_drop_momentum()
+	rumbles.clear()
+	_end_bulwark(true)
 	cast_weak = false
 	dodge_arrow = false
 	snipe_button = -1
@@ -431,11 +436,16 @@ func _physics_process(delta: float) -> void:
 	_run_leap()
 	_run_ghost(delta)
 	_run_rains()
+	_run_rumbles()
+	_update_momentum(delta)
+	_update_bulwark(delta)
 	_update_mana(delta)
 	if is_down:
 		_stop_hold(true)
 		snipe_button = -1
 		_drop_steady()
+		_drop_momentum()
+		_end_bulwark(true)
 		_refill_abilities(delta)
 		walk_vel = Vector2.ZERO
 		hurt_vel = hurt_vel.move_toward(Vector2.ZERO, 1800.0 * delta)
@@ -564,6 +574,7 @@ func _update_dodge(delta: float, move: Vector2) -> void:
 		_dust(global_position + FEET)
 		Sfx.play(self, "dodge", -12.0)
 		_trigger("dodge", [])
+		_dodge_counts()
 
 
 # --- Combo ------------------------------------------------------------------
@@ -710,7 +721,8 @@ func _do_move(move: String) -> void:
 		_cast(info)
 		return
 	var area := 1.0 + float(weapon.get("area", 0.0))
-	var dmg: float = float(weapon.get("damage", 4.0)) * float(info["power"])
+	# (Momentum: each step built up makes the swing hit harder.)
+	var dmg: float = float(weapon.get("damage", 4.0)) * float(info["power"]) * (1.0 + momentum_bonus())
 	var knock: float = info["knock"]
 	var stun: float = float(info.get("stun", 0.12))
 	var freeze: float = float(info.get("freeze", 0.05))
@@ -723,11 +735,15 @@ func _do_move(move: String) -> void:
 	var shape := str(info["shape"])
 	var swing := {"shape": shape, "dir": dir, "reach": reach,
 		"half_arc": deg_to_rad(float(info.get("arc", 120.0)) * 0.5), "width": float(info.get("width", 16.0))}
+	# Where it lands: an Aftershock rumbles there.
+	last_impact = global_position + dir * reach * (IMPACT_AT if shape == "impact" else 0.7)
 	var found := _swing_hits(info, dir, reach)
 	for f in found:
 		_hit_enemy(f[1], dmg, f[2], knock, stun, freeze, swing)
 		hit_list.append(f[1])
+		_add_stagger(f[1], float(info["power"]))
 	var hits := hit_list.size()
+	_add_momentum(hits)
 
 	if shape == "impact":
 		# Where a hammer lands: the floor takes it, and the patch it hit shows.
@@ -1043,7 +1059,17 @@ func _repeat_gap(id: String, why: String) -> float:
 		"arrow_rain":
 			# The second shower comes as the first one ends.
 			return SwingBuild.RAIN_DODGE_TIME if why == "dodge" else float(SwingBuild.FITTINGS[id]["time"])
+		"aftershock":
+			return SwingBuild.AFTERSHOCK_GAP
+		"quake":
+			return SwingBuild.QUAKE_GAP
 	return REPEAT_GAP
+
+
+## Runes whose Twice is one bigger firing, not two firings: Weak Point (two marks),
+## Ricochet (two jumps), Bulwark (the stun lasts twice as long).
+static func _fires_once(id: String) -> bool:
+	return id in ["weak_point", "ricochet", "bulwark"]
 
 
 ## Pierce and Steady Aim's burst change an arrow of the chain as it leaves the bow.
@@ -1404,6 +1430,362 @@ func _rain_arrow(where: Vector2, landed: bool) -> void:
 		_strip("rain_hit", where)
 
 
+# --- The hammer's runes --------------------------------------------------------------
+# Momentum, Stagger and Aftershock are passive; Quake, Bulwark and Hook go on the
+# ability buttons. Momentum and Stagger don't "fire": Momentum builds on you with
+# every swing that lands, and Stagger fills a meter on each enemy you hit. What a
+# rune hits (a rumble, an eruption, a break) never crits and sets nothing else off.
+
+var momentum := 0             # Momentum: how many of its five steps are lit
+var momentum_rune := {}       # what the hammer's Momentum runes come to ({} with none): see _momentum_rune
+var momentum_count := 0       # Saved Up on Momentum: hits counted towards the next step
+var momentum_idle := 0.0      # seconds since a hit last landed
+var momentum_full := false    # it is at its most (said once, when it gets there)
+var stagger_rune := {}        # the same for Stagger: see _stagger_rune
+var last_impact := Vector2.ZERO   # where the last swing landed
+var rumbles: Array = []       # Aftershock's rumbles on their way: [{at, where, scale, dmg, col}]
+var quake_targets: Array = [] # enemies a Quake has already erupted under in this burst
+var quake_burst := -9.0       # game_time the last eruption of a burst went off
+var bulwark_left := 0.0       # seconds of Bulwark's shield left (0: it isn't up)
+var bulwark_total := 1.0      # how long this one was put up for (the HUD's bar)
+var bulwark_stun := 1.5       # how long it stuns whoever hits it
+var bulwark_blocked := -9.0   # game_time it last stopped a hit
+var bulwark_fx: Node2D = null # the shield's picture
+const BULWARK_BLOCK_GAP := 0.3   # an enemy leaning on the shield is stopped (and stunned) this often at most
+const QUAKE_AIM := 300.0         # picking Quake's enemy: being a radian off the aim counts as this many px further away
+var stagger_said := -9.0         # game_time "STAGGER!" was last written (one swing can break several meters)
+
+
+## What the hammer's Momentum runes come to together ({} with none).
+##   gain: steps for each swing that lands   every: Saved Up, a step for every so many
+##   step: what one step adds to a swing     per_hit: every enemy a swing catches counts
+##   dodge: a dodge counts as a hit
+func _momentum_rune() -> Dictionary:
+	var out := {}
+	var effects: Array = weapon.get("effects", [])
+	for i in effects.size():
+		var e: Dictionary = effects[i]
+		if e["id"] != "momentum":
+			continue
+		if out.is_empty():
+			out = {"gain": 0, "every": 1, "step": 0.0, "per_hit": false, "dodge": false, "effects": []}
+		out["gain"] = int(out["gain"]) + int(e["count"])
+		out["every"] = maxi(int(out["every"]), int(e.get("every", 1)))
+		out["step"] = maxf(float(out["step"]), SwingBuild.momentum_step(e))
+		out["per_hit"] = out["per_hit"] or e.get("per_hit", false)
+		out["dodge"] = out["dodge"] or "dodge" in e.get("also", [])
+		out["effects"].append(i)
+	return out
+
+
+## How much harder a swing hits for the Momentum built up (0.4 is +40%).
+func momentum_bonus() -> float:
+	return 0.0 if momentum_rune.is_empty() else float(momentum) * float(momentum_rune["step"])
+
+
+## A swing landed on `landed` enemies (or a dodge counted as one): more Momentum.
+## One swing is one step however many it catches, unless the rune has Every Hit.
+func _add_momentum(landed: int) -> void:
+	if momentum_rune.is_empty() or landed <= 0 or is_down:
+		return
+	momentum_idle = 0.0
+	var gain := int(momentum_rune["gain"]) * (landed if momentum_rune["per_hit"] else 1)
+	var every := int(momentum_rune["every"])
+	if every > 1:
+		momentum_count += gain
+		@warning_ignore("integer_division")
+		gain = momentum_count / every
+		momentum_count %= every
+	if gain <= 0 or momentum >= SwingBuild.MOMENTUM_STEPS:
+		return
+	momentum = mini(momentum + gain, SwingBuild.MOMENTUM_STEPS)
+	for i in momentum_rune["effects"]:
+		_flash_effect(i)
+	Sfx.play(self, "click", -14.0, 0.9 + 0.12 * float(momentum))
+	if momentum >= SwingBuild.MOMENTUM_STEPS and not momentum_full:
+		momentum_full = true
+		_label("MOMENTUM +%d%%!" % roundi(momentum_bonus() * 100.0), SwingBuild.FITTINGS["momentum"]["color"])
+
+
+func _drop_momentum() -> void:
+	momentum = 0
+	momentum_count = 0
+	momentum_idle = 0.0
+	momentum_full = false
+
+
+## Stop hitting and Momentum drains away: after a wait, a step at a time.
+func _update_momentum(delta: float) -> void:
+	if momentum <= 0:
+		return
+	momentum_idle += delta
+	if momentum_idle >= SwingBuild.MOMENTUM_HOLD + SwingBuild.MOMENTUM_DRAIN:
+		momentum_idle -= SwingBuild.MOMENTUM_DRAIN
+		momentum -= 1
+		momentum_full = false
+
+
+## Momentum's chevrons round the feet: one lit for each step.
+func _draw_momentum_ring() -> void:
+	if momentum_rune.is_empty() or is_down or (momentum <= 0 and current_step < 0):
+		return
+	var col: Color = SwingBuild.FITTINGS["momentum"]["color"]
+	var tex := BowArt.fx_texture("momentum_ring")
+	var info := BowArt.fx("momentum_ring")
+	if tex == null or info.is_empty():
+		under_bright.draw_set_transform(FEET, 0.0, Vector2(1.0, 0.45))
+		under_bright.draw_arc(Vector2.ZERO, 22.0, -PI * 0.5, -PI * 0.5 + TAU * float(momentum) / float(SwingBuild.MOMENTUM_STEPS), 24, col, 2.0)
+		under_bright.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+		return
+	var size: Array = info.get("frame", [48, 24])
+	var o: Array = info.get("origin", [24, 12])
+	under_bright.draw_set_transform(FEET, 0.0, Vector2(Art.PIXEL, Art.PIXEL))
+	under_bright.draw_texture_rect_region(tex, Rect2(-float(o[0]), -float(o[1]), float(size[0]), float(size[1])),
+		Rect2(float(momentum) * float(size[0]), 0, float(size[0]), float(size[1])))
+	under_bright.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+
+
+## What the hammer's Stagger runes come to together ({} with none).
+##   gain: how much of a swing each swing adds to the meter (Twice: 2; Saved Up: a third)
+##   power: Saved Up's break is three times the blow and the stun
+##   size: Wider, the break also stuns what is near   dodge: a dodge past an enemy counts as a hit
+func _stagger_rune() -> Dictionary:
+	var out := {}
+	var effects: Array = weapon.get("effects", [])
+	for i in effects.size():
+		var e: Dictionary = effects[i]
+		if e["id"] != "stagger":
+			continue
+		if out.is_empty():
+			out = {"gain": 0.0, "power": 1.0, "size": 1.0, "dodge": false, "effects": []}
+		out["gain"] = float(out["gain"]) + float(e["count"]) / float(maxi(int(e.get("every", 1)), 1))
+		out["power"] = maxf(float(out["power"]), float(e.get("power", 1.0)))
+		out["size"] = maxf(float(out["size"]), float(e["size"]))
+		out["dodge"] = out["dodge"] or "dodge" in e.get("also", [])
+		out["effects"].append(i)
+	return out
+
+
+## A swing of yours landed on `e` (points: 1 for a swing, 1.5 for a slam): its
+## Stagger meter fills. Full, it breaks: a heavy blow, and the enemy is stunned.
+func _add_stagger(e, points: float) -> void:
+	if stagger_rune.is_empty() or not is_instance_valid(e) or e.dead:
+		return
+	if not e.add_stagger(points * float(stagger_rune["gain"])):
+		return
+	var power := maxf(float(stagger_rune["power"]), 1.0)
+	var size := float(stagger_rune["size"])
+	var col: Color = SwingBuild.FITTINGS["stagger"]["color"]
+	var time := SwingBuild.STAGGER_STUN * power
+	var at: Vector2 = e.global_position
+	for i in stagger_rune["effects"]:
+		_flash_effect(i)
+	_strip("stagger_break", at + Vector2(0, -float(e.radius) * 0.3), 0.0, 1.0 + 0.3 * (power - 1.0) / 2.0)
+	e.stagger_break(time)
+	# (The blow keeps the shove the swing just gave it.)
+	var kept: Vector2 = e.knock
+	e.take_hit(float(weapon.get("damage", 8.0)) * SwingBuild.STAGGER_DAMAGE * power, (at - global_position).normalized(), 0.0, false, col, 0.0, 0.08)
+	if is_instance_valid(e) and not e.dead:
+		e.knock = kept
+	# Wider: the break stuns what stands near it too.
+	if size > 1.0:
+		var ring := RuneFx.new()
+		ring.kind = "ring"
+		ring.size = SwingBuild.STAGGER_REACH * size
+		ring.color = col
+		ring.life = 0.25
+		_fx_root().add_child(ring)
+		ring.global_position = at
+		for o in get_tree().get_nodes_in_group("enemies"):
+			if o == e or not is_instance_valid(o) or o.dead or o.immune:
+				continue
+			if o.global_position.distance_to(at) <= SwingBuild.STAGGER_REACH * size + float(o.radius):
+				o.stagger_break(time)
+	shake = maxf(shake, 8.0)
+	Sfx.play(self, "finisher", -5.0, 1.6)
+	if game_time - stagger_said > 0.3:
+		stagger_said = game_time
+		_label("STAGGER!" if power <= 1.0 else "STAGGER x3!", col)
+
+
+## On Dodge on Momentum and Stagger: a dodge counts as a hit (for Stagger, on the
+## enemy the dodge passes).
+func _dodge_counts() -> void:
+	if momentum_rune.get("dodge", false):
+		_add_momentum(1)
+	if stagger_rune.get("dodge", false):
+		var passed = _dodge_passes()
+		if passed != null:
+			_add_stagger(passed, 1.0)
+
+
+## Aftershock: the ground at `where` trembles, and a moment later it rumbles and
+## hurts whatever is still near.
+func _rumble(where: Vector2, patch: float, dmg: float, col: Color) -> void:
+	rumbles.append({"at": game_time + SwingBuild.AFTERSHOCK_DELAY, "where": where, "scale": patch, "dmg": dmg, "col": col})
+	var crack := _strip("aftershock_crack", where, 0.0, patch)
+	if crack != null:
+		crack.life = SwingBuild.AFTERSHOCK_DELAY
+		crack.z_index = 0
+	Sfx.play(self, "rumble", -16.0, 1.5)
+
+
+func _run_rumbles() -> void:
+	var due: Array = []
+	for r in rumbles:
+		if float(r["at"]) <= game_time:
+			due.append(r)
+	for r in due:
+		rumbles.erase(r)
+		var where: Vector2 = r["where"]
+		var patch := float(r["scale"])
+		var burst := _strip("aftershock_burst", where, 0.0, patch)
+		if burst == null:
+			var ring := RuneFx.new()
+			ring.kind = "ring"
+			ring.size = SwingBuild.AFTERSHOCK_RADIUS * patch
+			ring.color = r["col"]
+			ring.life = 0.25
+			_fx_root().add_child(ring)
+			ring.global_position = where
+		var struck := 0
+		for e in get_tree().get_nodes_in_group("enemies"):
+			if not is_instance_valid(e) or e.dead:
+				continue
+			var rel: Vector2 = e.global_position - where
+			if rel.length() > SwingBuild.AFTERSHOCK_RADIUS * patch + float(e.radius):
+				continue
+			e.take_hit(float(r["dmg"]), rel.normalized() if rel.length() > 1.0 else Vector2.UP, 110.0, false, r["col"], SwingBuild.AFTERSHOCK_STUN, 0.05)
+			struck += 1
+		shake = maxf(shake, (6.0 if struck > 0 else 3.0) * minf(patch, 2.0))
+		Sfx.play(self, "slam", -9.0 if struck > 0 else -15.0, 1.3 / sqrt(maxf(patch, 0.5)))
+
+
+## Quake: the ground erupts under the enemy nearest your aim, and catches whatever
+## stands close to it. With nobody in range it erupts a little way in front of you.
+func _quake(size: float, power: float, col: Color) -> void:
+	if game_time - quake_burst > 1.0:
+		quake_targets.clear()
+	quake_burst = game_time
+	var best = null
+	var best_score := INF
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if not is_instance_valid(e) or e.dead or e.immune:
+			continue
+		var rel: Vector2 = e.global_position - global_position
+		var d := rel.length()
+		if d > SwingBuild.QUAKE_RANGE + float(e.radius):
+			continue
+		# Someone new beats someone it has already erupted under in this burst.
+		# Then it is the one you are pointing at: how far off your aim counts for
+		# more than how far away (a radian off is worth QUAKE_AIM px), and anyone
+		# behind you comes last.
+		var off := absf(aim_dir.angle_to(rel)) if d > 1.0 else 0.0
+		var score := d + off * QUAKE_AIM + (1000.0 if off > PI * 0.5 else 0.0) + (5000.0 if e in quake_targets else 0.0)
+		if score < best_score:
+			best_score = score
+			best = e
+	var spot := global_position + aim_dir * SwingBuild.QUAKE_EMPTY + FEET
+	if best != null:
+		quake_targets.append(best)
+		spot = best.global_position + best._feet()
+	if _strip("quake_erupt", spot, 0.0, size) == null:
+		var ring := RuneFx.new()
+		ring.kind = "ring"
+		ring.size = SwingBuild.QUAKE_RADIUS * size
+		ring.color = col
+		ring.life = 0.25
+		_fx_root().add_child(ring)
+		ring.global_position = spot
+	var dmg := float(weapon.get("damage", 8.0)) * SwingBuild.QUAKE_DAMAGE * power
+	var struck := 0
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if not is_instance_valid(e) or e.dead:
+			continue
+		var rel: Vector2 = e.global_position + e._feet() - spot
+		if rel.length() > SwingBuild.QUAKE_RADIUS * size + float(e.radius):
+			continue
+		e.take_hit(dmg, rel.normalized() if rel.length() > 4.0 else Vector2.UP, 150.0, false, col, SwingBuild.QUAKE_STUN, 0.08)
+		e.apply_stun(SwingBuild.QUAKE_STUN)
+		struck += 1
+	shake = maxf(shake, (9.0 if struck > 0 else 4.0) * minf(size, 1.6))
+	Sfx.play(self, "slam", -5.0 if struck > 0 else -11.0, 1.1 / sqrt(size))
+
+
+## Bulwark: a shield for `time` seconds. Nothing that comes from somewhere hurts
+## you, and whoever hits it is stunned for `stun` seconds.
+func _bulwark(time: float, stun: float, col: Color) -> void:
+	if is_down:
+		return
+	if is_instance_valid(bulwark_fx):
+		bulwark_fx.queue_free()
+	bulwark_left = maxf(bulwark_left, time)
+	bulwark_total = bulwark_left
+	bulwark_stun = maxf(stun, bulwark_stun if bulwark_left > time else 0.0)
+	bulwark_fx = _strip("bulwark_shield", global_position)
+	if bulwark_fx != null:
+		bulwark_fx.follow = self
+		bulwark_fx.life = bulwark_left
+	else:
+		bulwark_fx = RuneFx.new()
+		bulwark_fx.kind = "ring"
+		bulwark_fx.size = 30.0
+		bulwark_fx.color = col
+		bulwark_fx.life = bulwark_left
+		bulwark_fx.from_node = self
+		_fx_root().add_child(bulwark_fx)
+		bulwark_fx.global_position = global_position
+	Sfx.play(self, "ghost", -6.0, 1.5)
+
+
+func _update_bulwark(delta: float) -> void:
+	if bulwark_left <= 0.0:
+		return
+	bulwark_left -= delta
+	if bulwark_left <= 0.0:
+		_end_bulwark()
+
+
+## quiet: it is taken away (a new weapon, a knock-out), not run out.
+func _end_bulwark(quiet := false) -> void:
+	var was := bulwark_left > 0.0 or is_instance_valid(bulwark_fx)
+	bulwark_left = 0.0
+	if is_instance_valid(bulwark_fx):
+		bulwark_fx.queue_free()
+	bulwark_fx = null
+	if was and not quiet:
+		var gone := _strip("bulwark_end", global_position)
+		if gone != null:
+			gone.follow = self
+		Sfx.play(self, "ghost", -12.0, 0.8)
+
+
+## The shield stops a hit that came from `from`. Whoever stands there is stunned
+## and shoved back a little.
+func _bulwark_block(from: Vector2) -> void:
+	if game_time - bulwark_blocked < BULWARK_BLOCK_GAP:
+		return
+	bulwark_blocked = game_time
+	var col: Color = SwingBuild.FITTINGS["bulwark"]["color"]
+	var away := (from - global_position).normalized() if from.distance_to(global_position) > 0.5 else Vector2.RIGHT
+	_strip("bulwark_block", global_position + away * 20.0 + Vector2(0, -8), away.angle())
+	var best = null
+	var best_d := 70.0
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if not is_instance_valid(e) or e.dead:
+			continue
+		var d: float = e.global_position.distance_to(from) - float(e.radius)
+		if d < best_d:
+			best_d = d
+			best = e
+	if best != null:
+		best.apply_stun(bulwark_stun)
+		best.knock = away * 220.0 * float(best.knock_resist)
+	shake = maxf(shake, 5.0)
+	Sfx.play(self, "anvil", -10.0, 1.6)
+	_label("BLOCKED!", col)
+
+
 ## How far this move reaches from the player's centre.
 func _move_reach(info: Dictionary) -> float:
 	if not weapon.has("blade"):
@@ -1522,7 +1904,8 @@ func _trigger(trigger: String, hits: Array, ghost: Dictionary = {}) -> Array:
 			continue
 		# The bow's passive runes don't fire like this (see "The bow's runes"): only
 		# a dodge sends a Ricochet through here.
-		if e["id"] in ["pierce", "steady_aim"] or (e["id"] == "ricochet" and trigger != "dodge"):
+		# Nor do Momentum and Stagger, which build hit by hit (see "The hammer's runes").
+		if e["id"] in ["pierce", "steady_aim", "momentum", "stagger"] or (e["id"] == "ricochet" and trigger != "dodge"):
 			continue
 		# Saved Up: count the triggers and only fire on every third one. The ghost
 		# doesn't count: it copies a saved-up rune when the swing it copies set it off.
@@ -1539,7 +1922,7 @@ func _trigger(trigger: String, hits: Array, ghost: Dictionary = {}) -> Array:
 		var power := float(e.get("power", 1.0)) * (1.0 if ghost.is_empty() else float(ghost["power"]))
 		# (Twice on Weak Point is two marks from one firing, not two firings.)
 		# (And on Ricochet it is two jumps, not two arrows.)
-		for n in (1 if e["id"] in ["weak_point", "ricochet"] else int(e["count"])):
+		for n in (1 if _fires_once(str(e["id"])) else int(e["count"])):
 			_queue_rune(i, game_time + n * _repeat_gap(str(e["id"]), trigger), float(e["size"]), hits, power, false, trigger, not ghost.is_empty())
 	return fired
 
@@ -1549,13 +1932,14 @@ func _trigger(trigger: String, hits: Array, ghost: Dictionary = {}) -> Array:
 ## ghost: Ghostwield's copy of the rune (kept apart from the real one).
 func _queue_rune(effect: int, at: float, size: float, hits: Array, power := 1.0, held := false, why := "", ghost := false) -> void:
 	var id: String = weapon["effects"][effect]["id"]
+	# (where: the place the swing that set it off landed, for an Aftershock.)
 	for q in rune_queue:
 		if q["effect"] != effect and weapon["effects"][q["effect"]]["id"] == id and absf(float(q["at"]) - at) < 0.03 and q["held"] == held and q["ghost"] == ghost:
 			q["size"] = minf(maxf(float(q["size"]), size) * 1.3, SwingBuild.MAX_SIZE)
 			q["power"] = float(q["power"]) + power
 			q["merged"].append(effect)
 			return
-	rune_queue.append({"at": at, "effect": effect, "size": size, "power": power, "hits": hits.duplicate(), "merged": [], "held": held, "why": why, "ghost": ghost})
+	rune_queue.append({"at": at, "effect": effect, "size": size, "power": power, "hits": hits.duplicate(), "merged": [], "held": held, "why": why, "ghost": ghost, "where": last_impact})
 
 
 func _run_rune_queue() -> void:
@@ -1708,6 +2092,22 @@ func _fire_rune_now(q: Dictionary) -> void:
 				if snipe_perfect:
 					_label("PERFECT SNIPE!", col)
 					return
+		"aftershock":
+			# Where the swing landed (On Dodge: where the dodge began). Every Hit's are
+			# small ones, Saved Up's huge.
+			var f: Dictionary = weapon["effects"][effect]
+			var dodged: bool = q.get("why", "") == "dodge"
+			var patch := size * (SwingBuild.AFTERSHOCK_HUGE if power >= SwingBuild.SAVED_UP_POWER else 1.0)
+			if f["trigger"] == "hit" and not dodged:
+				patch *= SwingBuild.AFTERSHOCK_SMALL
+			_rumble(dodge_from + FEET if dodged else q.get("where", last_impact), patch, dmg * SwingBuild.AFTERSHOCK_DAMAGE * power, col)
+		"quake":
+			_quake(size, power * (SwingBuild.DODGE_SHARE if q.get("why", "") == "dodge" else 1.0), col)
+		"bulwark":
+			# (Twice: whoever hits it is stunned twice as long.)
+			var f: Dictionary = weapon["effects"][effect]
+			var times := mini(int(f["count"]) + (q["merged"] as Array).size(), SwingBuild.MAX_COUNT)
+			_bulwark(SwingBuild.bulwark_time(size, power, SwingBuild.BULWARK_DODGE if q.get("why", "") == "dodge" else -1.0), SwingBuild.BULWARK_STUN * times, col)
 		"arrow_rain":
 			var wide := SwingBuild.rain_scale(size)
 			# (Saved Up: much heavier arrows, and they pin what they hit.)
@@ -1761,6 +2161,8 @@ func _fire_rune_now(q: Dictionary) -> void:
 		var shown := power
 		if id == "snipe":
 			shown = 3.0 if int(weapon["effects"][effect].get("every", 1)) > 1 else 1.0
+		elif id == "quake" and q.get("why", "") == "dodge":
+			shown = 1.0   # (a dodge's is a half one: not worth a number)
 		_label(str(SwingBuild.FITTINGS[id]["name"]).to_upper() + ("!" if shown <= 1.0 else " x%s!" % str(snappedf(shown, 0.5)).trim_suffix(".0")), col)
 
 
@@ -1783,6 +2185,12 @@ func ability_ready(b: int) -> bool:
 	return b < _abilities().size() and float(ability_charge[b]) >= ability_cost(b) - 0.0001
 
 
+## Bulwark's button while its shield is up: like a spin that's going it is in use,
+## and only starts to recharge when the shield drops.
+func _shield_up(ability: Dictionary) -> bool:
+	return bulwark_left > 0.0 and str(ability.get("id", "")) == "bulwark"
+
+
 ## The meters fill back up (not the one whose rune is going, and a hold rune's
 ## only after a short wait).
 func _refill_abilities(delta: float) -> void:
@@ -1791,7 +2199,7 @@ func _refill_abilities(delta: float) -> void:
 		if b >= list.size():
 			ability_charge[b] = 1.0
 			ability_wait[b] = 0.0
-		elif b != hold_button:
+		elif b != hold_button and not _shield_up(list[b]):
 			ability_wait[b] = maxf(float(ability_wait[b]) - delta, 0.0)
 			if float(ability_wait[b]) <= 0.0:
 				ability_charge[b] = minf(float(ability_charge[b]) + delta / float(list[b]["recharge"]), 1.0)
@@ -1868,7 +2276,7 @@ func _update_abilities(delta: float) -> void:
 			for i in a["effects"]:
 				var e: Dictionary = weapon["effects"][i]
 				var gap := _repeat_gap(str(e["id"]), "")
-				for n in int(e["count"]):
+				for n in (1 if _fires_once(str(e["id"])) else int(e["count"])):
 					_queue_rune(i, game_time + n * gap, float(e["size"]), [], float(e.get("power", 1.0)))
 
 
@@ -1884,6 +2292,8 @@ func _hit_refund() -> void:
 			continue
 		# (Nor for a ghost that is still out: like a spin that's going, it is in use.)
 		if b == ghost_button and ghost_left > 0.0:
+			continue
+		if _shield_up(list[b]):
 			continue
 		ability_charge[b] = minf(float(ability_charge[b]) + seconds / float(list[b]["recharge"]), 1.0)
 		ability_refunded[b] = game_time
@@ -2477,7 +2887,14 @@ func _steam(target, dmg: float) -> void:
 
 ## from: where the hit came from (you're knocked away from it).
 func take_damage(amount: float, from: Vector2 = Vector2.INF) -> void:
-	if invuln > 0.0 or is_down or unhurt:
+	if invuln > 0.0 or is_down:
+		return
+	# Bulwark stops a hit that comes from somewhere, and stuns whoever dealt it.
+	# (Also with the arena's Invincible switch on, so the rune can be tried there.)
+	if bulwark_left > 0.0 and from != Vector2.INF:
+		_bulwark_block(from)
+		return
+	if unhurt:
 		return
 	hp -= amount
 	invuln = 0.8
@@ -2634,6 +3051,7 @@ func _draw_shadow() -> void:
 ## Two players: a coloured ring under the feet says who is who.
 func _draw_ring() -> void:
 	_draw_steady_ring()
+	_draw_momentum_ring()
 	if not show_marker:
 		return
 	var fade := Color(1, 1, 1, 0.45 if is_down else 1.0)

@@ -34,6 +34,7 @@ var arrows_seen := {}          # every arrow that flew in the arena run
 var runes_seen := {}           # the bow's runes that went off in the arena run
 var bolts_seen := {}           # the staff's bolts in the arena run
 var hammer_ticks := 0          # ticks someone spent swinging a hammer there
+var hammer_runes := {}         # the hammer's runes that went off there
 var weak_ticks := 0            # ticks a staff was out of mana
 var forged := {}               # the weapons this player changed at the forge there (hammer, staff)
 var second_held := 0           # ticks the second ability button stays down
@@ -179,6 +180,20 @@ func _arena_tick() -> void:
 			runes_seen["arrow_rain"] = true
 		if p.weapon.get("weapon") == "hammer" and p.current_step >= 0:
 			hammer_ticks += 1
+		if p.weapon.get("weapon") == "hammer":
+			if not p.rumbles.is_empty():
+				hammer_runes["aftershock"] = true
+			if p.bulwark_left > 0.0:
+				hammer_runes["bulwark"] = true
+			if p.momentum > 0:
+				hammer_runes["momentum"] = true
+			for e in get_nodes_in_group("enemies"):
+				if e.stagger > 0.0 or e.staggered > 0.0:
+					hammer_runes["stagger"] = true
+			var buttons: Array = p.weapon.get("abilities", [])
+			for b in buttons.size():
+				if p.game_time - float(p.ability_used[b]) < 0.1:
+					hammer_runes[str(buttons[b]["id"])] = true
 		if p.weapon.get("weapon") == "staff" and p.cast_weak:
 			weak_ticks += 1
 	if frame > 60 * 40:
@@ -187,6 +202,10 @@ func _arena_tick() -> void:
 		for id in ["volley", "snipe", "arrow_rain", "ricochet"]:
 			if not runes_seen.has(id):
 				print("FAIL: the bow's %s never went off" % id)
+				runes = false
+		for id in ["quake", "bulwark", "hook", "aftershock", "momentum", "stagger"]:
+			if not hammer_runes.has(id):
+				print("FAIL: the hammer's %s never went off" % id)
 				runes = false
 		if bolts_seen.size() < 6 or hammer_ticks < 60:
 			print("FAIL: the hammer or the staff was hardly used (%d ticks of swinging, %d bolts)" % [hammer_ticks, bolts_seen.size()])
@@ -251,6 +270,13 @@ func _arena_tick() -> void:
 					if staff:
 						forge.build.set_arrows("tin_crystal")
 					forge.build.set_pommel("keen_cap" if staff else "keen_weight")
+					if not staff:
+						# The hammer's two runes that build up, so both computers
+						# count the same Momentum and fill the same Stagger meters.
+						forge.selected = 2
+						forge._put("momentum")
+						forge.selected = 1
+						forge._put("stagger")
 					arena_step = 3
 				else:
 					forge.close()
@@ -325,7 +351,7 @@ func _report(ok: bool) -> void:
 		ok = false
 	if arena:
 		print("        bow runes that went off: %s" % ", ".join(runes_seen.keys()))
-		print("        hammer: %d ticks of swinging; staff: %d bolts, %d ticks out of mana" % [hammer_ticks, bolts_seen.size(), weak_ticks])
+		print("        hammer: %d ticks of swinging, runes that went off: %s; staff: %d bolts, %d ticks out of mana" % [hammer_ticks, ", ".join(hammer_runes.keys()), bolts_seen.size(), weak_ticks])
 		print("%s: arena, %d kills, %d arrows shot, weapons %s" % ["PASS" if ok else "FAIL", m.kills, arrows_seen.size(), str([m.builds[0].get_data(), m.builds[1].get_data()])])
 	print("[%s] %s at tick %d (waited on %d frames, %.0f s on the clock), last checksum %d" % [role, "ok" if ok else "FAILED", session.tick, session.waits, float(Time.get_ticks_msec() - started) / 1000.0, int(session._hashes.get(session._last_hash_tick, 0))])
 	result_ok = ok

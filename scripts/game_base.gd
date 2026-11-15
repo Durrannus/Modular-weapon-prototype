@@ -246,7 +246,8 @@ func net_state() -> Array:
 	for p in players:
 		out.append_array([p.global_position, p.hp, p.is_down, p.current_step, p.step_index, p.dodge_charges, p.invuln, p.walk_vel, p.aim_dir, p.frozen,
 			p.ability_charge[0], p.ability_charge[1], p.ability_charge[2], p.hold_button, p.hold_left, p.weak_marks.size(),
-			p.ghost_left, p.ghost_swings.size(), p.steady, p.snipe_button, p.snipe_t, p.rains.size(), p.mana, p.cast_weak])
+			p.ghost_left, p.ghost_swings.size(), p.steady, p.snipe_button, p.snipe_t, p.rains.size(), p.mana, p.cast_weak,
+			p.momentum, p.momentum_idle, p.rumbles.size(), p.bulwark_left])
 	for b in builds:
 		out.append(b.get_data())
 	for a in get_tree().get_nodes_in_group("arrows"):
@@ -254,7 +255,7 @@ func net_state() -> Array:
 			out.append_array([a.global_position, a.left, a.flying])
 	for e in get_tree().get_nodes_in_group("foes"):
 		if is_instance_valid(e) and not e.is_queued_for_deletion():
-			out.append_array([e.kind, e.global_position, e.hp, e.dead, e.knock])
+			out.append_array([e.kind, e.global_position, e.hp, e.dead, e.knock, e.stagger, e.staggered])
 	return out
 
 

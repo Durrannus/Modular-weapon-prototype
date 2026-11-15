@@ -10,8 +10,11 @@ const SwingBuild := preload("res://scripts/weapon/swing_build.gd")
 const Player := preload("res://scripts/player.gd")
 const Art := preload("res://scripts/art.gd")
 
-## The runes the forge offers a hammer (none until they are built).
-const RUNES := []
+## The runes the forge offers a hammer: its three passive ones, then its three active ones.
+const RUNES := ["momentum", "stagger", "aftershock", "quake", "bulwark", "hook"]
+## An iron maul with nothing in its slots (the arena's test hammer carries runes;
+## this test is about the hammer itself, and tests/hammer_runes.gd has the runes).
+const BARE := ["iron_maul", "bound_haft", "plain_weight", ["", "", "", ""]]
 
 var m
 var p
@@ -225,7 +228,7 @@ func _run() -> void:
 	for i in tray.size():
 		if tray[i]["id"] in ["iron_warhammer", "studded_haft", "keen_weight"]:
 			forge._use_card(i)
-	_check(m.build.get_data() == ["iron_warhammer", "studded_haft", "keen_weight", ["", "", "", "", ""]], "clicking a head, a haft and a counterweight fits them: %s" % [m.build.get_data()])
+	_check(m.build.get_data() == ["iron_warhammer", "studded_haft", "keen_weight", ["quake", "bulwark", "", "hook", "aftershock"]], "clicking a head, a haft and a counterweight fits them, and the runes keep their places (a new slot on the haft): %s" % [m.build.get_data()])
 	_check(_near(float(p.weapon["damage"]), 16.5) and p.weapon["steps"][0]["move"] == "crush" and p.weapon["line"].size() == 5, "and the hammer in your hand is that warhammer: 16.5 a blow, five slots")
 	forge._load_test("A")
 	_check(m.build.weapon() == "hammer", "the test-sword keys do nothing while a hammer is on the anvil")
@@ -244,7 +247,7 @@ func _run() -> void:
 	await _frames(2)
 	_check(m.build.get_data() == hammer_b and m.build.preset == 1 and m.build.preset_sword(0) == hammer_a, "back on the hammer: still on its preset B, with A waiting")
 	m.build.use_preset(0)
-	m.build.set_data(test_hammer)
+	m.build.set_data(BARE)
 	m.build.changed.emit()
 	await _still()
 
@@ -397,7 +400,7 @@ func _run() -> void:
 	_check(ratio > 1.1 and ratio < 1.3, "the iron maul does %.1f a second, the iron broadsword %.1f: about a fifth more (%.2f)" % [maul_dps, sword_dps, ratio])
 	m.swap_weapon(0, "hammer")
 	await _frames(2)
-	_check(m.build.get_data() == test_hammer, "and back on the hammer it is as it was")
+	_check(m.build.get_data() == BARE, "and back on the hammer it is as it was")
 
 	print("RESULT: %s (%d failed)" % ["all passed" if fails == 0 else "FAILED", fails])
 	quit(1 if fails > 0 else 0)

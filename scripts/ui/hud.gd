@@ -321,16 +321,22 @@ func _draw_abilities(p, right: bool, x: float, y: float, block_w: float) -> void
 		var glyph := Art.texture("hud/glyph_%s.png" % a["id"])
 		# Ghostwield: while its ghost is out the glyph stays lit, and a bar runs down under it.
 		var ghost_out: bool = a["id"] == "ghostwield" and p.ghost_button == b and p.ghost_left > 0.0
+		# Bulwark the same, while its shield is up.
+		var shield_out: bool = a["id"] == "bulwark" and p.bulwark_left > 0.0
+		var out_col: Color = SwingBuild.FITTINGS["bulwark"]["color"] if shield_out else GHOST
+		var out_left := clampf(float(p.bulwark_left) / maxf(float(p.bulwark_total), 0.1), 0.0, 1.0) if shield_out else 0.0
+		if ghost_out:
+			out_left = clampf(float(p.ghost_left) / maxf(float(p.ghost_total), 0.1), 0.0, 1.0)
+		ghost_out = ghost_out or shield_out
 		var dim := Color.WHITE if ready or ghost_out else Color(0.55, 0.55, 0.6)
 		if glyph != null:
 			panel.draw_texture(glyph, Vector2(sx + 4, y + 4), dim)
 		else:
 			_head(str(a["id"]).substr(0, 1), Vector2(sx + 7, y + 14), AMBER if ready else FAINT)
 		if ghost_out:
-			var left := clampf(float(p.ghost_left) / maxf(float(p.ghost_total), 0.1), 0.0, 1.0)
-			panel.draw_rect(Rect2(sx + 1, y + 1, SLOT - 2, SLOT - 2), Color(GHOST.r, GHOST.g, GHOST.b, 0.9), false, 1.0)
+			panel.draw_rect(Rect2(sx + 1, y + 1, SLOT - 2, SLOT - 2), Color(out_col.r, out_col.g, out_col.b, 0.9), false, 1.0)
 			panel.draw_rect(Rect2(sx + 2, y + SLOT - 5, 16, 3), Color(0.06, 0.05, 0.1, 0.85))
-			panel.draw_rect(Rect2(sx + 2, y + SLOT - 5, ceilf(16.0 * left), 3), GHOST)
+			panel.draw_rect(Rect2(sx + 2, y + SLOT - 5, ceilf(16.0 * out_left), 3), out_col)
 		elif charge < 1.0:
 			# The art's eight frames: 0 just used, 7 nearly back.
 			if cool != null:

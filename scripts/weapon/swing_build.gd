@@ -364,7 +364,8 @@ const STARTERS := {
 	"staff": ["wooden_apprentice", "wooden_shaft", "plain_cap", [""], "sea_glass"],
 }
 const TEST_BOW := ["iron_shortbow", "wrapped_bow_grip", "plain_string", ["volley", "snipe", "arrow_rain", "ricochet"], "iron_arrows"]
-const TEST_HAMMER := ["iron_maul", "bound_haft", "plain_weight", ["", "", "", ""]]
+## (The hammer's three active runes, one on each button, and Darren's own passive.)
+const TEST_HAMMER := ["iron_maul", "bound_haft", "plain_weight", ["quake", "bulwark", "hook", "aftershock"]]
 const TEST_STAFF := ["iron_apprentice", "carved_shaft", "plain_cap", ["", "", "", ""], "iron_crystal"]
 
 
@@ -496,9 +497,9 @@ const POMMEL_ORDER := ["plain_pommel", "keen_pommel", "heavy_pommel", "light_pom
 const FITTINGS := {
 	"shockwave": {"kind": "rune", "weapon": "sword", "name": "Shockwave", "trigger": "finisher", "color": Color("#ffc850"),
 		"desc": "Your finisher sends a wave forward."},
-	# Hook left the sword for the hammer (Darren, 11 November afternoon). It waits
-	# here, out of the forge, until the hammer is built: its rules and effects stay.
-	"hook": {"kind": "rune", "weapon": "sword", "name": "Hook", "trigger": "active", "use": "press", "recharge": 4.0, "color": Color("#ff9c32"), "parked": true,
+	# Hook left the sword for the hammer (Darren, 11 November afternoon): an area
+	# pull that drags the crowd in to where a hammer can reach it.
+	"hook": {"kind": "rune", "weapon": "hammer", "name": "Hook", "trigger": "active", "use": "press", "recharge": 4.0, "color": Color("#ff9c32"),
 		"desc": "Press its button to yank nearby enemies in."},
 	# Shards replaced Cleave (Darren, 6 November).
 	"shards": {"kind": "rune", "weapon": "sword", "name": "Shards", "trigger": "hit", "color": Color("#d0dcd8"),
@@ -537,6 +538,21 @@ const FITTINGS := {
 		"desc": "Hold its button and let go as the ring closes: a heavy shot that does more the farther it flies."},
 	"arrow_rain": {"kind": "rune", "weapon": "bow", "name": "Arrow Rain", "trigger": "active", "use": "press", "recharge": 8.0, "time": 3.0, "color": Color("#c090ff"),
 		"desc": "Press its button to mark the ground where you aim. Arrows pour down on it."},
+	# The hammer's own runes (15 November). The Game Bible names them with a line
+	# each, and gives Aftershock its bands' rules (Darren, 11 November afternoon);
+	# the numbers and the other bands' rules are a first design. Momentum and
+	# Stagger don't "fire": Momentum builds on you and Stagger on the enemy, hit by
+	# hit. See player.gd, "The hammer's runes". (Colours: the art thread's.)
+	"momentum": {"kind": "rune", "weapon": "hammer", "name": "Momentum", "trigger": "hit", "color": Color("#ffe040"),
+		"desc": "Each hit you land makes the next one stronger, in five steps. Stop hitting and it drains away."},
+	"stagger": {"kind": "rune", "weapon": "hammer", "name": "Stagger", "trigger": "hit", "color": Color("#a8b8ff"),
+		"desc": "Your hits fill a meter on the enemy. When it is full the enemy is stunned."},
+	"aftershock": {"kind": "rune", "weapon": "hammer", "name": "Aftershock", "trigger": "finisher", "color": Color("#d070e0"),
+		"desc": "After your finisher the ground rumbles a moment later and hurts whatever is still near."},
+	"quake": {"kind": "rune", "weapon": "hammer", "name": "Quake", "trigger": "active", "use": "press", "recharge": 5.0, "color": Color("#6ad86a"),
+		"desc": "Press its button: the ground erupts under the enemy nearest your aim."},
+	"bulwark": {"kind": "rune", "weapon": "hammer", "name": "Bulwark", "trigger": "active", "use": "press", "recharge": 10.0, "time": 3.0, "color": Color("#7fe0f0"),
+		"desc": "Press its button: for a few seconds nothing can hurt you, and whoever hits you is stunned."},
 	"twice": {"kind": "band", "name": "Twice", "color": Color("#86d4a4"),
 		"desc": "The rune above happens twice."},
 	"wider": {"kind": "band", "name": "Wider", "color": Color("#86d4a4"),
@@ -556,10 +572,9 @@ const FITTINGS := {
 		"desc": "Rare: the bands under the rune below also boost the next rune above."},
 }
 ## Passive runes first, then active ones (the forge tray shows them as two groups).
-## Whether this fitting can go on that weapon ("sword" or "bow"). Every weapon has
-## its own runes (Game Bible: three passive and three active each); bands and
-## rule-benders fit them all. (Hook is the hammer's: it waits with the sword's
-## until there is a hammer.)
+## Whether this fitting can go on that weapon ("sword", "bow", "hammer", "staff").
+## Every weapon has its own runes (Game Bible: three passive and three active
+## each); bands and rule-benders fit them all.
 static func fits(id: String, kind: String) -> bool:
 	if not FITTINGS.has(id):
 		return false
@@ -567,8 +582,8 @@ static func fits(id: String, kind: String) -> bool:
 	return w == "" or w == kind
 
 
-const FITTING_ORDER := ["shockwave", "shards", "weak_point", "pierce", "ricochet", "steady_aim",
-	"whirlwind", "hook", "leap", "ghostwield", "volley", "snipe", "arrow_rain",
+const FITTING_ORDER := ["shockwave", "shards", "weak_point", "pierce", "ricochet", "steady_aim", "momentum", "stagger", "aftershock",
+	"whirlwind", "leap", "ghostwield", "volley", "snipe", "arrow_rain", "quake", "bulwark", "hook",
 	"twice", "wider", "every_hit", "saved_up", "on_dodge", "mirror", "relay"]
 const EVERY_HIT_POWER := 0.5
 ## Every Hit on an active rune: seconds off its recharge for each swing that lands.
@@ -645,6 +660,46 @@ static func volley_arrows(size: float) -> int:
 ## How much bigger Arrow Rain's ground is across for this size (Wider).
 static func rain_scale(size: float) -> float:
 	return 1.0 + (size - 1.0) * 0.6
+
+
+## The hammer's runes, in numbers. Damage is a share of one swing of the same hammer.
+const MOMENTUM_STEPS := 5        # the ring's steps
+const MOMENTUM_STEP := 0.08      # what each step adds to your swings
+const MOMENTUM_STEP_MAX := 0.2   # the most one step can be worth, whatever the bands: Momentum at its most doubles a swing
+const MOMENTUM_HOLD := 2.0       # seconds without landing a hit before it starts to drain...
+const MOMENTUM_DRAIN := 0.5      # ...and then a step goes this often
+const STAGGER_STUN := 1.5        # how long a full meter stuns
+const STAGGER_DAMAGE := 1.0      # the blow as it breaks, in swings
+const STAGGER_REACH := 50.0      # Wider: the break also stuns enemies this near, times the size
+const AFTERSHOCK_DELAY := 0.6    # the ground trembles this long, then rumbles
+const AFTERSHOCK_DAMAGE := 0.7
+const AFTERSHOCK_RADIUS := 60.0  # (the rumble's ring is drawn about this big)
+const AFTERSHOCK_STUN := 0.25
+const AFTERSHOCK_SMALL := 0.7    # Every Hit: the small rumble's size
+const AFTERSHOCK_HUGE := 1.5     # Saved Up: the huge one's
+const AFTERSHOCK_GAP := 0.35     # Twice: the second rumble comes this long after the first
+const QUAKE_RANGE := 240.0       # how far away the enemy can be
+const QUAKE_DAMAGE := 1.5
+const QUAKE_RADIUS := 44.0       # everything this near the eruption is caught
+const QUAKE_STUN := 0.6
+const QUAKE_EMPTY := 120.0       # with nobody in range it erupts this far the way you aim
+const QUAKE_GAP := 0.3           # Twice: the next eruption comes this long after
+const BULWARK_STUN := 1.5        # whoever hits the shield is stunned this long (Twice: twice as long)
+const BULWARK_DODGE := 1.0       # On Dodge: how long a dodge puts it up for
+
+
+## What each of Momentum's five steps adds to a swing. Wider makes the steps
+## bigger; Saved Up makes them much bigger (and a step comes a third as often).
+## A step is never worth more than +20%, so Momentum at its most doubles a swing.
+static func momentum_step(e: Dictionary) -> float:
+	return minf(MOMENTUM_STEP * float(e["size"]) * maxf(float(e.get("power", 1.0)), 1.0), MOMENTUM_STEP_MAX)
+
+
+## How long a Bulwark lasts. Wider is the band for it, as for the ghost sword (one
+## Wider is a third longer: 4 seconds for 3). Saved Up: three times as long.
+static func bulwark_time(size: float, power: float, seconds := -1.0) -> float:
+	var base := float(FITTINGS["bulwark"]["time"]) if seconds < 0.0 else seconds
+	return base * (1.0 + (size - 1.0) / 1.8) * (SAVED_UP_POWER if power >= SAVED_UP_POWER else 1.0)
 
 
 ## Active runes take the ability buttons in the order they sit on the sword, grip
@@ -1042,6 +1097,12 @@ static func _apply_band(e: Dictionary, band: String) -> String:
 					return "Every Hit doesn't stack (max)."
 				e["per_hit"] = true
 				return ""
+			if e["id"] == "momentum":
+				# Momentum counts swings that land: with this, every enemy a swing catches.
+				if e.get("per_hit", false):
+					return "Every Hit doesn't stack (max)."
+				e["per_hit"] = true
+				return ""
 			if e["trigger"] == "hit":
 				if e["id"] in ["shards", "ricochet"] and not e.get("splinter", false):
 					e["splinter"] = true  # each shard (or arrow) splits in two as it jumps, at half strength
@@ -1080,6 +1141,8 @@ static func sentence(e: Dictionary, keys: Array = ABILITY_KEYS["kbm"]) -> String
 		return _active_sentence(e, keys)
 	if str(e["id"]) in ["pierce", "ricochet", "steady_aim"]:
 		return _bow_sentence(e)
+	if str(e["id"]) in ["momentum", "stagger", "aftershock"]:
+		return _hammer_sentence(e)
 	var when: String = (WHEN_NTH if int(e.get("every", 1)) > 1 else WHEN).get(trig, "It")
 	var what := ""
 	match str(e["id"]):
@@ -1170,6 +1233,53 @@ static func _bow_sentence(e: Dictionary) -> String:
 	return ""
 
 
+## The sentence for one of the hammer's passive runes.
+static func _hammer_sentence(e: Dictionary) -> String:
+	var n: int = e["count"]
+	var big: bool = float(e["size"]) > 1.0
+	var third := int(e.get("every", 1)) > 1
+	var power := float(e.get("power", 1.0))
+	var dodge: bool = "dodge" in e.get("also", [])
+	match str(e["id"]):
+		"momentum":
+			var who := "enemy you hit" if e.get("per_hit", false) else "swing that lands"
+			var step := momentum_step(e)
+			var s := "%s %s adds %s of +%d%% to your swings, up to +%d%%. Stop hitting and it drains away." % ["Every third" if third else "Each", who,
+				"a step" if n == 1 else "%s steps" % _num(n), roundi(step * 100.0), roundi(step * float(MOMENTUM_STEPS) * 100.0)]
+			if dodge:
+				s += " A dodge counts as a hit."
+			return s
+		"stagger":
+			var fast := "" if n == 1 else (" twice as fast" if n == 2 else " %s times as fast" % _num(n))
+			if third:
+				fast = " slowly" if n == 1 else ("" if n >= SAVED_UP_EVERY else " rather slowly")
+			var s := "Your hits fill a meter on the enemy%s. When it is full the enemy takes a %s blow and is stunned for %s seconds%s." % [fast,
+				"huge" if power >= SAVED_UP_POWER else "heavy", str(snappedf(STAGGER_STUN * maxf(power, 1.0), 0.1)).trim_suffix(".0"),
+				", and so is everything near it" if big else ""]
+			if dodge:
+				s += " Dodging past an enemy counts as a hit on it."
+			return s
+		"aftershock":
+			var every_hit: bool = e["trigger"] == "hit"
+			var who := ("Every third hit" if third else "Every hit") if every_hit else ("Every third finisher" if third else "Your finisher")
+			var kind := "huge " if power >= SAVED_UP_POWER else ("small " if every_hit else ("big " if big else ""))
+			var what := ("a %srumble" % kind) if n == 1 else "%s %srumbles" % [_num(n), kind]
+			var s := "%s sets off %s in the ground a moment later that hurt%s whatever is still near" % [who, what, "s" if n == 1 else ""]
+			if big and kind != "big ":
+				s += ", over a bigger patch"
+			if power < 1.0:
+				s += ", at half strength"
+			elif power >= SAVED_UP_POWER:
+				s += ", three times as strong"
+			elif power > 1.0:
+				s += ", %sx as strong" % str(snappedf(power, 0.1))
+			s += "."
+			if dodge:
+				s += " %s leaves one where you were." % ("Every third dodge" if third else "A dodge")
+			return s
+	return ""
+
+
 ## The sentence for a rune on an ability button: what to press, what it does, and
 ## how long it takes to come back.
 static func _active_sentence(e: Dictionary, keys: Array) -> String:
@@ -1198,10 +1308,17 @@ static func _active_sentence(e: Dictionary, keys: Array) -> String:
 		"arrow_rain":
 			what = "marks the ground where you aim, and arrows pour down on it for %d seconds%s%s" % [roundi(float(f["time"])),
 				" over a bigger area" if big else "", "" if n == 1 else (", then again" if n == 2 else ", then %s more times" % _num(n - 1))]
+		"quake":
+			what = "the ground erupts under the enemy nearest your aim%s%s" % [", over a bigger patch" if big else "",
+				"" if n == 1 else (", then under the next one" if n == 2 else ", then under %s more" % _num(n - 1))]
+		"bulwark":
+			# Its strength is how long it lasts, so say that.
+			what = "for %d seconds nothing can hurt you, and whoever hits you is stunned%s" % [roundi(bulwark_time(float(e["size"]), float(e.get("power", 1.0)))),
+				"" if n == 1 else (" for twice as long" if n == 2 else " for %s times as long" % _num(n))]
 		_:
 			return ""
 	var slow := int(e.get("every", 1))
-	if float(e.get("power", 1.0)) >= 3.0 and e["id"] != "ghostwield":
+	if float(e.get("power", 1.0)) >= 3.0 and not (e["id"] in ["ghostwield", "bulwark"]):
 		what += ", three times as strong"
 		if e["id"] == "arrow_rain":
 			what += " and pinning enemies"
@@ -1219,6 +1336,10 @@ static func _active_sentence(e: Dictionary, keys: Array) -> String:
 			s += " %s looses a quick, weak one too." % dodging
 		elif e["id"] == "arrow_rain":
 			s += " %s drops a small shower where you were." % dodging
+		elif e["id"] == "quake":
+			s += " %s sets one off too, at half strength." % dodging
+		elif e["id"] == "bulwark":
+			s += " %s puts it up for %s." % [dodging, "a second" if slow <= 1 else "%s seconds" % _num(roundi(bulwark_time(1.0, float(e.get("power", 1.0)), BULWARK_DODGE)))]
 		else:
 			s += " Every third dodge does it too." if slow > 1 else " Dodging does it too."
 	return s
