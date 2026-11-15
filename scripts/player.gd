@@ -610,7 +610,8 @@ func _update_dodge(delta: float, move: Vector2) -> void:
 		dodge_started = game_time
 		dodge_from = global_position
 		dodge_arrow = true
-		overflow_dodge = true
+		_overflow_dodge()
+		_spectre_dodge()
 		_dust(global_position + FEET)
 		Sfx.play(self, "dodge", -12.0)
 		_trigger("dodge", [])
@@ -948,6 +949,11 @@ func _update_mana(delta: float) -> void:
 	mana_rest += delta
 	var rate := SwingBuild.MANA_REGEN + (SwingBuild.MANA_REST_REGEN if mana_rest >= SwingBuild.MANA_REST else 0.0)
 	mana = minf(mana + rate * delta, SwingBuild.MANA)
+	# (Saved Up on Overflow counts how long it has stayed full.)
+	var was_ready := overflow_charged()
+	overflow_charge = overflow_charge + delta if mana_full() else 0.0
+	if overflow_charged() and not was_ready and _is_staff():
+		Sfx.play(self, "click", -6.0, 1.6)
 
 
 func _cast_cost(info: Dictionary) -> float:
@@ -978,6 +984,11 @@ func _cast(info: Dictionary) -> void:
 			made.append(spark)
 	else:
 		made.append(_bolt(kind, dir, power, info, finisher, over))
+	# Twice on Overflow: this one is cast again (see _run_overflow_echoes).
+	for n in int(over.get("again", 0)):
+		for b in made:
+			overflow_echoes.append({"at": game_time + SwingBuild.OVERFLOW_ECHO * float(n + 1), "kind": b.bolt, "dir": b.dir, "power": power * (SwingBuild.SPRAY_DAMAGE if kind == "spray" else 1.0),
+				"info": info, "over": over, "stamp": weapon_stamp})
 	var heavy: bool = info.get("big", false) and not weak
 	var flash := _strip("cast_flash", _crystal_world(), dir.angle(), 1.4 if heavy else 1.0)
 	if flash != null:
@@ -1018,6 +1029,8 @@ func _bolt(kind: String, dir: Vector2, power: float, info: Dictionary, finisher:
 		a.splash = SwingBuild.BURST_RADIUS * size
 	elif kind == "orb":
 		a.splash = SwingBuild.ORB_RADIUS * size
+	# (Overflow with Wider, or its blast: it bursts where it lands, at least this wide.)
+	a.splash = maxf(a.splash, float(over.get("splash", 0.0)))
 	a.big = float(over.get("size", 1.0))
 	if over.get("glow", false):
 		a.halo = "overflow_glow"
@@ -1041,6 +1054,7 @@ func _bolt_hit(a, e) -> void:
 		return
 	if not copied:
 		_hit_refund()
+		_overflow_refund()
 	_trigger("hit", hits, _copy_ghost(a))
 	_chain_bolt(a, at, hits)
 
@@ -1053,6 +1067,7 @@ func _bolt_spent(a) -> void:
 			var first: Vector2 = hits[0].global_position
 			if float(a.copy) <= 0.0:
 				_hit_refund()
+				_overflow_refund()
 			_trigger("hit", hits, _copy_ghost(a))
 			_chain_bolt(a, first, hits)
 		return
@@ -1867,9 +1882,9 @@ func _bulwark_block(from: Vector2) -> void:
 # sets nothing else off. The buttons run on their own recharge, not on mana.
 
 var overflow_rune := {}       # what the staff's Overflow runes come to ({} with none): see _overflow_rune
-var overflow_left := 0        # casts that still get it (Twice: the one after the full one too)
-var overflow_count := 0       # Saved Up: full-mana casts counted towards the big one
-var overflow_dodge := false   # the next cast is the first one since a dodge
+var overflow_count := 0       # Overflow bolts cast with this staff so far (Twice: every other one is cast again)
+var overflow_charge := 0.0    # seconds your mana has been full in a row (Saved Up: the blast is ready after a few)
+var overflow_echoes: Array = []   # Twice: the second casts on their way: [{at, kind, dir, power, info, over}]
 var overflow_said := -9.0     # game_time "OVERFLOW!" was last written
 var overflow_aura: Node2D = null   # the sign at the crystal while mana is full
 var orbs: Array = []          # Orbit's orbs circling you, oldest first: [{until, dmg, reach, col}]
@@ -1884,7 +1899,8 @@ var lance_fx: Node2D = null   # the beam's picture
 var spectre_left := 0.0       # seconds a Spectre has left with you (0: none)
 var spectre_total := 1.0      # how long this one was called for (the HUD's bar)
 var spectre_power := 0.5      # what its copies do, as a share of the attack they copy
-var spectre_count := 1        # copies of each attack (Twice: two)
+var spectre_count := 1        # ghosts with you: each copies every attack (Twice: two)
+var spectre_burst := 0.0      # On Dodge: what one ghost's burst does when you dodge (0: it has none)
 var spectre_by: Node2D = null # whose rune it is: you, or a teammate with a staff
 var spectre_stamp := 0        # that player's weapon when they called it
 var spectre_on: Node2D = null # the caster's side: who has your Spectre now
@@ -1895,18 +1911,22 @@ var spectre_gone := -9.0
 var spectre_group: CanvasGroup   # the ghost's picture: your body and weapon again, see-through
 var spectre_layer: Node2D
 var spectre_offset := Vector2(-20, -8)   # where the ghost stands, from you (what is on screen)
+var spectre_offset2 := Vector2(20, -8)   # and a second one, at your other shoulder
 var staff_back: Node2D        # the orbs when they pass behind you...
 var staff_front: Node2D       # ...and in front
 const ORBIT_CENTRE := Vector2(0, -4)
 const MANA_FULL := 0.01       # mana within this of the top counts as full
 
 
-## What the staff's Overflow runes come to together ({} with none).
+## What the staff's Overflow runes come to together ({} with none). The bands are
+## Darren's (11 November): see "Overflow bands" in the Game Bible.
 ##   bonus: how much harder a bolt cast on full mana hits (0.3 is +30%)
-##   size: Wider, bigger still    casts: Twice, the bolt after it too
-##   every: Saved Up, only every so many full-mana casts
-##   per_hit: Every Hit, what every other bolt gets (half of one rune's bonus)
-##   dodge: the first bolt after a dodge counts as cast on full mana
+##   wide: Wider, the bolt bursts where it lands (how many times OVERFLOW_SPLASH)
+##   casts: Twice, every other Overflow bolt is cast this many times
+##   refund: Every Hit, mana back for each bolt that lands
+##   blast: Saved Up, a rune that gives no steady bonus but turns the next bolt
+##          into a blast once mana has stayed full for OVERFLOW_CHARGE seconds
+##   dodge_mana: On Dodge, mana back for each dodge
 func _overflow_rune() -> Dictionary:
 	var out := {}
 	var effects: Array = weapon.get("effects", [])
@@ -1915,14 +1935,18 @@ func _overflow_rune() -> Dictionary:
 		if e["id"] != "overflow":
 			continue
 		if out.is_empty():
-			out = {"bonus": 0.0, "size": 1.0, "casts": 1, "every": 1, "per_hit": 0.0, "dodge": false, "effects": []}
-		out["bonus"] = float(out["bonus"]) + SwingBuild.OVERFLOW_DAMAGE * maxf(float(e.get("power", 1.0)), 1.0)
+			out = {"bonus": 0.0, "wide": 0.0, "casts": 1, "refund": 0.0, "blast": false, "dodge_mana": 0.0, "effects": []}
+		if int(e.get("every", 1)) > 1:
+			out["blast"] = true
+		else:
+			out["bonus"] = float(out["bonus"]) + SwingBuild.OVERFLOW_DAMAGE
+		if float(e["size"]) > 1.0:
+			out["wide"] = maxf(float(out["wide"]), float(e["size"]) / SwingBuild.wider_size(1))
 		if e.get("per_hit", false):
-			out["per_hit"] = float(out["per_hit"]) + SwingBuild.OVERFLOW_DAMAGE * SwingBuild.EVERY_HIT_POWER
-		out["size"] = maxf(float(out["size"]), float(e["size"]))
+			out["refund"] = float(out["refund"]) + SwingBuild.OVERFLOW_REFUND
+		if "dodge" in e.get("also", []):
+			out["dodge_mana"] = float(out["dodge_mana"]) + SwingBuild.OVERFLOW_DODGE_MANA
 		out["casts"] = maxi(int(out["casts"]), int(e["count"]))
-		out["every"] = maxi(int(out["every"]), int(e.get("every", 1)))
-		out["dodge"] = out["dodge"] or "dodge" in e.get("also", [])
 		out["effects"].append(i)
 	return out
 
@@ -1931,44 +1955,95 @@ func mana_full() -> bool:
 	return mana >= SwingBuild.MANA - MANA_FULL
 
 
+## Saved Up on Overflow: the blast is ready (mana has stayed full long enough).
+func overflow_charged() -> bool:
+	return not overflow_rune.is_empty() and overflow_rune["blast"] and mana_full() and overflow_charge >= SwingBuild.OVERFLOW_CHARGE
+
+
 ## A cast is leaving the staff. full: mana was full before it was paid for.
-## Returns what Overflow does to it: {damage, size (both to multiply by), glow}.
+## Returns what Overflow does to it: {damage, size (both to multiply by), glow,
+## splash (0: as the bolt has it), again (how many more times it is cast)}.
 func _overflow_cast(full: bool) -> Dictionary:
-	var out := {"damage": 1.0, "size": 1.0, "glow": false}
-	if overflow_rune.is_empty():
+	var out := {"damage": 1.0, "size": 1.0, "glow": false, "splash": 0.0, "again": 0}
+	if overflow_rune.is_empty() or not full:
 		return out
-	var after_dodge: bool = overflow_dodge and overflow_rune["dodge"]
-	overflow_dodge = false
-	if full or after_dodge:
-		var every := int(overflow_rune["every"])
-		overflow_count += 1
-		if every <= 1 or overflow_count % every == 0:
-			overflow_left = int(overflow_rune["casts"])
-	if overflow_left > 0:
-		overflow_left -= 1
-		out["damage"] = 1.0 + float(overflow_rune["bonus"])
-		out["size"] = 1.0 + SwingBuild.OVERFLOW_SIZE * float(overflow_rune["size"])
-		out["glow"] = true
-		for i in overflow_rune["effects"]:
-			_flash_effect(i)
-		if game_time - overflow_said > 1.5:
-			overflow_said = game_time
-			_label("OVERFLOW +%d%%!" % roundi(float(overflow_rune["bonus"]) * 100.0), SwingBuild.FITTINGS["overflow"]["color"])
-	else:
-		out["damage"] = 1.0 + float(overflow_rune["per_hit"])
+	var blast := overflow_charged()
+	var bonus := float(overflow_rune["bonus"])
+	if not blast and bonus <= 0.0:
+		return out   # (Saved Up alone: nothing until the blast is ready)
+	var wide := float(overflow_rune["wide"])
+	out["damage"] = (1.0 + bonus) * (SwingBuild.OVERFLOW_BLAST if blast else 1.0)
+	out["size"] = 1.0 + SwingBuild.OVERFLOW_SIZE + (SwingBuild.OVERFLOW_BLAST_SIZE if blast else 0.0)
+	out["glow"] = true
+	if blast:
+		out["splash"] = SwingBuild.OVERFLOW_BLAST_SPLASH * maxf(wide * SwingBuild.wider_size(1), 1.0)
+	elif wide > 0.0:
+		out["splash"] = SwingBuild.OVERFLOW_SPLASH * wide
+	# Twice: the first Overflow bolt, the third, the fifth... is cast again.
+	overflow_count += 1
+	if int(overflow_rune["casts"]) > 1 and overflow_count % 2 == 1:
+		out["again"] = int(overflow_rune["casts"]) - 1
+	overflow_charge = 0.0
+	for i in overflow_rune["effects"]:
+		_flash_effect(i)
+	if blast:
+		overflow_said = game_time
+		_label("OVERFLOW BLAST!", SwingBuild.FITTINGS["overflow"]["color"])
+		shake = maxf(shake, 4.0)
+	elif game_time - overflow_said > 1.5:
+		overflow_said = game_time
+		_label("OVERFLOW +%d%%!" % roundi(bonus * 100.0), SwingBuild.FITTINGS["overflow"]["color"])
 	return out
 
 
+## Twice on Overflow: the same bolt again a moment later, free of mana. It is the
+## rune's own bolt, so it never crits and sets nothing else off.
+func _run_overflow_echoes() -> void:
+	var due: Array = []
+	for o in overflow_echoes:
+		if float(o["at"]) <= game_time:
+			due.append(o)
+	for o in due:
+		overflow_echoes.erase(o)
+		if int(o["stamp"]) != weapon_stamp or is_down:
+			continue
+		var b := _bolt(str(o["kind"]), o["dir"], float(o["power"]), o["info"], false, o["over"])
+		b.quiet = true
+		b.crit = 0.0
+		var flash := _strip("cast_flash", _crystal_world(), (o["dir"] as Vector2).angle(), 0.8)
+		if flash != null:
+			flash.modulate = SwingBuild.FITTINGS["overflow"]["color"]
+		Sfx.play(self, "cast", -14.0, 1.25)
+
+
+## Every Hit on Overflow: a bolt of yours has landed, and a little mana comes back.
+func _overflow_refund() -> void:
+	if overflow_rune.is_empty() or float(overflow_rune["refund"]) <= 0.0:
+		return
+	mana = minf(mana + float(overflow_rune["refund"]), SwingBuild.MANA)
+
+
+## On Dodge on Overflow: each dodge gives a little mana back.
+func _overflow_dodge() -> void:
+	if overflow_rune.is_empty() or float(overflow_rune["dodge_mana"]) <= 0.0 or not _is_staff():
+		return
+	mana = minf(mana + float(overflow_rune["dodge_mana"]), SwingBuild.MANA)
+	for i in overflow_rune["effects"]:
+		_flash_effect(i)
+
+
 func _drop_overflow() -> void:
-	overflow_left = 0
 	overflow_count = 0
-	overflow_dodge = false
+	overflow_charge = 0.0
+	overflow_echoes.clear()
 
 
-## The sign at the crystal while mana is full (only with the rune): it says the
-## next bolt is an Overflow one.
+## The sign at the crystal: it says the next bolt is an Overflow one. It shows
+## while mana is full (with Saved Up alone, only once the blast is ready, and
+## bigger for a blast).
 func _update_overflow_aura() -> void:
-	var on := not overflow_rune.is_empty() and _is_staff() and mana_full() and not is_down and weapon_group.visible and visible
+	var ready := not overflow_rune.is_empty() and (float(overflow_rune["bonus"]) > 0.0 or overflow_charged())
+	var on := ready and _is_staff() and mana_full() and not is_down and weapon_group.visible and visible
 	if on and not is_instance_valid(overflow_aura):
 		overflow_aura = _strip("overflow_aura", _crystal_world())
 		if overflow_aura != null:
@@ -1979,6 +2054,7 @@ func _update_overflow_aura() -> void:
 		overflow_aura = null
 	if is_instance_valid(overflow_aura):
 		overflow_aura.follow_offset = _crystal_world() - global_position
+		overflow_aura.scale = Vector2.ONE * (1.6 if overflow_charged() else 1.0)
 
 
 ## Orbit: one more orb circles you. It waits for an enemy to come near (see
@@ -2375,20 +2451,26 @@ func _summon_spectre(effects: Array) -> void:
 	var count := 0
 	var time := 0.0
 	var power := 0.0
+	var bursts := false
 	for i in effects:
 		var e: Dictionary = weapon["effects"][i]
 		count += int(e["count"])
 		time = maxf(time, SwingBuild.spectre_time(float(e["size"])))
 		power = maxf(power, SwingBuild.spectre_power(float(e.get("power", 1.0))))
+		bursts = bursts or "dodge" in e.get("also", [])
 		_flash_effect(i)
+	# On Dodge: a burst worth a bolt of this staff from a half-strength ghost, two from a whole one.
+	var burst := float(weapon.get("damage", 8.0)) * SwingBuild.SPECTRE_BURST * power / SwingBuild.SPECTRE_POWER if bursts else 0.0
 	var who := _spectre_target()
-	who.take_spectre(self, time, power, clampi(count, 1, SwingBuild.MAX_COUNT))
+	who.take_spectre(self, time, power, clampi(count, 1, SwingBuild.MAX_COUNT), burst)
 	_label("SPECTRE!" if power < 1.0 else "SPECTRE x2!", GHOST_COLOR)
 
 
 ## A Spectre comes to stand with you, called by `by` (yourself, or a teammate):
 ## for `time` seconds it copies your basic attacks at `power` of their strength.
-func take_spectre(by: Node2D, time: float, power: float, count: int) -> void:
+## count: how many ghosts (Twice: two).  burst: On Dodge, what each one's burst
+## does when you dodge (0: none).
+func take_spectre(by: Node2D, time: float, power: float, count: int, burst := 0.0) -> void:
 	if is_down:
 		return
 	var fresh := spectre_left <= 0.0
@@ -2396,6 +2478,7 @@ func take_spectre(by: Node2D, time: float, power: float, count: int) -> void:
 		spectre_by.spectre_on = null   # one ghost each: the new one takes the old one's place
 	spectre_power = power if fresh or time >= spectre_left else maxf(spectre_power, power)
 	spectre_count = count if fresh or time >= spectre_left else maxi(spectre_count, count)
+	spectre_burst = burst if fresh or time >= spectre_left else maxf(spectre_burst, burst)
 	spectre_left = maxf(spectre_left, time)
 	spectre_total = spectre_left
 	spectre_by = by
@@ -2404,10 +2487,11 @@ func take_spectre(by: Node2D, time: float, power: float, count: int) -> void:
 	if fresh:
 		spectre_born = game_time
 		spectre_gone = -9.0
-		var arrive := _strip("spectre_appear", global_position + spectre_offset + FEET)
-		if arrive != null:
-			arrive.follow = self
-			arrive.follow_offset = spectre_offset + FEET
+		for off in _spectre_places():
+			var arrive := _strip("spectre_appear", global_position + off + FEET)
+			if arrive != null:
+				arrive.follow = self
+				arrive.follow_offset = off + FEET
 	Sfx.play(self, "ghost", -5.0, 1.25)
 
 
@@ -2416,6 +2500,7 @@ func take_spectre(by: Node2D, time: float, power: float, count: int) -> void:
 func _end_spectre(quiet := false) -> void:
 	var was := spectre_left > 0.0
 	spectre_left = 0.0
+	spectre_burst = 0.0
 	if is_instance_valid(spectre_by) and spectre_by.spectre_on == self:
 		spectre_by.spectre_on = null
 	spectre_by = null
@@ -2423,11 +2508,12 @@ func _end_spectre(quiet := false) -> void:
 		spectre_gone = -9.0
 		return
 	spectre_gone = game_time
-	var leave := _strip("spectre_appear", global_position + spectre_offset + FEET)
-	if leave != null:
-		leave.backwards = true
-		leave.follow = self
-		leave.follow_offset = spectre_offset + FEET
+	for off in _spectre_places():
+		var leave := _strip("spectre_appear", global_position + off + FEET)
+		if leave != null:
+			leave.backwards = true
+			leave.follow = self
+			leave.follow_offset = off + FEET
 	Sfx.play(self, "ghost", -11.0, 0.8)
 
 
@@ -2438,8 +2524,48 @@ func spectre_out() -> float:
 	return clampf(float(spectre_on.spectre_left) / maxf(float(spectre_on.spectre_total), 0.1), 0.0, 1.0)
 
 
+## Where the ghosts stand, from you: one at your shoulder, a second at the other.
+func _spectre_places() -> Array:
+	return [spectre_offset, spectre_offset2] if spectre_count > 1 else [spectre_offset]
+
+
+## On Dodge on Spectre (Darren, 11 November): the ghost dodges with you and
+## leaves a burst of ghostly damage where it stood. Two ghosts leave two.
+func _spectre_dodge() -> void:
+	if spectre_left <= 0.0 or spectre_burst <= 0.0 or is_down:
+		return
+	var at := global_position
+	var dmg := spectre_burst * float(mini(spectre_count, 2))
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if not is_instance_valid(e) or e.dead or e.immune:
+			continue
+		var rel: Vector2 = e.global_position - at
+		if rel.length() > SwingBuild.SPECTRE_BURST_RADIUS + float(e.radius):
+			continue
+		e.take_hit(dmg, rel.normalized() if rel.length() > 1.0 else Vector2.UP, 260.0, false, GHOST_COLOR, 0.3, 0.03)
+	var pop := _strip("burst_hit", at + Arrow.HEIGHT * 0.5, 0.0, SwingBuild.SPECTRE_BURST_RADIUS / 56.0)
+	if pop != null:
+		pop.modulate = GHOST_COLOR
+	var gone := _strip("spectre_appear", at + FEET)
+	if gone != null:
+		gone.backwards = true
+	shake = maxf(shake, 4.0)
+	Sfx.play(self, "ghost", -8.0, 1.5)
+	if is_instance_valid(spectre_by) and spectre_by.has_method("_spectre_said"):
+		spectre_by._spectre_said()
+
+
+## Your ghost has burst behind a dodge: the rune's slots light up on your staff.
+func _spectre_said() -> void:
+	var effects: Array = weapon.get("effects", [])
+	for i in effects.size():
+		if effects[i]["id"] == "spectre" and "dodge" in effects[i].get("also", []):
+			_flash_effect(i)
+
+
 ## Every tick: the Spectre's time runs down and its copies that are due go off.
 func _run_spectre(delta: float) -> void:
+	_run_overflow_echoes()
 	if spectre_left > 0.0:
 		if spectre_left <= delta or is_down or not is_instance_valid(spectre_by) or int(spectre_by.weapon_stamp) != spectre_stamp:
 			_end_spectre()
@@ -2530,8 +2656,12 @@ func _update_spectre(delta: float) -> void:
 	spectre_group.visible = shown
 	if spectre_left <= 0.0 and not shown:
 		return
-	var want := (face_dir.orthogonal() * 24.0 - face_dir * 9.0) * Vector2(1.0, 0.75)
+	# (Two ghosts stand a little wider apart, one at each shoulder.)
+	var side := 30.0 if spectre_count > 1 else 24.0
+	var want := (face_dir.orthogonal() * side - face_dir * 9.0) * Vector2(1.0, 0.75)
 	spectre_offset = spectre_offset.lerp(want, 1.0 - exp(-9.0 * delta))
+	var want2 := (-face_dir.orthogonal() * side - face_dir * 9.0) * Vector2(1.0, 0.75)
+	spectre_offset2 = spectre_offset2.lerp(want2, 1.0 - exp(-9.0 * delta))
 	if not shown:
 		return
 	spectre_group.show_behind_parent = spectre_offset.y < 0.0
@@ -2545,21 +2675,23 @@ func _update_spectre(delta: float) -> void:
 	spectre_layer.queue_redraw()
 
 
-## The Spectre: your own body and weapon drawn again beside you. (Its
-## CanvasGroup's material turns the whole picture see-through and ghost-coloured.)
+## The Spectre: your own body and weapon drawn again beside you, once for each
+## ghost. (Its CanvasGroup's material turns the whole picture see-through and
+## ghost-coloured.)
 func _draw_spectre() -> void:
 	var b := _body_now()
 	var behind: bool = weapon_group.show_behind_parent
-	if behind:
-		_draw_weapon_on(spectre_layer, spectre_offset, {})
-	if b.is_empty():
-		spectre_layer.draw_circle(spectre_offset, RADIUS, Color.WHITE)
-	else:
-		spectre_layer.draw_set_transform(spectre_offset + (b["at"] as Vector2), b["angle"], b["scale"])
-		spectre_layer.draw_texture_rect_region(b["tex"], Rect2(-_body_origin(), b["src"].size), b["src"])
-		spectre_layer.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
-	if not behind:
-		_draw_weapon_on(spectre_layer, spectre_offset, {})
+	for off in _spectre_places():
+		if behind:
+			_draw_weapon_on(spectre_layer, off, {})
+		if b.is_empty():
+			spectre_layer.draw_circle(off, RADIUS, Color.WHITE)
+		else:
+			spectre_layer.draw_set_transform((off as Vector2) + (b["at"] as Vector2), b["angle"], b["scale"])
+			spectre_layer.draw_texture_rect_region(b["tex"], Rect2(-_body_origin(), b["src"].size), b["src"])
+			spectre_layer.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+		if not behind:
+			_draw_weapon_on(spectre_layer, off, {})
 
 
 ## How far this move reaches from the player's centre.
@@ -2915,11 +3047,9 @@ func _fire_rune_now(q: Dictionary) -> void:
 						_label("LANCE x%d!" % stage, col)
 					return
 		"spectre":
-			# (Its button calls it straight away, so this is On Dodge: it comes to you
-			# for a moment.)
-			var f: Dictionary = weapon["effects"][effect]
-			take_spectre(self, SwingBuild.spectre_time(size, SwingBuild.SPECTRE_DODGE), SwingBuild.spectre_power(power),
-				clampi(int(f["count"]) + (q["merged"] as Array).size(), 1, SwingBuild.MAX_COUNT))
+			# (Its button calls it straight away, so this is On Dodge. That belongs to
+			# the ghost, not to this dodge: whoever has it leaves a burst behind when
+			# they dodge. See _spectre_dodge.)
 			return
 		"arrow_rain":
 			var wide := SwingBuild.rain_scale(size)

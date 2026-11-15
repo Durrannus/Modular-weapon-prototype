@@ -248,7 +248,7 @@ func net_state() -> Array:
 			p.ability_charge[0], p.ability_charge[1], p.ability_charge[2], p.hold_button, p.hold_left, p.weak_marks.size(),
 			p.ghost_left, p.ghost_swings.size(), p.steady, p.snipe_button, p.snipe_t, p.rains.size(), p.mana, p.cast_weak,
 			p.momentum, p.momentum_idle, p.rumbles.size(), p.bulwark_left,
-			p.orbs.size(), p.overflow_left, p.overflow_count, p.spectre_left, p.spectre_shots.size(), p.spectre_swings.size(), p.lance_at, p.chain_jumps])
+			p.orbs.size(), p.overflow_charge, p.overflow_count, p.overflow_echoes.size(), p.spectre_left, p.spectre_burst, p.spectre_shots.size(), p.spectre_swings.size(), p.lance_at, p.chain_jumps])
 	for b in builds:
 		out.append(b.get_data())
 	for a in get_tree().get_nodes_in_group("arrows"):

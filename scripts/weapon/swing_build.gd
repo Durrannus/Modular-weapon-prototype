@@ -554,8 +554,9 @@ const FITTINGS := {
 	"bulwark": {"kind": "rune", "weapon": "hammer", "name": "Bulwark", "trigger": "active", "use": "press", "recharge": 10.0, "time": 3.0, "color": Color("#7fe0f0"),
 		"desc": "Press its button: for a few seconds nothing can hurt you, and whoever hits you is stunned."},
 	# The staff's own runes (15 November). Overflow, Nova, Lance and Spectre are
-	# Darren's (11 November afternoon); Orbit and Chain were only names, so what
-	# they do is a first design, and so are all the numbers and the bands' rules.
+	# Darren's (11 November afternoon), and so are Overflow's and Spectre's bands;
+	# Orbit and Chain were only names, so what they do is a first design, and so
+	# are all the numbers and the bands of Orbit, Chain, Nova and Lance.
 	# Overflow doesn't "fire": it changes the bolts you cast on full mana. See
 	# player.gd, "The staff's runes". (Colours and words: the art thread's.)
 	"orbit": {"kind": "rune", "weapon": "staff", "name": "Orbit", "trigger": "finisher", "color": Color("#ffb84a"),
@@ -735,7 +736,16 @@ const CHAIN_JUMPS := 3           # how many enemies the lightning goes on to (Tw
 const CHAIN_RANGE := 150.0       # how far one jump reaches (Wider: further)
 const CHAIN_DAMAGE := 0.5        # each jump
 const OVERFLOW_DAMAGE := 0.3     # how much harder a bolt cast on full mana hits
-const OVERFLOW_SIZE := 0.25      # and how much bigger it is (Wider: bigger still)
+const OVERFLOW_SIZE := 0.25      # and how much bigger it is
+# Its bands are Darren's (11 November, "Overflow bands" in the Game Bible); the numbers are a first pass.
+const OVERFLOW_ECHO := 0.12      # Twice: every other Overflow bolt is cast again this long after
+const OVERFLOW_SPLASH := 36.0    # Wider: an Overflow bolt bursts this wide where it lands, so it hits more enemies
+const OVERFLOW_REFUND := 3.0     # Every Hit: mana back for each bolt that lands (half a bolt's cost: from full, a whole chain that lands stays full)
+const OVERFLOW_CHARGE := 3.0     # Saved Up: seconds your mana must stay full...
+const OVERFLOW_BLAST := 3.0      # ...for the next bolt to be a blast this many times as strong...
+const OVERFLOW_BLAST_SIZE := 0.9 # ...and this much bigger, bursting OVERFLOW_BLAST_SPLASH wide
+const OVERFLOW_BLAST_SPLASH := 64.0
+const OVERFLOW_DODGE_MANA := 10.0   # On Dodge: mana back for each dodge
 const NOVA_RADIUS := 110.0       # how far the ring reaches to the sides...
 const NOVA_FLAT := 0.62          # ...and up and down, as a share (it is an oval on the floor)
 const NOVA_DAMAGE := 1.2
@@ -752,7 +762,9 @@ const SPECTRE_DELAY := 0.15      # a copy comes this long after the attack
 const SPECTRE_GAP := 0.1         # Twice: the second copy comes this long after the first
 const SPECTRE_AIM := 320.0       # how far away a teammate can be to be given the ghost...
 const SPECTRE_CONE := 0.35       # ...and how far off your aim, in radians
-const SPECTRE_DODGE := 1.5       # On Dodge: how long a dodge calls it for
+# Its bands are Darren's too ("Spectre bands" in the Game Bible).
+const SPECTRE_BURST := 1.0       # On Dodge: the ghost dodges with its player and bursts where it stood, for this many bolts of the caster's staff...
+const SPECTRE_BURST_RADIUS := 56.0   # ...to everything this near
 
 
 ## How strong a Spectre's copies are. Saved Up brings them to full copies (and
@@ -761,10 +773,10 @@ static func spectre_power(power: float) -> float:
 	return minf(SPECTRE_POWER * power, 1.0)
 
 
-## How long a Spectre stays. Wider is the band for it (one Wider: 8 seconds for 6).
-static func spectre_time(size: float, seconds := -1.0) -> float:
-	var base := float(FITTINGS["spectre"]["time"]) if seconds < 0.0 else seconds
-	return base * (1.0 + (size - 1.0) / 1.8)
+## How long a Spectre stays. Wider is the band for it (one Wider: about 9 seconds
+## for 6, Darren's number).
+static func spectre_time(size: float) -> float:
+	return float(FITTINGS["spectre"]["time"]) * (1.0 + (size - 1.0) / 1.2)
 
 
 ## The beam's strength (1 to LANCE_STAGES) on its nth pulse of one hold. `turns`
@@ -1176,7 +1188,7 @@ static func _apply_band(e: Dictionary, band: String) -> String:
 				e["per_hit"] = true
 				return ""
 			if e["id"] == "overflow":
-				# Overflow doesn't fire: with this, every bolt gets half of it whatever your mana.
+				# Overflow doesn't fire: with this, every bolt that lands gives a little mana back.
 				if e.get("per_hit", false):
 					return "Every Hit doesn't stack (max)."
 				e["per_hit"] = true
@@ -1396,15 +1408,20 @@ static func _staff_sentence(e: Dictionary) -> String:
 				s += " %s sends it out from you too." % ("Every third dodge" if third else "A dodge")
 			return s
 		"overflow":
-			var bonus := roundi(OVERFLOW_DAMAGE * maxf(power, 1.0) * 100.0)
-			var which := "your bolts are" if n == 1 else "your next %s bolts are" % _num(n)
+			# (Saved Up: no steady bonus, but a blast after staying full for a while.)
+			var s := ""
 			if third:
-				which = "every third bolt is" if n == 1 else "every third bolt and the one after it are"
-			var s := "While your mana is full, %s %s and hit%s %d%% harder." % [which, "much bigger" if big else "bigger", "s" if third and n == 1 else "", bonus]
+				s = "After %s seconds on full mana, your next bolt is a huge%s blast, three times as strong." % [_num(roundi(OVERFLOW_CHARGE)), ", wider" if big else ""]
+			elif big:
+				s = "While your mana is full, your bolts hit %d%% harder and burst wide where they land." % roundi(OVERFLOW_DAMAGE * 100.0)
+			else:
+				s = "While your mana is full, your bolts are bigger and hit %d%% harder." % roundi(OVERFLOW_DAMAGE * 100.0)
+			if n > 1:
+				s += " Every other one is cast %s." % ("twice" if n == 2 else "%s times" % _num(n))
 			if e.get("per_hit", false):
-				s += " Your other bolts hit %d%% harder." % roundi(OVERFLOW_DAMAGE * EVERY_HIT_POWER * 100.0)
+				s += " Each bolt that lands gives back %d mana." % roundi(OVERFLOW_REFUND)
 			if dodge:
-				s += " Your first bolt after a dodge counts too."
+				s += " A dodge gives back %d mana." % roundi(OVERFLOW_DODGE_MANA)
 			return s
 	return ""
 
@@ -1451,7 +1468,7 @@ static func _active_sentence(e: Dictionary, keys: Array) -> String:
 			what = "a %sbeam into the first enemy on your aim that builds the longer you hold, for up to %s seconds" % ["thick " if big else "", _num(roundi(lance_time(n)))]
 		"spectre":
 			# Its strength is how much of an attack the ghost copies, so say that.
-			what = "a ghost of you, or of the teammate you aim at, copies their basic attacks%s for %d seconds, at %s strength" % ["" if n == 1 else (" twice" if n == 2 else " %d times" % n),
+			what = "%s of you, or of the teammate you aim at, %s their basic attacks for %d seconds, at %s strength" % ["a ghost" if n == 1 else "%s ghosts" % _num(n), "copies" if n == 1 else "copy",
 				roundi(spectre_time(float(e["size"]))), "full" if spectre_power(float(e.get("power", 1.0))) >= 1.0 else "half"]
 		_:
 			return ""
@@ -1481,7 +1498,7 @@ static func _active_sentence(e: Dictionary, keys: Array) -> String:
 		elif e["id"] == "lance":
 			s += " %s fires one flash of it." % dodging
 		elif e["id"] == "spectre":
-			s += " %s calls it to you for a moment." % dodging
+			s += " When they dodge, %s where it stood." % ("it bursts" if n == 1 else "they burst")
 		elif e["id"] == "bulwark":
 			s += " %s puts it up for %s." % [dodging, "a second" if slow <= 1 else "%s seconds" % _num(roundi(bulwark_time(1.0, float(e.get("power", 1.0)), BULWARK_DODGE)))]
 		else:

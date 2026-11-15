@@ -244,7 +244,7 @@ func _run() -> void:
 	for a in test_abilities:
 		got.append([a["id"], a["use"], a["recharge"]])
 	_check(got == [["nova", "press", 6.0], ["lance", "hold", 8.0], ["spectre", "press", 30.0]], "the arena's staff has Nova, Lance and Spectre on its three buttons: %s" % [got])
-	_check(_near(SwingBuild.spectre_time(1.0), 6.0) and _near(SwingBuild.spectre_time(SwingBuild.wider_size(1)), 8.0), "Spectre: 6 seconds, 8 with Wider")
+	_check(_near(SwingBuild.spectre_time(1.0), 6.0) and _near(SwingBuild.spectre_time(SwingBuild.wider_size(1)), 9.0), "Spectre: 6 seconds, 9 with Wider")
 	_check(_near(SwingBuild.spectre_power(1.0), 0.5) and _near(SwingBuild.spectre_power(3.0), 1.0), "its copies are half an attack; Saved Up makes them whole ones, never more")
 	_check(SwingBuild.lance_stage(1, 12) == 1 and SwingBuild.lance_stage(4, 12) == 1 and SwingBuild.lance_stage(5, 12) == 2 and SwingBuild.lance_stage(9, 12) == 3 and SwingBuild.lance_stage(12, 12) == 3,
 		"Lance grows a step for each third of a full hold: four pulses at each strength")
@@ -264,11 +264,12 @@ func _run() -> void:
 		["saved_up", "chain"]: "Every third finisher's burst sends lightning jumping to three more enemies, three times as strong.",
 		["on_dodge", "chain"]: "Your finisher's burst sends lightning jumping to three more enemies. A dodge sends it out from you too.",
 		["overflow"]: "While your mana is full, your bolts are bigger and hit 30% harder.",
-		["twice", "overflow"]: "While your mana is full, your next two bolts are bigger and hit 30% harder.",
-		["wider", "overflow"]: "While your mana is full, your bolts are much bigger and hit 30% harder.",
-		["every_hit", "overflow"]: "While your mana is full, your bolts are bigger and hit 30% harder. Your other bolts hit 15% harder.",
-		["saved_up", "overflow"]: "While your mana is full, every third bolt is bigger and hits 90% harder.",
-		["on_dodge", "overflow"]: "While your mana is full, your bolts are bigger and hit 30% harder. Your first bolt after a dodge counts too.",
+		["twice", "overflow"]: "While your mana is full, your bolts are bigger and hit 30% harder. Every other one is cast twice.",
+		["wider", "overflow"]: "While your mana is full, your bolts hit 30% harder and burst wide where they land.",
+		["every_hit", "overflow"]: "While your mana is full, your bolts are bigger and hit 30% harder. Each bolt that lands gives back 3 mana.",
+		["saved_up", "overflow"]: "After three seconds on full mana, your next bolt is a huge blast, three times as strong.",
+		["wider", "saved_up", "overflow"]: "After three seconds on full mana, your next bolt is a huge, wider blast, three times as strong.",
+		["on_dodge", "overflow"]: "While your mana is full, your bolts are bigger and hit 30% harder. A dodge gives back 10 mana.",
 		["nova"]: "Press right mouse: a ring bursts out from you and shoves the crowd back. Recharges in 6 seconds.",
 		["twice", "nova"]: "Press right mouse: two rings burst out from you and shove the crowd back. Recharges in 6 seconds.",
 		["wider", "nova"]: "Press right mouse: a big ring bursts out from you and shoves the crowd back. Recharges in 6 seconds.",
@@ -281,10 +282,10 @@ func _run() -> void:
 		["saved_up", "lance"]: "Hold right mouse: a beam into the first enemy on your aim that builds the longer you hold, for up to three seconds, three times as strong. Recharges in 24 seconds.",
 		["on_dodge", "lance"]: "Hold right mouse: a beam into the first enemy on your aim that builds the longer you hold, for up to three seconds. Recharges in 8 seconds. Dodging fires one flash of it.",
 		["spectre"]: "Press right mouse: a ghost of you, or of the teammate you aim at, copies their basic attacks for 6 seconds, at half strength. Recharges in 30 seconds.",
-		["twice", "spectre"]: "Press right mouse: a ghost of you, or of the teammate you aim at, copies their basic attacks twice for 6 seconds, at half strength. Recharges in 30 seconds.",
-		["wider", "spectre"]: "Press right mouse: a ghost of you, or of the teammate you aim at, copies their basic attacks for 8 seconds, at half strength. Recharges in 30 seconds.",
+		["twice", "spectre"]: "Press right mouse: two ghosts of you, or of the teammate you aim at, copy their basic attacks for 6 seconds, at half strength. Recharges in 30 seconds.",
+		["wider", "spectre"]: "Press right mouse: a ghost of you, or of the teammate you aim at, copies their basic attacks for 9 seconds, at half strength. Recharges in 30 seconds.",
 		["saved_up", "spectre"]: "Press right mouse: a ghost of you, or of the teammate you aim at, copies their basic attacks for 6 seconds, at full strength. Recharges in 90 seconds.",
-		["on_dodge", "spectre"]: "Press right mouse: a ghost of you, or of the teammate you aim at, copies their basic attacks for 6 seconds, at half strength. Recharges in 30 seconds. Dodging calls it to you for a moment.",
+		["on_dodge", "spectre"]: "Press right mouse: a ghost of you, or of the teammate you aim at, copies their basic attacks for 6 seconds, at half strength. Recharges in 30 seconds. When they dodge, it bursts where it stood.",
 	}
 	for line in says:
 		var said: String = SwingBuild.sentence(_effect(line))
@@ -319,42 +320,96 @@ func _run() -> void:
 	bolt = await _first_bolt()
 	_check(bolt != null and bolt.halo == "" and _near(bolt.big, 1.0) and _near(bolt.damage, BOLT), "on half mana a bolt is a plain one")
 	await _still()
+	# Its bands are Darren's (11 November, "Overflow bands" in the Game Bible).
 	await _staff(["twice", "overflow"], home)
 	post = _slime(Vector2(200, 0))
 	await _frames(2)
-	await _casts(3)
-	_check(_near(_lost(post), BOLT * 1.3 * 2.0 + BURST), "Twice: the next bolt too: 11.44, 11.44, 13.2 (%.3f)" % _lost(post))
-	await _staff(["wider", "overflow"], home)
 	bolt = await _first_bolt()
-	_check(bolt != null and _near(bolt.big, 1.0 + 0.25 * SwingBuild.wider_size(1)) and _near(bolt.damage, BOLT * 1.3), "Wider: bigger still (%.3f), the same damage" % (bolt.big if bolt != null else 0.0))
+	var paid: float = p.mana
+	await _frames(9)
+	var pair := _bolts()
+	_check(pair.size() == 2 and pair[1].quiet and _near(float(pair[1].crit), 0.0) and pair[1].halo == "overflow_glow" and _near(float(pair[1].damage), BOLT * 1.3) and p.mana >= paid,
+		"Twice: the Overflow bolt is cast again a moment later, free of mana, and it can't crit")
+	await _frames(45)
+	_check(_near(_lost(post), BOLT * 1.3 * 2.0) and p.overflow_count == 1, "both land: 11.44 and 11.44 (%.3f)" % _lost(post))
+	post.hp = post.max_hp
+	p.mana = SwingBuild.MANA
+	await _casts(1)
+	_check(_near(_lost(post), BOLT * 1.3) and p.overflow_count == 2, "every other one: the next Overflow bolt is cast once (%.3f)" % _lost(post))
+	post.hp = post.max_hp
+	p.mana = SwingBuild.MANA
+	await _casts(1)
+	_check(_near(_lost(post), BOLT * 1.3 * 2.0) and p.overflow_count == 3, "and the one after it twice again (%.3f)" % _lost(post))
+	await _staff(["wider", "overflow"], home)
+	post = _slime(Vector2(200, 0))
+	var beside = _slime(Vector2(200, 42))   # out of the bolt's path, inside its burst
+	var apart = _slime(Vector2(200, -90))
+	await _frames(2)
+	bolt = await _first_bolt()
+	_check(bolt != null and _near(bolt.splash, SwingBuild.OVERFLOW_SPLASH) and _near(bolt.damage, BOLT * 1.3), "Wider: an Overflow bolt bursts where it lands, 36 px wide")
+	await _frames(45)
+	_check(_near(_lost(post), BOLT * 1.3) and _near(_lost(beside), BOLT * 1.3) and _near(_lost(apart), 0.0), "so it hits the enemy beside the one it lands on too (%.3f, %.3f)" % [_lost(post), _lost(beside)])
+	post.hp = post.max_hp
+	beside.hp = beside.max_hp
+	p.mana = 50.0
+	await _casts(1)
+	_check(_near(_lost(post), BOLT) and _near(_lost(beside), 0.0), "a plain bolt doesn't burst")
 	await _still()
 	await _staff(["every_hit", "overflow"], home)
-	post = _slime(Vector2(200, 0))
+	post = _slime(Vector2(120, 0))
+	await _frames(2)
+	p.mana = 50.0
+	bolt = await _first_bolt()
+	paid = p.mana
+	await _frames(15)
+	_check(_near(_lost(post), BOLT) and _near(p.mana, paid + 15.0 / 6.0 + SwingBuild.OVERFLOW_REFUND, 0.4), "Every Hit: a bolt that lands gives 3 mana back (%.2f from %.2f)" % [p.mana, paid])
+	await _clear()
+	await _still()
+	p.mana = 50.0
+	bolt = await _first_bolt()
+	paid = p.mana
+	await _frames(15)
+	_check(_near(p.mana, paid + 15.0 / 6.0, 0.4), "one that hits nothing gives none (%.2f from %.2f)" % [p.mana, paid])
+	await _still()
+	post = _slime(Vector2(120, 0))
 	await _frames(2)
 	await _casts(3)
-	_check(_near(_lost(post), BOLT * 1.3 + (BOLT + BURST) * 1.15), "Every Hit: the other bolts hit 15%% harder: 11.44, 10.12, 15.18 (%.3f)" % _lost(post))
+	_check(_near(_lost(post), CHAIN * 1.3), "so from full mana a whole chain that lands stays full: 11.44, 11.44, 17.16 (%.3f)" % _lost(post))
 	await _staff(["saved_up", "overflow"], home)
 	post = _slime(Vector2(200, 0))
 	await _frames(2)
-	await _casts(1)
+	p.overflow_charge = 0.0
+	bolt = await _first_bolt()
+	_check(bolt != null and bolt.halo == "" and _near(bolt.damage, BOLT), "Saved Up: a bolt cast on full mana is a plain one...")
+	await _frames(50)
 	p.mana = SwingBuild.MANA
-	await _casts(1)
-	_check(_near(_lost(post), BOLT * 2.0), "Saved Up: the first two casts on full mana are plain ones (%.3f)" % _lost(post))
-	p.mana = SwingBuild.MANA
+	p.overflow_charge = 0.0
+	await _frames(170)
+	_check(not p.overflow_charged() and not is_instance_valid(p.overflow_aura), "...until your mana has stayed full for three seconds (not after 2.8)")
+	await _frames(14)
+	_check(p.overflow_charged() and is_instance_valid(p.overflow_aura), "then the crystal shows its sign")
 	post.hp = post.max_hp
-	await _casts(1)
-	_check(_near(_lost(post), BOLT * 1.9), "and the third hits 90%% harder: 16.72 (%.3f)" % _lost(post))
+	bolt = await _first_bolt()
+	_check(bolt != null and bolt.halo == "overflow_glow" and _near(bolt.damage, BOLT * 3.0) and _near(bolt.big, 2.15) and _near(bolt.splash, SwingBuild.OVERFLOW_BLAST_SPLASH),
+		"and the next bolt is a blast: three times as strong (26.4), huge, and it bursts")
+	await _frames(45)
+	_check(_near(_lost(post), BOLT * 3.0) and not p.overflow_charged(), "it lands for 26.4, and the charge is spent (%.3f)" % _lost(post))
 	await _staff(["on_dodge", "overflow"], home)
-	post = _slime(Vector2(260, 0))
-	await _frames(2)
 	p.mana = 40.0
-	await _dodge()
-	await _casts(1)
-	_check(_near(_lost(post), BOLT * 1.3), "On Dodge: the first bolt after a dodge counts, whatever your mana (%.3f)" % _lost(post))
-	post.hp = post.max_hp
+	p.dodge_charges = 1
+	p.input.dash_pressed = true
+	await _frames(1)
+	p.input.dash_pressed = false
+	_check(p.mana >= 50.0 and p.mana < 51.5, "On Dodge: a dodge gives 10 mana back (40 to %.1f)" % p.mana)
+	await _frames(30)
+	await _staff(["overflow"], home)
 	p.mana = 40.0
-	await _casts(1)
-	_check(_near(_lost(post), BOLT), "and the one after it doesn't (%.3f)" % _lost(post))
+	p.dodge_charges = 1
+	p.input.dash_pressed = true
+	await _frames(1)
+	p.input.dash_pressed = false
+	_check(p.mana < 41.5, "without the band it gives none (%.1f)" % p.mana)
+	await _frames(30)
 
 	# --- Orbit ---------------------------------------------------------------------------
 	await _staff(["orbit"], home)
@@ -553,7 +608,7 @@ func _run() -> void:
 	r = 13.0
 	far = _slime(Vector2(float(p.weapon["range"]) + 40.0, 0))
 	r = far.radius
-	var beside = _slime(Vector2(200, r + SwingBuild.LANCE_WIDTH + 2.0))
+	beside = _slime(Vector2(200, r + SwingBuild.LANCE_WIDTH + 2.0))
 	await _frames(2)
 	await _press(0)
 	await _frames(20)
@@ -613,19 +668,39 @@ func _run() -> void:
 	await _frames(2)
 	await _press(0)
 	await _casts(1)
-	_check(_near(_lost(post), BOLT * 2.0), "Twice: two copies of each attack (%.3f)" % _lost(post))
+	_check(_near(_lost(post), BOLT * 2.0) and p.spectre_count == 2 and p._spectre_places().size() == 2, "Twice: two ghosts, and each copies the attack (%.3f)" % _lost(post))
 	await _staff(["wider", "spectre"], home)
 	await _press(0)
-	_check(_near(p.spectre_left, 8.0, 0.1), "Wider: it stays 8 seconds")
+	_check(_near(p.spectre_left, 9.0, 0.1), "Wider: it stays 9 seconds")
 	await _staff(["saved_up", "spectre"], home)
 	post = _slime(Vector2(200, 0))
 	await _frames(2)
 	await _press(0)
 	await _casts(1)
 	_check(_near(_lost(post), BOLT * 2.0) and _near(float(p.weapon["abilities"][0]["recharge"]), 90.0), "Saved Up: whole copies, back in 90 seconds (%.3f)" % _lost(post))
+	# On Dodge is Darren's too: the ghost dodges with you and bursts where it stood.
 	await _staff(["on_dodge", "spectre"], home)
-	await _dodge()
-	_check(_near(p.spectre_left, 1.5, 0.25) and float(p.ability_charge[0]) > 0.99, "On Dodge: a dodge calls it to you for a second and a half (%.2f)" % p.spectre_left)
+	post = _slime(Vector2(44, 0))
+	var outside = _slime(Vector2(0, 120))
+	await _frames(2)
+	await _dodge(Vector2.LEFT)
+	_check(_near(_lost(post), 0.0) and p.spectre_left <= 0.0 and float(p.ability_charge[0]) > 0.99, "On Dodge: with no ghost out, a dodge does nothing")
+	p.global_position = home
+	p.reset_physics_interpolation()
+	await _frames(20)
+	await _press(0)
+	_check(_near(p.spectre_burst, BOLT), "with the band, the ghost you call has a burst worth one bolt")
+	await _dodge(Vector2.LEFT)
+	_check(_near(_lost(post), BOLT) and _near(_lost(outside), 0.0) and p.spectre_left > 5.0, "your dodge leaves it where you stood: 8.8 to everything within 56 px (%.3f)" % _lost(post))
+	await _staff(["saved_up", "on_dodge", "spectre"], home)
+	await _press(0)
+	_check(_near(p.spectre_burst, BOLT * 2.0), "a whole ghost's burst is worth two")
+	await _staff(["spectre"], home)
+	post = _slime(Vector2(44, 0))
+	await _frames(2)
+	await _press(0)
+	await _dodge(Vector2.LEFT)
+	_check(_near(_lost(post), 0.0) and _near(p.spectre_burst, 0.0), "without the band there is no burst")
 	# Its copies set your passive runes off, at their share.
 	await _staff(["spectre", "orbit"], home)
 	post = _slime(Vector2(220, 0))
@@ -686,6 +761,26 @@ func _run() -> void:
 	await _press(0)
 	await _casts(1, mate)
 	_check(_near(_lost(post), float(mate.weapon["damage"]) * 1.5), "a teammate's arrow is loosed again at half strength (%.3f)" % _lost(post))
+	# On Dodge belongs to the ghost: the teammate who has it leaves the burst.
+	p._end_spectre(true)
+	mate._end_spectre(true)
+	await _staff(["on_dodge", "spectre"], home)
+	mate.global_position = home + Vector2(150, 20)
+	mate.reset_physics_interpolation()
+	_quiet(mate)
+	await _frames(3)
+	post = _slime(Vector2(40, 0), mate)
+	await _frames(2)
+	await _press(0)
+	_check(mate.spectre_left > 5.0 and _near(mate.spectre_burst, BOLT), "given to a teammate with On Dodge, the burst is a bolt of your staff")
+	mate.dodge_charges = 1
+	mate.input.move = Vector2.UP
+	mate.input.dash_pressed = true
+	await _frames(1)
+	mate.input.dash_pressed = false
+	await _frames(14)
+	_quiet(mate)
+	_check(_near(_lost(post), BOLT), "their dodge leaves it where they stood (%.3f)" % _lost(post))
 	# Far away, or off your aim, it stays with you.
 	p._end_spectre(true)
 	mate._end_spectre(true)
