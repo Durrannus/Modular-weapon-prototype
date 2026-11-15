@@ -13,6 +13,9 @@ const BowArt := preload("res://scripts/weapon/bow_art.gd")
 const Player := preload("res://scripts/player.gd")
 const Art := preload("res://scripts/art.gd")
 
+## The runes the forge offers a staff (none until they are built).
+const RUNES := []
+
 var m
 var p
 var fails := 0
@@ -215,11 +218,71 @@ func _run() -> void:
 	_check(_near(float(fresh.compute()["damage"]), 4.0), "whose sea glass does 4: a chain of 4 + 4 + 6 is one crawler's 14")
 	await _still()
 
-	# --- The forge doesn't know it yet ----------------------------------------------------
+	# --- The staff at the forge: its own parts, its own numbers, its own presets ----------
+	var Forge := preload("res://scripts/ui/swing_forge.gd")
+	var forge = m.build_menu
 	m.open_forge(0)
 	await _frames(2)
-	_check(not m.build_menu.is_open, "the forge screen stays shut for a staff for now")
-	_check(str(m.hud.said).contains("can't change a staff yet"), "and the game says why")
+	_check(forge.is_open and forge.build.weapon() == "staff", "with the staff in your hand the forge opens on the staff")
+	forge._set_tab(0)
+	_check(forge._tab_label(0) == "staff", "its first tab is called STAFF")
+	var rows := {}
+	for c in forge._cards():
+		rows[c["kind"]] = int(rows.get(c["kind"], 0)) + 1
+	_check(rows == {"staff_heads": 2, "shafts": 3, "caps": 4, "crystals": 3}, "and offers two heads (apprentice, storm), three shafts, four caps and three crystals: %s" % [rows])
+	forge._set_tab(1)
+	var offered: Array = []
+	for c in forge._cards():
+		offered.append(c["id"])
+	_check(offered == RUNES, "the rune tray offers the staff's own runes and none of the sword's: %s" % [offered])
+	_check(not SwingBuild.valid_data(["iron_apprentice", "carved_shaft", "plain_cap", ["volley", "", "", ""], "iron_crystal"]), "a bow's rune can't be fitted to a staff")
+	_check(SwingBuild.valid_data(["iron_apprentice", "carved_shaft", "plain_cap", ["twice", "", "wider", ""], "iron_crystal"]), "bands can")
+	# The numbers plate: range, blast and mana, and what a part would change.
+	var now: Dictionary = Forge.stat_values(forge.build.compute())
+	_check(now.has("range") and now.has("size") and now.has("mana") and now.has("cast_move") and not now.has("reach"), "a staff's numbers show range, blast, mana and walking while casting")
+	_check(Forge.stat_text("damage", now["damage"]) == "Damage 8.8" and Forge.stat_text("range", now["range"]) == "Range 77%" and Forge.stat_text("size", now["size"]) == "Blast 100%",
+		"an iron staff reads Damage 8.8, Range 77% (of a shortbow's), Blast 100%")
+	_check(Forge.stat_text("mana", now["mana"]) == "Mana a chain 22" and Forge.stat_text("cast_move", now["cast_move"]) == "Walk while casting 80%", "Mana a chain 22 (6 + 6 + 10), Walk while casting 80%")
+	_check(Forge.stat_rows(forge.build.compute()).size() == 9, "nine numbers, on five rows")
+	var change: Dictionary = Forge.stat_changes(now, Forge.stat_values(forge.stats_with("iron_storm")))
+	_check(change == {"damage": "-0.9", "range": "-23%", "size": "+25%", "mana": "+2"}, "pointing at the storm head shows a lighter hit, less range, bigger spells, a dearer chain: %s" % [change])
+	change = Forge.stat_changes(now, Forge.stat_values(forge.stats_with("tin_crystal")))
+	_check(change == {"damage": "-2.4"}, "a tin crystal only changes the damage: %s" % [change])
+	change = Forge.stat_changes(now, Forge.stat_values(forge.stats_with("twisted_shaft")))
+	_check(change == {"slots": "+1"}, "a twisted shaft only adds a slot")
+	change = Forge.stat_changes(now, Forge.stat_values(forge.stats_with("light_cap")))
+	_check(change == {"speed": "+10%"}, "a light cap only casts faster: %s" % [change])
+	_check(forge.info_lines("iron_storm").size() <= 3 and forge._name("iron_storm") == "Iron Storm Head", "the info plate names a part and says what it is in three lines at most")
+	# Fitting parts from the tray.
+	forge._set_tab(0)
+	var tray: Array = forge._cards()
+	for i in tray.size():
+		if tray[i]["id"] in ["iron_storm", "twisted_shaft", "heavy_cap", "tin_crystal"]:
+			forge._use_card(i)
+	_check(m.build.get_data() == ["iron_storm", "twisted_shaft", "heavy_cap", ["", "", "", "", ""], "tin_crystal"], "clicking a head, a shaft, a cap and a crystal fits them: %s" % [m.build.get_data()])
+	_check(_near(float(p.weapon["damage"]), 8.0 * 0.8 * 0.9) and _near(float(p.weapon["range"]), 280.0) and p.weapon["steps"][2]["move"] == "orb", "and the staff in your hand is that storm staff: 5.76 a spark's worth, 280 px, ending in an orb")
+	_check(p.weapon.get("hit_color") == Color("#6ab8ff"), "casting in the tin crystal's blue")
+	forge._load_test("A")
+	_check(m.build.weapon() == "staff", "the test-sword keys do nothing while a staff is on the anvil")
+	# Presets: a staff has three of its own.
+	var staff_a: Array = m.build.get_data()
+	forge._click("preset:1")
+	m.build.set_blade("iron_apprentice")
+	m.build.set_arrows("iron_crystal")
+	var staff_b: Array = m.build.get_data()
+	_check(m.build.preset == 1 and m.build.preset_sword(0) == staff_a, "preset B starts as a copy and is changed; A keeps the storm staff")
+	forge._really_close()
+	await _frames(2)
+	m.swap_weapon(0, "sword")
+	await _frames(2)
+	_check(m.build.get_data() == sword and m.build.preset == 0 and m.build.preset_data == [null, null, null], "the sword's presets are its own: still on A, untouched by the staff's")
+	m.swap_weapon(0, "staff")
+	await _frames(2)
+	_check(m.build.get_data() == staff_b and m.build.preset == 1 and m.build.preset_sword(0) == staff_a, "back on the staff: still on its preset B, with A waiting")
+	m.build.use_preset(0)
+	m.build.set_data(test_staff)
+	m.build.changed.emit()
+	await _still()
 
 	# --- A chain at one enemy: 8.8, 8.8, 13.2 ---------------------------------------------
 	var post = _slime(Vector2(200, 0))

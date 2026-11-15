@@ -35,6 +35,7 @@ var runes_seen := {}           # the bow's runes that went off in the arena run
 var bolts_seen := {}           # the staff's bolts in the arena run
 var hammer_ticks := 0          # ticks someone spent swinging a hammer there
 var weak_ticks := 0            # ticks a staff was out of mana
+var forged := {}               # the weapons this player changed at the forge there (hammer, staff)
 var second_held := 0           # ticks the second ability button stays down
 var hard := false
 var started := 0
@@ -190,6 +191,17 @@ func _arena_tick() -> void:
 		if bolts_seen.size() < 6 or hammer_ticks < 60:
 			print("FAIL: the hammer or the staff was hardly used (%d ticks of swinging, %d bolts)" % [hammer_ticks, bolts_seen.size()])
 			runes = false
+		# Both computers must agree on what each changed at the forge: player 1's
+		# hammer is a warhammer on a studded haft, player 2's staff a storm staff with
+		# a tin crystal (their presets B), waiting while they hold something else.
+		var hammer: Array = m.builds[0].stowed.get("hammer", [])
+		var staff: Array = m.builds[1].stowed.get("staff", [])
+		if hammer.slice(0, 3) != ["iron_warhammer", "studded_haft", "keen_weight"] or staff.slice(0, 3) != ["iron_storm", "twisted_shaft", "keen_cap"] or staff[-1] != "tin_crystal":
+			print("FAIL: the hammer or the staff wasn't changed at the forge (%s, %s)" % [hammer, staff])
+			runes = false
+		if not forged.has("hammer" if me == 0 else "staff"):
+			print("FAIL: this player never stood at the forge with a %s" % ("hammer" if me == 0 else "staff"))
+			runes = false
 		if m.builds[0].weapon() != "sword" or m.builds[1].weapon() != "bow":
 			print("FAIL: the swaps didn't all happen (%s, %s at the end)" % [m.builds[0].weapon(), m.builds[1].weapon()])
 			runes = false
@@ -216,6 +228,29 @@ func _arena_tick() -> void:
 					forge._use_preset(1 - forge.build.preset)
 					forge.build.set_arrows("tin_arrows" if forge.build.preset == 1 else "iron_arrows")
 					forge.build.set_pommel("keen_string")
+					arena_step = 3
+				else:
+					forge.close()
+					arena_step = 0
+			elif forge.build.weapon() in ["hammer", "staff"]:
+				# A hammer or a staff on the anvil: another head and grip, a band, then
+				# its own preset B with another counterweight (or cap and crystal).
+				var staff: bool = forge.build.weapon() == "staff"
+				forged[forge.build.weapon()] = true
+				if arena_step == 0:
+					forge.build.set_blade("iron_storm" if staff else "iron_warhammer")
+					forge.build.set_grip("twisted_shaft" if staff else "studded_haft")
+					arena_step = 1
+				elif arena_step == 1:
+					forge._set_tab(2)
+					forge.selected = 1 + me
+					forge._use_card(me)
+					arena_step = 2
+				elif arena_step == 2:
+					forge._use_preset(1 - forge.build.preset)
+					if staff:
+						forge.build.set_arrows("tin_crystal")
+					forge.build.set_pommel("keen_cap" if staff else "keen_weight")
 					arena_step = 3
 				else:
 					forge.close()
@@ -248,9 +283,9 @@ func _arena_tick() -> void:
 		Net.command(["invincible"])
 	# The four weapons: each player goes round them at their own moments (sword,
 	# bow, hammer, staff), never while at the forge. Player 1 has the hammer out
-	# when both ask for the forge at 1200, and player 2 the staff at 1800: those
-	# two are turned away on both computers. Player 1 ends the run with the sword,
-	# player 2 with the bow.
+	# when both ask for the forge at 1200, and player 2 the staff at 1800: each
+	# changes it there (see above). Player 1 ends the run with the sword, player 2
+	# with the bow.
 	if me == 0 and frame in [650, 1000, 1500, 2150]:
 		Net.command(["weapon"])
 	if me == 1 and frame in [700, 1450, 1700, 2100, 2110]:

@@ -10,6 +10,9 @@ const SwingBuild := preload("res://scripts/weapon/swing_build.gd")
 const Player := preload("res://scripts/player.gd")
 const Art := preload("res://scripts/art.gd")
 
+## The runes the forge offers a hammer (none until they are built).
+const RUNES := []
+
 var m
 var p
 var fails := 0
@@ -182,11 +185,68 @@ func _run() -> void:
 	_check(_near(float(fresh.compute()["damage"]), 8.5), "whose swing does 8.5: two swings are a crawler's 14 and more")
 	await _still()
 
-	# --- The forge doesn't know it yet ----------------------------------------------------
+	# --- The hammer at the forge: its own parts, its own numbers, its own presets ---------
+	var Forge := preload("res://scripts/ui/swing_forge.gd")
+	var forge = m.build_menu
 	m.open_forge(0)
 	await _frames(2)
-	_check(not m.build_menu.is_open, "the forge screen stays shut for a hammer for now")
-	_check(str(m.hud.said).contains("can't change a hammer yet"), "and the game says why")
+	_check(forge.is_open and forge.build.weapon() == "hammer", "with the hammer in your hand the forge opens on the hammer")
+	forge._set_tab(0)
+	_check(forge._tab_label(0) == "hammer", "its first tab is called HAMMER")
+	var rows := {}
+	for c in forge._cards():
+		rows[c["kind"]] = int(rows.get(c["kind"], 0)) + 1
+	_check(rows == {"heads": 2, "hafts": 3, "weights": 4}, "and offers two heads (maul, warhammer), three hafts and four counterweights: %s" % [rows])
+	forge._set_tab(1)
+	var offered: Array = []
+	for c in forge._cards():
+		offered.append(c["id"])
+	_check(offered == RUNES, "the rune tray offers the hammer's own runes and none of the sword's: %s" % [offered])
+	_check(not SwingBuild.valid_data(["iron_maul", "bound_haft", "plain_weight", ["shockwave", "", "", ""]]), "a sword's rune can't be fitted to a hammer")
+	_check(SwingBuild.valid_data(["iron_maul", "bound_haft", "plain_weight", ["twice", "", "wider", ""]]), "bands can")
+	# The numbers plate: impact beside reach, and what a part would change.
+	var now: Dictionary = Forge.stat_values(forge.build.compute())
+	_check(now.has("reach") and now.has("impact") and now.has("move") and not now.has("range"), "a hammer's numbers show reach, impact and walking while swinging")
+	_check(Forge.stat_text("damage", now["damage"]) == "Damage 18.7" and Forge.stat_text("impact", now["impact"]) == "Impact 100%" and Forge.stat_text("move", now["move"]) == "Walk while swinging 80%",
+		"an iron maul reads Damage 18.7, Impact 100%, Walk while swinging 80%")
+	_check(Forge.stat_rows(forge.build.compute()).size() == 8, "eight numbers, on five rows")
+	var change: Dictionary = Forge.stat_changes(now, Forge.stat_values(forge.stats_with("iron_warhammer")))
+	_check(change == {"damage": "-2.2", "impact": "-15%", "move": "-10%"}, "pointing at the warhammer shows a lighter hit, a smaller patch, slower feet: %s" % [change])
+	change = Forge.stat_changes(now, Forge.stat_values(forge.stats_with("studded_haft")))
+	_check(change == {"slots": "+1"}, "a studded haft only adds a slot")
+	change = Forge.stat_changes(now, Forge.stat_values(forge.stats_with("light_weight")))
+	_check(change == {"speed": "+7%"}, "a light counterweight only swings faster, by a tenth of the maul's 70%%: %s" % [change])
+	change = Forge.stat_changes(now, Forge.stat_values(forge.stats_with("heavy_weight")))
+	_check(change == {"crit_damage": "+0.4"}, "a heavy one only crits harder: %s" % [change])
+	_check(forge.info_lines("iron_warhammer").size() <= 3 and forge._name("iron_warhammer") == "Iron Warhammer", "the info plate names a part and says what it is in three lines at most")
+	# Fitting parts from the tray.
+	forge._set_tab(0)
+	var tray: Array = forge._cards()
+	for i in tray.size():
+		if tray[i]["id"] in ["iron_warhammer", "studded_haft", "keen_weight"]:
+			forge._use_card(i)
+	_check(m.build.get_data() == ["iron_warhammer", "studded_haft", "keen_weight", ["", "", "", "", ""]], "clicking a head, a haft and a counterweight fits them: %s" % [m.build.get_data()])
+	_check(_near(float(p.weapon["damage"]), 16.5) and p.weapon["steps"][0]["move"] == "crush" and p.weapon["line"].size() == 5, "and the hammer in your hand is that warhammer: 16.5 a blow, five slots")
+	forge._load_test("A")
+	_check(m.build.weapon() == "hammer", "the test-sword keys do nothing while a hammer is on the anvil")
+	# Presets: a hammer has three of its own.
+	var hammer_a: Array = m.build.get_data()
+	forge._click("preset:1")
+	m.build.set_blade("iron_maul")
+	var hammer_b: Array = m.build.get_data()
+	_check(m.build.preset == 1 and m.build.preset_sword(0) == hammer_a, "preset B starts as a copy and is changed; A keeps the warhammer")
+	forge._really_close()
+	await _frames(2)
+	m.swap_weapon(0, "sword")
+	await _frames(2)
+	_check(m.build.get_data() == sword and m.build.preset == 0 and m.build.preset_data == [null, null, null], "the sword's presets are its own: still on A, untouched by the hammer's")
+	m.swap_weapon(0, "hammer")
+	await _frames(2)
+	_check(m.build.get_data() == hammer_b and m.build.preset == 1 and m.build.preset_sword(0) == hammer_a, "back on the hammer: still on its preset B, with A waiting")
+	m.build.use_preset(0)
+	m.build.set_data(test_hammer)
+	m.build.changed.emit()
+	await _still()
 
 	# --- A chain at one enemy: 18.7, 18.7, 28.05 ------------------------------------------
 	var post = _slime(Vector2(40, 0))

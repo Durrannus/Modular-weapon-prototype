@@ -284,6 +284,8 @@ const MANA := 100.0
 const MANA_REGEN := 10.0       # a second, always
 const MANA_REST := 0.7         # this long without a cast...
 const MANA_REST_REGEN := 45.0  # ...and it comes back this fast
+## What each cast costs (the moves are in player.gd).
+const CAST_MANA := {"bolt": 6.0, "burst": 10.0, "spray": 6.0, "orb": 12.0}
 const MANA_WEAK := 0.5         # a cast with too little mana: its damage...
 const MANA_SLOW := 0.75        # ...and how fast you cast it
 
@@ -1313,6 +1315,11 @@ func compute() -> Dictionary:
 		out["impact"] = float(b["impact"])
 	if kind == "staff":
 		out["size"] = float(b["size"])
+		# What one whole chain costs (the forge shows it).
+		var cost := 0.0
+		for m in b["chain"]:
+			cost += float(CAST_MANA.get(m, 0.0))
+		out["mana"] = cost
 		out["hit_color"] = CRYSTALS[arrows]["color"] if CRYSTALS.has(arrows) else Color.WHITE
 	return out
 

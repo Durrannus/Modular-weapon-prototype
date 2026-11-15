@@ -9,6 +9,19 @@
      11
     ],
     "slot_rects": []
+   },
+   "forge": {
+    "size": [
+     33,
+     33
+    ],
+    "slot_rects": []
+   },
+   "icon": {
+    "size": [
+     19,
+     21
+    ]
    }
   },
   "tin_maul": {
@@ -26,6 +39,26 @@
       1,
       1
      ]
+    ]
+   },
+   "forge": {
+    "size": [
+     33,
+     35
+    ],
+    "slot_rects": [
+     [
+      12,
+      23,
+      9,
+      9
+     ]
+    ]
+   },
+   "icon": {
+    "size": [
+     23,
+     21
     ]
    }
   },
@@ -50,6 +83,32 @@
       1,
       1
      ]
+    ]
+   },
+   "forge": {
+    "size": [
+     39,
+     48
+    ],
+    "slot_rects": [
+     [
+      15,
+      36,
+      9,
+      9
+     ],
+     [
+      15,
+      24,
+      9,
+      9
+     ]
+    ]
+   },
+   "icon": {
+    "size": [
+     26,
+     21
     ]
    }
   },
@@ -76,7 +135,33 @@
      ]
     ]
    },
-   "note": "the flat striking face is on the LEFT, the beak on the right; the neck is still centred"
+   "note": "the flat striking face is on the LEFT, the beak on the right; the neck is still centred",
+   "forge": {
+    "size": [
+     45,
+     48
+    ],
+    "slot_rects": [
+     [
+      18,
+      36,
+      9,
+      9
+     ],
+     [
+      18,
+      24,
+      9,
+      9
+     ]
+    ]
+   },
+   "icon": {
+    "size": [
+     24,
+     21
+    ]
+   }
   }
  },
  "hafts": {
@@ -104,6 +189,34 @@
      0,
      13
     ]
+   },
+   "forge": {
+    "size": [
+     45,
+     57
+    ],
+    "slot_rects": [
+     [
+      18,
+      37,
+      9,
+      9
+     ]
+    ],
+    "pivot": [
+     22.5,
+     21.5
+    ],
+    "pommel_at": [
+     0,
+     48
+    ]
+   },
+   "icon": {
+    "size": [
+     11,
+     19
+    ]
    }
   },
   "tin_haft": {
@@ -129,6 +242,34 @@
     "pommel_at": [
      0,
      13
+    ]
+   },
+   "forge": {
+    "size": [
+     45,
+     57
+    ],
+    "slot_rects": [
+     [
+      18,
+      37,
+      9,
+      9
+     ]
+    ],
+    "pivot": [
+     22.5,
+     21.5
+    ],
+    "pommel_at": [
+     0,
+     48
+    ]
+   },
+   "icon": {
+    "size": [
+     11,
+     19
     ]
    }
   },
@@ -161,6 +302,40 @@
     "pommel_at": [
      0,
      15
+    ]
+   },
+   "forge": {
+    "size": [
+     45,
+     69
+    ],
+    "slot_rects": [
+     [
+      18,
+      49,
+      9,
+      9
+     ],
+     [
+      18,
+      37,
+      9,
+      9
+     ]
+    ],
+    "pivot": [
+     22.5,
+     21.5
+    ],
+    "pommel_at": [
+     0,
+     60
+    ]
+   },
+   "icon": {
+    "size": [
+     11,
+     23
     ]
    }
   },
@@ -200,6 +375,46 @@
      0,
      17
     ]
+   },
+   "forge": {
+    "size": [
+     45,
+     81
+    ],
+    "slot_rects": [
+     [
+      18,
+      61,
+      9,
+      9
+     ],
+     [
+      18,
+      49,
+      9,
+      9
+     ],
+     [
+      18,
+      37,
+      9,
+      9
+     ]
+    ],
+    "pivot": [
+     22.5,
+     21.5
+    ],
+    "pommel_at": [
+     0,
+     72
+    ]
+   },
+   "icon": {
+    "size": [
+     11,
+     23
+    ]
    }
   }
  },
@@ -210,7 +425,15 @@
     9,
     2
    ],
-   "colour": "#94a8b8"
+   "colour": "#94a8b8",
+   "forge_size": [
+    45,
+    12
+   ],
+   "icon_size": [
+    26,
+    18
+   ]
   },
   "keen_weight": {
    "name": "Keen Weight",
@@ -218,7 +441,15 @@
     9,
     3
    ],
-   "colour": "#78c0cc"
+   "colour": "#78c0cc",
+   "forge_size": [
+    45,
+    12
+   ],
+   "icon_size": [
+    26,
+    20
+   ]
   },
   "heavy_weight": {
    "name": "Heavy Weight",
@@ -226,7 +457,15 @@
     9,
     3
    ],
-   "colour": "#cf8a48"
+   "colour": "#cf8a48",
+   "forge_size": [
+    45,
+    12
+   ],
+   "icon_size": [
+    26,
+    14
+   ]
   },
   "light_weight": {
    "name": "Light Weight",
@@ -234,7 +473,15 @@
     9,
     3
    ],
-   "colour": "#e8e4bc"
+   "colour": "#e8e4bc",
+   "forge_size": [
+    45,
+    12
+   ],
+   "icon_size": [
+    26,
+    20
+   ]
   }
  },
  "fx": {
@@ -293,6 +540,141 @@
    ],
    "loop": false,
    "note": "ADDITIVE, once. Where the head hits an enemy; faces right, turn it to the hit direction"
+  },
+  "momentum_ring": {
+   "folder": "fx",
+   "frames": 6,
+   "frame": [
+    48,
+    24
+   ],
+   "fps": 0,
+   "origin": [
+    24,
+    12
+   ],
+   "loop": false,
+   "note": "Momentum: chevrons round the feet, 6 frames: empty, then one to five lit (the code picks the frame). Additive, never turned"
+  },
+  "stagger_break": {
+   "folder": "fx",
+   "frames": 6,
+   "frame": [
+    64,
+    64
+   ],
+   "fps": 22,
+   "origin": [
+    32,
+    32
+   ],
+   "loop": false,
+   "note": "Stagger: the meter fills and the enemy is stunned: a hard burst on the enemy. Additive, once"
+  },
+  "stagger_stars": {
+   "folder": "fx",
+   "frames": 6,
+   "frame": [
+    32,
+    16
+   ],
+   "fps": 10,
+   "origin": [
+    16,
+    8
+   ],
+   "loop": true,
+   "note": "Stagger: the dazed loop over a stunned enemy's head. Additive, loops"
+  },
+  "aftershock_crack": {
+   "folder": "fx",
+   "frames": 4,
+   "frame": [
+    128,
+    96
+   ],
+   "fps": 12,
+   "origin": [
+    64,
+    48
+   ],
+   "loop": true,
+   "note": "Aftershock: the ground trembling before the rumble; loop it for about half a second. About 48 across and 30 up and down. Additive, never turned"
+  },
+  "aftershock_burst": {
+   "folder": "fx",
+   "frames": 8,
+   "frame": [
+    128,
+    96
+   ],
+   "fps": 18,
+   "origin": [
+    64,
+    48
+   ],
+   "loop": false,
+   "note": "Aftershock: the rumble, on the same patch. Additive, once, never turned"
+  },
+  "quake_erupt": {
+   "folder": "fx",
+   "frames": 8,
+   "frame": [
+    96,
+    96
+   ],
+   "fps": 18,
+   "origin": [
+    48,
+    68
+   ],
+   "loop": false,
+   "note": "Quake: rock and light thrown up under the enemy; origin = the enemy's feet, about 28 across on the floor. Additive, once, never turned"
+  },
+  "bulwark_shield": {
+   "folder": "fx",
+   "frames": 6,
+   "frame": [
+    48,
+    56
+   ],
+   "fps": 10,
+   "origin": [
+    24,
+    36
+   ],
+   "loop": true,
+   "note": "Bulwark: the shield round the player while it lasts; origin = the player's centre. Lines only, so the player still reads. Additive, loops"
+  },
+  "bulwark_block": {
+   "folder": "fx",
+   "frames": 4,
+   "frame": [
+    64,
+    64
+   ],
+   "fps": 24,
+   "origin": [
+    32,
+    32
+   ],
+   "loop": false,
+   "note": "Bulwark: it stops a hit; play it where the hit landed. Additive, once"
+  },
+  "bulwark_end": {
+   "folder": "fx",
+   "frames": 4,
+   "frame": [
+    48,
+    56
+   ],
+   "fps": 16,
+   "origin": [
+    24,
+    36
+   ],
+   "loop": false,
+   "note": "Bulwark: the shield goes; same origin as bulwark_shield. Additive, once"
   }
  },
  "hud": {
@@ -301,7 +683,83 @@
     12,
     12
    ]
+  },
+  "glyph_quake": {
+   "size": [
+    12,
+    12
+   ]
+  },
+  "glyph_bulwark": {
+   "size": [
+    12,
+    12
+   ]
+  },
+  "stagger_frame": {
+   "size": [
+    26,
+    4
+   ],
+   "fill_at": [
+    2,
+    1
+   ],
+   "note": "draw right under enemy_bar_frame"
+  },
+  "stagger_fill": {
+   "size": [
+    22,
+    2
+   ],
+   "note": "show the left part for how full the meter is"
   }
  },
- "note": "The hammer: all its numbers. Built like a sword: head (the blades' format) on a haft (the grips' format) with a counterweight (the pommels' format). Hand pictures have no outline. Heads are centred on the frame's middle column; their 3 px neck carries the slot dots, listed bottom-up. On a haft the hold (pivot) is 7 px down, slots below it. Weights echo the four pommels: plain iron, keen blue steel, heavy bronze, light pale ring."
+ "note": "The hammer: all its numbers. Built like a sword: head (the blades' format) on a haft (the grips' format) with a counterweight (the pommels' format). Hand pictures have no outline. Heads are centred on the frame's middle column; their 3 px neck carries the slot dots, listed bottom-up. On a haft the hold (pivot) is 7 px down, slots below it. Weights echo the four pommels: plain iron, keen blue steel, heavy bronze, light pale ring.",
+ "ui": {
+  "stat_impact": {
+   "size": [
+    9,
+    9
+   ],
+   "note": "Impact: how big the patch of floor a slam hits; stat_impact_hot is its lit twin"
+  }
+ },
+ "forge_note": "Forge pictures: heads are centred on the 45 frame (draw at x = (45 - width) / 2); their sockets sit on the neck, bottom-up. Hafts are 45 wide with a 13 px pole; the last 9 rows under pommel_at are empty, as on the sword grips. Icons are outlined; head icons lie down, head to the right.",
+ "runes": {
+  "momentum": {
+   "name": "Momentum",
+   "kind": "passive",
+   "text": "Each hit you land makes the next one stronger, in five steps. Stop hitting and it drains away."
+  },
+  "stagger": {
+   "name": "Stagger",
+   "kind": "passive",
+   "text": "Your hits fill a meter on the enemy. When it is full the enemy is stunned."
+  },
+  "aftershock": {
+   "name": "Aftershock",
+   "kind": "passive",
+   "text": "After your finisher the ground rumbles a moment later and hurts whatever is still near."
+  },
+  "quake": {
+   "name": "Quake",
+   "kind": "active",
+   "text": "The ground erupts under the enemy nearest your aim."
+  },
+  "bulwark": {
+   "name": "Bulwark",
+   "kind": "active",
+   "text": "For a few seconds nothing can hurt you, and whoever hits you is stunned."
+  }
+ },
+ "rune_colours": {
+  "momentum": "#ffe040",
+  "stagger": "#a8b8ff",
+  "aftershock": "#d070e0",
+  "quake": "#6ad86a",
+  "bulwark": "#7fe0f0",
+  "hook": "#ff9c32"
+ },
+ "runes_note": "The hammer's runes. Stones in swing/runes/ (icon 26 x 26, forge 9 x 9 and _lit, hand 1 x 1 and _lit), glyphs for the actives in hud/, effect strips in fx/ (listed under fx with folder fx). Hook keeps its stone, glyph and effects."
 }

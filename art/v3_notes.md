@@ -348,3 +348,15 @@ one from the opening cutscene), the sun coming up behind it. One ember breathes 
 
 Previews: `preview/title_loop.gif` (640x360, clouds drifting as in the game), `preview/title_still.png`.
 Drawing code: `art/concept-art-3/code/title_art.py` (`still`, `sheet`, `gif`, `export`; a full export takes a few seconds).
+
+## The hammer and the staff (15 November): parts, effects, HUD, eleven runes
+
+Asked for in `/mnt/project-files/art/requests/nov15-hammer-staff-art.md` (H1 to H4, S1 to S4, U), delivered in four batches. All numbers are in `swing/hammer/hammer.json` and `swing/staff/staff.json` (heads, hafts or shafts, weights or caps, crystals, fx, hud, ui, runes, rune_colours). Code: `concept-art-3/code/v3_hs.py` (hand parts), `v3_hs_fx.py` (effects, HUD), `v3_hs_forge.py` (forge parts, icons), `v3_hs_runes.py` (runes).
+
+- **In the hand** (`swing/hammer/`, `swing/staff/`): `heads/<id>_hand.png`, `hafts|shafts/<id>_hand.png` (9 wide, pivot, slot_rects bottom-up, pommel_at), `weights|caps/<id>_hand.png`, `crystals/<id>_hand.png` (drawn centred on the head's `crystal_at`). No outlines. The warhammer's face is on the LEFT.
+- **At the forge**: the same ids with `_forge.png` and outlined `_icon.png`. Sockets 9x9, 12 apart. Hammer pole 13 wide, staff pole 11. Stat icons `swing/ui/stat_impact`, `stat_size`, `stat_mana` (each with `_hot`).
+- **Effects** (`swing/fx/`): hammer_smear, hammer_slam_smear, hammer_impact, hammer_hit; bolt_fly, bolt_trail, bolt_hit, burst_fly, burst_hit, spark_fly, orb_fly, orb_hit, cast_flash. **Every staff bolt strip is neutral grey with a white core: the game tints it** with `crystals.<id>.colour` (sea_glass #7fe6b4, tin_crystal #6ab8ff, iron_crystal #c090ff).
+- **HUD** (`hud/`): weapon_hammer, weapon_staff (12x12); mana_frame 92x8 (window 80x3 at (6,2)), mana_fill, mana_empty; stagger_frame 26x4, stagger_fill 22x2 (fill at (2,1)).
+- **Runes** (`swing/runes/<id>_icon|_forge|_forge_lit|_hand|_hand_lit.png`, actives also `hud/glyph_<id>.png`; effects in `fx/`, in the rune's own colour, not for tinting). Hammer: momentum #ffe040 (momentum_ring), stagger #a8b8ff (stagger_break, stagger_stars), aftershock #d070e0 (aftershock_crack, aftershock_burst), quake #6ad86a (quake_erupt), bulwark #7fe0f0 (bulwark_shield, bulwark_block, bulwark_end); hook unchanged. Staff: orbit #ffb84a (orbit_orb, orbit_hit), chain #60e0ff (chain_arc, chain_hit), overflow #6ab8ff (overflow_glow, overflow_aura), nova #ff70c8 (nova_ring), lance #fff078 (lance_beam_1/_2/_3 tile end to end, lance_start, lance_end), spectre #a8b4ff (spectre_appear).
+- **Look sheets** in `preview/`: hammer_staff_in_hand, hammer_staff_at_forge, hammer_staff_icons, hammer_fx, staff_fx_a, staff_fx_b, staff_fx_tinted, hammer_staff_hud_glyphs, mana_bar, stagger_bar, hammer_runes_stones, hammer_runes_fx_a, hammer_runes_fx_b, staff_runes_stones, staff_runes_fx_a, staff_runes_fx_b, staff_runes_nova, staff_runes_lance_whole.
+- All colours and designs here are Claude's choices (Darren asked for no questions overnight); they are listed for him on Concept Art 3.

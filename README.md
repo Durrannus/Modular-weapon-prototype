@@ -9,7 +9,7 @@ This branch (`swing-path`) has four things to try:
 - **Two players online**, one on each computer (see "Playing online" below).
 - **The test arena**: the sandbox for trying weapons out, with every sword part unlocked. You can't be hurt there unless you switch that off, and you can stop the enemies where they stand (see "Controls").
 - **The bow** (versions 18 to 21, Game Bible milestone 6). In the test arena press **B** (or click the right stick) to swap your sword for an iron shortbow and back, and open the forge with the bow in your hand to change its limbs, grip, string and arrows and to fit its own six runes (Pierce, Ricochet, Steady Aim, Volley, Snipe, Arrow Rain). In the tutorial cave take the wooden bow from the crate and play the whole cave with it. See "The bow" below.
-- **The hammer and the staff** (version 22 on, Game Bible milestone 7). In the test arena **B** now goes round four weapons: sword, bow, an iron maul and an iron staff. The forge can't change those two yet, they have no runes yet, and the tutorial cave doesn't hand them out yet. See "The hammer and the staff" below.
+- **The hammer and the staff** (version 22 on, Game Bible milestone 7). In the test arena **B** now goes round four weapons: sword, bow, an iron maul and an iron staff, and since version 23 the forge changes the one in your hand: another head, haft or shaft, counterweight or cap, crystal, bands, and three presets of its own. They have no runes yet, and the tutorial cave doesn't hand them out yet. See "The hammer and the staff" below.
 
 ## How to run it
 
@@ -204,7 +204,7 @@ godot --headless --path . --fixed-fps 60 -s tests/cave_playthrough.gd          #
 godot --headless --path . --fixed-fps 60 -s tests/cave_playthrough.gd -- bow   # with a bow ("swap": takes the sword, swaps it for the bow after room 1)
 godot --headless --path . --fixed-fps 60 -s tests/cave_playthrough.gd -- players=2 bow    # two players, a bow and a sword ("bows": two bows)
 godot --headless --path . --fixed-fps 60 -s tests/cave_playthrough.gd -- players=2 wipe down
-godot --path . -s tests/smoke_forge.gd                                         # opens the forge, fires every rune; every word fits its plate; BACK leaves; the bow on the anvil
+godot --path . -s tests/smoke_forge.gd                                         # opens the forge, fires every rune; every word fits its plate; BACK leaves; the bow, the hammer and the staff on the anvil
 godot --headless --path . --fixed-fps 60 -s tests/title_screen.gd              # the intro screen: its picture, its buttons, joining and choosing
 godot --headless --path . --fixed-fps 60 -s tests/arena_switches.gd            # the arena's two switches: Invincible, and Pause enemies
 godot --headless --path . --fixed-fps 60 -s tests/bow.gd                       # the bow: swapping, its numbers, the forge and presets, what an arrow hits and where it stops, the longbow, damage a second against the sword's
@@ -226,7 +226,7 @@ Online play (needs bash, so Linux, macOS or Git Bash on Windows). Each line runs
 tests/online.sh /path/to/godot                         # the cave, as fast as the computer can
 tests/online.sh /path/to/godot fast bow                # the cave with a bow for player one and a sword for player two (also "bows" and "swap")
 tests/online.sh /path/to/godot fast hard drop=0.1      # with knock-outs and 10% of messages lost
-tests/online.sh /path/to/godot fast arena              # the arena: forge, sword changes, the two switches, swapping to the bow, shooting, its runes (Volley, a Snipe let go on time and one held too long, Arrow Rain, Ricochet), and changing the bow at the forge Since version 22 both players go round all four weapons, so the hammer's swings and the staff's bolts and mana are compared too.
+tests/online.sh /path/to/godot fast arena              # the arena: forge, sword changes, the two switches, swapping to the bow, shooting, its runes (Volley, a Snipe let go on time and one held too long, Arrow Rain, Ricochet), and changing the bow at the forge. Since version 22 both players go round all four weapons, so the hammer's swings and the staff's bolts and mana are compared too; since version 23 player 1 changes a hammer at the forge and player 2 a staff, and both computers must agree on what they made.
 tests/online.sh /path/to/godot real lag=45 drop=0.05   # at normal speed with a slow, lossy connection
 tests/online.sh /path/to/godot real host:slow=22       # one computer that can't keep up
 ```
@@ -280,9 +280,9 @@ How it is built:
 
 ## The hammer and the staff (version 22 on, 15 November)
 
-Game Bible milestone 7 ("both weapons, and the cave crate offers all four wooden starters"), built a stage a version like the bow: both in the test arena (22), both at the forge (23), the hammer's six runes (24), the staff's six runes (25), the tutorial cave with all four weapons (26). **Version 22 is the first stage.** Darren asked for them on 14 November and left the design choices to Claude; every number here is Claude's first pass, for Darren to overturn.
+Game Bible milestone 7 ("both weapons, and the cave crate offers all four wooden starters"), built a stage a version like the bow: both in the test arena (22), both at the forge (23), the hammer's six runes (24), the staff's six runes (25), the tutorial cave with all four weapons (26). **Versions 22 and 23 are built.** Darren asked for them on 14 November and left the design choices to Claude; every number here is Claude's first pass, for Darren to overturn.
 
-- **Swap** with **B** or a click of the right stick: sword, bow, hammer, staff, and round again. Everyone in the arena carries an **iron maul** on a bound haft and an **iron staff** (the apprentice head on a carved shaft, with an iron-set crystal). Neither has runes yet, and the forge says it can't change them yet.
+- **Swap** with **B** or a click of the right stick: sword, bow, hammer, staff, and round again. Everyone in the arena carries an **iron maul** on a bound haft and an **iron staff** (the apprentice head on a carved shaft, with an iron-set crystal). Neither has runes yet.
 
 ### The hammer
 
@@ -305,8 +305,16 @@ How it is built:
 
 - Both are the same kind of thing as a sword in `scripts/weapon/swing_build.gd`: a head in the blade's place, a haft or shaft in the grip's, a counterweight or cap in the pommel's, and for a staff a crystal where a bow has arrows. `heads_of()`, `grips_of()`, `butts_of()` and `shots_of()` give one weapon's parts, `weapon_of()` says whose a head is, and `WEAPON_ORDER` is the order B goes round them.
 - They are drawn by the sword's own code (`scripts/weapon/sword_art.gd`), from pictures in the sword's formats in `art/swing/hammer/` and `art/swing/staff/` (numbers in `hammer.json` and `staff.json`); the crystal is one more picture, centred on the head's `crystal_at`.
-- Moves are in `scripts/player.gd` `MOVES`: `maul_swing`, `maul_slam` and `crush` (shape `"impact"` is the patch of floor), and `bolt`, `burst`, `spray` and `orb` (shape `"cast"`, each with its `mana`). "The staff" section there has mana and the casting. A bolt is an arrow (`scripts/arrow.gd`) with `bolt` set: it is drawn from a tinted strip, may splash where it stops, and never sticks.
+- Moves are in `scripts/player.gd` `MOVES`: `maul_swing`, `maul_slam` and `crush` (shape `"impact"` is the patch of floor), and `bolt`, `burst`, `spray` and `orb` (shape `"cast"`, what each costs is in `SwingBuild.CAST_MANA`). "The staff" section there has mana and the casting. A bolt is an arrow (`scripts/arrow.gd`) with `bolt` set: it is drawn from a tinted strip, may splash where it stops, and never sticks.
 - Online: mana is in the checksum (`net_state()`), and the arena test goes round all four weapons. Building this found that the third ability button was never sent to the other computer; that is fixed in version 22.
+
+### Both at the forge (version 23)
+
+- **F** with a hammer or a staff in your hand opens the forge on it, as it does for a sword or a bow. The first tab is named after the weapon: a hammer's has three rows (head, haft, counterweight) and a staff's four (head, shaft, cap, crystal). The arena's tray offers the two iron heads, three hafts or shafts (one, two and three slots), the four counterweights or caps, and the three crystals.
+- **The numbers plate** has five rows for these two, set a little closer, because each has a number more than a sword. A hammer shows **Impact** (how big the patch of floor a slam hits is, as a share of the maul's 38 px) beside Reach. A staff shows **Range** as a share of the shortbow's, so the two can be compared (an iron staff reads 77%), **Blast** (the size of its spells: how wide a bolt is and how far a burst reaches; the storm head reads 125%) and **Mana a chain** (what one whole chain costs: 22 for bolt, bolt, burst and 24 for spray, spray, orb). Pointing at a part shows what it would change, as for a sword.
+- The rune tab is empty until the runes are built (the hammer's in version 24, the staff's in 25); bands can be fitted already, and "What it does" says they have nothing to boost yet. Presets A, B and C are each weapon's own, so a player now has twelve. The test-sword keys 1 to 4 do nothing while a hammer or a staff is on the anvil.
+- How it is built: `scripts/ui/swing_forge.gd` no longer asks "is it a bow": `PART_ROWS` lists the first tab's rows for each weapon, `ICON_DIRS` says where a part's tray picture is, `_fit_part()` fits a head, grip, butt or shot of whatever weapon is on the anvil, and `stat_rows()` picks the numbers table. What a cast costs moved out of the moves into `SwingBuild.CAST_MANA`, so the forge can add up a chain. The art thread's forge pictures and tray icons for every part are in `art/swing/hammer/` and `art/swing/staff/`, and its pictures for the twelve runes are in already (`art/swing/runes/`, `art/fx/`, `art/hud/`), waiting for versions 24 and 25.
+- `tests/hammer.gd` and `tests/staff.gd` check the forge for each (the rows offered, the numbers and what pointing at a part shows, fitting from the tray, presets of its own); `tests/smoke_forge.gd` checks that every part has its three pictures and a sentence that fits, that the cards stay inside the tray, the slots on the anvil, and every number with its change inside its column, for every combination of parts.
 
 ## This branch: the swing path
 

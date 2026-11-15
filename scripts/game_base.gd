@@ -138,11 +138,6 @@ func swap_weapon(i: int, to := "") -> void:
 
 ## Puts the weapon in player i's hand on the anvil and opens the forge screen.
 func open_forge(i: int) -> void:
-	if builds[i].weapon() in ["hammer", "staff"]:
-		# The forge screen knows swords and bows so far (these two come next).
-		if not Net.online() or i == Net.me():
-			hud.say("The forge can't change a %s yet: swap to your sword or bow first (B / right stick click)" % builds[i].weapon())
-		return
 	if Net.online():
 		# This runs on both computers on the same tick. Only player i's own
 		# computer shows the screen; the other just knows they are at the forge.

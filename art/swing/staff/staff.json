@@ -13,6 +13,23 @@
      3.5,
      3.5
     ]
+   },
+   "forge": {
+    "size": [
+     27,
+     34
+    ],
+    "slot_rects": [],
+    "crystal_at": [
+     13.5,
+     11.0
+    ]
+   },
+   "icon": {
+    "size": [
+     21,
+     19
+    ]
    }
   },
   "tin_apprentice": {
@@ -34,6 +51,30 @@
     "crystal_at": [
      3.5,
      3.5
+    ]
+   },
+   "forge": {
+    "size": [
+     27,
+     36
+    ],
+    "slot_rects": [
+     [
+      9,
+      24,
+      9,
+      9
+     ]
+    ],
+    "crystal_at": [
+     13.5,
+     11.0
+    ]
+   },
+   "icon": {
+    "size": [
+     25,
+     19
     ]
    }
   },
@@ -63,6 +104,36 @@
      3.5,
      3.5
     ]
+   },
+   "forge": {
+    "size": [
+     25,
+     48
+    ],
+    "slot_rects": [
+     [
+      8,
+      36,
+      9,
+      9
+     ],
+     [
+      8,
+      24,
+      9,
+      9
+     ]
+    ],
+    "crystal_at": [
+     12.5,
+     11.0
+    ]
+   },
+   "icon": {
+    "size": [
+     30,
+     19
+    ]
    }
   },
   "iron_storm": {
@@ -90,6 +161,36 @@
     "crystal_at": [
      5.5,
      3.5
+    ]
+   },
+   "forge": {
+    "size": [
+     39,
+     48
+    ],
+    "slot_rects": [
+     [
+      15,
+      36,
+      9,
+      9
+     ],
+     [
+      15,
+      24,
+      9,
+      9
+     ]
+    ],
+    "crystal_at": [
+     19.5,
+     10.0
+    ]
+   },
+   "icon": {
+    "size": [
+     26,
+     21
     ]
    }
   }
@@ -119,6 +220,34 @@
      0,
      18
     ]
+   },
+   "forge": {
+    "size": [
+     45,
+     60
+    ],
+    "slot_rects": [
+     [
+      18,
+      31,
+      9,
+      9
+     ]
+    ],
+    "pivot": [
+     22.5,
+     20.0
+    ],
+    "pommel_at": [
+     0,
+     51
+    ]
+   },
+   "icon": {
+    "size": [
+     24,
+     11
+    ]
    }
   },
   "tin_shaft": {
@@ -144,6 +273,34 @@
     "pommel_at": [
      0,
      18
+    ]
+   },
+   "forge": {
+    "size": [
+     45,
+     60
+    ],
+    "slot_rects": [
+     [
+      18,
+      31,
+      9,
+      9
+     ]
+    ],
+    "pivot": [
+     22.5,
+     20.0
+    ],
+    "pommel_at": [
+     0,
+     51
+    ]
+   },
+   "icon": {
+    "size": [
+     24,
+     11
     ]
    }
   },
@@ -176,6 +333,40 @@
     "pommel_at": [
      0,
      20
+    ]
+   },
+   "forge": {
+    "size": [
+     45,
+     72
+    ],
+    "slot_rects": [
+     [
+      18,
+      43,
+      9,
+      9
+     ],
+     [
+      18,
+      31,
+      9,
+      9
+     ]
+    ],
+    "pivot": [
+     22.5,
+     20.0
+    ],
+    "pommel_at": [
+     0,
+     63
+    ]
+   },
+   "icon": {
+    "size": [
+     28,
+     11
     ]
    }
   },
@@ -215,6 +406,46 @@
      0,
      22
     ]
+   },
+   "forge": {
+    "size": [
+     45,
+     84
+    ],
+    "slot_rects": [
+     [
+      18,
+      55,
+      9,
+      9
+     ],
+     [
+      18,
+      43,
+      9,
+      9
+     ],
+     [
+      18,
+      31,
+      9,
+      9
+     ]
+    ],
+    "pivot": [
+     22.5,
+     20.0
+    ],
+    "pommel_at": [
+     0,
+     75
+    ]
+   },
+   "icon": {
+    "size": [
+     32,
+     11
+    ]
    }
   }
  },
@@ -225,7 +456,15 @@
     9,
     2
    ],
-   "colour": "#94a8b8"
+   "colour": "#94a8b8",
+   "forge_size": [
+    45,
+    12
+   ],
+   "icon_size": [
+    26,
+    19
+   ]
   },
   "keen_cap": {
    "name": "Keen Cap",
@@ -233,7 +472,15 @@
     9,
     2
    ],
-   "colour": "#78c0cc"
+   "colour": "#78c0cc",
+   "forge_size": [
+    45,
+    12
+   ],
+   "icon_size": [
+    26,
+    24
+   ]
   },
   "heavy_cap": {
    "name": "Heavy Cap",
@@ -241,7 +488,15 @@
     9,
     3
    ],
-   "colour": "#cf8a48"
+   "colour": "#cf8a48",
+   "forge_size": [
+    45,
+    12
+   ],
+   "icon_size": [
+    25,
+    21
+   ]
   },
   "light_cap": {
    "name": "Light Cap",
@@ -249,7 +504,15 @@
     9,
     2
    ],
-   "colour": "#e8e4bc"
+   "colour": "#e8e4bc",
+   "forge_size": [
+    45,
+    12
+   ],
+   "icon_size": [
+    26,
+    23
+   ]
   }
  },
  "crystals": {
@@ -259,7 +522,15 @@
     3,
     3
    ],
-   "colour": "#7fe6b4"
+   "colour": "#7fe6b4",
+   "forge_size": [
+    9,
+    9
+   ],
+   "icon_size": [
+    16,
+    16
+   ]
   },
   "tin_crystal": {
    "name": "Tin-set Crystal",
@@ -267,7 +538,15 @@
     3,
     5
    ],
-   "colour": "#6ab8ff"
+   "colour": "#6ab8ff",
+   "forge_size": [
+    9,
+    13
+   ],
+   "icon_size": [
+    16,
+    22
+   ]
   },
   "iron_crystal": {
    "name": "Iron-set Crystal",
@@ -275,7 +554,15 @@
     5,
     5
    ],
-   "colour": "#c090ff"
+   "colour": "#c090ff",
+   "forge_size": [
+    13,
+    15
+   ],
+   "icon_size": [
+    22,
+    25
+   ]
   }
  },
  "fx": {
@@ -404,6 +691,201 @@
    ],
    "loop": false,
    "note": "ADDITIVE, NEUTRAL GREY, once. The flick of light at the crystal as a cast leaves"
+  },
+  "orbit_orb": {
+   "folder": "fx",
+   "frames": 6,
+   "frame": [
+    16,
+    16
+   ],
+   "fps": 12,
+   "origin": [
+    8,
+    8
+   ],
+   "loop": true,
+   "note": "Orbit: the orb that circles the caster. Additive, loops, never turned"
+  },
+  "orbit_hit": {
+   "folder": "fx",
+   "frames": 4,
+   "frame": [
+    32,
+    32
+   ],
+   "fps": 22,
+   "origin": [
+    16,
+    16
+   ],
+   "loop": false,
+   "note": "Orbit: the orb strikes an enemy. Additive, once"
+  },
+  "chain_arc": {
+   "folder": "fx",
+   "frames": 4,
+   "frame": [
+    96,
+    24
+   ],
+   "fps": 24,
+   "origin": [
+    0,
+    12
+   ],
+   "loop": false,
+   "note": "Chain: one jump of lightning, from its left end (the origin) to its right end 96 px on; stretch its length to the gap and turn it. Additive, once"
+  },
+  "chain_hit": {
+   "folder": "fx",
+   "frames": 4,
+   "frame": [
+    32,
+    32
+   ],
+   "fps": 22,
+   "origin": [
+    16,
+    16
+   ],
+   "loop": false,
+   "note": "Chain: the lightning lands on an enemy. Additive, once"
+  },
+  "overflow_glow": {
+   "folder": "fx",
+   "frames": 4,
+   "frame": [
+    40,
+    28
+   ],
+   "fps": 16,
+   "origin": [
+    26,
+    14
+   ],
+   "loop": true,
+   "note": "Overflow: the halo round a bolt cast on full mana; origin = the bolt's head, pointing right, turned with the bolt. Hollow, so the bolt reads inside it. Additive, loops"
+  },
+  "overflow_aura": {
+   "folder": "fx",
+   "frames": 4,
+   "frame": [
+    24,
+    24
+   ],
+   "fps": 10,
+   "origin": [
+    12,
+    12
+   ],
+   "loop": true,
+   "note": "Overflow: the sign at the crystal while mana is full. Additive, loops, never turned"
+  },
+  "nova_ring": {
+   "folder": "fx",
+   "frames": 8,
+   "frame": [
+    160,
+    120
+   ],
+   "fps": 20,
+   "origin": [
+    80,
+    60
+   ],
+   "loop": false,
+   "note": "Nova: the ring bursting out from the caster, to about 60 across and 37 up and down. Additive, once, never turned"
+  },
+  "lance_beam_1": {
+   "folder": "fx",
+   "frames": 4,
+   "frame": [
+    32,
+    15
+   ],
+   "fps": 16,
+   "origin": [
+    0,
+    7
+   ],
+   "loop": true,
+   "note": "Lance: the beam at its first strength, about 5 thick. Tiles end to end along its length (origin = its left end, middle row), pointing right. Additive, loops"
+  },
+  "lance_beam_2": {
+   "folder": "fx",
+   "frames": 4,
+   "frame": [
+    32,
+    15
+   ],
+   "fps": 16,
+   "origin": [
+    0,
+    7
+   ],
+   "loop": true,
+   "note": "Lance: the beam at its second strength, about 9 thick. Tiles as lance_beam_1"
+  },
+  "lance_beam_3": {
+   "folder": "fx",
+   "frames": 4,
+   "frame": [
+    32,
+    15
+   ],
+   "fps": 16,
+   "origin": [
+    0,
+    7
+   ],
+   "loop": true,
+   "note": "Lance: the beam at full strength, about 13 thick. Tiles as lance_beam_1"
+  },
+  "lance_start": {
+   "folder": "fx",
+   "frames": 4,
+   "frame": [
+    24,
+    24
+   ],
+   "fps": 16,
+   "origin": [
+    12,
+    12
+   ],
+   "loop": true,
+   "note": "Lance: the flare at the crystal while the beam is held. Additive, loops"
+  },
+  "lance_end": {
+   "folder": "fx",
+   "frames": 4,
+   "frame": [
+    40,
+    40
+   ],
+   "fps": 16,
+   "origin": [
+    20,
+    20
+   ],
+   "loop": true,
+   "note": "Lance: where the beam burns into its target. Additive, loops, never turned"
+  },
+  "spectre_appear": {
+   "folder": "fx",
+   "frames": 6,
+   "frame": [
+    48,
+    64
+   ],
+   "fps": 16,
+   "origin": [
+    24,
+    46
+   ],
+   "loop": false,
+   "note": "Spectre: the ghost arrives; origin = its feet. Play it backwards when it leaves. Additive, once, never turned"
   }
  },
  "hud": {
@@ -438,7 +920,83 @@
    ],
    "note": "flash it in the fill's place when a cast found no mana"
   },
-  "mana_colour": "#6ab8ff"
+  "mana_colour": "#6ab8ff",
+  "glyph_nova": {
+   "size": [
+    12,
+    12
+   ]
+  },
+  "glyph_lance": {
+   "size": [
+    12,
+    12
+   ]
+  },
+  "glyph_spectre": {
+   "size": [
+    12,
+    12
+   ]
+  }
  },
- "note": "The staff: all its numbers. Built like a sword: head on a shaft with a cap, plus a crystal drawn centred on the head's crystal_at. Every casting strip under fx is NEUTRAL GREY with a white core: tint it with crystals.<id>.colour (or a rune's colour). On a shaft the hold (pivot) is 6.5 px down, slots below it, then the plain length."
+ "note": "The staff: all its numbers. Built like a sword: head on a shaft with a cap, plus a crystal drawn centred on the head's crystal_at. Every casting strip under fx is NEUTRAL GREY with a white core: tint it with crystals.<id>.colour (or a rune's colour). On a shaft the hold (pivot) is 6.5 px down, slots below it, then the plain length.",
+ "ui": {
+  "stat_size": {
+   "size": [
+    9,
+    9
+   ],
+   "note": "Spell size"
+  },
+  "stat_mana": {
+   "size": [
+    9,
+    9
+   ],
+   "note": "what a cast costs"
+  }
+ },
+ "forge_note": "Forge pictures: heads centred on the 45 frame, crystal drawn centred on crystal_at (given in the head picture's own pixels). Shafts are 45 wide with an 11 px pole: hold, sockets, then a plain length, then 9 empty rows under pommel_at. Shaft icons lie down, top to the right.",
+ "runes": {
+  "orbit": {
+   "name": "Orbit",
+   "kind": "passive",
+   "text": "Your finisher leaves an orb circling you. It strikes the first enemy that comes near."
+  },
+  "chain": {
+   "name": "Chain",
+   "kind": "passive",
+   "text": "Your finisher's burst forks into lightning that jumps from enemy to enemy."
+  },
+  "overflow": {
+   "name": "Overflow",
+   "kind": "passive",
+   "text": "While your mana is full, your bolts are bigger and hit harder."
+  },
+  "nova": {
+   "name": "Nova",
+   "kind": "active",
+   "text": "A ring bursts out from you and shoves the crowd back."
+  },
+  "lance": {
+   "name": "Lance",
+   "kind": "active",
+   "text": "Hold: a beam into the first enemy on your aim that builds the longer you hold."
+  },
+  "spectre": {
+   "name": "Spectre",
+   "kind": "active",
+   "text": "A ghost of you or a teammate appears for a few seconds and copies their basic attacks."
+  }
+ },
+ "rune_colours": {
+  "orbit": "#ffb84a",
+  "chain": "#60e0ff",
+  "overflow": "#6ab8ff",
+  "nova": "#ff70c8",
+  "lance": "#fff078",
+  "spectre": "#a8b4ff"
+ },
+ "runes_note": "The staff's runes. Stones in swing/runes/ (icon 26 x 26, forge 9 x 9 and _lit, hand 1 x 1 and _lit), glyphs for the actives in hud/, effect strips in fx/ (listed under fx with folder fx), each in its rune's own colour (not for tinting)."
 }

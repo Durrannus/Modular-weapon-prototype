@@ -474,11 +474,44 @@ const ALL_BLADES := ["wooden_blade", "tin_blade", "iron_dagger", "iron_sabre", "
 const ALL_GRIPS := ["wooden_grip", "tin_grip", "wrapped_grip", "long_grip", "ringed_grip", "gilded_grip"]
 const ALL_LIMBS := ["wooden_shortbow", "tin_shortbow", "iron_shortbow", "iron_longbow"]
 const ALL_BOW_GRIPS := ["wooden_bow_grip", "tin_bow_grip", "wrapped_bow_grip", "horn_bow_grip"]
+const ALL_HEADS := ["wooden_maul", "tin_maul", "iron_maul", "iron_warhammer"]
+const ALL_HAFTS := ["wooden_haft", "tin_haft", "bound_haft", "studded_haft"]
+const ALL_STAFF_HEADS := ["wooden_apprentice", "tin_apprentice", "iron_apprentice", "iron_storm"]
+const ALL_SHAFTS := ["wooden_shaft", "tin_shaft", "carved_shaft", "twisted_shaft"]
+
+## The rows of the first tab for each weapon, top to bottom:
+## [heading, card kind, the ids the arena offers, every id (the cave shows the owned ones)].
+## A sword and a hammer have three rows; a bow and a staff a fourth, for what they shoot.
+const PART_ROWS := {
+	"sword": [["Blade", "blades", SwingBuild.BLADE_ORDER, ALL_BLADES], ["Grip", "grips", SwingBuild.GRIP_ORDER, ALL_GRIPS],
+		["Pommel", "pommels", SwingBuild.POMMEL_ORDER, SwingBuild.POMMEL_ORDER]],
+	"bow": [["Limbs", "limbs", SwingBuild.LIMB_ORDER, ALL_LIMBS], ["Grip", "bow_grips", SwingBuild.BOW_GRIP_ORDER, ALL_BOW_GRIPS],
+		["String", "strings", SwingBuild.STRING_ORDER, SwingBuild.STRING_ORDER], ["Arrows", "arrows", SwingBuild.ARROW_ORDER, SwingBuild.ARROW_ORDER]],
+	"hammer": [["Head", "heads", SwingBuild.HEAD_ORDER, ALL_HEADS], ["Haft", "hafts", SwingBuild.HAFT_ORDER, ALL_HAFTS],
+		["Counterweight", "weights", SwingBuild.WEIGHT_ORDER, SwingBuild.WEIGHT_ORDER]],
+	"staff": [["Head", "staff_heads", SwingBuild.STAFF_HEAD_ORDER, ALL_STAFF_HEADS], ["Shaft", "shafts", SwingBuild.SHAFT_ORDER, ALL_SHAFTS],
+		["Cap", "caps", SwingBuild.CAP_ORDER, SwingBuild.CAP_ORDER], ["Crystal", "crystals", SwingBuild.CRYSTAL_ORDER, SwingBuild.CRYSTAL_ORDER]],
+}
+## The widest a card may be in each row of a four-row tab.
+const ROW_WIDTHS := {"bow": [64, 34, 34, 40], "staff": [40, 40, 34, 34]}
+## Where a part's tray picture is: card kind -> folder under art/swing/.
+const ICON_DIRS := {"limbs": "bow/limbs", "bow_grips": "bow/grips", "strings": "bow/strings", "arrows": "bow/arrows",
+	"heads": "hammer/heads", "hafts": "hammer/hafts", "weights": "hammer/weights",
+	"staff_heads": "staff/heads", "shafts": "staff/shafts", "caps": "staff/caps", "crystals": "staff/crystals"}
 
 
 ## True while the weapon on the anvil is a bow.
 func _bow() -> bool:
 	return build.weapon() == "bow"
+
+
+## The table a part of the weapon on the anvil is in ({} if it isn't one of its parts).
+func _part_table(id: String) -> Dictionary:
+	var w := build.weapon()
+	for table in [SwingBuild.heads_of(w), SwingBuild.grips_of(w), SwingBuild.butts_of(w), SwingBuild.shots_of(w)]:
+		if table.has(id):
+			return table
+	return {}
 
 
 ## The first tab is the weapon's own parts, and is called after it.
@@ -495,30 +528,13 @@ func _cards() -> Array:
 	var out: Array = []
 	match TABS[tab]:
 		"sword":
-			if _bow():   # four rows: limbs, grips, strings, arrows
-				for id in (SwingBuild.LIMB_ORDER if owned == null else ALL_LIMBS):
+			# The weapon's own parts, a row for each kind.
+			var rows: Array = PART_ROWS[build.weapon()]
+			for ri in rows.size():
+				for id in (rows[ri][2] if owned == null else rows[ri][3]):
 					if _has(id):
-						out.append({"id": id, "name": SwingBuild.LIMBS[id]["name"], "locked": false, "row": 0, "kind": "limbs"})
-				for id in (SwingBuild.BOW_GRIP_ORDER if owned == null else ALL_BOW_GRIPS):
-					if _has(id):
-						out.append({"id": id, "name": SwingBuild.BOW_GRIPS[id]["name"], "locked": false, "row": 1, "kind": "bow_grips"})
-				for id in SwingBuild.STRING_ORDER:
-					if _has(id):
-						out.append({"id": id, "name": SwingBuild.STRINGS[id]["name"], "locked": false, "row": 2, "kind": "strings"})
-				for id in SwingBuild.ARROW_ORDER:
-					if _has(id):
-						out.append({"id": id, "name": SwingBuild.ARROWS[id]["name"], "locked": false, "row": 3, "kind": "arrows"})
-				return out
-			# A sword: three rows, blades, grips, pommels.
-			for id in (SwingBuild.BLADE_ORDER if owned == null else ALL_BLADES):
-				if _has(id):
-					out.append({"id": id, "name": SwingBuild.BLADES[id]["name"], "locked": false, "row": 0, "kind": "blades"})
-			for id in (SwingBuild.GRIP_ORDER if owned == null else ALL_GRIPS):
-				if _has(id):
-					out.append({"id": id, "name": SwingBuild.GRIPS[id]["name"], "locked": SwingBuild.GRIPS[id].get("locked", false), "row": 1, "kind": "grips"})
-			for id in SwingBuild.POMMEL_ORDER:
-				if _has(id):
-					out.append({"id": id, "name": SwingBuild.POMMELS[id]["name"], "locked": false, "row": 2, "kind": "pommels"})
+						var part: Dictionary = _part_table(id)[id]
+						out.append({"id": id, "name": part["name"], "locked": part.get("locked", false), "row": ri, "kind": rows[ri][1]})
 		"runes":
 			for id in SwingBuild.FITTING_ORDER:
 				if SwingBuild.FITTINGS[id]["kind"] == "rune" and not SwingBuild.FITTINGS[id].get("parked", false) and _has(id) and SwingBuild.fits(id, build.weapon()):
@@ -540,15 +556,7 @@ func _use_card(i: int) -> void:
 	if i < 0 or i >= cards.size() or cards[i]["locked"]:
 		return
 	var id: String = cards[i]["id"]
-	if SwingBuild.BLADES.has(id) or SwingBuild.LIMBS.has(id):
-		build.set_blade(id)
-	elif SwingBuild.GRIPS.has(id) or SwingBuild.BOW_GRIPS.has(id):
-		build.set_grip(id)
-	elif SwingBuild.POMMELS.has(id) or SwingBuild.STRINGS.has(id):
-		build.set_pommel(id)
-	elif SwingBuild.ARROWS.has(id):
-		build.set_arrows(id)
-	else:
+	if not _fit_part(build, id):
 		_put(id)
 	selected = clampi(selected, 0, build.slot_count() - 1)
 
@@ -562,8 +570,24 @@ func _put(id: String) -> void:
 	build.set_slot(selected, id)
 
 
+## Fits a head, grip, butt or shot of b's own weapon to it. False if `id` isn't one.
+static func _fit_part(b, id: String) -> bool:
+	var w: String = b.weapon()
+	if SwingBuild.heads_of(w).has(id):
+		b.set_blade(id)
+	elif SwingBuild.grips_of(w).has(id):
+		b.set_grip(id)
+	elif SwingBuild.butts_of(w).has(id):
+		b.set_pommel(id)
+	elif SwingBuild.shots_of(w).has(id):
+		b.set_arrows(id)
+	else:
+		return false
+	return true
+
+
 func _load_test(k: String) -> void:
-	if _bow():
+	if build.weapon() != "sword":
 		return   # the test swords are swords
 	build.load_test(k)
 	selected = clampi(selected, 0, build.slot_count() - 1)
@@ -670,9 +694,8 @@ func _icon(kind: String, id: String, center: Vector2, part_scale := 2.0, tint :=
 			root.draw_circle(center, 8.0, pc.darkened(0.55))
 			root.draw_circle(center, 6.5, pc)
 			root.draw_circle(center + Vector2(-2, -2), 2.0, pc.lightened(0.5))
-		"limbs", "bow_grips", "strings", "arrows":
-			var folder := "grips" if kind == "bow_grips" else kind
-			var btex := Art.texture("swing/bow/%s/%s_icon.png" % [folder, id])
+		"limbs", "bow_grips", "strings", "arrows", "heads", "hafts", "weights", "staff_heads", "shafts", "caps", "crystals":
+			var btex := Art.texture("swing/%s/%s_icon.png" % [ICON_DIRS[kind], id])
 			if btex != null:
 				root.draw_texture(btex, (center - btex.get_size() * 0.5).round(), tint)
 			elif kind == "strings":
@@ -813,18 +836,19 @@ func _draw_tray() -> void:
 func _place_cards(cards: Array) -> Array:
 	var rects: Array = []
 	rects.resize(cards.size())
-	match TABS[tab] if not (_bow() and tab == 0) else "bow":
-		"bow":
-			# Four rows: limbs, grip, string, arrows.
+	var part_rows: Array = PART_ROWS[build.weapon()]
+	match TABS[tab] if not (tab == 0 and part_rows.size() == 4) else "four":
+		"four":
+			# Four rows: a bow's limbs, grip, string and arrows; a staff's head, shaft, cap and crystal.
 			var count := [0, 0, 0, 0]
 			for c in cards:
 				count[int(c["row"])] += 1
 			for ri in 4:
-				_head(["Limbs", "Grip", "String", "Arrows"][ri], Vector2(14, 64 + ri * 38), DIM)
+				_head(part_rows[ri][0], Vector2(14, 64 + ri * 38), DIM)
 			var k := [0, 0, 0, 0]
 			for i in cards.size():
 				var ri: int = cards[i]["row"]
-				var w := clampi(192 / maxi(int(count[ri]), 1), 30, [64, 34, 34, 40][ri])
+				var w := clampi(192 / maxi(int(count[ri]), 1), 30, ROW_WIDTHS[build.weapon()][ri])
 				rects[i] = Rect2(14 + int(k[ri]) * w, 67 + ri * 38, w - 3, 26)
 				k[ri] += 1
 		"sword":
@@ -837,7 +861,7 @@ func _place_cards(cards: Array) -> Array:
 			var blade_rows: int = (int(totals[0]) + 2) / 3 if int(totals[0]) > 3 else 1
 			var push := (blade_rows - 1) * 26.0 - (7.0 if blade_rows > 1 else 0.0)
 			for ri in 3:
-				_head(["Blade", "Grip", "Pommel"][ri], Vector2(14, 66 + ri * 44 + (push if ri > 0 else 0.0)), DIM)
+				_head(part_rows[ri][0], Vector2(14, 66 + ri * 44 + (push if ri > 0 else 0.0)), DIM)
 			var n := [0, 0, 0]
 			for i in cards.size():
 				var ri: int = cards[i]["row"]
@@ -902,9 +926,10 @@ func _info_id() -> String:
 
 
 func _name(id: String) -> String:
-	for table in [SwingBuild.BLADES, SwingBuild.GRIPS, SwingBuild.POMMELS, SwingBuild.LIMBS, SwingBuild.BOW_GRIPS, SwingBuild.STRINGS, SwingBuild.ARROWS]:
-		if table.has(id):
-			return table[id]["name"]
+	for w in SwingBuild.WEAPON_ORDER:
+		for table in [SwingBuild.heads_of(w), SwingBuild.grips_of(w), SwingBuild.butts_of(w), SwingBuild.shots_of(w)]:
+			if table.has(id):
+				return table[id]["name"]
 	return SwingBuild.FITTINGS[id]["name"]
 
 
@@ -1020,16 +1045,17 @@ func _draw_preset_info(i: int) -> void:
 			y += 13
 		return
 	var missing := SwingBuild.parts_missing(data, owned)
-	if SwingBuild.LIMBS.has(data[0]):
-		_part_icon("limbs", data[0], Vector2(at.x + 42, at.y + 38), missing)
-		_part_icon("bow_grips", data[1], Vector2(at.x + 90, at.y + 38), missing)
-		_part_icon("strings", data[2], Vector2(at.x + 122, at.y + 38), missing)
+	var kinds: Array = PART_ROWS[SwingBuild.weapon_of(data[0])]
+	if kinds.size() == 4:
+		_part_icon(kinds[0][1], data[0], Vector2(at.x + 42, at.y + 38), missing)
+		_part_icon(kinds[1][1], data[1], Vector2(at.x + 90, at.y + 38), missing)
+		_part_icon(kinds[2][1], data[2], Vector2(at.x + 122, at.y + 38), missing)
 		if data.size() > 4:
-			_part_icon("arrows", data[4], Vector2(at.x + 158, at.y + 38), missing)
+			_part_icon(kinds[3][1], data[4], Vector2(at.x + 158, at.y + 38), missing)
 	else:
-		_part_icon("blades", data[0], Vector2(at.x + 42, at.y + 38), missing)
-		_part_icon("grips", data[1], Vector2(at.x + 96, at.y + 38), missing)
-		_part_icon("pommels", data[2], Vector2(at.x + 130, at.y + 38), missing)
+		_part_icon(kinds[0][1], data[0], Vector2(at.x + 42, at.y + 38), missing)
+		_part_icon(kinds[1][1], data[1], Vector2(at.x + 96, at.y + 38), missing)
+		_part_icon(kinds[2][1], data[2], Vector2(at.x + 130, at.y + 38), missing)
 	var x := at.x + 10.0
 	for id in data[3]:
 		if id == "":
@@ -1100,7 +1126,11 @@ func _desc(id: String) -> String:
 		return SwingBuild.GRIPS[id]["desc"]
 	if SwingBuild.LIMBS.has(id):
 		return SwingBuild.limb_info(id, build.arrows)["desc"]
-	for table in [SwingBuild.BOW_GRIPS, SwingBuild.STRINGS, SwingBuild.ARROWS]:
+	if SwingBuild.HEADS.has(id):
+		return SwingBuild.hammer_info(id)["desc"]
+	if SwingBuild.STAFF_HEADS.has(id):
+		return SwingBuild.staff_info(id, build.arrows)["desc"]
+	for table in [SwingBuild.BOW_GRIPS, SwingBuild.STRINGS, SwingBuild.ARROWS, SwingBuild.HAFTS, SwingBuild.WEIGHTS, SwingBuild.SHAFTS, SwingBuild.CAPS, SwingBuild.CRYSTALS]:
 		if table.has(id):
 			return table[id]["desc"]
 	return SwingBuild.FITTINGS[id]["desc"]
@@ -1156,7 +1186,7 @@ func _group_color(effect_index: int) -> Color:
 
 
 ## The weapon's frame at the forge, a slot's place in it, and the weapon itself:
-## a sword's from SwordArt, a bow's from BowArt.
+## a sword's from SwordArt (a hammer and a staff are drawn like swords), a bow's from BowArt.
 func _frame_size() -> Vector2:
 	if _bow():
 		return BowArt.forge_size(build.blade, build.grip)
@@ -1173,7 +1203,8 @@ func _draw_weapon(ci: CanvasItem) -> void:
 	if _bow():
 		BowArt.draw_forge(ci, build.blade, build.grip, build.pommel, build.arrows, build.line)
 	else:
-		SwordArt.draw(ci, build.blade, build.grip, build.line, "forge", {}, Vector2.ZERO, Color.WHITE, build.pommel)
+		SwordArt.draw(ci, build.blade, build.grip, build.line, "forge", {}, Vector2.ZERO, Color.WHITE, build.pommel, false,
+			build.arrows if build.weapon() == "staff" else "")
 
 
 ## Centre: the sword (or bow) big over the anvil. Its sockets are the menu.
@@ -1341,7 +1372,7 @@ func _draw_banner() -> void:
 		return
 	var heat_tex := Art.texture("swing/forge-fx/heat_%s.png" % build.blade)
 	var banner_tex := Art.texture("swing/forge-fx/forged_banner.png")
-	if banner_tex != null and (heat_tex != null or _bow()):
+	if banner_tex != null and (heat_tex != null or build.weapon() != "sword"):
 		var start := t - finishing
 		if heat_tex != null:
 			var blade_pos := sword_top + Vector2(SwordArt.blade_x(build.blade, "forge"), 0) * zoom
@@ -1356,8 +1387,8 @@ func _draw_banner() -> void:
 			var shine_k := (finishing - 0.9) * 16.0
 			if shine_tex != null and finishing >= 0.9 and shine_k < 8.0:
 				banner.draw_texture_rect_region(shine_tex, Rect2(blade_pos, bsize), Rect2(mini(int(shine_k), 7) * bsrc.x, 0, bsrc.x, bsrc.y))
-		# (A bow has no heat pictures of its own: the glow drawn in code, clipped
-		# to the bow, does it; see _draw_heat_fill.)
+		# (A bow, a hammer and a staff have no heat pictures of their own: the glow
+		# drawn in code, clipped to the weapon, does it; see _draw_heat_fill.)
 		var fade := clampf((FINISH_TIME - finishing) / 0.3, 0.0, 1.0)
 		_fx_strip(banner, "forged_banner", Vector2(CENTRE_X, sword_top.y + 40), start + 0.2, true, fade)
 		return
@@ -1485,13 +1516,34 @@ const BOW_STAT_ROWS := [
 	["crit_damage", 0, 2], ["slots", 1, 2],
 	["shoot_move", 0, 3],
 ]
+## A hammer's and a staff's have a number more than fits in four rows (how big the
+## patch of floor a slam hits is; a staff's spell size, written "Blast", and what a
+## chain costs in mana), so their plates have five, set closer (see stat_at).
+const HAMMER_STAT_ROWS := [
+	["damage", 0, 0], ["speed", 1, 0],
+	["reach", 0, 1], ["impact", 1, 1],
+	["crit", 0, 2], ["crit_damage", 1, 2],
+	["slots", 0, 3],
+	["move", 0, 4],
+]
+const STAFF_STAT_ROWS := [
+	["damage", 0, 0], ["speed", 1, 0],
+	["range", 0, 1], ["size", 1, 1],
+	["crit", 0, 2], ["crit_damage", 1, 2],
+	["mana", 0, 3], ["slots", 1, 3],
+	["cast_move", 0, 4],
+]
 ## The picture beside a number, where it isn't called what the number is.
-const STAT_ICONS := {"shoot_move": "move"}
+const STAT_ICONS := {"shoot_move": "move", "cast_move": "move"}
 
 
 ## Which numbers a weapon shows (`s` is its compute()).
 static func stat_rows(s: Dictionary) -> Array:
-	return BOW_STAT_ROWS if s.get("weapon", "sword") == "bow" else STAT_ROWS
+	match s.get("weapon", "sword"):
+		"bow": return BOW_STAT_ROWS
+		"hammer": return HAMMER_STAT_ROWS
+		"staff": return STAFF_STAT_ROWS
+	return STAT_ROWS
 
 
 ## A weapon's numbers as the stats plate shows them.
@@ -1504,12 +1556,23 @@ static func stat_values(s: Dictionary) -> Dictionary:
 		"slots": float((s["line"] as Array).size()),
 	}
 	var walk := roundf(float(s.get("swing_move", SwingBuild.SWING_MOVE)) * 100.0)
-	if s.get("weapon", "sword") == "bow":
-		out["range"] = roundf(float(s.get("range", SwingBuild.BOW_RANGE)) / SwingBuild.BOW_RANGE * 100.0)
-		out["shoot_move"] = walk
-	else:
-		out["reach"] = roundf(float(s["reach"]) * 100.0)
-		out["move"] = walk
+	match s.get("weapon", "sword"):
+		"bow":
+			out["range"] = roundf(float(s.get("range", SwingBuild.BOW_RANGE)) / SwingBuild.BOW_RANGE * 100.0)
+			out["shoot_move"] = walk
+		"staff":
+			# (Range is a share of the shortbow's for a staff too, so the two can be compared.)
+			out["range"] = roundf(float(s.get("range", SwingBuild.STAFF_RANGE)) / SwingBuild.BOW_RANGE * 100.0)
+			out["size"] = roundf(float(s.get("size", 1.0)) * 100.0)
+			out["mana"] = float(s.get("mana", 0.0))
+			out["cast_move"] = walk
+		"hammer":
+			out["reach"] = roundf(float(s["reach"]) * 100.0)
+			out["impact"] = roundf(float(s.get("impact", SwingBuild.HAMMER_IMPACT)) / SwingBuild.HAMMER_IMPACT * 100.0)
+			out["move"] = walk
+		_:
+			out["reach"] = roundf(float(s["reach"]) * 100.0)
+			out["move"] = walk
 	return out
 
 
@@ -1524,6 +1587,10 @@ static func stat_text(key: String, v: float) -> String:
 		"reach": return "Reach %d%%" % roundi(v)
 		"range": return "Range %d%%" % roundi(v)
 		"shoot_move": return "Walk while shooting %d%%" % roundi(v)
+		"cast_move": return "Walk while casting %d%%" % roundi(v)
+		"impact": return "Impact %d%%" % roundi(v)
+		"size": return "Blast %d%%" % roundi(v)     # ("Spell size" is too wide with a change beside it)
+		"mana": return "Mana a chain %s" % _plain(v)
 		"crit": return "Crit %d%%" % roundi(v)
 		"crit_damage": return "Crit hits x%s" % _plain(v)
 		"slots": return "Slots %d" % roundi(v)
@@ -1536,7 +1603,7 @@ static func delta_text(key: String, d: float) -> String:
 	if absf(d) < 0.05:
 		return ""
 	var amount := _plain(absf(d))
-	if key in ["speed", "reach", "crit", "move", "range", "shoot_move"]:
+	if key in ["speed", "reach", "crit", "move", "range", "shoot_move", "cast_move", "impact", "size"]:
 		amount += "%"
 	return ("+" if d > 0.0 else "-") + amount
 
@@ -1562,14 +1629,7 @@ func _compare_id() -> String:
 func stats_with(id: String) -> Dictionary:
 	var b := SwingBuild.new()
 	b.set_data(build.get_data())
-	if SwingBuild.BLADES.has(id) or SwingBuild.LIMBS.has(id):
-		b.set_blade(id)
-	elif SwingBuild.GRIPS.has(id) or SwingBuild.BOW_GRIPS.has(id):
-		b.set_grip(id)
-	elif SwingBuild.POMMELS.has(id) or SwingBuild.STRINGS.has(id):
-		b.set_pommel(id)
-	elif SwingBuild.ARROWS.has(id):
-		b.set_arrows(id)
+	_fit_part(b, id)
 	return b.compute()
 
 
@@ -1588,14 +1648,18 @@ func _draw_stats(stats: Dictionary) -> void:
 		_head("With the " + _name(with_id), at + Vector2(14, 14), FOCUS)
 		if stat_changes(now, then).is_empty():
 			_head("same numbers", at + Vector2(14, 14), DIM, 8, STATS.size.x - 26, HORIZONTAL_ALIGNMENT_RIGHT)
-	for row in stat_rows(stats):
+	var rows := stat_rows(stats)
+	for row in rows:
 		var key: String = row[0]
 		var d: float = float(then[key]) - float(now[key])
-		_stat(key, stat_text(key, now[key]), at + stat_at(row), delta_text(key, d), d > 0.0)
+		_stat(key, stat_text(key, now[key]), at + stat_at(row, rows), delta_text(key, d), d > 0.0)
 
 
-## Where a number sits on the stats plate (its text baseline), from the plate's corner.
-static func stat_at(row: Array) -> Vector2:
+## Where a number sits on the stats plate (its text baseline), from the plate's
+## corner. `rows` is the weapon's whole table: one with a fifth row is set closer.
+static func stat_at(row: Array, rows: Array = STAT_ROWS) -> Vector2:
+	if rows.size() > 0 and int(rows[-1][2]) >= 4:
+		return Vector2(8 + int(row[1]) * STAT_COL, 30 + int(row[2]) * 11)
 	return Vector2(8 + int(row[1]) * STAT_COL, 32 + int(row[2]) * 13)
 
 

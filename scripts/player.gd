@@ -120,14 +120,14 @@ const MOVES := {
 		"curve": [-1.5, 0.3, 9.0, 19.0], "smear": "hammer_slam_smear", "smear_else": "overhead_smear", "big": true, "burst": "hammer_impact", "burst_else": "slam_burst"},
 	# Staff casts (15 November). Like a bow's shots: "windup" is the gathering, the
 	# bolt leaves as it ends, towards wherever you are aiming at that moment.
-	#   mana    what the cast costs        bolt   what leaves the staff
-	"bolt": {"windup": 0.12, "time": LIGHT, "shape": "cast", "bolt": "bolt", "mana": 6.0, "power": 1.0, "knock": 110.0, "stun": 0.1, "freeze": 0.03,
+	#   bolt   what leaves the staff (SwingBuild.CAST_MANA has what each costs)
+	"bolt": {"windup": 0.12, "time": LIGHT, "shape": "cast", "bolt": "bolt", "power": 1.0, "knock": 110.0, "stun": 0.1, "freeze": 0.03,
 		"curve": [0.0, 0.0, 2.0, 10.0], "smear": ""},
-	"burst": {"windup": 0.2, "time": HEAVY, "shape": "cast", "bolt": "burst", "mana": 10.0, "power": 1.5, "knock": 260.0, "stun": 0.25, "freeze": 0.06, "shake": 5.0,
+	"burst": {"windup": 0.2, "time": HEAVY, "shape": "cast", "bolt": "burst", "power": 1.5, "knock": 260.0, "stun": 0.25, "freeze": 0.06, "shake": 5.0,
 		"curve": [0.0, 0.0, 0.0, 13.0], "smear": "", "big": true},
-	"spray": {"windup": 0.12, "time": LIGHT, "shape": "cast", "bolt": "spray", "mana": 6.0, "power": 1.0, "knock": 90.0, "stun": 0.08, "freeze": 0.02,
+	"spray": {"windup": 0.12, "time": LIGHT, "shape": "cast", "bolt": "spray", "power": 1.0, "knock": 90.0, "stun": 0.08, "freeze": 0.02,
 		"curve": [0.0, 0.0, 2.0, 10.0], "smear": ""},
-	"orb": {"windup": 0.22, "time": HEAVY, "shape": "cast", "bolt": "orb", "mana": 12.0, "power": 1.5, "knock": 300.0, "stun": 0.3, "freeze": 0.07, "shake": 6.0,
+	"orb": {"windup": 0.22, "time": HEAVY, "shape": "cast", "bolt": "orb", "power": 1.5, "knock": 300.0, "stun": 0.3, "freeze": 0.07, "shake": 6.0,
 		"curve": [0.0, 0.0, 0.0, 13.0], "smear": "", "big": true},
 	# The old parts-grid moves (weapon_build.gd), kept so that screen still works.
 	"stab": {"windup": 0.06, "time": 0.25, "shape": "line", "width": 16.0, "range": 115.0, "power": 1.15, "knock": 320.0,
@@ -652,7 +652,7 @@ func _start_step() -> void:
 	var move: String = steps[current_step]["move"]
 	var info: Dictionary = MOVES.get(move, MOVES["slash"])
 	# A cast the staff has no mana for is a weak, slow one (decided as it starts).
-	cast_weak = str(info["shape"]) == "cast" and mana < float(info.get("mana", 0.0))
+	cast_weak = str(info["shape"]) == "cast" and mana < _cast_cost(info)
 	var speed := _speed()
 	step_elapsed = 0.0
 	hit_time = float(info["windup"]) / speed
@@ -882,6 +882,10 @@ func _update_mana(delta: float) -> void:
 	mana = minf(mana + rate * delta, SwingBuild.MANA)
 
 
+func _cast_cost(info: Dictionary) -> float:
+	return float(SwingBuild.CAST_MANA.get(str(info.get("bolt", "")), 0.0))
+
+
 ## The cast leaves the staff, towards the aim.
 func _cast(info: Dictionary) -> void:
 	var dir := aim_dir
@@ -891,7 +895,7 @@ func _cast(info: Dictionary) -> void:
 	if weak:
 		mana_denied = game_time
 	else:
-		mana = maxf(mana - float(info.get("mana", 0.0)), 0.0)
+		mana = maxf(mana - _cast_cost(info), 0.0)
 	mana_rest = 0.0
 	var power := float(info["power"]) * (SwingBuild.MANA_WEAK if weak else 1.0)
 	var kind := "spark" if weak else str(info["bolt"])
