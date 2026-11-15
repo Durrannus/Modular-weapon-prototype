@@ -13,6 +13,8 @@ extends "res://tests/cave_playthrough.gd"
 ##          arena       play the test arena for 40 seconds instead (forge hotkey, the two switches)
 ##          bow         player one takes the bow from the cave's crate (player two the sword); "bows": both do;
 ##                      "swap": player one takes the sword and swaps it for the bow once room 1 is clear
+##          hammer staff   player one the hammer, player two the staff (any of the four, in player order;
+##                      "hammers", "staffs": both the same; "swap=staff": the swap is for the staff)
 ## Each bot only ever touches its own computer's controls, exactly like a person
 ## would; everything else has to arrive through the session.
 

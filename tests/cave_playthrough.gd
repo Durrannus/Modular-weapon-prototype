@@ -1,11 +1,15 @@
 extends SceneTree
 ## Plays the tutorial cave from start to finish with scripted players, to prove
 ## the whole run works: crate, crawlers, burrowers, the rune, the forge, the
-## guardian, the smith, the tin sword or bow and the stairs.
+## guardian, the smith, the tin weapon and the stairs.
 ##   godot --headless --path . --fixed-fps 60 -s tests/cave_playthrough.gd -- [players=2] [bow] [shots] [mortal] [limit=<seconds of game time>]
-## "bow": player one takes the bow from the crate (player two, if there is one,
-## the sword). "bows": everyone takes the bow. "swap": player one takes the sword,
-## then goes back to the crate after room 1 and swaps it for the bow.
+## "bow", "hammer", "staff", "sword": what the players take from the crate, in
+## order ("hammer staff": player one the hammer, player two the staff; whoever
+## isn't named takes the sword). "bows", "hammers", "staffs": everyone takes that.
+## "swap": player one takes the sword, then goes back to the crate after room 1
+## and swaps it for the bow ("swap=staff": for the staff).
+## A hammer's or a staff's first rune is an ability on a button: the bots use it
+## on the guardian, and the run fails if it never went off.
 ## The bots can't be knocked out unless "mortal" is given (they dodge badly).
 ## "wipe" knocks everyone out once in room 2 and once at the boss, to prove both
 ## start over. "down" (two players) knocks player two out in room 1, to prove the
@@ -24,8 +28,11 @@ var limit := 60 * 12           # seconds of game time before it gives up ("limit
 var test_wipe := false
 var test_down := false
 var weapons: Array = []     # what each bot takes from the crate
-var test_swap := false      # player one swaps sword for bow once room 1 is clear
+var test_swap := false      # player one swaps the sword for another weapon once room 1 is clear
+var swap_to := "bow"
 var swapped := false
+var ability_uses := {}      # player index -> how often their first rune's ability went off
+var ability_seen := {}      # player index -> when it last went off (the player's own clock)
 var wipes_done := {}
 var down_seen := false
 var got_up := false
@@ -59,18 +66,25 @@ func _init() -> void:
 			test_wipe = true
 		elif a == "down":
 			test_down = true
-		elif a == "bow":
-			weapons = ["bow"]
-		elif a == "bows":
-			weapons = ["bow", "bow", "bow", "bow"]
-		elif a == "swap":
+		elif a in ["bow", "hammer", "staff", "sword"]:
+			weapons.append(a)          # in order: "hammer staff" = player one a hammer, player two a staff
+		elif a in ["bows", "hammers", "staffs"]:
+			weapons = [a.trim_suffix("s"), a.trim_suffix("s"), a.trim_suffix("s"), a.trim_suffix("s")]
+		elif a == "swap" or a.begins_with("swap="):
 			test_swap = true
+			if a.begins_with("swap="):
+				swap_to = a.substr(5)
 	_begin()
 
 
 ## What bot i takes from the crate.
 func _wants(i: int) -> String:
 	return weapons[i] if i < weapons.size() else "sword"
+
+
+## What bot i should walk out with.
+func _ends_with(i: int) -> String:
+	return swap_to if (test_swap and i == 0) else _wants(i)
 
 
 ## Where to stand to take a weapon from the open crate.
@@ -169,6 +183,8 @@ func _clear_presses() -> void:
 		inp.attack_pressed = false
 		inp.dash_pressed = false
 		inp.attack_held = false
+		inp.ability_held = [false, false, false]
+		inp.ability_pressed = [false, false, false]
 		inp.stick_aim = Vector2.ZERO
 		inp.move = Vector2.ZERO
 
@@ -236,6 +252,24 @@ func _fight(i: int) -> void:
 			if p.current_step < 0:
 				inp.attack_pressed = true
 		return
+	# The first rune of a hammer or a staff is an ability on button one: Quake is a
+	# press (it erupts under the enemy aimed at, up to 240 away), Lance a beam for
+	# as long as the button is held. The bots keep them for the guardian.
+	var list: Array = p.weapon.get("abilities", [])
+	if not list.is_empty() and foe.kind == "guardian":
+		if float(p.ability_used[0]) != float(ability_seen.get(i, -1.0)) and float(p.ability_used[0]) > 0.0:
+			ability_seen[i] = float(p.ability_used[0])
+			ability_uses[i] = int(ability_uses.get(i, 0)) + 1
+		var hold: bool = str(list[0]["use"]) == "hold"
+		var near: bool = rel.length() < (360.0 * far if hold else 220.0)
+		if near and (p.hold_button == 0 or (float(p.ability_charge[0]) >= 1.0 and p.current_step < 0)):
+			inp.stick_aim = rel.normalized()
+			inp.move = Vector2.ZERO
+			if hold:
+				inp.ability_held[0] = true
+			if p.hold_button != 0:
+				inp.ability_pressed[0] = true
+			return
 	if bow:
 		# With a bow: stand well out of a sword's reach and shoot, walking closer
 		# only when the enemy is too far off or something solid is in the way.
@@ -378,13 +412,13 @@ func _tick() -> void:
 					_fight(i)
 		"walk2":
 			if test_swap and not swapped:
-				# Back to the crate first: player one swaps the sword for the bow.
+				# Back to the crate first: player one swaps the sword for the other weapon.
 				_shot("1_swap")
 				for i in m.players.size():
 					_inp(i).move = Vector2.ZERO
-				if m.builds[0].weapon() == "bow":
+				if m.builds[0].weapon() == swap_to:
 					swapped = true
-				elif _go(0, _pick_spot("bow"), 6.0) and frame % 10 == 0:
+				elif _go(0, _pick_spot(swap_to), 6.0) and frame % 10 == 0:
 					_press(0, "interact")
 			else:
 				_all_go(Vector2(20.5, 49.0) * T)
@@ -469,7 +503,7 @@ func _drive_forge() -> void:
 				forge._set_tab(0)
 				var cards: Array = forge._cards()
 				for c in cards.size():
-					if cards[c]["id"] in ["tin_blade", "tin_grip", "tin_shortbow", "tin_bow_grip", "tin_arrows"]:
+					if cards[c]["id"] in m.TIN_PARTS[forge.build.weapon()]:
 						forge._use_card(c)
 			_:
 				_shot("5_tin_screen")
@@ -493,17 +527,26 @@ func _done(ok: bool) -> void:
 		ok = false
 	# Everyone leaves with the weapon they chose, in tin, with its own first rune.
 	for i in m.players.size():
-		var kind: String = "bow" if (test_swap and i == 0) else _wants(i)
+		var kind := _ends_with(i)
 		var data: Array = m.builds[i].get_data()
-		var right: Array = ["tin_shortbow", "tin_bow_grip", "plain_string", ["steady_aim", ""], "tin_arrows"] if kind == "bow" else ["tin_blade", "tin_grip", "plain_pommel", ["shockwave", ""]]
+		var right: Array = {
+			"sword": ["tin_blade", "tin_grip", "plain_pommel", ["shockwave", ""]],
+			"bow": ["tin_shortbow", "tin_bow_grip", "plain_string", ["steady_aim", ""], "tin_arrows"],
+			"hammer": ["tin_maul", "tin_haft", "plain_weight", ["quake", ""]],
+			"staff": ["tin_apprentice", "tin_shaft", "plain_cap", ["lance", ""], "tin_crystal"],
+		}[kind]
 		if data != right:
 			print("FAIL: P%d should leave with %s, not %s" % [i + 1, str(right), str(data)])
+			ok = false
+		# A hammer's Quake and a staff's Lance are buttons: they must have gone off.
+		if kind in ["hammer", "staff"] and int(ability_uses.get(i, 0)) < 1:
+			print("FAIL: P%d never used the %s's first rune on the guardian" % [i + 1, kind])
 			ok = false
 	if ok and missing.is_empty():
 		print("PASS: %d player(s) finished the cave in %.0f s of game time (%d hits taken, %d knock-outs)" % [n_players, m.run_time, hits_taken, m.knockouts])
 		print("  hits by stage: %s" % str(hits_by_stage))
 		for i in m.players.size():
-			print("  P%d %s: %s" % [i + 1, m.builds[i].weapon(), str(m.builds[i].get_data())])
+			print("  P%d %s: %s%s" % [i + 1, m.builds[i].weapon(), str(m.builds[i].get_data()), "" if not ability_uses.has(i) else "  (its ability went off %d times)" % ability_uses[i]])
 	else:
 		print("FAIL: stages never reached: %s" % str(missing))
 	_quit(ok and missing.is_empty())
