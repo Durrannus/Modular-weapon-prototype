@@ -2,7 +2,9 @@
 
 A Godot prototype for a co-op top-down game about building weapons from parts.
 
-This branch (`swing-path`) has four things to try:
+**The newest game is on the branch called `latest`.** (Until version 29 it was called `swing-path`. That name came from the first thing built on it, the swing path, and stopped fitting once the whole game lived there, so on 15 November it moved. `swing-path` stays where version 29 left it and gets no new versions.) If your copy is still on `swing-path`, switch it once: in GitHub Desktop choose **Current branch > latest**; on the command line `git fetch` then `git checkout latest`. After that, pull as before.
+
+This branch has four things to try:
 
 - **The tutorial cave** (Game Plan milestone 4): four rooms, from a shipwreck crate to a forge guardian, for one or two players. You choose your weapon at the crate: a sword or a bow since version 21, a hammer or a staff too since version 27.
 - **Two players on one screen.**
@@ -394,9 +396,9 @@ Darren, 15 November: "can we make a lab so I can adjust numbers myself without h
 
 Which keys open it, which numbers are in it, their steps and limits, the spawner's details, and how the search works (its keys, the everyday words it understands) are Claude's choices, for Darren to change.
 
-## This branch: the swing path
+## The swing path
 
-This branch tests the **swing path** (design notes, 3 November). It replaces the part grid; `main` still has the grid sword to compare against.
+This branch began as a test of the **swing path** (design notes, 3 November), which is why it was first called `swing-path`. The swing path replaces the part grid; `main` still has the grid sword to compare against.
 
 - A sword is a **blade** plus a **grip**. The blade sets the basic three-hit chain (the last hit is the finisher). Grip and blade both have **slots**.
 - Slots hold **runes** (effects) or **bands** (modifiers). Read the sword as one line from the bottom of the grip to the tip: a band boosts the next rune above it, bands in a row stack, and a band with nothing above it does nothing.
