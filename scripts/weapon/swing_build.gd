@@ -18,7 +18,7 @@ signal changed
 ##   chain       the three moves (tuned in MOVES in player.gd)
 ##   swing_move  walking speed while swinging (most blades: 0.9)
 ##   crit        extra crit chance
-const SHAPES := {
+static var SHAPES := {
 	"dagger": {"name": "Dagger", "chain": ["dagger_stab", "dagger_slash", "dagger_finish"],
 		"damage": 0.6, "speed": 1.6, "reach": 0.6, "swing_move": 1.0,
 		"desc": "Stab, slash, stab: very fast with a short reach, and you keep your full speed while attacking."},
@@ -39,7 +39,7 @@ const SHAPES := {
 		"desc": "Sweep, backswing, slam: huge reach and damage, but very slow, and you walk slower while swinging."},
 }
 const SHAPE_ORDER := ["dagger", "sabre", "broadsword", "rapier", "falchion", "greatsword"]
-const SWING_MOVE := 0.9        # walking speed while swinging, unless the shape says otherwise
+static var SWING_MOVE := 0.9        # walking speed while swinging, unless the shape says otherwise
 
 ## What a move is called on screen.
 const MOVE_NAMES := {"slash": "slash", "overhead": "overhead",
@@ -53,7 +53,7 @@ const MOVE_NAMES := {"slash": "slash", "overhead": "overhead",
 	"bolt": "bolt", "burst": "burst", "spray": "spray", "orb": "orb"}
 
 ## A broadsword's damage in each metal. (Later metals each add about a quarter.)
-const METALS := {"wood": 5.0, "tin": 8.0, "iron": 11.0}
+static var METALS := {"wood": 5.0, "tin": 8.0, "iron": 11.0}
 
 ## In the prototype every iron shape has two slots: slots come from a blade's
 ## tier, never from its shape.
@@ -108,7 +108,7 @@ static func blade_info(id: String) -> Dictionary:
 ## Limb shapes. The numbers are multiples of the shortbow with the same arrows,
 ## and damage x speed stays within a tenth of it, as for blade shapes.
 ##   range  how far an arrow flies, as a multiple of BOW_RANGE
-const BOW_SHAPES := {
+static var BOW_SHAPES := {
 	"shortbow": {"name": "Shortbow", "chain": ["quick_shot", "quick_shot", "heavy_shot"],
 		"damage": 1.0, "speed": 1.0, "range": 1.0,
 		"desc": "Quick shot, quick shot, heavy shot: the balanced bow."},
@@ -127,10 +127,10 @@ const BOW_SHAPES := {
 ## Four fifths (it was three quarters until the bow reached the tutorial cave):
 ## a wooden bow's chain is then 4 + 4 + 6 = 14, exactly one crawler, the way one
 ## wooden sword's chain is, and a burrower takes four arrows where it took five.
-const BOW_DAMAGE := 0.8
-const BOW_RANGE := 520.0       # how far a shortbow's arrow flies (a sword reaches 91)
-const BOW_FLIGHT := 1300.0     # how fast an arrow flies, a second
-const BOW_MOVE := 0.8          # walking speed while shooting ("slightly slowed")
+static var BOW_DAMAGE := 0.8
+static var BOW_RANGE := 520.0       # how far a shortbow's arrow flies (a sword reaches 91)
+static var BOW_FLIGHT := 1300.0     # how fast an arrow flies, a second
+static var BOW_MOVE := 0.8          # walking speed while shooting ("slightly slowed")
 
 const LIMBS := {
 	"wooden_shortbow": {"name": "Wooden Shortbow", "shape": "shortbow", "slots": 0,
@@ -181,7 +181,7 @@ const ARROW_ORDER := ["wooden_arrows", "tin_arrows", "iron_arrows"]
 ## (it reaches three quarters as far, swings slowly and slows your feet), and it
 ## pins what it hits where a sword shoves it away.
 ##   impact  how big the patch of floor is that a slam hits (1.0 = HAMMER_IMPACT)
-const HAMMER_SHAPES := {
+static var HAMMER_SHAPES := {
 	"maul": {"name": "Maul", "chain": ["maul_swing", "maul_swing", "maul_slam"],
 		"damage": 1.7, "speed": 0.7, "reach": 0.75, "impact": 1.0, "swing_move": 0.8,
 		"desc": "Swing, swing, slam: short, slow and very heavy. The slam hits everything on a patch of floor."},
@@ -192,8 +192,8 @@ const HAMMER_SHAPES := {
 		"damage": 1.5, "speed": 0.7, "reach": 0.75, "impact": 0.85, "swing_move": 0.7,
 		"desc": "Three slow crushing blows. Each one lands on a patch of floor and leaves enemies reeling."},
 }
-const HAMMER_IMPACT := 38.0    # the radius of a maul's slam on the floor
-const HAMMER_MOVE := 0.8       # walking speed while swinging one
+static var HAMMER_IMPACT := 38.0    # the radius of a maul's slam on the floor
+static var HAMMER_MOVE := 0.8       # walking speed while swinging one
 
 const HEADS := {
 	"wooden_maul": {"name": "Wooden Maul", "shape": "maul", "metal": "wood", "slots": 0,
@@ -255,7 +255,7 @@ static func hammer_info(id: String) -> Dictionary:
 ## Head shapes. Multiples of the apprentice head with the same crystal.
 ##   range  how far a bolt flies, as a multiple of STAFF_RANGE
 ##   size   spell size: how wide a bolt is and how far a burst reaches
-const STAFF_SHAPES := {
+static var STAFF_SHAPES := {
 	"apprentice": {"name": "Apprentice", "chain": ["bolt", "bolt", "burst"],
 		"damage": 1.0, "speed": 1.0, "range": 1.0, "size": 1.0,
 		"desc": "Bolt, bolt, burst: the balanced staff. The burst hurts everything near where it lands."},
@@ -268,26 +268,26 @@ const STAFF_SHAPES := {
 ## A bolt is worth this much of a broadsword's hit in the same tier: what an
 ## arrow is, for the same reason (BOW_DAMAGE). A wooden staff's chain is then
 ## 4 + 4 + 6 = 14, one crawler.
-const STAFF_DAMAGE := 0.8
-const STAFF_RANGE := 400.0     # how far an apprentice's bolt flies (an arrow: 520)
-const STAFF_FLIGHT := 760.0    # how fast, a second (an arrow: 1300)
-const STAFF_MOVE := 0.8        # walking speed while casting
+static var STAFF_DAMAGE := 0.8
+static var STAFF_RANGE := 400.0     # how far an apprentice's bolt flies (an arrow: 520)
+static var STAFF_FLIGHT := 760.0    # how fast, a second (an arrow: 1300)
+static var STAFF_MOVE := 0.8        # walking speed while casting
 const BOLT_WIDTH := 7.0        # how close a bolt's line must pass to an enemy's edge (an arrow: 4)
-const BURST_RADIUS := 56.0     # how far from where it lands a burst hurts
+static var BURST_RADIUS := 56.0     # how far from where it lands a burst hurts
 const SPRAY_SPREAD := 0.17     # radians between one spark of a spray and the next
-const SPRAY_DAMAGE := 0.4      # each spark, in bolts
+static var SPRAY_DAMAGE := 0.4      # each spark, in bolts
 const ORB_FLIGHT := 0.4        # the orb's speed, as a share of a bolt's
-const ORB_RADIUS := 70.0        # how far from where it stops an orb hurts (a storm head's is a quarter wider)
+static var ORB_RADIUS := 70.0        # how far from where it stops an orb hurts (a storm head's is a quarter wider)
 ## Mana. Casting without a rest drains it in about a quarter of a minute; a
 ## moment's rest fills it again.
-const MANA := 100.0
-const MANA_REGEN := 10.0       # a second, always
-const MANA_REST := 0.7         # this long without a cast...
-const MANA_REST_REGEN := 45.0  # ...and it comes back this fast
+static var MANA := 100.0
+static var MANA_REGEN := 10.0       # a second, always
+static var MANA_REST := 0.7         # this long without a cast...
+static var MANA_REST_REGEN := 45.0  # ...and it comes back this fast
 ## What each cast costs (the moves are in player.gd).
-const CAST_MANA := {"bolt": 6.0, "burst": 10.0, "spray": 6.0, "orb": 12.0}
-const MANA_WEAK := 0.5         # a cast with too little mana: its damage...
-const MANA_SLOW := 0.75        # ...and how fast you cast it
+static var CAST_MANA := {"bolt": 6.0, "burst": 10.0, "spray": 6.0, "orb": 12.0}
+static var MANA_WEAK := 0.5         # a cast with too little mana: its damage...
+static var MANA_SLOW := 0.75        # ...and how fast you cast it
 
 const STAFF_HEADS := {
 	"wooden_apprentice": {"name": "Wooden Apprentice Head", "shape": "apprentice", "slots": 0,
@@ -494,7 +494,7 @@ const POMMEL_ORDER := ["plain_pommel", "keen_pommel", "heavy_pommel", "light_pom
 ##   recharge  seconds from used up to ready
 ##   turns     hold only: how many turns a full meter holds
 ##   turn      hold only: how long one turn takes, in seconds
-const FITTINGS := {
+static var FITTINGS := {
 	"shockwave": {"kind": "rune", "weapon": "sword", "name": "Shockwave", "trigger": "finisher", "color": Color("#ffc850"),
 		"desc": "Your finisher sends a wave forward."},
 	# Hook left the sword for the hammer (Darren, 11 November afternoon): an area
@@ -604,14 +604,14 @@ const FITTING_ORDER := ["shockwave", "shards", "weak_point", "pierce", "ricochet
 	"orbit", "chain", "overflow",
 	"whirlwind", "leap", "ghostwield", "volley", "snipe", "arrow_rain", "quake", "bulwark", "hook", "nova", "lance", "spectre",
 	"twice", "wider", "every_hit", "saved_up", "on_dodge", "mirror", "relay"]
-const EVERY_HIT_POWER := 0.5
+static var EVERY_HIT_POWER := 0.5
 ## Every Hit on an active rune: seconds off its recharge for each swing that lands.
-const EVERY_HIT_REFUND := 0.5
+static var EVERY_HIT_REFUND := 0.5
 const SAVED_UP_EVERY := 3
 const SAVED_UP_POWER := 3.0
 ## Ghostwield: what a ghost swing does, as a share of the swing it copies. Saved Up
 ## brings it to a full copy (and makes the recharge three times as long).
-const GHOST_POWER := 0.5
+static var GHOST_POWER := 0.5
 
 
 ## How strong the ghost's copies are for a Ghostwield rune of this power.
@@ -625,31 +625,31 @@ static func ghost_time(size: float) -> float:
 	return float(FITTINGS["ghostwield"]["time"]) * (1.0 + (size - 1.0) / 1.8)
 
 ## The bow's runes, in numbers. Damage is a share of one arrow from the same bow.
-const PIERCE_MAX := 6            # the most enemies one arrow goes on through
+static var PIERCE_MAX := 6            # the most enemies one arrow goes on through
 const PIERCE_WIDTH := 14.0       # Wider: how much thicker the arrow's path is, at twice the size
-const RICOCHET_DAMAGE := 0.5     # a jump, as a share of the arrow that hit
-const RICOCHET_RANGE := 150.0    # how far away the next enemy can be
-const STEADY_RATE := 0.1         # attack speed gained each second you stand and shoot
-const STEADY_CAP := 0.5          # the most it gives (Wider: 0.8)
-const STEADY_HIT := 0.05         # Every Hit: what each arrow that lands adds
+static var RICOCHET_DAMAGE := 0.5     # a jump, as a share of the arrow that hit
+static var RICOCHET_RANGE := 150.0    # how far away the next enemy can be
+static var STEADY_RATE := 0.1         # attack speed gained each second you stand and shoot
+static var STEADY_CAP := 0.5          # the most it gives (Wider: 0.8)
+static var STEADY_HIT := 0.05         # Every Hit: what each arrow that lands adds
 const VOLLEY_SPREAD := 0.2       # radians between one arrow of the fan and the next
-const VOLLEY_DAMAGE := 1.0       # each arrow
-const SNIPE_CHARGE := 0.7        # seconds of holding until the ring closes
+static var VOLLEY_DAMAGE := 1.0       # each arrow
+static var SNIPE_CHARGE := 0.7        # seconds of holding until the ring closes
 const SNIPE_SWEET := 0.25        # how long after that the shot is a perfect one
 const SNIPE_HOLD := 2.5          # held this long, it goes by itself
-const SNIPE_NEAR := 2.0          # its damage at no distance, in arrows...
-const SNIPE_FAR := 6.0           # ...and after SNIPE_DISTANCE or more
-const SNIPE_DISTANCE := 480.0
+static var SNIPE_NEAR := 2.0          # its damage at no distance, in arrows...
+static var SNIPE_FAR := 6.0           # ...and after SNIPE_DISTANCE or more
+static var SNIPE_DISTANCE := 480.0
 const SNIPE_RANGE := 1.5         # how much further than an arrow it flies
-const SNIPE_PERFECT := 1.5       # let go in the sweet spot
-const SNIPE_EARLY := 0.5         # let go before the ring closed
+static var SNIPE_PERFECT := 1.5       # let go in the sweet spot
+static var SNIPE_EARLY := 0.5         # let go before the ring closed
 const SNIPE_MOVE := 0.5          # walking speed while drawing it
-const RAIN_DAMAGE := 0.35        # each time the rain hits an enemy standing in it
-const RAIN_TICK := 0.3           # how often that is
+static var RAIN_DAMAGE := 0.35        # each time the rain hits an enemy standing in it
+static var RAIN_TICK := 0.3           # how often that is
 const RAIN_RADIUS := Vector2(112, 80)   # the marked ground (an oval: the floor is seen from above)
-const RAIN_REACH := 420.0        # how far away you can mark
+static var RAIN_REACH := 420.0        # how far away you can mark
 const RAIN_PIN := 0.4            # Saved Up: each hit holds an enemy this long
-const DODGE_SHARE := 0.5         # On Dodge on Volley and Snipe: the dodge's shot, as a share of the button's
+static var DODGE_SHARE := 0.5         # On Dodge on Volley and Snipe: the dodge's shot, as a share of the button's
 const RAIN_DODGE_TIME := 1.0     # On Dodge on Arrow Rain: the small shower's length...
 const RAIN_DODGE_SIZE := 0.6     # ...and size
 
@@ -682,28 +682,28 @@ static func rain_scale(size: float) -> float:
 
 
 ## The hammer's runes, in numbers. Damage is a share of one swing of the same hammer.
-const MOMENTUM_STEPS := 5        # the ring's steps
-const MOMENTUM_STEP := 0.08      # what each step adds to your swings
-const MOMENTUM_STEP_MAX := 0.2   # the most one step can be worth, whatever the bands: Momentum at its most doubles a swing
-const MOMENTUM_HOLD := 2.0       # seconds without landing a hit before it starts to drain...
-const MOMENTUM_DRAIN := 0.5      # ...and then a step goes this often
-const STAGGER_STUN := 1.5        # how long a full meter stuns
-const STAGGER_DAMAGE := 1.0      # the blow as it breaks, in swings
+static var MOMENTUM_STEPS := 5        # the ring's steps
+static var MOMENTUM_STEP := 0.08      # what each step adds to your swings
+static var MOMENTUM_STEP_MAX := 0.2   # the most one step can be worth, whatever the bands: Momentum at its most doubles a swing
+static var MOMENTUM_HOLD := 2.0       # seconds without landing a hit before it starts to drain...
+static var MOMENTUM_DRAIN := 0.5      # ...and then a step goes this often
+static var STAGGER_STUN := 1.5        # how long a full meter stuns
+static var STAGGER_DAMAGE := 1.0      # the blow as it breaks, in swings
 const STAGGER_REACH := 50.0      # Wider: the break also stuns enemies this near, times the size
-const AFTERSHOCK_DELAY := 0.6    # the ground trembles this long, then rumbles
-const AFTERSHOCK_DAMAGE := 0.7
-const AFTERSHOCK_RADIUS := 60.0  # (the rumble's ring is drawn about this big)
-const AFTERSHOCK_STUN := 0.25
+static var AFTERSHOCK_DELAY := 0.6    # the ground trembles this long, then rumbles
+static var AFTERSHOCK_DAMAGE := 0.7
+static var AFTERSHOCK_RADIUS := 60.0  # (the rumble's ring is drawn about this big)
+static var AFTERSHOCK_STUN := 0.25
 const AFTERSHOCK_SMALL := 0.7    # Every Hit: the small rumble's size
 const AFTERSHOCK_HUGE := 1.5     # Saved Up: the huge one's
 const AFTERSHOCK_GAP := 0.35     # Twice: the second rumble comes this long after the first
-const QUAKE_RANGE := 240.0       # how far away the enemy can be
-const QUAKE_DAMAGE := 1.5
-const QUAKE_RADIUS := 44.0       # everything this near the eruption is caught
-const QUAKE_STUN := 0.6
+static var QUAKE_RANGE := 240.0       # how far away the enemy can be
+static var QUAKE_DAMAGE := 1.5
+static var QUAKE_RADIUS := 44.0       # everything this near the eruption is caught
+static var QUAKE_STUN := 0.6
 const QUAKE_EMPTY := 120.0       # with nobody in range it erupts this far the way you aim
 const QUAKE_GAP := 0.3           # Twice: the next eruption comes this long after
-const BULWARK_STUN := 1.5        # whoever hits the shield is stunned this long (Twice: twice as long)
+static var BULWARK_STUN := 1.5        # whoever hits the shield is stunned this long (Twice: twice as long)
 const BULWARK_DODGE := 1.0       # On Dodge: how long a dodge puts it up for
 
 
@@ -725,39 +725,39 @@ static func bulwark_time(size: float, power: float, seconds := -1.0) -> float:
 const ORBIT_RADIUS := 36.0       # how far from you an orb circles
 const ORBIT_FLAT := 0.6          # the circle is an oval on the floor
 const ORBIT_PERIOD := 1.2        # seconds for one turn
-const ORBIT_REACH := 62.0        # an enemy whose edge comes this near you is struck (Wider: further)
-const ORBIT_TIME := 8.0          # how long an orb waits for someone
-const ORBIT_MAX := 3             # orbs at once: a new one takes the oldest one's place
-const ORBIT_DAMAGE := 1.0        # its strike
+static var ORBIT_REACH := 62.0        # an enemy whose edge comes this near you is struck (Wider: further)
+static var ORBIT_TIME := 8.0          # how long an orb waits for someone
+static var ORBIT_MAX := 3             # orbs at once: a new one takes the oldest one's place
+static var ORBIT_DAMAGE := 1.0        # its strike
 const ORBIT_GAP := 0.25          # two orbs don't strike closer together than this
 const ORBIT_KNOCK := 240.0
 const ORBIT_STUN := 0.25
-const CHAIN_JUMPS := 3           # how many enemies the lightning goes on to (Twice: six)
-const CHAIN_RANGE := 150.0       # how far one jump reaches (Wider: further)
-const CHAIN_DAMAGE := 0.5        # each jump
-const OVERFLOW_DAMAGE := 0.3     # how much harder a bolt cast on full mana hits
-const OVERFLOW_SIZE := 0.25      # and how much bigger it is
+static var CHAIN_JUMPS := 3           # how many enemies the lightning goes on to (Twice: six)
+static var CHAIN_RANGE := 150.0       # how far one jump reaches (Wider: further)
+static var CHAIN_DAMAGE := 0.5        # each jump
+static var OVERFLOW_DAMAGE := 0.3     # how much harder a bolt cast on full mana hits
+static var OVERFLOW_SIZE := 0.25      # and how much bigger it is
 # Its bands are Darren's (11 November, "Overflow bands" in the Game Bible); the numbers are a first pass.
 const OVERFLOW_ECHO := 0.12      # Twice: every other Overflow bolt is cast again this long after
 const OVERFLOW_SPLASH := 36.0    # Wider: an Overflow bolt bursts this wide where it lands, so it hits more enemies
-const OVERFLOW_REFUND := 3.0     # Every Hit: mana back for each bolt that lands (half a bolt's cost: from full, a whole chain that lands stays full)
-const OVERFLOW_CHARGE := 3.0     # Saved Up: seconds your mana must stay full...
-const OVERFLOW_BLAST := 3.0      # ...for the next bolt to be a blast this many times as strong...
+static var OVERFLOW_REFUND := 3.0     # Every Hit: mana back for each bolt that lands (half a bolt's cost: from full, a whole chain that lands stays full)
+static var OVERFLOW_CHARGE := 3.0     # Saved Up: seconds your mana must stay full...
+static var OVERFLOW_BLAST := 3.0      # ...for the next bolt to be a blast this many times as strong...
 const OVERFLOW_BLAST_SIZE := 0.9 # ...and this much bigger, bursting OVERFLOW_BLAST_SPLASH wide
 const OVERFLOW_BLAST_SPLASH := 64.0
-const OVERFLOW_DODGE_MANA := 10.0   # On Dodge: mana back for each dodge
-const NOVA_RADIUS := 110.0       # how far the ring reaches to the sides...
+static var OVERFLOW_DODGE_MANA := 10.0   # On Dodge: mana back for each dodge
+static var NOVA_RADIUS := 110.0       # how far the ring reaches to the sides...
 const NOVA_FLAT := 0.62          # ...and up and down, as a share (it is an oval on the floor)
-const NOVA_DAMAGE := 1.2
-const NOVA_KNOCK := 430.0
-const NOVA_STUN := 0.3
+static var NOVA_DAMAGE := 1.2
+static var NOVA_KNOCK := 430.0
+static var NOVA_STUN := 0.3
 const NOVA_GAP := 0.3            # Twice: the second ring comes this long after
-const LANCE_DAMAGE := 0.75       # one pulse of the beam at its first strength
+static var LANCE_DAMAGE := 0.75       # one pulse of the beam at its first strength
 const LANCE_STAGES := 3          # strengths: one, two and three times LANCE_DAMAGE a pulse; a third of a full hold at each
 const LANCE_WIDTH := 10.0        # how close the beam's line must pass to an enemy's edge (Wider: a thicker beam)
-const LANCE_MOVE := 0.5          # walking speed while the beam is held
+static var LANCE_MOVE := 0.5          # walking speed while the beam is held
 const LANCE_DODGE := 0.5         # On Dodge: one pulse at full strength, at this share
-const SPECTRE_POWER := 0.5       # what the ghost's copy does, as a share of the attack it copies
+static var SPECTRE_POWER := 0.5       # what the ghost's copy does, as a share of the attack it copies
 const SPECTRE_DELAY := 0.15      # a copy comes this long after the attack
 const SPECTRE_GAP := 0.1         # Twice: the second copy comes this long after the first
 const SPECTRE_AIM := 320.0       # how far away a teammate can be to be given the ghost...
@@ -1047,9 +1047,9 @@ func load_test(key: String) -> void:
 
 
 # Stacking limits: each extra band of a kind adds less, up to a cap.
-const MAX_COUNT := 3          # Twice: at most 3 fires
-const MAX_SIZE := 2.0         # Wider: at most 2x size
-const WIDER_STEPS := [1.6, 1.85, 2.0]  # 1, 2, 3+ Wider bands
+static var MAX_COUNT := 3          # Twice: at most 3 fires
+static var MAX_SIZE := 2.0         # Wider: at most 2x size
+static var WIDER_STEPS := [1.6, 1.85, 2.0]  # 1, 2, 3+ Wider bands
 
 
 static func wider_size(n: int) -> float:
@@ -1606,8 +1606,8 @@ func compute() -> Dictionary:
 	return out
 
 
-const BASE_CRIT := 0.07
-const BASE_CRIT_DAMAGE := 1.6
+static var BASE_CRIT := 0.07
+static var BASE_CRIT_DAMAGE := 1.6
 
 const ELEMENT_COLORS := {
 	"fire": Color(1.0, 0.5, 0.2),

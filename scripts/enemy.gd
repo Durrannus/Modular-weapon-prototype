@@ -66,7 +66,7 @@ var charge_dir := Vector2.RIGHT
 # hit counts. A big one (the brute, the guardian) gets a bright spot on one side
 # of its body, and the swing has to reach that spot from that side.
 const WEAK_BIG := 24.0          # this radius and up counts as big
-const WEAK_LIFE := 8.0          # a mark fades after this many seconds
+static var WEAK_LIFE := 8.0          # a mark fades after this many seconds
 const WEAK_SPOT := 9.0          # the spot's own radius, times the mark's size
 const WEAK_SIDE := 50.0         # how far round from the spot you may stand, in degrees
 const WEAK_COLOR := Color("#b8f4ff")
@@ -100,21 +100,26 @@ func _ready() -> void:
 	_over.draw.connect(func(): _draw_over(_over))
 
 
+## The numbers of the arena's three kinds: health, walking speed and what a
+## touch does. They live in a table so the lab can change them while the game runs
+## (scripts/lab.gd).
+static var STATS := {
+	"slime": {"hp": 30.0, "speed": 85.0, "damage": 10.0},
+	"charger": {"hp": 22.0, "speed": 120.0, "damage": 14.0},
+	"brute": {"hp": 120.0, "speed": 52.0, "damage": 20.0},
+}
+
+
 ## Stats for this kind. Cave enemies override this.
 func _setup() -> void:
+	_stats()
 	match kind:
 		"charger":
-			max_hp = 22.0
-			speed = 120.0
 			radius = 13.0
 			color = Color(0.95, 0.45, 0.35)
-			contact_damage = 14.0
 		"brute":
-			max_hp = 120.0
-			speed = 52.0
 			radius = 26.0
 			color = Color(0.55, 0.45, 0.8)
-			contact_damage = 20.0
 			knock_resist = 0.3
 		"dummy":
 			max_hp = 100.0
@@ -125,6 +130,26 @@ func _setup() -> void:
 			knock_resist = 0.0
 		_:
 			pass
+
+
+## The numbers the lab can change: health, speed and damage. Called when this
+## enemy appears and again when a number is changed in the lab. Cave enemies
+## override this with their own.
+func _stats() -> void:
+	var s: Dictionary = STATS.get(kind, {})
+	if s.is_empty():
+		return
+	max_hp = float(s["hp"])
+	speed = float(s["speed"])
+	contact_damage = float(s["damage"])
+
+
+## A number was changed in the lab: take the new ones, keeping the same share of
+## health.
+func lab_changed() -> void:
+	var frac := hp / max_hp if max_hp > 0.0 else 1.0
+	_stats()
+	hp = max_hp * frac
 
 
 ## Everyone still standing.
@@ -409,9 +434,9 @@ func apply_stun(duration: float) -> void:
 # Stagger (the hammer's passive rune, 15 November): a hammer's swings fill a meter
 # on the enemy. Full, it breaks: a heavy blow and a long stun (player.gd,
 # _add_stagger). The meter is the enemy's own, so two hammers fill it together.
-const STAGGER_FULL := 4.0       # in swings (a slam counts as one and a half)
-const STAGGER_HOLD := 3.0       # seconds without a hit before it starts to empty...
-const STAGGER_DRAIN := 2.0      # ...this fast, in swings a second
+static var STAGGER_FULL := 4.0       # in swings (a slam counts as one and a half)
+static var STAGGER_HOLD := 3.0       # seconds without a hit before it starts to empty...
+static var STAGGER_DRAIN := 2.0      # ...this fast, in swings a second
 var stagger := 0.0              # the meter, 0 to STAGGER_FULL
 var stagger_idle := 0.0         # seconds since it was last added to
 var staggered := 0.0            # seconds of a break's stun left; the meter stays empty meanwhile

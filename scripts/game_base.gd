@@ -15,6 +15,7 @@ const EnemyScript := preload("res://scripts/enemy.gd")
 const HudScript := preload("res://scripts/ui/hud.gd")
 const BuildMenuScript := preload("res://scripts/ui/swing_forge.gd")
 const PauseMenuScript := preload("res://scripts/ui/pause_menu.gd")
+const LabScreenScript := preload("res://scripts/ui/lab_screen.gd")
 const SwingBuild := preload("res://scripts/weapon/swing_build.gd")
 const Art := preload("res://scripts/art.gd")
 const Sfx := preload("res://scripts/sfx.gd")
@@ -35,6 +36,7 @@ var build: SwingBuild   # player one's sword
 var hud
 var build_menu
 var pause_menu
+var lab_screen          # the lab (null online: both computers must have the same numbers)
 var forging := -1       # which player has the forge open (-1 = nobody)
 var last_forging := 0   # who had it open last (for "try at the dummy")
 ## Online each player has their own forge screen, so both can be at the forge at
@@ -46,7 +48,19 @@ var min_hp := 0.0       # tests: nobody's health drops below this
 var test_commands := false   # tests: allow the "test_ko" command (knocks everyone out)
 
 
+## Numbers were changed in the lab (scripts/lab.gd): every weapon is worked out
+## again from its parts, and everyone alive takes their new health and speed.
+func lab_changed() -> void:
+	for i in players.size():
+		players[i].set_weapon(builds[i].compute())
+		players[i].lab_changed()
+	for e in get_tree().get_nodes_in_group("foes"):
+		if is_instance_valid(e) and e.has_method("lab_changed"):
+			e.lab_changed()
+
+
 func _make_world() -> void:
+	add_to_group("game")
 	world = Node2D.new()
 	world.name = "World"
 	world.y_sort_enabled = true  # things lower on screen draw in front
@@ -115,9 +129,25 @@ func _make_ui() -> void:
 	add_child(pause_menu)
 	pause_menu.to_title.connect(func(): quit_to_title.emit())
 	pause_menu.resumed.connect(_swallow_presses)
+	if not Net.online():
+		lab_screen = LabScreenScript.new()
+		lab_screen.game = self
+		add_child(lab_screen)
+		lab_screen.closed.connect(_swallow_presses)
+		pause_menu.lab_pressed.connect(open_lab)
 	draft = SwingBuild.new()
 	draft.changed.connect(_on_draft_changed)
 	_set_cursor()
+
+
+## Opens the lab: from the pause menu anywhere, and with its own key and button
+## in the test arena. Not while someone is at the forge.
+func open_lab() -> void:
+	if lab_screen == null or lab_screen.is_open or build_menu.is_open:
+		return
+	if pause_menu.is_open():
+		pause_menu.resume()
+	lab_screen.open()
 
 
 ## Whether players carry a second weapon here and can swap to it. Only the test

@@ -1032,9 +1032,7 @@ func _spawn_guardian() -> void:
 	guardian.position = guardian_home
 	world.add_child(guardian)
 	guardian.team = players.size()
-	# 255: the fight is as many chains long as it was at 300 health, before the
-	# broadsword's finisher went from 2.1 hits to the Game Bible's 1.5 (11 November).
-	guardian.max_hp = 255.0 * (1.0 + 0.7 * float(players.size() - 1))
+	guardian._stats()   # his health grows with the team (Guardian.HP, HP_PER_PLAYER)
 	guardian.hp = guardian.max_hp
 	guardian.room = _room_rect(3)
 	guardian.defeated.connect(_on_guardian_defeated)

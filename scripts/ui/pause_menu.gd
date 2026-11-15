@@ -7,6 +7,7 @@ const Art := preload("res://scripts/art.gd")
 
 signal to_title
 signal resumed
+signal lab_pressed   # "Lab": the game's numbers (scripts/ui/lab_screen.gd)
 
 var panel: Control
 var first_button: Button
@@ -47,8 +48,8 @@ func _ready() -> void:
 	panel.add_child(dim)
 	# A dark plate with a bronze edge, from the menu kit.
 	var plate := Panel.new()
-	plate.position = Vector2(230, 104)
-	plate.size = Vector2(180, 150)
+	plate.position = Vector2(230, 91 if pauses else 104)
+	plate.size = Vector2(180, 176 if pauses else 150)
 	var plate_box: StyleBox = Art.nine("swing/ui/panel.png", 8)
 	if plate_box == null:
 		var flat := StyleBoxFlat.new()
@@ -57,7 +58,7 @@ func _ready() -> void:
 	plate.add_theme_stylebox_override("panel", plate_box)
 	panel.add_child(plate)
 	var box := VBoxContainer.new()
-	box.position = Vector2(246, 114)
+	box.position = Vector2(246, 101 if pauses else 114)
 	box.custom_minimum_size = Vector2(148, 0)
 	box.add_theme_constant_override("separation", 6)
 	panel.add_child(box)
@@ -76,7 +77,11 @@ func _ready() -> void:
 	var hot := Art.nine("swing/ui/button_hot.png", 3)
 	var ink := Color("#e8e4bc")
 	var dark := Color("#19142a")
-	for item in [["Resume", resume], ["Fullscreen on/off", _toggle_full], ["Back to title" if pauses else "Leave the game", _title], ["Quit game", _quit]]:
+	var items: Array = [["Resume", resume], ["Fullscreen on/off", _toggle_full], ["Back to title" if pauses else "Leave the game", _title], ["Quit game", _quit]]
+	if pauses:
+		# The lab is not there online: both computers must have the same numbers.
+		items.insert(2, ["Lab: change numbers", func(): lab_pressed.emit()])
+	for item in items:
 		var b := Button.new()
 		b.text = str(item[0]).to_upper()
 		b.focus_mode = Control.FOCUS_ALL

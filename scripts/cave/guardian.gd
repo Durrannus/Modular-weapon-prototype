@@ -27,27 +27,32 @@ signal defeated(guardian)
 
 signal attack_started(kind)   # "slam", "charge", "quake" or "rocks": the cave shows a tip
 
-const SLAM_RADIUS := 92.0
-const SLAM_DAMAGE := 15.0
-const CHARGE_DAMAGE := 18.0
-const CHARGE_SPEED := 560.0
-const ROCK_DAMAGE := 12.0
-const QUAKE_DAMAGE := 14.0
+# 255: the fight is as many chains long as it was at 300 health, before the
+# broadsword's finisher went from 2.1 hits to the Game Bible's 1.5 (11 November).
+static var HP := 255.0
+static var HP_PER_PLAYER := 0.7   # each player after the first adds this share of it
+static var SPEED := 64.0
+static var SLAM_RADIUS := 92.0
+static var SLAM_DAMAGE := 15.0
+static var CHARGE_DAMAGE := 18.0
+static var CHARGE_SPEED := 560.0
+static var ROCK_DAMAGE := 12.0
+static var QUAKE_DAMAGE := 14.0
 const WAKE_TIME := 1.3
 
 # How long each warning shows before it lands. Longer is easier to read and
 # dodge. (Raised on 10 November after the first playtest: "quite quick".)
-const SLAM_WINDUP := 1.05         # was 0.75
+static var SLAM_WINDUP := 1.05         # was 0.75
 const SLAM_AGAIN := 0.7           # the second and third slam of three (was 0.48)
-const CHARGE_WINDUP := 1.35       # was 1.0
+static var CHARGE_WINDUP := 1.35       # was 1.0
 const CHARGE_LOCK := 0.4          # he stops turning this long before he runs (was 0.3)
-const QUAKE_WINDUP := 1.25
+static var QUAKE_WINDUP := 1.25
 const QUAKE_AGAIN := 0.95         # the second ring of cracks
 const ROCKS_WINDUP := 0.8         # hammer up before the strike that brings them down
-const ROCK_WINDUP := 1.15         # each rock's own circle
-const ROCK_GAP := 0.42            # between one rock and the next
-const REST := 1.15                # standing still after an attack: the time to hit him (was 0.75)
-const RAGE_PACE := 0.85           # below half health the waits marked with _pace() are this much shorter
+static var ROCK_WINDUP := 1.15         # each rock's own circle
+static var ROCK_GAP := 0.42            # between one rock and the next
+static var REST := 1.15                # standing still after an attack: the time to hit him (was 0.75)
+static var RAGE_PACE := 0.85           # below half health the waits marked with _pace() are this much shorter
 
 const QUAKE_SPOKES := 6
 const QUAKE_REACH := 440.0
@@ -76,14 +81,19 @@ func _setup() -> void:
 	kind = "guardian"
 	art_set = "cave"
 	flash_tint = 1.6   # he fills a third of the screen: a full white-out is too much
-	max_hp = 255.0
-	speed = 64.0
+	_stats()
 	radius = 34.0
 	contact_damage = 0.0
 	knock_resist = 0.06
 	show_bar = false
 	immune = true
 	color = Color("#7f8aa8")
+
+
+## His health grows with the team (`team` is set by whoever makes him).
+func _stats() -> void:
+	max_hp = HP * (1.0 + HP_PER_PLAYER * float(maxi(team, 1) - 1))
+	speed = SPEED
 
 
 func _feet() -> Vector2:

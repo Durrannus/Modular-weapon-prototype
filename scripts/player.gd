@@ -26,7 +26,7 @@ const SpriteOnce := preload("res://scripts/fx/sprite_once.gd")
 const PlayerInput := preload("res://scripts/player_input.gd")
 const Sim := preload("res://scripts/sim.gd")
 
-const MOVE_SPEED := 220.0      # about 3.7 body heights a second, like Core Keeper
+static var MOVE_SPEED := 220.0      # about 3.7 body heights a second, like Core Keeper
 const ACCEL := 3000.0          # full speed in about 4 frames
 const DECEL := 4200.0          # stops in about 3
 const TURN := 5200.0           # reversing is quicker than starting
@@ -36,10 +36,10 @@ const RADIUS := 16.0
 const COMBO_WINDOW := 0.5      # stop attacking this long and the combo resets
 const FINISHER_RECOVERY := 0.1   # short pause after the finisher, so holding keeps a steady beat
 
-const DODGE_SPEED := 620.0
-const DODGE_TIME := 0.15
-const DODGE_MAX_CHARGES := 1
-const DODGE_REFILL := 0.8      # seconds per charge
+static var DODGE_SPEED := 620.0
+static var DODGE_TIME := 0.15
+static var DODGE_MAX_CHARGES := 1
+static var DODGE_REFILL := 0.8      # seconds per charge
 
 ## The sword moves. A blade's shape picks three of them for its chain
 ## (SHAPES in swing_build.gd). Times are at attack speed 1.0.
@@ -56,7 +56,7 @@ const DODGE_REFILL := 0.8      # seconds per charge
 ## times its speed and nothing else.
 const LIGHT := 0.36
 const HEAVY := 0.45
-const MOVES := {
+static var MOVES := {
 	# Broadsword (and the wooden and tin blades): slash, slash, overhead.
 	"slash": {"windup": 0.055, "time": LIGHT, "shape": "arc", "arc": 120.0, "power": 1.0, "knock": 240.0, "stun": 0.16, "freeze": 0.05,
 		"curve": [-0.9, 0.9, 13.0, 16.0], "smear": "slash_smear", "alternate": true},
@@ -139,8 +139,9 @@ const MOVES := {
 }
 
 var color := Color(0.35, 0.7, 1.0)
-var max_hp := 100.0
-var hp := 100.0
+static var MAX_HP := 100.0     # everyone's health (the lab can change it)
+var max_hp := MAX_HP
+var hp := MAX_HP
 var spawn_point := Vector2.ZERO
 var aim_dir := Vector2.RIGHT   # where an attack goes: the mouse, the right stick, or the way you face
 var face_dir := Vector2.DOWN   # where the body looks
@@ -239,11 +240,11 @@ var rune_counts := {}         # effect index -> triggers seen (Saved Up fires ev
 # Leap (active since 11 November): a press jumps you to an enemy and lands you at
 # your blade's full reach from it, with a strike as you land. It used to land on
 # top of the enemy, which got you hit every time.
-const LEAP_RANGE := 260.0     # how far away an enemy can be
+static var LEAP_RANGE := 260.0     # how far away an enemy can be
 const LEAP_TIME := 0.14       # the jump itself
 const LEAP_AIM := 1.0         # prefers an enemy within this many radians of the aim
-const LEAP_DAMAGE := 1.0      # the landing strike, in blade hits
-const LEAP_STUN := 0.3
+static var LEAP_DAMAGE := 1.0      # the landing strike, in blade hits
+static var LEAP_STUN := 0.3
 const LEAP_EMPTY := 130.0     # with nobody in range, it jumps this far the way you aim
 var leap_targets: Array = []  # enemies already leapt to in this burst
 var leap_burst := -9.0        # game_time the last leap of a burst began
@@ -251,7 +252,7 @@ var leap_landing: Dictionary = {}   # the strike waiting for the jump to end: {a
 
 # Weak Point (passive, 11 November): the finisher marks the enemy it hit, and the
 # next sword hit on the mark is a big crit. Only so many marks at a time.
-const WEAK_CRIT := 2.5        # a full-strength mark's hit, in normal hits
+static var WEAK_CRIT := 2.5        # a full-strength mark's hit, in normal hits
 const WEAK_DODGE_REACH := 70.0  # On Dodge: how close the dodge must pass
 var weak_marks: Array = []    # this player's marks, oldest first: [[enemy, mark]]
 
@@ -2864,6 +2865,16 @@ func _run_rune_queue() -> void:
 
 
 ## Called by main whenever an enemy dies.
+## A number was changed in the lab: take the new health (the same share of it
+## as before), and no more mana or dodges than there now are.
+func lab_changed() -> void:
+	var frac := hp / max_hp if max_hp > 0.0 else 1.0
+	max_hp = MAX_HP
+	hp = max_hp * frac
+	mana = minf(mana, SwingBuild.MANA)
+	dodge_charges = mini(dodge_charges, DODGE_MAX_CHARGES)
+
+
 func on_kill(where: Vector2 = Vector2.INF) -> void:
 	last_kill_pos = where if where != Vector2.INF else global_position
 	_trigger("kill", [])
@@ -2882,10 +2893,11 @@ func _flash_effect(effect: int) -> void:
 
 ## Shockwave is a light hit that shoves (Darren, 10 November: a strong wave would
 ## have everyone fighting from range). It was 1.1 times the blade's damage.
-const SHOCKWAVE_DAMAGE := 0.4
-const HOOK_DAMAGE := 0.3
-const HOOK_STUN := 0.5          # long enough to land a swing on what you pulled in
-const WHIRLWIND_DAMAGE := 0.9   # for each turn
+static var SHOCKWAVE_DAMAGE := 0.4
+static var HOOK_DAMAGE := 0.3
+static var HOOK_REACH := 260.0     # how far away it takes hold of an enemy
+static var HOOK_STUN := 0.5          # long enough to land a swing on what you pulled in
+static var WHIRLWIND_DAMAGE := 0.9   # for each turn
 
 
 func _fire_rune(q: Dictionary) -> void:
@@ -2927,7 +2939,7 @@ func _fire_rune_now(q: Dictionary) -> void:
 			shake = maxf(shake, (4.0 if ghost else 9.0) * size)
 			Sfx.play(self, "shockwave", -10.0 if ghost else -2.0, (1.4 if ghost else 1.0) / sqrt(size))
 		"hook":
-			var reach := 260.0 * size
+			var reach := HOOK_REACH * size
 			var ring := RuneFx.new()
 			ring.kind = "ring"
 			ring.size = reach
@@ -3446,8 +3458,9 @@ func _ghost_shown() -> bool:
 ## Shards: a chain of metal shards from `from` to the closest enemy, then the next.
 ## Each jump takes SHARD_FLIGHT; the hit lands when the shard arrives. Counted in
 ## game ticks (not a timer), so it lands on the same tick on every computer.
-const SHARD_JUMPS := 2
-const SHARD_RANGE := 130.0
+static var SHARD_JUMPS := 2
+static var SHARD_RANGE := 130.0
+static var SHARD_DAMAGE := 0.6    # each shard, in blade hits
 var shard_queue: Array = []   # shards in the air: [{at, next, fronts, hit, jumps, size, power, dmg, col, splinter}]
 
 func _shards(from: Node2D, size: float, power: float, dmg: float, col: Color, splinter := false) -> void:
@@ -3492,7 +3505,7 @@ func _run_shards() -> void:
 			if not is_instance_valid(e) or e.dead:
 				continue
 			var dir: Vector2 = (e.global_position - global_position).normalized()
-			e.take_hit(float(s["dmg"]) * 0.6 * float(s["power"]), dir, 140.0, false, s["col"])
+			e.take_hit(float(s["dmg"]) * SHARD_DAMAGE * float(s["power"]), dir, 140.0, false, s["col"])
 			if _strip("shards_hit", e.global_position, 0.0, float(s["size"])) == null:
 				_strip("cleave_echo", e.global_position, 0.0, float(s["size"]))
 		s["fronts"] = s["next"]
@@ -4202,7 +4215,7 @@ func _sword_pose() -> Array:
 ## drew the blades a third shorter to suit the small crew and kept the range). A
 ## shape's reach multiplies the whole hit range, margin and all, so a rapier hits
 ## at 1.4 times the distance a broadsword does.
-const BASE_REACH := 73.0
+static var BASE_REACH := 73.0
 const REACH_MARGIN := 18.0     # the hit lands this far past the smear
 
 func _reach_px() -> float:

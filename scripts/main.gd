@@ -2,20 +2,25 @@ extends "res://scripts/game_base.gd"
 
 const WeaponBuild := preload("res://scripts/weapon/weapon_build.gd")
 const PartLibrary := preload("res://scripts/parts/part_library.gd")
+const Crawler := preload("res://scripts/cave/crawler.gd")
+const Burrower := preload("res://scripts/cave/burrower.gd")
+const Guardian := preload("res://scripts/cave/guardian.gd")
 ## The test arena: one big room, a training dummy, endless enemies, and a forge
 ## you can open anywhere (Tab / Y) with every part unlocked. It is a room for
 ## trying weapons out, so nobody can be hurt in it unless they ask to be (H / Select
 ## switches "Invincible"), P / Start stops the enemies where they stand, and
 ## B / a click of the right stick swaps your sword for your bow and back.
+## L / a click of the left stick opens the lab: the game's numbers, and a page
+## that puts any enemy in the room (15 November).
 ## Everything is built in code so there are few scene files to merge.
 
 const ARENA := Rect2(0, 0, 1792, 1088)  # 56 x 34 tiles
 const WALL := 32.0  # one wall tile (16 art pixels)
 ## The paved forge corner, in tiles from the arena's top-left.
 const FORGE_TILES := Rect2i(2, 2, 7, 5)
-const MAX_ENEMIES := 7
+static var MAX_ENEMIES := 7
 const WARM := Color(1.0, 0.60, 0.28)
-const SPAWN_EVERY := 1.6
+static var SPAWN_EVERY := 1.6
 
 var parts: Array = []
 var spawn_timer := 1.0
@@ -23,6 +28,19 @@ var spawning := true         # new enemies keep arriving (tests switch this off)
 var enemies_paused := false  # "Pause enemies": none arrive, and the ones here stand still and hurt nobody
 var invincible := true       # nobody can be hurt
 var kills := 0
+
+## Every enemy in the game, for the lab's Spawn page: [kind, its name, a few words].
+const SPAWNABLE := [
+	["slime", "Small crab", "Walks at you"],
+	["charger", "Horned crab", "Winds up, then charges"],
+	["brute", "Big crab", "Slow and tough"],
+	["crawler", "Cave crawler", "Rears up, then bites"],
+	["burrower", "Cave burrower", "Digs under, comes up and lunges"],
+	["guardian", "Forge guardian", "The tutorial cave's boss"],
+	["dummy", "Training dummy", "Never moves, shows your damage"],
+]
+var home_dummy = null        # the dummy the room starts with ("Remove every enemy" leaves it)
+var suits: Array = []        # guardians beaten here: [the empty suit, seconds until it is cleared away]
 
 
 func _ready() -> void:
@@ -43,6 +61,7 @@ func _ready() -> void:
 	dummy.kind = "dummy"
 	dummy.position = ARENA.get_center() + Vector2(220, -40)
 	world.add_child(dummy)
+	home_dummy = dummy
 
 	# Weapons: everyone starts with test sword D: the sword's active runes, one on
 	# each button, and the passive ones beside them. A and B are the 3 November
@@ -64,6 +83,8 @@ func _ready() -> void:
 	hud.pause_pressed.connect(_toggle_paused)
 	hud.invincible_pressed.connect(_toggle_invincible)
 	hud.swap_pressed.connect(func(): _swap_weapon(mini(Net.me(), players.size() - 1)))
+	hud.lab_pressed.connect(open_lab)
+	hud.has_lab = lab_screen != null
 	build_menu.hotkey = false  # handled below, so each player opens their own sword
 	build_menu.try_at_dummy.connect(_on_try_at_dummy)
 
@@ -170,12 +191,16 @@ func _physics_process(delta: float) -> void:
 			_set_invincible(not invincible)
 		if Input.is_action_just_pressed("swap_weapon"):
 			swap_weapon(_swap_key_player())
+		if Input.is_action_just_pressed("lab") and lab_screen != null and not lab_screen.just_closed():
+			open_lab()
 	_hold_enemies()
 	for p in players:
 		p.unhurt = invincible
 	hud.enemies_paused = enemies_paused
 	hud.invincible = invincible
 	hud.kills = kills
+	hud.spawning = spawning
+	_tick_suits(delta)
 	if not spawning or enemies_paused:
 		return
 	spawn_timer -= delta
@@ -218,6 +243,93 @@ func _spawn_enemy() -> void:
 	e.died.connect(_on_enemy_died)
 
 
+# --- The lab's spawner ------------------------------------------------------------
+# Darren, 15 November: "allow me to spawn any enemy to the arena I want so I can
+# test". The lab's Spawn page calls these. (The lab is not there online.)
+
+## Puts `count` of one kind of enemy in the room, near player one. The cave's
+## enemies and its boss work here as they do there: the guardian is awake at
+## once, keeps to this room, and shows a health bar over his head.
+func spawn_enemies(kind: String, count := 1) -> Array:
+	var out: Array = []
+	for n in count:
+		var e
+		match kind:
+			"crawler":
+				e = Crawler.new()
+			"burrower":
+				e = Burrower.new()
+			"guardian":
+				e = Guardian.new()
+				e.team = players.size()
+			_:
+				e = EnemyScript.new()
+				e.kind = kind
+		e.position = _spot_near_player(280.0 if kind == "guardian" else 200.0)
+		world.add_child(e)
+		if kind == "guardian":
+			e.room = ARENA
+			e.show_bar = true
+			e.wake()
+		if kind != "dummy":
+			e.died.connect(_on_enemy_died)
+		out.append(e)
+	_hold_enemies()
+	return out
+
+
+## Somewhere inside the walls, at least `far` from everyone.
+func _spot_near_player(far: float) -> Vector2:
+	var inside := ARENA.grow(-70.0)
+	var centre: Vector2 = player.global_position
+	var pos := centre
+	for tries in 16:
+		pos = centre + Vector2.from_angle(Sim.between(0.0, TAU)) * Sim.between(far, far + 120.0)
+		var ok := inside.has_point(pos)
+		for p in players:
+			if pos.distance_to(p.global_position) < far - 1.0:
+				ok = false
+		if ok:
+			return pos
+	return Vector2(clampf(pos.x, inside.position.x, inside.end.x), clampf(pos.y, inside.position.y, inside.end.y))
+
+
+## Empties the room: every enemy but the dummy it started with, whatever the
+## guardian has left on the floor, and any empty suits.
+func clear_enemies() -> void:
+	for e in get_tree().get_nodes_in_group("foes"):
+		if e != home_dummy:
+			e.remove_from_group("enemies")
+			e.remove_from_group("foes")
+			e.queue_free()
+	for h in get_tree().get_nodes_in_group("hazards"):
+		h.queue_free()
+	for s in suits:
+		if is_instance_valid(s[0]):
+			s[0].queue_free()
+	suits = []
+
+
+## How many enemies are in the room (the dummies don't count).
+func enemy_total() -> int:
+	var n := 0
+	for e in get_tree().get_nodes_in_group("foes"):
+		if e.kind != "dummy" and not e.dead and not e.is_queued_for_deletion():
+			n += 1
+	return n
+
+
+## A guardian beaten here leaves his empty suit for a few seconds, then it goes.
+func _tick_suits(delta: float) -> void:
+	for s in suits:
+		s[1] = float(s[1]) - delta
+	for s in suits.duplicate():
+		if float(s[1]) <= 0.0:
+			if is_instance_valid(s[0]):
+				s[0].queue_free()
+			suits.erase(s)
+
+
 ## "Try at the dummy" in the forge: stand next to the dummy, facing it.
 func _on_try_at_dummy() -> void:
 	if Net.online():
@@ -240,6 +352,8 @@ func _stand_at_dummy(i: int) -> void:
 
 func _on_enemy_died(enemy) -> void:
 	kills += 1
+	if enemy.kind == "guardian":
+		suits.append([enemy, 6.0])
 	# Kill runes go to whoever is closest (the one who most likely struck it).
 	var best = player
 	for p in players:

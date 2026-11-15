@@ -3,8 +3,10 @@ extends "res://scripts/enemy.gd"
 ## up (the warning), then bites. A hit while it's rearing up cancels the bite,
 ## so attacking first is the lesson.
 
-const BITE := 8.0
-const REAR_TIME := 0.5
+static var HP := 14.0
+static var SPEED := 50.0
+static var BITE := 8.0
+static var REAR_TIME := 0.5
 const BITE_TIME := 0.12
 const RECOVER_TIME := 0.55
 
@@ -18,14 +20,18 @@ var emerge_time := 0.5     # how long it takes to dig up
 func _setup() -> void:
 	kind = "crawler"
 	art_set = "cave"
-	max_hp = 14.0
-	speed = 50.0
+	_stats()
 	radius = 11.0
 	contact_damage = 0.0
 	color = Color("#c9923a")
 	side = 1.0 if Sim.chance() < 0.5 else -1.0
 	mode_t = Sim.between(0.4, 0.6)
 	emerge_time = mode_t
+
+
+func _stats() -> void:
+	max_hp = HP
+	speed = SPEED
 
 
 func _set_mode(m: String, time: float) -> void:

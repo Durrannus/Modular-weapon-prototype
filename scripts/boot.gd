@@ -14,6 +14,7 @@ const OnlineMenu := preload("res://scripts/ui/online_menu.gd")
 const Session := preload("res://scripts/net/session.gd")
 const Net := preload("res://scripts/net/net.gd")
 const PlayerInput := preload("res://scripts/player_input.gd")
+const Lab := preload("res://scripts/lab.gd")
 
 var title
 var game
@@ -23,6 +24,8 @@ var notice := ""   # shown once on the title screen ("Your friend left the game.
 
 
 func _ready() -> void:
+	# The lab's numbers (scripts/lab.gd), if this computer has changed any.
+	Lab.start()
 	var args := OS.get_cmdline_user_args()
 	if "cave" in args:
 		_start("cave", [])
@@ -43,6 +46,7 @@ func _clear() -> void:
 
 func _show_title() -> void:
 	get_tree().paused = false
+	Lab.set_in_force(true)
 	_clear()
 	title = Title.new()
 	title.notice = notice
@@ -69,6 +73,8 @@ func _start(mode: String, inputs: Array) -> void:
 
 func _show_online() -> void:
 	get_tree().paused = false
+	# Online, both computers play with the game's own numbers, never the lab's.
+	Lab.set_in_force(false)
 	_clear()
 	if not is_instance_valid(Net.session):
 		var s := Session.new()
@@ -85,6 +91,7 @@ func _show_online() -> void:
 ## Both computers get this at the same moment in the game's time: make the same
 ## game, with both players' controls coming from the session.
 func _start_online(mode: String) -> void:
+	Lab.set_in_force(false)
 	_clear()
 	game = (Cave if mode == "cave" else Arena).new()
 	game.inputs = [PlayerInput.make("net"), PlayerInput.make("net")]

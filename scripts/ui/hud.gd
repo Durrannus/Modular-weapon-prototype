@@ -16,6 +16,9 @@ var panel: Control
 var pause_button: Button
 var invincible_button: Button
 var swap_button: Button
+var lab_button: Button
+var has_lab := false          # the arena's lab is there (never online)
+var spawning := true          # the arena: new enemies arrive by themselves (the lab's Spawn page switches it)
 var show_weapon := false   # a small picture of the weapon beside each health bar (where weapons can be swapped)
 var said := ""             # a line for everyone to read, for a few seconds (say())
 var said_until := -9.0
@@ -25,6 +28,7 @@ var trail: Array = []      # per player: the pale bar that trails behind lost he
 signal pause_pressed
 signal invincible_pressed
 signal swap_pressed
+signal lab_pressed
 
 const Net := preload("res://scripts/net/net.gd")
 const Art := preload("res://scripts/art.gd")
@@ -62,6 +66,9 @@ func _ready() -> void:
 	invincible_button.pressed.connect(func(): invincible_pressed.emit())
 	swap_button = _switch(48.0)
 	swap_button.pressed.connect(func(): swap_pressed.emit())
+	lab_button = _switch(69.0)
+	lab_button.pressed.connect(func(): lab_pressed.emit())
+	lab_button.text = "LAB: CHANGE NUMBERS (L)"
 
 
 ## Shows a line in the middle of the screen for a few seconds.
@@ -101,6 +108,7 @@ func _process(delta: float) -> void:
 	invincible_button.visible = pause_button.visible
 	invincible_button.text = "INVINCIBLE: ON (H)" if invincible else "INVINCIBLE: OFF (H)"
 	swap_button.visible = pause_button.visible
+	lab_button.visible = pause_button.visible and has_lab
 	var order: Array = SwingBuild.WEAPON_ORDER
 	var held_now := str(player.weapon.get("weapon", "sword")) if is_instance_valid(player) else "sword"
 	swap_button.text = "SWAP TO %s (B)" % str(order[(order.find(held_now) + 1) % order.size()]).to_upper()
@@ -263,7 +271,7 @@ func _draw_hud() -> void:
 			_head(said, Vector2(0, 114), AMBER, 8, SIZE.x, HORIZONTAL_ALIGNMENT_CENTER)
 		if not many:
 			_draw_chain(player)
-			var hint := "Tab / Y: forge    Click / X: attack    Space / A: dodge"
+			var hint := "Tab / Y: forge    %sClick / X: attack    Space / A: dodge" % ("L: lab    " if has_lab else "")
 			panel.draw_string(Art.font("PixelifySans-Regular"), Vector2(0, SIZE.y - 16), hint, HORIZONTAL_ALIGNMENT_RIGHT, SIZE.x - MARGIN, 11, DIM)
 
 
@@ -277,8 +285,12 @@ func arena_lines() -> Array:
 		out.append(["Invincible is off (H / Select)", FAINT])
 	if enemies_paused:
 		out.append(["Enemies paused (P / Start)", AMBER])
+	if not spawning:
+		out.append(["No new enemies arrive (Lab > Spawn)", FAINT])
 	if players.size() > 1:
 		out.append(["Next weapon: B / right stick click", FAINT])
+		if has_lab:
+			out.append(["Lab: L / left stick click", FAINT])
 	return out
 
 

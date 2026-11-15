@@ -4,12 +4,14 @@ extends "res://scripts/enemy.gd"
 ## If the lunge misses it lies stunned and open. Hitting it does not stop the
 ## lunge, so the dodge is the answer.
 
-const LUNGE_DAMAGE := 12.0
-const LUNGE_SPEED := 540.0
+static var HP := 17.0     # one wooden-sword chain (5 + 5 + 7.5), as it was before the finisher became 1.5 hits
+static var SPEED := 105.0
+static var LUNGE_DAMAGE := 12.0
+static var LUNGE_SPEED := 540.0
 const LUNGE_DIST := 240.0
-const WARN_TIME := 0.7
+static var WARN_TIME := 0.7
 const LOCK_TIME := 0.18       # the aim stops following you this long before it goes
-const STUN_MISS := 1.5
+static var STUN_MISS := 1.5
 const STUN_HIT := 0.7
 const SURFACE_AT := 170.0     # how close it comes before surfacing
 
@@ -24,12 +26,16 @@ var hit_someone := false
 func _setup() -> void:
 	kind = "burrower"
 	art_set = "cave"
-	max_hp = 17.0   # one wooden-sword chain (5 + 5 + 7.5), as it was before the finisher became 1.5 hits
-	speed = 105.0
+	_stats()
 	radius = 12.0
 	contact_damage = 0.0
 	color = Color("#9a5fd0")
 	mode_t = Sim.between(0.8, 1.4)
+
+
+func _stats() -> void:
+	max_hp = HP
+	speed = SPEED
 
 
 func _ready() -> void:

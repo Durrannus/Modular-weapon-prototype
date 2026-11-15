@@ -10,6 +10,7 @@ This branch (`swing-path`) has four things to try:
 - **The test arena**: the sandbox for trying weapons out, with every sword part unlocked. You can't be hurt there unless you switch that off, and you can stop the enemies where they stand (see "Controls").
 - **The bow** (versions 18 to 21, Game Bible milestone 6). In the test arena press **B** (or click the right stick) to swap your sword for an iron shortbow and back, and open the forge with the bow in your hand to change its limbs, grip, string and arrows and to fit its own six runes (Pierce, Ricochet, Steady Aim, Volley, Snipe, Arrow Rain). In the tutorial cave take the wooden bow from the crate and play the whole cave with it. See "The bow" below.
 - **The hammer and the staff** (version 22 on, Game Bible milestone 7). In the test arena **B** now goes round four weapons: sword, bow, an iron maul and an iron staff, and since version 23 the forge changes the one in your hand: another head, haft or shaft, counterweight or cap, crystal, bands, and three presets of its own. Since version 24 the hammer has its six runes (Momentum, Stagger, Aftershock, Quake, Bulwark, Hook) and since version 25 the staff has its own (Orbit, Chain, Overflow, Nova, Lance, Spectre); since version 27 the tutorial cave's crate hands both out, and you can play the whole cave with either. See "The hammer and the staff" below.
+- **The lab** (version 28). Press **L** in the test arena, or choose **Lab: change numbers** in the pause menu anywhere: about 200 of the game's numbers (damage, speeds, recharges, health, the boss) can be changed while the game runs, are in force at once in the arena and the cave, and are kept on your computer. Its **Spawn** page puts any enemy in the game into the arena, the forge guardian included, and **Copy my changes** hands your numbers back so they can become the game's own. See "The lab" below.
 
 ## How to run it
 
@@ -128,6 +129,7 @@ Game code must follow these rules, or the two games drift apart:
 - A choice made in a menu (changing the sword, closing the forge) is sent with `Net.command([...])` and applied in `net_command(i, cmd)`, so it happens on the same tick for both.
 - Online, nothing pauses the game except the session.
 - Anything new that affects the game should be added to `net_state()` so the checksum covers it.
+- Both computers play with the game's own numbers: the lab's changes (see "The lab") are switched off for an online game and the lab can't be opened in one.
 
 `tests/online.sh` runs two copies against each other on one computer and compares every checksum (see "Checks").
 
@@ -149,8 +151,9 @@ Game code must follow these rules, or the two games drift apart:
 | Test arena only: pause the enemies, or let them go | P | Start |
 | Test arena only: Invincible on or off | H | Select |
 | Test arena only: the next weapon (sword, bow, hammer, staff) | B | Click the right stick |
+| Test arena only: the lab (change the game's numbers, put enemies in the room) | L | Click the left stick |
 
-**The test arena's switches.** With one player they are also buttons at the top right (the third one puts the next weapon in your hand), and the words under the kill count say how they stand.
+**The test arena's switches.** With one player they are also buttons at the top right (the third one puts the next weapon in your hand, the fourth opens the lab), and the words under the kill count say how they stand.
 
 - **Invincible** is on when the arena starts: nothing can hurt you, because the room is for trying swords and runes out. Switch it off for a real fight; switching it back on refills your health.
 - **Pause enemies** really pauses them: nobody new arrives, and the ones in the room stand still, go dull, show a small pause mark and hurt nobody. You can still hit them, push them about and kill them, so they make good targets for a rune. (Before version 17 it only stopped new ones arriving.)
@@ -215,6 +218,7 @@ godot --headless --path . --fixed-fps 60 -s tests/hammer.gd                    #
 godot --headless --path . --fixed-fps 60 -s tests/hammer_runes.gd              # the hammer's six runes: their rules, pictures and sentences, and each one with every band in the arena
 godot --headless --path . --fixed-fps 60 -s tests/staff.gd                     # the staff: its parts, bolt, bolt, burst, range and walls, mana and the weak sparks without it, the storm head, damage a second against the sword's and the bow's
 godot --headless --path . --fixed-fps 60 -s tests/staff_runes.gd               # the staff's six runes: their rules, pictures and sentences, each one with every band in the arena, and a Spectre given to a teammate with a sword and with a bow
+godot --headless --path . --fixed-fps 60 -s tests/lab.gd                       # the lab: every number it shows is really in the game and inside its limits, a change reaches the game and a reset takes it out, the file, online uses the game's own numbers, the screen in the arena and the cave, the spawner ("-- show" prints every number)
 godot --headless --path . -s tests/version_check.gd                            # the version number was raised if anything changed
 ```
 
@@ -358,6 +362,37 @@ Three passive and three active. Overflow, Nova, Lance and Spectre are Darren's (
 - **Balance, and what to look at.** The bare iron staff does 24.0 damage a second to one enemy and the iron broadsword 28.2 (0.85, "ranged must not beat melee"). **Lance** is where that bends: a full hold does 158 where three seconds of bolts do 72, and used every time it is back it brings the staff to about 32 a second on one enemy, a little past the bare broadsword, for standing nearly still. That seemed right for "the boss ability" (a bow's perfect far Snipe every time reaches about 33); `LANCE_DAMAGE` lowers it. **Overflow** as written is small: mana is only full until you cast, so it is one stronger bolt after each rest, and its bands are what make it worth a slot (Every Hit makes it a whole chain; Saved Up an opening blast worth three bolts after three quiet seconds). **Chain** adds 13 to a chain of 31 in a crowd and nothing against one enemy. **Orbit** adds a bolt a chain against whatever gets close. **Spectre** is out for 6 seconds in every 30, so it is worth about a tenth more damage from basic attacks for the player who has it, and most on a hammer. This is the first pass.
 - Where it lives: the entries in `FITTINGS` that carry `"weapon": "staff"` and the constants under them in `scripts/weapon/swing_build.gd` (`ORBIT_*`, `CHAIN_*`, `OVERFLOW_*`, `NOVA_*`, `LANCE_*`, `SPECTRE_*`); "The staff's runes" section of `scripts/player.gd`; the halo and the ghost's colour on a bolt in `scripts/arrow.gd`. Online, `net_state()` in `scripts/game_base.gd` compares every player's orbs, Overflow count, Spectre, beam and lightning jumps. The pictures are the art thread's (`art/swing/runes/`, `art/hud/`, numbers in `art/swing/staff/staff.json`); the stills the forge shows on Alt were taken from the game. `tests/staff_runes.gd` checks every rune with every band.
 
+## The lab (version 28, 15 November)
+
+Darren, 15 November: "can we make a lab so I can adjust numbers myself without having to ask? Like sword damage etc", then "I want the test area lab to affect the whole game not just the arena ... also allow me to spawn any enemy to the arena I want so I can test", then "save the numbers and it passes them back to you so you auto adjust for future version".
+
+**Opening it.** In the test arena press **L** (click the left stick on a controller) or click **LAB: CHANGE NUMBERS** at the top right. Anywhere, the tutorial cave included, it is also in the pause menu (Esc): **Lab: change numbers**. The game stops while it is open. L, Esc, B or CLOSE leaves.
+
+**What is in it.** About 200 of the game's numbers on thirteen pages, each in plain words:
+
+| Page | What it holds |
+|---|---|
+| All weapons | What one hit does in wood, tin and iron; the third hit of a chain against a normal one; how long a quick attack and a finisher take; crit chance and crit damage |
+| Sword, Bow, Hammer, Staff | Each shape's damage, speed and reach (or range), walking speed while attacking, the bow's draw times and arrow speed, the hammer's slam size, the staff's mana and what each cast costs |
+| Sword runes, Bow runes, Hammer runes, Staff runes | Every rune: its damage as a share of the weapon's hit, how far it reaches, how long it lasts or stuns, and its recharge |
+| Bands | Twice's cap, Wider's sizes, Every Hit's strength and what it takes off a recharge |
+| Players | Health, walking speed, the dodge's speed, length, count and refill |
+| Enemies | How often the arena's enemies arrive and how many at once; health, speed and damage of the three crabs, the cave crawler and the cave burrower, and their warning times |
+| Forge guardian | His health, what each extra player adds, his walking speed, each attack's damage and warning time, his rest between attacks |
+
+- **Changing one.** Click **-** or **+** (hold it to keep going, hold Shift for steps five times as big), or click the number and type a new one (Enter takes it, Esc leaves the old one). A share is shown and typed as a percentage: 80% is four fifths. A changed number turns amber, the row shows the game's own number beside it ("GAME: 11") and a **RESET** button; its page's button counts the changes on it.
+- **Where it is in force.** At once and everywhere: the arena and the cave, for both players on a shared screen. Weapons in the hand are worked out again when the lab closes, and everyone alive, enemies included, takes their new health (keeping the same share of it). Every number has limits, so a typed mistake can't break the game.
+- **Where it is kept.** In a small file on that computer (`lab.json` in the game's own data folder), so the changes are still there the next time the game starts. While any number is changed, the bottom-left corner of every screen says so beside the version: "LAB: 3 NUMBERS CHANGED". **RESET THIS PAGE** and **RESET EVERYTHING** put the game's own numbers back.
+- **Passing them back.** **COPY MY CHANGES** puts every change on the clipboard as plain lines, each with the exact number in brackets, for example `Sword > Dagger > Damage: 60% -> 70%  [build:SHAPES/dagger/damage = 0.7]`. Paste that to Claude and those become the game's own numbers in the next version (the lab then shows them as unchanged).
+- **Online** the lab is not there and its numbers are switched off: both computers play with the game's own numbers, because two computers with different numbers would drift apart. They come back when you leave the online game.
+- **What does not follow.** Words in the forge that spell a number out ("at half strength", "three times as strong", a part's "+8% crit chance") are fixed text. The forge's numbers plate, a rune's recharge and time in its sentence, and everything in the fight itself do follow. Saved Up's "three times, every third" is not in the lab: too many rules lean on it.
+
+**The Spawn page** (test arena only) puts any enemy in the game into the room, near you: the three crabs, the cave crawler, the cave burrower, the forge guardian and more training dummies, one at a time or five at a time. The guardian is awake at once, keeps to the arena, shows a small health bar once he is hurt, and his empty suit is cleared away a few seconds after you beat him. **REMOVE EVERY ENEMY** empties the room (the dummy it started with stays), and a switch stops or starts enemies arriving by themselves. Pause enemies (P) and Invincible (H) work on everything you spawn.
+
+**How it is built.** `scripts/lab.gd` is the list: each row says which page and group a number is on, what it is called, where it lives in the code, and its step and limits. The numbers themselves are still in the code where they always were (`scripts/weapon/swing_build.gd`, `scripts/player.gd`, `scripts/enemy.gd`, the cave's enemies), now as `static var` in place of `const` so they can be written to while the game runs. To put another number in the lab: make it a `static var`, add one `_add(...)` line, and `tests/lab.gd` checks it. Only the game's front door (`scripts/boot.gd`) reads the lab file, so the tests, which load a scene directly, always run on the game's own numbers. The screen is `scripts/ui/lab_screen.gd`; the spawner is `spawn_enemies` in `scripts/main.gd`.
+
+Which keys open it, which numbers are in it, their steps and limits, and the spawner's details are Claude's choices, for Darren to change.
+
 ## This branch: the swing path
 
 This branch tests the **swing path** (design notes, 3 November). It replaces the part grid; `main` still has the grid sword to compare against.
@@ -430,7 +465,9 @@ scripts/cave/crawler.gd, burrower.gd, guardian.gd   The cave's enemies and boss
 scripts/cave/hazard.gd               Timed danger areas: the knight's slam and charge, falling rocks
 scripts/fx/warn.gd                   Draws the warning lanes and circles on the floor from the art
 scripts/cave/cave_ui.gd              Objective, prompts, boss bar, speech box, cards, the opening cutscene
-scripts/main.gd                      The test arena
+scripts/main.gd                      The test arena, and the lab's enemy spawner
+scripts/lab.gd                       The lab: which of the game's numbers can be changed while it runs, and the file that keeps the changes
+scripts/ui/lab_screen.gd             The lab's screen: pages of numbers, and the arena's Spawn page
 scripts/player.gd                    Movement, dodge, the swing chain, runes
 scripts/player_input.gd              One player's controls (any device, keyboard, or one controller)
 scripts/camera_rig.gd                The shared camera
