@@ -1,0 +1,343 @@
+extends SceneTree
+## Checks for the hammer (15 November), run in the real arena with a scripted
+## player: its parts, swapping to it, the maul's swing, swing, slam and what each
+## hits, that it pins enemies and slows your feet, the warhammer, and that it does
+## a little more a second than the sword it stands beside (it has to get closer).
+##   godot --headless --path . --fixed-fps 60 -s tests/hammer.gd
+
+const EnemyScript := preload("res://scripts/enemy.gd")
+const SwingBuild := preload("res://scripts/weapon/swing_build.gd")
+const Player := preload("res://scripts/player.gd")
+const Art := preload("res://scripts/art.gd")
+
+var m
+var p
+var fails := 0
+
+
+func _init() -> void:
+	m = load("res://scripts/main.gd").new()
+	root.add_child(m)
+	_run()
+
+
+func _check(ok: bool, what: String) -> void:
+	print(("PASS  " if ok else "FAIL  ") + what)
+	if not ok:
+		fails += 1
+
+
+func _frames(n: int) -> void:
+	for i in n:
+		await physics_frame
+
+
+## A slime that stands where it's put and can't be killed.
+func _slime(offset: Vector2):
+	var e = EnemyScript.new()
+	e.kind = "slime"
+	e.position = p.global_position + offset
+	m.world.add_child(e)
+	e.max_hp = 500000.0
+	e.hp = 500000.0
+	e.speed = 0.0
+	e.contact_damage = 0.0
+	e.knock_resist = 0.0
+	return e
+
+
+func _lost(e) -> float:
+	return e.max_hp - e.hp
+
+
+func _near(a: float, b: float) -> bool:
+	return absf(a - b) < 0.001
+
+
+func _has_art(rel: String) -> bool:
+	return Art.texture(rel) != null
+
+
+func _still() -> void:
+	p.input.move = Vector2.ZERO
+	p.input.attack_held = false
+	p.input.attack_pressed = false
+	p.input.stick_aim = Vector2.RIGHT
+	p._reset_combo()
+	await _frames(40)
+	p._reset_combo()
+	p.weapon["crit"] = 0.0   # no luck in the sums
+
+
+## Swings the first `count` moves of the chain and waits for the last to end.
+func _swings(count: int) -> void:
+	p._reset_combo()
+	p.input.attack_held = true
+	p.input.attack_pressed = true
+	await _frames(1)
+	p.input.attack_pressed = false
+	for i in 600:
+		await _frames(1)
+		if p.current_step == count - 1:
+			break
+	p.input.attack_held = false
+	for i in 300:
+		await _frames(1)
+		if p.current_step < 0:
+			break
+	await _frames(10)
+	p._reset_combo()
+
+
+## Damage a second of whole chains against a post at `offset`.
+func _dps(offset: Vector2) -> float:
+	var post = _slime(offset)
+	await _frames(2)
+	p._reset_combo()
+	p.input.attack_held = true
+	p.input.attack_pressed = true
+	await _frames(1)
+	p.input.attack_pressed = false
+	var chains := 0
+	var t0 := -1
+	var d0 := 0.0
+	var t1 := 0
+	var d1 := 0.0
+	var prev := 0
+	for i in 60 * 40:
+		await _frames(1)
+		if prev == 2 and p.current_step != 2:
+			if t0 < 0:
+				t0 = i
+				d0 = _lost(post)
+			else:
+				chains += 1
+				t1 = i
+				d1 = _lost(post)
+				if chains >= 8:
+					break
+		prev = p.current_step
+	p.input.attack_held = false
+	post.queue_free()
+	await _still()
+	return (d1 - d0) / (float(t1 - t0) / 60.0)
+
+
+func _run() -> void:
+	await process_frame
+	await _frames(5)
+	p = m.player
+	p.input.kind = "script"
+	m.spawning = false
+	m.min_hp = 100.0
+	for e in get_nodes_in_group("enemies"):
+		e.queue_free()
+	await _frames(5)
+	p.auto_respawn = true
+	var home := Vector2(900, 560)      # the middle of the room, far from every wall
+	p.global_position = home
+	p.reset_physics_interpolation()
+	await _frames(2)
+
+	# --- The parts: what counts as a hammer ---------------------------------------------
+	var test_hammer: Array = SwingBuild.TEST_HAMMER
+	_check(SwingBuild.valid_data(test_hammer), "the arena's test hammer is a whole weapon (head, haft, counterweight, slots)")
+	_check(SwingBuild.valid_data(SwingBuild.STARTERS["hammer"]), "and so is the plain wooden maul everyone starts from")
+	_check(not SwingBuild.valid_data(["iron_maul", "wrapped_grip", "plain_weight", ["", "", "", ""]]), "a hammer can't take a sword's grip")
+	_check(not SwingBuild.valid_data(["iron_maul", "bound_haft", "plain_pommel", ["", "", "", ""]]), "nor a pommel for a counterweight")
+	_check(not SwingBuild.valid_data(["iron_broadsword", "bound_haft", "plain_pommel", ["", "", "", ""]]), "and a sword can't stand on a haft")
+	_check(not SwingBuild.valid_data(["iron_maul", "bound_haft", "plain_weight", ["", "", "", ""], "iron_arrows"]), "a hammer has no fourth part")
+	_check(not SwingBuild.valid_data(["iron_maul", "bound_haft", "plain_weight", ["", ""]]), "the slots must fit the head and haft (iron maul 2 + bound haft 2)")
+	_check(SwingBuild.weapon_of("iron_maul") == "hammer" and SwingBuild.weapon_of("iron_warhammer") == "hammer" and not SwingBuild.ranged("hammer"), "a maul and a warhammer are hammers, and a hammer fights up close")
+	for id in SwingBuild.HEADS:
+		_check(_has_art("swing/hammer/heads/%s_hand.png" % id), "%s has its picture" % SwingBuild.HEADS[id]["name"])
+	for id in SwingBuild.HAFTS:
+		_check(_has_art("swing/hammer/hafts/%s_hand.png" % id), "%s has its picture" % SwingBuild.HAFTS[id]["name"])
+	for id in SwingBuild.WEIGHTS:
+		_check(_has_art("swing/hammer/weights/%s_hand.png" % id), "%s has its picture" % SwingBuild.WEIGHTS[id]["name"])
+	for name in ["hammer_smear", "hammer_slam_smear", "hammer_impact", "hammer_hit"]:
+		_check(Art.piece_texture(name) != null, "the %s effect has its picture" % name)
+
+	# --- Swapping to it -----------------------------------------------------------------
+	var sword: Array = m.build.get_data()
+	m.swap_weapon(0)
+	m.swap_weapon(0)
+	await _frames(2)
+	_check(m.build.weapon() == "hammer" and m.build.get_data() == test_hammer, "two swaps from the sword (past the bow) put the iron maul in your hand")
+	_check(p.weapon.get("weapon") == "hammer" and p._is_hammer() and not p._ranged(), "and the player knows it is a hammer")
+	_check(m.build.stowed.get("sword") == sword and m.build.stowed.has("bow") and not m.build.stowed.has("hammer"), "the sword and the bow wait, exactly as they were")
+	_check(m.hud.swap_button.text == "SWAP TO STAFF (B)", "the button now offers the staff")
+	_check(_near(float(p.weapon["damage"]), 11.0 * 1.7) and _near(float(p.weapon["damage"]), 18.7), "an iron maul's swing does 18.7: an iron sword's 11 and seven tenths more")
+	_check(_near(float(p.weapon["speed"]), 0.7) and _near(float(p.weapon["reach"]), 0.75), "it swings at seven tenths of a sword's speed and reaches three quarters as far")
+	_check(_near(float(p.weapon["impact"]), 38.0), "its slam lands on a patch 38 px round")
+	var chain: Array = []
+	for st in p.weapon["steps"]:
+		chain.append(st["move"])
+	_check(chain == ["maul_swing", "maul_swing", "maul_slam"], "maul: swing, swing, slam")
+	_check(not p.weapon.has("arrows") and not p.weapon.has("range"), "it shoots nothing")
+	var fresh = SwingBuild.new()
+	fresh.set_data(SwingBuild.STARTERS["sword"])
+	fresh.take("hammer")
+	_check(fresh.get_data() == SwingBuild.STARTERS["hammer"] and fresh.compute()["weapon"] == "hammer", "someone who never had a hammer gets the wooden maul")
+	_check(_near(float(fresh.compute()["damage"]), 8.5), "whose swing does 8.5: two swings are a crawler's 14 and more")
+	await _still()
+
+	# --- The forge doesn't know it yet ----------------------------------------------------
+	m.open_forge(0)
+	await _frames(2)
+	_check(not m.build_menu.is_open, "the forge screen stays shut for a hammer for now")
+	_check(str(m.hud.said).contains("can't change a hammer yet"), "and the game says why")
+
+	# --- A chain at one enemy: 18.7, 18.7, 28.05 ------------------------------------------
+	var post = _slime(Vector2(40, 0))
+	await _frames(2)
+	await _swings(1)
+	_check(_near(_lost(post), 18.7), "a swing hits an enemy in front for 18.7 (%.3f)" % _lost(post))
+	post.hp = post.max_hp
+	await _swings(3)
+	_check(_near(_lost(post), 18.7 + 18.7 + 28.05), "the whole chain: 18.7 + 18.7 + a slam's 28.05 = 65.45 (%.3f)" % _lost(post))
+	_check(get_nodes_in_group("arrows").is_empty(), "nothing flies off a hammer")
+	_check(is_equal_approx(p.global_position.x, home.x) and is_equal_approx(p.global_position.y, home.y), "swinging doesn't move you")
+	post.queue_free()
+	await _frames(2)
+
+	# --- Reach: three quarters of a sword's -----------------------------------------------
+	var reach: float = p._hit_reach()
+	_check(_near(reach, 91.0 * 0.75), "the hit reaches 68 px from your middle (a broadsword: 91)")
+	var inside = _slime(Vector2(reach + 14.0 - 2.0, 0))
+	var outside = _slime(Vector2(0, -(reach + 14.0 + 3.0)))
+	var behind = _slime(Vector2(-40, 0))
+	await _frames(2)
+	await _swings(1)
+	_check(_lost(inside) > 0.0, "a swing hits an enemy whose edge is just inside that")
+	_check(_lost(behind) == 0.0, "but not one behind you")
+	p.input.stick_aim = Vector2.UP
+	await _frames(20)
+	p._reset_combo()
+	p.input.attack_pressed = true
+	await _frames(1)
+	p.input.attack_pressed = false
+	await _frames(50)
+	_check(_lost(outside) == 0.0, "nor one just past its reach")
+	for e in [inside, outside, behind]:
+		e.queue_free()
+	await _still()
+
+	# --- The slam hits a patch of floor -----------------------------------------------------
+	# The head comes down six tenths of the way along the reach: 41 px in front.
+	var centre: float = reach * Player.IMPACT_AT
+	var mid = _slime(Vector2(centre, 0))
+	var up = _slime(Vector2(centre, -40))
+	var down = _slime(Vector2(centre, 40))
+	var beyond = _slime(Vector2(reach + 14.0 + 8.0, 0))       # past a swing's reach, inside the patch
+	var wide = _slime(Vector2(30, 85))                         # outside both
+	await _frames(2)
+	await _swings(2)
+	_check(_near(_lost(mid), 37.4) and _lost(beyond) == 0.0, "two swings: the one in front is hit twice, the one a step further not at all")
+	for e in [mid, up, down, beyond, wide]:
+		e.hp = e.max_hp
+	# The slam alone: the third move of a chain.
+	p._reset_combo()
+	p.input.attack_held = true
+	p.input.attack_pressed = true
+	await _frames(1)
+	p.input.attack_pressed = false
+	for i in 600:
+		await _frames(1)
+		if p.current_step == 2:
+			break
+	for e in [mid, up, down, beyond, wide]:
+		e.hp = e.max_hp
+	p.input.attack_held = false
+	for i in 300:
+		await _frames(1)
+		if p.current_step < 0:
+			break
+	await _frames(10)
+	_check(_near(_lost(mid), 28.05) and _near(_lost(up), 28.05) and _near(_lost(down), 28.05), "the slam hits everything on its patch for 28.05: the middle and 40 px to either side (%.2f, %.2f, %.2f)" % [_lost(mid), _lost(up), _lost(down)])
+	_check(_near(_lost(beyond), 28.05), "it comes down a little further out than the swings reach")
+	_check(_lost(wide) == 0.0, "and misses whatever stands off the patch")
+	for e in [mid, up, down, beyond, wide]:
+		e.queue_free()
+	await _still()
+
+	# --- It pins: a long stun and a small shove ---------------------------------------------
+	_check(float(Player.MOVES["maul_swing"]["stun"]) > float(Player.MOVES["slash"]["stun"]) * 1.5 and float(Player.MOVES["maul_swing"]["knock"]) < float(Player.MOVES["slash"]["knock"]) * 0.6,
+		"a maul's swing stuns for nearly twice as long as a slash and shoves about half as far")
+	_check(float(Player.MOVES["maul_slam"]["stun"]) >= float(Player.MOVES["overhead"]["stun"]) * 2.0 and float(Player.MOVES["maul_slam"]["knock"]) < float(Player.MOVES["overhead"]["knock"]) * 0.5,
+		"and its slam twice as long as an overhead, for less than half the shove")
+	var held = _slime(Vector2(40, 0))
+	held.knock_resist = 1.0
+	await _frames(2)
+	p._reset_combo()
+	p.input.attack_pressed = true
+	await _frames(1)
+	p.input.attack_pressed = false
+	var stunned := 0.0
+	for i in 60:
+		await _frames(1)
+		stunned = maxf(stunned, held.hit_stun)
+	_check(stunned > 0.25 and stunned <= 0.3 + 0.001, "an enemy a swing hits can't act for 0.3 s (%.2f)" % stunned)
+	_check(held.global_position.distance_to(home) < 40.0 + 40.0, "and is still within reach afterwards (%d px away)" % roundi(held.global_position.distance_to(home)))
+	held.queue_free()
+	await _still()
+
+	# --- Heavy on your feet -------------------------------------------------------------------
+	p.input.move = Vector2.LEFT
+	p.input.attack_held = true
+	await _frames(40)
+	var v_swing: float = p.walk_vel.length()
+	p.input.attack_held = false
+	p.input.move = Vector2.ZERO
+	_check(absf(v_swing - Player.MOVE_SPEED * SwingBuild.HAMMER_MOVE) < 1.0, "you walk at 80%% speed while swinging a maul (%d of %d)" % [roundi(v_swing), roundi(Player.MOVE_SPEED)])
+	p.global_position = home
+	p.reset_physics_interpolation()
+	await _still()
+
+	# --- The warhammer: three crushing blows ---------------------------------------------------
+	m.build.set_blade("iron_warhammer")
+	await _still()
+	chain = []
+	for st in p.weapon["steps"]:
+		chain.append(st["move"])
+	_check(chain == ["crush", "crush", "crush"], "warhammer: three crushing blows")
+	_check(_near(float(p.weapon["damage"]), 16.5) and _near(float(p.weapon["impact"]), 38.0 * 0.85), "each is 16.5 before its weight, on a patch a little smaller than a maul's (32 px)")
+	post = _slime(Vector2(centre, 0))
+	var side = _slime(Vector2(centre, 36))
+	await _frames(2)
+	await _swings(1)
+	_check(_near(_lost(post), 24.75) and _near(_lost(side), 24.75), "a crushing blow hits everything on its patch for 24.75 (%.2f, %.2f)" % [_lost(post), _lost(side)])
+	post.queue_free()
+	side.queue_free()
+	p.input.move = Vector2.LEFT
+	p.input.attack_held = true
+	await _frames(40)
+	v_swing = p.walk_vel.length()
+	p.input.attack_held = false
+	p.input.move = Vector2.ZERO
+	_check(absf(v_swing - Player.MOVE_SPEED * 0.7) < 1.0, "and you walk at 70%% speed while swinging one (%d of %d)" % [roundi(v_swing), roundi(Player.MOVE_SPEED)])
+	p.global_position = home
+	p.reset_physics_interpolation()
+	await _still()
+	var war_dps: float = await _dps(Vector2(34, 0))
+	m.build.set_blade("iron_maul")
+	await _still()
+	var maul_dps: float = await _dps(Vector2(34, 0))
+	_check(absf(war_dps / maul_dps - 1.0) < 0.1, "warhammer %.1f damage a second, maul %.1f: within a tenth (%.2f)" % [war_dps, maul_dps, war_dps / maul_dps])
+
+	# --- Against the sword: a fifth more a second, from closer in --------------------------------
+	m.swap_weapon(0, "sword")
+	await _frames(2)
+	for i in m.build.line.size():
+		m.build.line[i] = ""
+	m.build.changed.emit()
+	await _still()
+	var sword_dps: float = await _dps(Vector2(34, 0))
+	var ratio := maul_dps / sword_dps
+	_check(ratio > 1.1 and ratio < 1.3, "the iron maul does %.1f a second, the iron broadsword %.1f: about a fifth more (%.2f)" % [maul_dps, sword_dps, ratio])
+	m.swap_weapon(0, "hammer")
+	await _frames(2)
+	_check(m.build.get_data() == test_hammer, "and back on the hammer it is as it was")
+
+	print("RESULT: %s (%d failed)" % ["all passed" if fails == 0 else "FAILED", fails])
+	quit(1 if fails > 0 else 0)

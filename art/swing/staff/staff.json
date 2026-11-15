@@ -1,0 +1,444 @@
+{
+ "heads": {
+  "wooden_apprentice": {
+   "name": "Apprentice's Crook",
+   "slots": 0,
+   "hand": {
+    "size": [
+     7,
+     9
+    ],
+    "slot_rects": [],
+    "crystal_at": [
+     3.5,
+     3.5
+    ]
+   }
+  },
+  "tin_apprentice": {
+   "name": "Tin-shod Crook",
+   "slots": 1,
+   "hand": {
+    "size": [
+     7,
+     11
+    ],
+    "slot_rects": [
+     [
+      3,
+      9,
+      1,
+      1
+     ]
+    ],
+    "crystal_at": [
+     3.5,
+     3.5
+    ]
+   }
+  },
+  "iron_apprentice": {
+   "name": "Iron Claw",
+   "slots": 2,
+   "hand": {
+    "size": [
+     7,
+     15
+    ],
+    "slot_rects": [
+     [
+      3,
+      13,
+      1,
+      1
+     ],
+     [
+      3,
+      11,
+      1,
+      1
+     ]
+    ],
+    "crystal_at": [
+     3.5,
+     3.5
+    ]
+   }
+  },
+  "iron_storm": {
+   "name": "Storm Crown",
+   "slots": 2,
+   "hand": {
+    "size": [
+     11,
+     16
+    ],
+    "slot_rects": [
+     [
+      5,
+      14,
+      1,
+      1
+     ],
+     [
+      5,
+      12,
+      1,
+      1
+     ]
+    ],
+    "crystal_at": [
+     5.5,
+     3.5
+    ]
+   }
+  }
+ },
+ "shafts": {
+  "wooden_shaft": {
+   "name": "Wooden Shaft",
+   "slots": 1,
+   "hand": {
+    "size": [
+     9,
+     18
+    ],
+    "slot_rects": [
+     [
+      4,
+      10,
+      1,
+      1
+     ]
+    ],
+    "pivot": [
+     4.5,
+     6.5
+    ],
+    "pommel_at": [
+     0,
+     18
+    ]
+   }
+  },
+  "tin_shaft": {
+   "name": "Tin Shaft",
+   "slots": 1,
+   "hand": {
+    "size": [
+     9,
+     18
+    ],
+    "slot_rects": [
+     [
+      4,
+      10,
+      1,
+      1
+     ]
+    ],
+    "pivot": [
+     4.5,
+     6.5
+    ],
+    "pommel_at": [
+     0,
+     18
+    ]
+   }
+  },
+  "carved_shaft": {
+   "name": "Carved Shaft",
+   "slots": 2,
+   "hand": {
+    "size": [
+     9,
+     20
+    ],
+    "slot_rects": [
+     [
+      4,
+      12,
+      1,
+      1
+     ],
+     [
+      4,
+      10,
+      1,
+      1
+     ]
+    ],
+    "pivot": [
+     4.5,
+     6.5
+    ],
+    "pommel_at": [
+     0,
+     20
+    ]
+   }
+  },
+  "twisted_shaft": {
+   "name": "Twisted Shaft",
+   "slots": 3,
+   "hand": {
+    "size": [
+     9,
+     22
+    ],
+    "slot_rects": [
+     [
+      4,
+      14,
+      1,
+      1
+     ],
+     [
+      4,
+      12,
+      1,
+      1
+     ],
+     [
+      4,
+      10,
+      1,
+      1
+     ]
+    ],
+    "pivot": [
+     4.5,
+     6.5
+    ],
+    "pommel_at": [
+     0,
+     22
+    ]
+   }
+  }
+ },
+ "caps": {
+  "plain_cap": {
+   "name": "Plain Cap",
+   "hand_size": [
+    9,
+    2
+   ],
+   "colour": "#94a8b8"
+  },
+  "keen_cap": {
+   "name": "Keen Cap",
+   "hand_size": [
+    9,
+    2
+   ],
+   "colour": "#78c0cc"
+  },
+  "heavy_cap": {
+   "name": "Heavy Cap",
+   "hand_size": [
+    9,
+    3
+   ],
+   "colour": "#cf8a48"
+  },
+  "light_cap": {
+   "name": "Light Cap",
+   "hand_size": [
+    9,
+    2
+   ],
+   "colour": "#e8e4bc"
+  }
+ },
+ "crystals": {
+  "sea_glass": {
+   "name": "Sea Glass",
+   "hand_size": [
+    3,
+    3
+   ],
+   "colour": "#7fe6b4"
+  },
+  "tin_crystal": {
+   "name": "Tin-set Crystal",
+   "hand_size": [
+    3,
+    5
+   ],
+   "colour": "#6ab8ff"
+  },
+  "iron_crystal": {
+   "name": "Iron-set Crystal",
+   "hand_size": [
+    5,
+    5
+   ],
+   "colour": "#c090ff"
+  }
+ },
+ "fx": {
+  "bolt_fly": {
+   "frames": 4,
+   "frame": [
+    24,
+    13
+   ],
+   "fps": 16,
+   "origin": [
+    20,
+    6
+   ],
+   "loop": true,
+   "note": "ADDITIVE, NEUTRAL GREY: tint with the crystal's colour. A bolt in flight, pointing right; origin = its head"
+  },
+  "bolt_trail": {
+   "frames": 4,
+   "frame": [
+    32,
+    9
+   ],
+   "fps": 20,
+   "origin": [
+    31,
+    4
+   ],
+   "loop": true,
+   "note": "ADDITIVE, NEUTRAL GREY. The streak behind a bolt; its right end on the bolt's tail (arrow_trail's layout)"
+  },
+  "bolt_hit": {
+   "frames": 4,
+   "frame": [
+    32,
+    32
+   ],
+   "fps": 22,
+   "origin": [
+    16,
+    16
+   ],
+   "loop": false,
+   "note": "ADDITIVE, NEUTRAL GREY, once. Where a bolt lands"
+  },
+  "burst_fly": {
+   "frames": 4,
+   "frame": [
+    32,
+    17
+   ],
+   "fps": 16,
+   "origin": [
+    26,
+    8
+   ],
+   "loop": true,
+   "note": "ADDITIVE, NEUTRAL GREY. The chain's third cast, a bigger ball; origin = its head"
+  },
+  "burst_hit": {
+   "frames": 6,
+   "frame": [
+    80,
+    80
+   ],
+   "fps": 20,
+   "origin": [
+    40,
+    40
+   ],
+   "loop": false,
+   "note": "ADDITIVE, NEUTRAL GREY, once. It bursts, radius about 28; seen from above, not turned"
+  },
+  "spark_fly": {
+   "frames": 4,
+   "frame": [
+    16,
+    9
+   ],
+   "fps": 16,
+   "origin": [
+    13,
+    4
+   ],
+   "loop": true,
+   "note": "ADDITIVE, NEUTRAL GREY. A small weak bolt; origin = its head"
+  },
+  "orb_fly": {
+   "frames": 6,
+   "frame": [
+    28,
+    28
+   ],
+   "fps": 12,
+   "origin": [
+    14,
+    14
+   ],
+   "loop": true,
+   "note": "ADDITIVE, NEUTRAL GREY. The storm head's big slow orb; not turned"
+  },
+  "orb_hit": {
+   "frames": 8,
+   "frame": [
+    128,
+    96
+   ],
+   "fps": 20,
+   "origin": [
+    64,
+    48
+   ],
+   "loop": false,
+   "note": "ADDITIVE, NEUTRAL GREY, once. The orb bursts wide, radius about 44 across and 31 up and down (an ellipse on the floor)"
+  },
+  "cast_flash": {
+   "frames": 4,
+   "frame": [
+    24,
+    24
+   ],
+   "fps": 24,
+   "origin": [
+    12,
+    12
+   ],
+   "loop": false,
+   "note": "ADDITIVE, NEUTRAL GREY, once. The flick of light at the crystal as a cast leaves"
+  }
+ },
+ "hud": {
+  "weapon_staff": {
+   "size": [
+    12,
+    12
+   ]
+  },
+  "mana_frame": {
+   "size": [
+    92,
+    8
+   ],
+   "fill_at": [
+    6,
+    2
+   ],
+   "note": "draw right under hp_frame; the window is 80 x 3 at (6, 2)"
+  },
+  "mana_fill": {
+   "size": [
+    80,
+    3
+   ],
+   "note": "show the left part for the mana left"
+  },
+  "mana_empty": {
+   "size": [
+    80,
+    3
+   ],
+   "note": "flash it in the fill's place when a cast found no mana"
+  },
+  "mana_colour": "#6ab8ff"
+ },
+ "note": "The staff: all its numbers. Built like a sword: head on a shaft with a cap, plus a crystal drawn centred on the head's crystal_at. Every casting strip under fx is NEUTRAL GREY with a white core: tint it with crystals.<id>.colour (or a rune's colour). On a shaft the hold (pivot) is 6.5 px down, slots below it, then the plain length."
+}

@@ -124,16 +124,25 @@ func _make_ui() -> void:
 ## arena so far: the tutorial cave still hands out swords alone.
 var can_swap := false
 
-## Player i puts their other weapon in their hand (sword or bow).
-func swap_weapon(i: int) -> void:
+## Player i puts their next weapon in their hand: sword, bow, hammer, staff and
+## round again (or `to`, when one is named).
+func swap_weapon(i: int, to := "") -> void:
 	if not can_swap or i < 0 or i >= builds.size() or is_forging(i) or players[i].is_down:
 		return
-	builds[i].take("sword" if builds[i].weapon() == "bow" else "bow")
+	var order: Array = SwingBuild.WEAPON_ORDER
+	if to == "":
+		to = order[(order.find(builds[i].weapon()) + 1) % order.size()]
+	builds[i].take(to)
 	Sfx.play(self, "click", -8.0)
 
 
 ## Puts the weapon in player i's hand on the anvil and opens the forge screen.
 func open_forge(i: int) -> void:
+	if builds[i].weapon() in ["hammer", "staff"]:
+		# The forge screen knows swords and bows so far (these two come next).
+		if not Net.online() or i == Net.me():
+			hud.say("The forge can't change a %s yet: swap to your sword or bow first (B / right stick click)" % builds[i].weapon())
+		return
 	if Net.online():
 		# This runs on both computers on the same tick. Only player i's own
 		# computer shows the screen; the other just knows they are at the forge.
@@ -242,7 +251,7 @@ func net_state() -> Array:
 	for p in players:
 		out.append_array([p.global_position, p.hp, p.is_down, p.current_step, p.step_index, p.dodge_charges, p.invuln, p.walk_vel, p.aim_dir, p.frozen,
 			p.ability_charge[0], p.ability_charge[1], p.ability_charge[2], p.hold_button, p.hold_left, p.weak_marks.size(),
-			p.ghost_left, p.ghost_swings.size(), p.steady, p.snipe_button, p.snipe_t, p.rains.size()])
+			p.ghost_left, p.ghost_swings.size(), p.steady, p.snipe_button, p.snipe_t, p.rains.size(), p.mana, p.cast_weak])
 	for b in builds:
 		out.append(b.get_data())
 	for a in get_tree().get_nodes_in_group("arrows"):

@@ -712,10 +712,10 @@ func _run() -> void:
 	await _frames(2)
 	await _press(0)
 	await _frames(20)
-	m.swap_weapon(0)
+	m.swap_weapon(0, "sword")
 	await _frames(180)
 	_check(m.build.weapon() == "sword" and _near(_lost(mid), ARROW * 3.5), "swap to the sword and the rain keeps falling (%.3f)" % _lost(mid))
-	m.swap_weapon(0)
+	m.swap_weapon(0, "bow")
 	await _frames(2)
 
 	# --- The numbers the two computers compare (online) ------------------------------------

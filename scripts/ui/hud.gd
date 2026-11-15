@@ -3,7 +3,7 @@ extends CanvasLayer
 ## Each player gets a health bar and dodge pips in a top corner, their sword's
 ## active runes (with the button for each and how full it is) under those, and
 ## their swing path in the bottom corner. The test arena also shows kills, its
-## switches (pause the enemies, invincible, sword or bow), the chain and the
+## switches (pause the enemies, invincible, the next weapon), the chain and the
 ## control hints.
 
 var player = null          # player one
@@ -16,7 +16,7 @@ var panel: Control
 var pause_button: Button
 var invincible_button: Button
 var swap_button: Button
-var show_weapon := false   # a small sword or bow beside each health bar (where weapons can be swapped)
+var show_weapon := false   # a small picture of the weapon beside each health bar (where weapons can be swapped)
 var said := ""             # a line for everyone to read, for a few seconds (say())
 var said_until := -9.0
 var clock := 0.0
@@ -101,7 +101,9 @@ func _process(delta: float) -> void:
 	invincible_button.visible = pause_button.visible
 	invincible_button.text = "INVINCIBLE: ON (H)" if invincible else "INVINCIBLE: OFF (H)"
 	swap_button.visible = pause_button.visible
-	swap_button.text = "SWAP TO SWORD (B)" if _holds_bow(player) else "SWAP TO BOW (B)"
+	var order: Array = SwingBuild.WEAPON_ORDER
+	var held_now := str(player.weapon.get("weapon", "sword")) if is_instance_valid(player) else "sword"
+	swap_button.text = "SWAP TO %s (B)" % str(order[(order.find(held_now) + 1) % order.size()]).to_upper()
 	clock += delta
 	# Lost health lingers as a pale bar for a moment, then drains away.
 	trail.resize(players.size())
@@ -114,8 +116,33 @@ func _process(delta: float) -> void:
 	panel.queue_redraw()
 
 
-func _holds_bow(p) -> bool:
-	return is_instance_valid(p) and p.weapon.get("weapon", "sword") == "bow"
+func _holds(p, kind: String) -> bool:
+	return is_instance_valid(p) and p.weapon.get("weapon", "sword") == kind
+
+
+## A staff's mana, right under its holder's health: the frame, what is left, and a
+## blink when a cast found too little.
+const MANA_BLUE := Color("#50a8ff")
+
+func _draw_mana(p, at: Vector2) -> void:
+	var frac := clampf(p.mana / SwingBuild.MANA, 0.0, 1.0)
+	var denied: bool = p.game_time - p.mana_denied < 0.22
+	var frame := Art.texture("hud/mana_frame.png")
+	var fill := Art.texture("hud/mana_fill.png")
+	var inner: Array = Art.json("swing/staff/staff.json").get("hud", {}).get("mana_frame", {}).get("fill_at", [6, 2])
+	var fill_at := at + Vector2(inner[0], inner[1])
+	var fw := ceilf(FILL.x * frac)
+	if frame != null and fill != null:
+		panel.draw_texture(frame, at)
+		var empty := Art.texture("hud/mana_empty.png")
+		if denied and empty != null:
+			panel.draw_texture(empty, fill_at)
+		panel.draw_texture_rect_region(fill, Rect2(fill_at, Vector2(fw, fill.get_height())), Rect2(0, 0, fw, fill.get_height()))
+		return
+	panel.draw_rect(Rect2(fill_at - Vector2(1, 1), Vector2(FILL.x + 2, 5)), PLATE)
+	if denied:
+		panel.draw_rect(Rect2(fill_at, Vector2(FILL.x, 3)), Color(INK.r, INK.g, INK.b, 0.6))
+	panel.draw_rect(Rect2(fill_at, Vector2(fw, 3)), MANA_BLUE)
 
 
 func _head(text: String, pos: Vector2, col: Color, size := 8, width := -1.0, align := HORIZONTAL_ALIGNMENT_LEFT) -> void:
@@ -153,8 +180,11 @@ func _draw_hud() -> void:
 		var y := 7.0
 		var who: Color = PLAYER_COLORS[i % PLAYER_COLORS.size()]
 		var side := "a" if i % 2 == 0 else "b"
+		# A staff's mana bar goes between the health bar and the row under it,
+		# which moves down to make room.
+		var drop := 7.0 if _holds(p, "staff") and not p.is_down else 0.0
 		# A soft dark backing, so the words and pips read over bright floor.
-		panel.draw_rect(Rect2(x - 4, y - 3, lead + BAR.x + 8, 29), SHADE)
+		panel.draw_rect(Rect2(x - 4, y - 3, lead + BAR.x + 8, 29 + drop), SHADE)
 		if many:
 			var tag := Art.texture("hud/tag_%s.png" % side)
 			if tag != null:
@@ -184,15 +214,17 @@ func _draw_hud() -> void:
 			panel.draw_texture_rect_region(fill, Rect2(bar + FILL_AT, Vector2(fw, FILL.y)), Rect2(0, 0, fw, FILL.y))
 		else:
 			panel.draw_rect(Rect2(bar + FILL_AT, Vector2(fw, FILL.y)), who)
-		_head("%d" % roundi(p.hp), Vector2(bar.x + 40, y + 22), FAINT, 8, 50, HORIZONTAL_ALIGNMENT_RIGHT)
+		if drop > 0.0:
+			_draw_mana(p, bar + Vector2(0, 11))
+		_head("%d" % roundi(p.hp), Vector2(bar.x + 40, y + 22 + drop), FAINT, 8, 50, HORIZONTAL_ALIGNMENT_RIGHT)
 		# Dodge charges, or the bad news.
 		if p.is_down:
-			_head("Knocked out", Vector2(bar.x + 2, y + 22), EMBER)
+			_head("Knocked out", Vector2(bar.x + 2, y + 22 + drop), EMBER)
 		else:
 			var full_pip := Art.texture("hud/pip_full.png")
 			var empty_pip := Art.texture("hud/pip_empty.png")
 			for d in maxi(p.DODGE_MAX_CHARGES, p.dodge_charges):
-				var at := Vector2(bar.x + 2 + d * 10, y + 15)
+				var at := Vector2(bar.x + 2 + d * 10, y + 15 + drop)
 				var have: bool = d < p.dodge_charges
 				if full_pip == null or empty_pip == null:
 					panel.draw_circle(at + Vector2(4, 4), 3.0, TEAL if have else FAINT)
@@ -204,15 +236,21 @@ func _draw_hud() -> void:
 					panel.draw_texture(full_pip, at, Color(1, 1, 1, back * 0.55))
 		# Which weapon is in their hand, where they can swap (between the dodge pips and the number).
 		if show_weapon and not p.is_down:
-			var glyph := Art.texture("hud/weapon_%s.png" % ("bow" if _holds_bow(p) else "sword"))
+			var held := str(p.weapon.get("weapon", "sword"))
+			var glyph := Art.texture("hud/weapon_%s.png" % held)
 			if glyph != null:
-				panel.draw_texture(glyph, Vector2(bar.x + 44, y + 13))
-		_draw_abilities(p, right, x, y + 30.0, lead + BAR.x)
+				panel.draw_texture(glyph, Vector2(bar.x + 44, y + 13 + drop))
+			else:
+				# (Until its glyph is drawn: the weapon's first letter.)
+				_head(held.left(1), Vector2(bar.x + 46, y + 22 + drop), DIM)
+		_draw_abilities(p, right, x, y + 30.0 + drop, lead + BAR.x)
 		_draw_path(p, i, right)
 
 	if mode == "arena":
 		# (Below player one's active runes, when their sword has any.)
 		var down := 26.0 if not players[0].weapon.get("abilities", []).is_empty() else 0.0
+		if _holds(players[0], "staff"):
+			down += 7.0
 		_head("Kills %d" % kills, Vector2(MARGIN, 46 + down), INK)
 		for line in arena_lines():
 			down += 12.0
@@ -240,7 +278,7 @@ func arena_lines() -> Array:
 	if enemies_paused:
 		out.append(["Enemies paused (P / Start)", AMBER])
 	if players.size() > 1:
-		out.append(["Sword or bow: B / right stick click", FAINT])
+		out.append(["Next weapon: B / right stick click", FAINT])
 	return out
 
 

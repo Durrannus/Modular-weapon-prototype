@@ -9,6 +9,7 @@ This branch (`swing-path`) has four things to try:
 - **Two players online**, one on each computer (see "Playing online" below).
 - **The test arena**: the sandbox for trying weapons out, with every sword part unlocked. You can't be hurt there unless you switch that off, and you can stop the enemies where they stand (see "Controls").
 - **The bow** (versions 18 to 21, Game Bible milestone 6). In the test arena press **B** (or click the right stick) to swap your sword for an iron shortbow and back, and open the forge with the bow in your hand to change its limbs, grip, string and arrows and to fit its own six runes (Pierce, Ricochet, Steady Aim, Volley, Snipe, Arrow Rain). In the tutorial cave take the wooden bow from the crate and play the whole cave with it. See "The bow" below.
+- **The hammer and the staff** (version 22 on, Game Bible milestone 7). In the test arena **B** now goes round four weapons: sword, bow, an iron maul and an iron staff. The forge can't change those two yet, they have no runes yet, and the tutorial cave doesn't hand them out yet. See "The hammer and the staff" below.
 
 ## How to run it
 
@@ -36,7 +37,7 @@ The picture is not built into the code. `art/title/title.json` lists its layers 
 
 Beside the layers: `scale` (1 for a 640 x 360 picture, 2 for a 320 x 180 one like the opening cutscene), `embers` (sparks drawn in code that rise inside `area` `[left, top, right, bottom]`: `count`, `rise` in pixels a second, `sway`, `colors`), `logo` (`at`, and `file` if the name is a drawn picture; without one the words are set in the game's font), `menu` (`at` is the top-left of the button column, `width`, and `plate` from 0 to 1 for a dark plate behind it) and `music` (a track from `art/music/`, or nothing).
 
-Today's picture (12 November, the art thread's second design) is the fight, frozen: the forge guardian in front of the blazing forge gate with its hammer over its head, and four players on it, each on their coloured ring with a different weapon and ability. Gold has the bow (Volley), violet the staff (Lance), blue the hammer (Quake) and red the sword (Leap). It is three layers at scale 2: the wall, gate and floor; a band of smoke that drifts under the roof; and one 48-frame loop of six seconds for everything else. Nothing travels: the trails, the beam, the cracks, the scarves, the guardian's heart and the sparks shimmer in place. The bow, staff and hammer are first drawings for this picture only, not weapons in the game yet, and players three and four are the two crew recoloured. The calm cave music plays under it.
+Today's picture (12 November, the art thread's second design) is the fight, frozen: the forge guardian in front of the blazing forge gate with its hammer over its head, and four players on it, each on their coloured ring with a different weapon and ability. Gold has the bow (Volley), violet the staff (Lance), blue the hammer (Quake) and red the sword (Leap). It is three layers at scale 2: the wall, gate and floor; a band of smoke that drifts under the roof; and one 48-frame loop of six seconds for everything else. Nothing travels: the trails, the beam, the cracks, the scarves, the guardian's heart and the sparks shimmer in place. The bow, staff and hammer there are first drawings for this picture only, older than the weapons in the game, and players three and four are the two crew recoloured. The calm cave music plays under it.
 
 Darren asked for it after seeing the first design (sunrise, two of the crew on a headland looking at the colossal sword): with four players coming it made the game look like a two-player one, and he wanted something new and more exciting that remembers the different weapons and abilities. The first design was version 14 and is in the history.
 
@@ -147,9 +148,9 @@ Game code must follow these rules, or the two games drift apart:
 | Test arena only: open the forge anywhere | Tab | Y |
 | Test arena only: pause the enemies, or let them go | P | Start |
 | Test arena only: Invincible on or off | H | Select |
-| Test arena only: swap sword and bow | B | Click the right stick |
+| Test arena only: the next weapon (sword, bow, hammer, staff) | B | Click the right stick |
 
-**The test arena's switches.** With one player they are also buttons at the top right (the third one swaps sword and bow), and the words under the kill count say how they stand.
+**The test arena's switches.** With one player they are also buttons at the top right (the third one puts the next weapon in your hand), and the words under the kill count say how they stand.
 
 - **Invincible** is on when the arena starts: nothing can hurt you, because the room is for trying swords and runes out. Switch it off for a real fight; switching it back on refills your health.
 - **Pause enemies** really pauses them: nobody new arrives, and the ones in the room stand still, go dull, show a small pause mark and hurt nobody. You can still hit them, push them about and kill them, so they make good targets for a rune. (Before version 17 it only stopped new ones arriving.)
@@ -174,7 +175,7 @@ Rules:
 - After each room everyone is healed and anyone knocked out gets back up. There are no revives mid-fight.
 - If everyone is knocked out, that room (or the boss) starts over.
 - With two players there are more enemies, the guardian has more health, its rockfall is longer, and it also brings rocks down after each charge.
-- The crate offers the sword and the bow; the staff and the hammer hang beside them, dim and locked, because they aren't built yet (Game Bible: four wooden starters). Two players can take different weapons: each then gets their own weapon's rune and tin parts, and the smith's words and the hints fit whoever is there.
+- The crate offers the sword and the bow; the staff and the hammer hang beside them, dim and locked, because the cave doesn't hand them out yet (they are in the test arena since version 22; Game Bible: four wooden starters). Two players can take different weapons: each then gets their own weapon's rune and tin parts, and the smith's words and the hints fit whoever is there.
 
 ## How the movement and sword feel (9 November pass)
 
@@ -208,6 +209,8 @@ godot --headless --path . --fixed-fps 60 -s tests/title_screen.gd              #
 godot --headless --path . --fixed-fps 60 -s tests/arena_switches.gd            # the arena's two switches: Invincible, and Pause enemies
 godot --headless --path . --fixed-fps 60 -s tests/bow.gd                       # the bow: swapping, its numbers, the forge and presets, what an arrow hits and where it stops, the longbow, damage a second against the sword's
 godot --headless --path . --fixed-fps 60 -s tests/bow_runes.gd                 # the bow's six runes: their rules, pictures and sentences, and each one with every band in the arena (takes about two minutes)
+godot --headless --path . --fixed-fps 60 -s tests/hammer.gd                    # the hammer: its parts, swing, swing, slam and what each hits, that it pins and slows you, the warhammer, damage a second against the sword's
+godot --headless --path . --fixed-fps 60 -s tests/staff.gd                     # the staff: its parts, bolt, bolt, burst, range and walls, mana and the weak sparks without it, the storm head, damage a second against the sword's and the bow's
 godot --headless --path . -s tests/version_check.gd                            # the version number was raised if anything changed
 ```
 
@@ -223,7 +226,7 @@ Online play (needs bash, so Linux, macOS or Git Bash on Windows). Each line runs
 tests/online.sh /path/to/godot                         # the cave, as fast as the computer can
 tests/online.sh /path/to/godot fast bow                # the cave with a bow for player one and a sword for player two (also "bows" and "swap")
 tests/online.sh /path/to/godot fast hard drop=0.1      # with knock-outs and 10% of messages lost
-tests/online.sh /path/to/godot fast arena              # the arena: forge, sword changes, the two switches, swapping to the bow, shooting, its runes (Volley, a Snipe let go on time and one held too long, Arrow Rain, Ricochet), and changing the bow at the forge
+tests/online.sh /path/to/godot fast arena              # the arena: forge, sword changes, the two switches, swapping to the bow, shooting, its runes (Volley, a Snipe let go on time and one held too long, Arrow Rain, Ricochet), and changing the bow at the forge Since version 22 both players go round all four weapons, so the hammer's swings and the staff's bolts and mana are compared too.
 tests/online.sh /path/to/godot real lag=45 drop=0.05   # at normal speed with a slow, lossy connection
 tests/online.sh /path/to/godot real host:slow=22       # one computer that can't keep up
 ```
@@ -274,6 +277,36 @@ How it is built:
 - `scripts/arrow.gd` is the arrow. It moves a whole physics tick at a time and tests the line it flew that tick, so a fast arrow can't skip through a thin enemy, and nothing in it is random: online, both computers fly the same arrow (arrows are part of the checksum, and swapping is a command sent to both).
 - `scripts/weapon/bow_art.gd` draws the bow in the hand from `art/swing/bow/` (numbers in `art/swing/bow/bow.json`): the limbs are a strip of three frames (rest, half drawn, full draw) and the string is a line drawn in code through the hand that pulls it. At the forge (`draw_forge()`) the bow is three pictures hung on one axis (upper limb, grip, lower limb), a string between the tips, and an arrow across the hold.
 - The forge screen (`scripts/ui/swing_forge.gd`) asks `build.weapon()` and draws whichever weapon is on the anvil: `_frame_size()`, `_slot_rect()` and `_draw_weapon()` choose between `SwordArt` and `BowArt`, `_cards()` gives the BOW tab its four rows, and `stat_rows()` its numbers.
+
+## The hammer and the staff (version 22 on, 15 November)
+
+Game Bible milestone 7 ("both weapons, and the cave crate offers all four wooden starters"), built a stage a version like the bow: both in the test arena (22), both at the forge (23), the hammer's six runes (24), the staff's six runes (25), the tutorial cave with all four weapons (26). **Version 22 is the first stage.** Darren asked for them on 14 November and left the design choices to Claude; every number here is Claude's first pass, for Darren to overturn.
+
+- **Swap** with **B** or a click of the right stick: sword, bow, hammer, staff, and round again. Everyone in the arena carries an **iron maul** on a bound haft and an **iron staff** (the apprentice head on a carved shaft, with an iron-set crystal). Neither has runes yet, and the forge says it can't change them yet.
+
+### The hammer
+
+- "The close-range heavy hitter: big damage in a small area, so you must get in close" (Game Bible). An iron maul's swing does **18.7** (an iron sword's 11 and seven tenths more), it swings at seven tenths of a sword's speed, reaches three quarters as far (68 px, a broadsword 91) and you walk at 80% speed while swinging. Against one enemy it does **1.19 times** the iron broadsword's damage a second (`tests/hammer.gd` measures it).
+- The maul's chain is **swing, swing, slam** (Game Bible). A swing is a short blunt arc. The **slam** lands on a **patch of floor** in front of you (38 px round, a little further out than the swings reach) and hits everything on it for one and a half swings.
+- **A hammer pins, a sword shoves.** A swing stuns for 0.3 s and a slam for 0.6 s (a slash 0.16 s, an overhead 0.3 s) and shoves about half as far, so what you hit is still in reach for the next blow.
+- **Two heads so far.** The **maul**, and the **warhammer**: three slow crushing blows that each land on a slightly smaller patch (32 px), stun for 0.7 s, and slow you to 70%. Each blow is lighter, so the two heads do the same a second. The spiked hammer and the sledge from the Game Bible are not built.
+- Parts: head (`HEADS`: wooden, tin and iron maul, iron warhammer), haft (`HAFTS`: 1 to 3 slots) and counterweight (`WEIGHTS`: the pommels' four).
+
+### The staff
+
+- A bolt does what an arrow does: **80% of a sword hit** with the same tier of crystal (iron: 8.8), for the same reason (ranged must not beat melee). It flies **400 px** (an arrow 520) at 760 a second (an arrow 1300), so it is easier to see and to walk out of. You walk at 80% speed while casting, and the bolt leaves towards wherever you are aiming at that moment. A bolt is gone where it stops: nothing is left lying on the floor.
+- The apprentice head's chain is **bolt, bolt, burst** (Game Bible). The **burst** is a bigger ball that hurts everything within 56 px of where it lands, or of where it stops if it hits nothing. Against one enemy the iron staff does 0.85 of the iron broadsword's damage a second, the same as the iron shortbow (`tests/staff.gd` measures it).
+- **Mana** (Game Bible: "each cast costs a little and refills quickly, and at zero you still cast weak, slow bolts"). A staff holds 100. A bolt costs 6, a burst 10, a spray 6, an orb 12. It comes back at 10 a second always and at 45 a second more once you have not cast for 0.7 s. Casting without a rest runs it dry in about 13 seconds; three seconds' rest fills it. A cast you don't have the mana for is a **weak spark**: half the damage, three quarters of the casting speed, and it costs nothing. The bar under your health shows it, and flashes when a cast found too little.
+- **The crystal** is the staff's damage (sea glass, tin-set, iron-set: wood, tin and iron) and tints its bolts its own colour (sea green, blue, violet).
+- **Two heads so far.** The **apprentice**, and the **storm** head: **spray, spray, orb**. A spray is three small sparks in a fan, so all three only hit from close by; the orb is slow (304 px a second) and bursts 88 px wide. It reaches 280 px and up close does what the apprentice does a second. The channel and warden heads from the Game Bible are not built.
+- Parts: head (`STAFF_HEADS`), shaft (`SHAFTS`: 1 to 3 slots), cap (`CAPS`: the pommels' four) and crystal (`CRYSTALS`).
+
+How it is built:
+
+- Both are the same kind of thing as a sword in `scripts/weapon/swing_build.gd`: a head in the blade's place, a haft or shaft in the grip's, a counterweight or cap in the pommel's, and for a staff a crystal where a bow has arrows. `heads_of()`, `grips_of()`, `butts_of()` and `shots_of()` give one weapon's parts, `weapon_of()` says whose a head is, and `WEAPON_ORDER` is the order B goes round them.
+- They are drawn by the sword's own code (`scripts/weapon/sword_art.gd`), from pictures in the sword's formats in `art/swing/hammer/` and `art/swing/staff/` (numbers in `hammer.json` and `staff.json`); the crystal is one more picture, centred on the head's `crystal_at`.
+- Moves are in `scripts/player.gd` `MOVES`: `maul_swing`, `maul_slam` and `crush` (shape `"impact"` is the patch of floor), and `bolt`, `burst`, `spray` and `orb` (shape `"cast"`, each with its `mana`). "The staff" section there has mana and the casting. A bolt is an arrow (`scripts/arrow.gd`) with `bolt` set: it is drawn from a tinted strip, may splash where it stops, and never sticks.
+- Online: mana is in the checksum (`net_state()`), and the arena test goes round all four weapons. Building this found that the third ability button was never sent to the other computer; that is fixed in version 22.
 
 ## This branch: the swing path
 

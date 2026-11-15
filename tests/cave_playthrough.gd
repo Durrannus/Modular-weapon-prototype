@@ -194,7 +194,8 @@ func _fight(i: int) -> void:
 		return
 	var rel: Vector2 = foe.global_position - p.global_position
 	var reach := 46.0 + float(foe.radius)
-	var bow: bool = m.builds[i].weapon() == "bow"
+	var bow: bool = p._ranged()      # a bow or a staff: both fight from a distance
+	var far: float = float(p.weapon.get("range", 520.0)) / 520.0   # (a staff reaches less far than a bow)
 	# Step out of the way of anything about to land.
 	for h in get_nodes_in_group("hazards"):
 		if h.shape == "circle" and h.global_position.distance_to(p.global_position) < h.radius + 30.0 and h.t > h.delay - 0.35:
@@ -238,18 +239,18 @@ func _fight(i: int) -> void:
 		# (A rock or a prop stops an arrow, and a crawler can be stuck behind one:
 		# then the bot circles round it until it has a clear line, as a person would.)
 		var hit: Dictionary = p.get_world_2d().direct_space_state.intersect_ray(PhysicsRayQueryParameters2D.create(p.global_position, foe.global_position, 4))
-		if not hit.is_empty() and (rel.length() > 220.0 or _via(p.global_position, foe.global_position) != foe.global_position):
+		if not hit.is_empty() and (rel.length() > 220.0 * far or _via(p.global_position, foe.global_position) != foe.global_position):
 			# Rock in the way, and it is a long way off or in the next room: walk to it.
 			_go(i, foe.global_position, reach)
 		elif not hit.is_empty():
 			var side := 1.0 if (frame / 150) % 2 == 0 else -1.0
 			var round_it: Vector2 = (rel.normalized() * 0.35 + rel.orthogonal().normalized() * side).normalized()
 			inp.move = round_it if not p.test_move(p.global_transform, round_it * 6.0) else -round_it
-		elif rel.length() > 400.0:
-			_go(i, foe.global_position, 300.0)
+		elif rel.length() > 400.0 * far:
+			_go(i, foe.global_position, 300.0 * far)
 		else:
 			inp.move = Vector2.ZERO
-		if rel.length() < 460.0:
+		if rel.length() < 460.0 * far:
 			inp.stick_aim = rel.normalized()
 			inp.attack_held = true
 			if p.current_step < 0:

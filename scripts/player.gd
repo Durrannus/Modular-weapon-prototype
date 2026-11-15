@@ -107,6 +107,28 @@ const MOVES := {
 	# The longbow's only move: a long draw, a fast arrow and a hard shove.
 	"long_shot": {"windup": 0.25, "time": HEAVY, "shape": "shot", "power": 1.5, "knock": 340.0, "stun": 0.3, "freeze": 0.08, "shake": 6.0,
 		"curve": [0.0, 0.0, 4.0, 22.0], "big": true, "flight": 1.25},
+	# Hammer (15 November). A maul's side swing is a short, blunt arc. Its slam, and
+	# every blow of a warhammer, lands on a patch of floor in front of you (shape
+	# "impact": everything within the head's impact size of where it comes down).
+	# A hammer pins what it hits (a long stun and a small shove) where a sword
+	# shoves it away, because a hammer has to stay close.
+	"maul_swing": {"windup": 0.1, "time": LIGHT, "shape": "arc", "arc": 110.0, "power": 1.0, "knock": 130.0, "stun": 0.3, "freeze": 0.07, "shake": 4.0,
+		"curve": [-1.0, 0.9, 12.0, 16.0], "smear": "hammer_smear", "smear_else": "chop_smear", "alternate": true},
+	"maul_slam": {"windup": 0.17, "time": HEAVY, "shape": "impact", "power": 1.5, "knock": 180.0, "stun": 0.6, "freeze": 0.12, "shake": 15.0,
+		"curve": [-1.5, 0.3, 9.0, 19.0], "smear": "hammer_slam_smear", "smear_else": "overhead_smear", "big": true, "burst": "hammer_impact", "burst_else": "slam_burst"},
+	"crush": {"windup": 0.19, "time": HEAVY, "shape": "impact", "power": 1.5, "knock": 150.0, "stun": 0.7, "freeze": 0.12, "shake": 12.0,
+		"curve": [-1.5, 0.3, 9.0, 19.0], "smear": "hammer_slam_smear", "smear_else": "overhead_smear", "big": true, "burst": "hammer_impact", "burst_else": "slam_burst"},
+	# Staff casts (15 November). Like a bow's shots: "windup" is the gathering, the
+	# bolt leaves as it ends, towards wherever you are aiming at that moment.
+	#   mana    what the cast costs        bolt   what leaves the staff
+	"bolt": {"windup": 0.12, "time": LIGHT, "shape": "cast", "bolt": "bolt", "mana": 6.0, "power": 1.0, "knock": 110.0, "stun": 0.1, "freeze": 0.03,
+		"curve": [0.0, 0.0, 2.0, 10.0], "smear": ""},
+	"burst": {"windup": 0.2, "time": HEAVY, "shape": "cast", "bolt": "burst", "mana": 10.0, "power": 1.5, "knock": 260.0, "stun": 0.25, "freeze": 0.06, "shake": 5.0,
+		"curve": [0.0, 0.0, 0.0, 13.0], "smear": "", "big": true},
+	"spray": {"windup": 0.12, "time": LIGHT, "shape": "cast", "bolt": "spray", "mana": 6.0, "power": 1.0, "knock": 90.0, "stun": 0.08, "freeze": 0.02,
+		"curve": [0.0, 0.0, 2.0, 10.0], "smear": ""},
+	"orb": {"windup": 0.22, "time": HEAVY, "shape": "cast", "bolt": "orb", "mana": 12.0, "power": 1.5, "knock": 300.0, "stun": 0.3, "freeze": 0.07, "shake": 6.0,
+		"curve": [0.0, 0.0, 0.0, 13.0], "smear": "", "big": true},
 	# The old parts-grid moves (weapon_build.gd), kept so that screen still works.
 	"stab": {"windup": 0.06, "time": 0.25, "shape": "line", "width": 16.0, "range": 115.0, "power": 1.15, "knock": 320.0,
 		"curve": [0.0, 0.0, 4.0, 26.0], "smear": "thrust_smear"},
@@ -377,6 +399,7 @@ func set_weapon(stats: Dictionary) -> void:
 	_end_ghost(true)
 	steady_rune = _steady_rune()
 	_drop_steady()
+	cast_weak = false
 	dodge_arrow = false
 	snipe_button = -1
 	ability_charge = [1.0, 1.0, 1.0]
@@ -385,6 +408,7 @@ func set_weapon(stats: Dictionary) -> void:
 
 
 func _reset_combo() -> void:
+	cast_weak = false
 	step_index = 0
 	current_step = -1
 	hit_time = -1.0
@@ -407,6 +431,7 @@ func _physics_process(delta: float) -> void:
 	_run_leap()
 	_run_ghost(delta)
 	_run_rains()
+	_update_mana(delta)
 	if is_down:
 		_stop_hold(true)
 		snipe_button = -1
@@ -500,9 +525,9 @@ func _update_facing(delta: float, move: Vector2) -> void:
 		aim_dir = move.normalized()
 	elif current_step < 0:
 		aim_dir = face_dir
-	# A sword swing goes where you aimed as it began. A bow follows your aim
-	# until the arrow leaves.
-	if current_step >= 0 and hit_time >= 0.0 and _is_bow():
+	# A swing goes where you aimed as it began. A bow or a staff follows your aim
+	# until the arrow or the bolt leaves.
+	if current_step >= 0 and hit_time >= 0.0 and _ranged():
 		anim_dir = aim_dir
 		face_dir = aim_dir
 	if snipe_button >= 0:
@@ -548,8 +573,9 @@ func _steps() -> Array:
 
 
 func _speed() -> float:
-	# (Steady Aim's build-up is extra attack speed: nothing unless the bow has the rune.)
-	return maxf(float(weapon.get("speed", 1.0)) * (1.0 + steady), 0.2)
+	# (Steady Aim's build-up is extra attack speed: nothing unless the bow has the rune.
+	# A staff's cast without the mana for it is a slow one.)
+	return maxf(float(weapon.get("speed", 1.0)) * (1.0 + steady) * (SwingBuild.MANA_SLOW if cast_weak else 1.0), 0.2)
 
 
 func armed() -> bool:
@@ -558,6 +584,19 @@ func armed() -> bool:
 
 func _is_bow() -> bool:
 	return weapon.get("weapon", "sword") == "bow"
+
+
+func _is_staff() -> bool:
+	return weapon.get("weapon", "sword") == "staff"
+
+
+func _is_hammer() -> bool:
+	return weapon.get("weapon", "sword") == "hammer"
+
+
+## A bow or a staff: what it does leaves the hand and flies.
+func _ranged() -> bool:
+	return _is_bow() or _is_staff()
 
 
 func _update_combat(delta: float) -> void:
@@ -612,6 +651,8 @@ func _start_step() -> void:
 	current_step = step_index
 	var move: String = steps[current_step]["move"]
 	var info: Dictionary = MOVES.get(move, MOVES["slash"])
+	# A cast the staff has no mana for is a weak, slow one (decided as it starts).
+	cast_weak = str(info["shape"]) == "cast" and mana < float(info.get("mana", 0.0))
 	var speed := _speed()
 	step_elapsed = 0.0
 	hit_time = float(info["windup"]) / speed
@@ -646,6 +687,7 @@ func _end_step() -> void:
 	var was_last := current_step >= steps.size() - 1
 	step_index = 0 if was_last else current_step + 1
 	current_step = -1
+	cast_weak = false
 	if queued or (input.attack_held and not need_release):
 		queued = false
 		_start_step()
@@ -663,6 +705,9 @@ func _do_move(move: String) -> void:
 	var info: Dictionary = MOVES.get(move, MOVES["slash"])
 	if str(info["shape"]) == "shot":
 		_loose(info)
+		return
+	if str(info["shape"]) == "cast":
+		_cast(info)
 		return
 	var area := 1.0 + float(weapon.get("area", 0.0))
 	var dmg: float = float(weapon.get("damage", 4.0)) * float(info["power"])
@@ -684,14 +729,22 @@ func _do_move(move: String) -> void:
 		hit_list.append(f[1])
 	var hits := hit_list.size()
 
-	if info.has("burst"):
+	if shape == "impact":
+		# Where a hammer lands: the floor takes it, and the patch it hit shows.
+		var patch := float(weapon.get("impact", SwingBuild.HAMMER_IMPACT))
+		var burst := str(info.get("burst", ""))
+		if Art.piece_texture(burst) != null:
+			Art.play_piece(self, burst, global_position + dir * reach * IMPACT_AT + Vector2(0, 8), 0.0, patch / 44.0)
+		else:
+			Art.play_piece(self, str(info.get("burst_else", "slam_burst")), global_position + dir * reach * IMPACT_AT + Vector2(0, 8), 0.0, patch / 62.0)
+	elif info.has("burst"):
 		# Where a slam lands: the ground breaks at the end of the blade. Seen from
 		# above, so it is never turned.
 		Art.play_piece(self, str(info["burst"]), global_position + dir * reach * 0.72 + Vector2(0, 8), 0.0, reach / 137.0)
 
 	var fx := Fx.new()
 	fx.kind = shape
-	if shape == "arc" or (shape == "line" and Art.piece_texture(str(info.get("smear", ""))) != null):
+	if shape == "arc" or shape == "impact" or (shape == "line" and Art.piece_texture(_smear_piece(info)) != null):
 		fx.kind = "none"  # the sword's own smear shows the swing
 	fx.dir = dir
 	fx.radius = reach
@@ -702,7 +755,7 @@ func _do_move(move: String) -> void:
 	_fx_root().add_child(fx)
 	fx.global_position = global_position
 
-	Sfx.play(self, "swing", -14.0)
+	Sfx.play(self, "swing", -14.0, 0.7 if _is_hammer() else 1.0)
 	var finisher := current_step == _steps().size() - 1 and _steps().size() > 1
 	var fired: Array = []   # the runes this swing set off
 	if finisher:
@@ -715,11 +768,12 @@ func _do_move(move: String) -> void:
 			hit_pause = FINISHER_PAUSE / _speed()
 			Sfx.play(self, "finisher", -4.0)
 		else:
-			shake = maxf(shake, 2.5)
+			# (A hammer's slam still lands on the floor.)
+			shake = maxf(shake, 5.0 if shape == "impact" else 2.5)
 			Sfx.play(self, "finisher", -12.0)
 		fired.append_array(_trigger("finisher", hit_list))
 	if hits > 0:
-		Sfx.play(self, "hit", -8.0)
+		Sfx.play(self, "thud" if _is_hammer() else "hit", -5.0 if _is_hammer() else -8.0)
 		fired.append_array(_trigger("hit", hit_list))
 		_hit_refund()
 	# Ghostwield: the ghost sword copies this swing a moment later, from the other side.
@@ -774,6 +828,9 @@ func _loose(info: Dictionary) -> void:
 
 ## One of your arrows hit an enemy (called by the arrow, on the tick it lands).
 func arrow_hit(a, e) -> void:
+	if a.bolt != "":
+		_bolt_hit(a, e)
+		return
 	var dmg: float = a.damage
 	# Pierce: what is behind the first enemy may take less.
 	if a.through > 0:
@@ -801,8 +858,150 @@ func arrow_hit(a, e) -> void:
 
 
 ## One of your arrows stopped in a wall or on the floor without hitting anyone.
-func arrow_spent(_a) -> void:
-	pass
+func arrow_spent(a) -> void:
+	if a.bolt != "":
+		_bolt_spent(a)
+
+
+# --- The staff --------------------------------------------------------------------
+# A cast is a move like a bow's shot: the gathering is its wind-up, and where a
+# swing would land a bolt leaves the crystal (scripts/arrow.gd flies it, as it
+# flies arrows). Mana: each cast costs a little and it refills quickly; a cast
+# with too little left is a weak, slow one that costs nothing.
+
+const IMPACT_AT := 0.6           # a hammer's head comes down this far along its reach
+var mana := SwingBuild.MANA
+var mana_rest := 0.0             # seconds since the last cast
+var mana_denied := -9.0          # game_time a cast last found too little mana (the HUD blinks)
+var cast_weak := false           # the cast being made is a weak one
+
+
+func _update_mana(delta: float) -> void:
+	mana_rest += delta
+	var rate := SwingBuild.MANA_REGEN + (SwingBuild.MANA_REST_REGEN if mana_rest >= SwingBuild.MANA_REST else 0.0)
+	mana = minf(mana + rate * delta, SwingBuild.MANA)
+
+
+## The cast leaves the staff, towards the aim.
+func _cast(info: Dictionary) -> void:
+	var dir := aim_dir
+	anim_dir = dir
+	var finisher := current_step == _steps().size() - 1 and _steps().size() > 1
+	var weak := cast_weak
+	if weak:
+		mana_denied = game_time
+	else:
+		mana = maxf(mana - float(info.get("mana", 0.0)), 0.0)
+	mana_rest = 0.0
+	var power := float(info["power"]) * (SwingBuild.MANA_WEAK if weak else 1.0)
+	var kind := "spark" if weak else str(info["bolt"])
+	if kind == "spray":
+		# Three sparks in a fan. The middle one is the cast as far as runes go.
+		for i in 3:
+			var spark := _bolt("spark", dir.rotated(float(i - 1) * SwingBuild.SPRAY_SPREAD), power * SwingBuild.SPRAY_DAMAGE, info, finisher)
+			spark.quiet = i != 1
+	else:
+		_bolt(kind, dir, power, info, finisher)
+	var heavy: bool = info.get("big", false) and not weak
+	var flash := _strip("cast_flash", _crystal_world(), dir.angle(), 1.4 if heavy else 1.0)
+	if flash != null:
+		flash.modulate = weapon.get("hit_color", Color.WHITE)
+	Sfx.play(self, "cast", -7.0 if heavy else -11.0, (0.75 if heavy else 1.0) * (1.3 if weak else 1.0))
+	squash = Vector2(1.05, 0.96) if heavy else Vector2(1.02, 0.99)
+	if finisher:
+		shake = maxf(shake, 2.5)
+		_trigger("finisher", [])
+
+
+## One bolt on its way. kind: "bolt", "burst" (it bursts where it lands), "spark"
+## (small and weak) or "orb" (slow, and it bursts wide).
+func _bolt(kind: String, dir: Vector2, power: float, info: Dictionary, finisher: bool) -> Node2D:
+	var size := float(weapon.get("size", 1.0))
+	var a := Arrow.new()
+	a.shooter = self
+	a.stamp = weapon_stamp
+	a.dir = dir
+	a.bolt = kind
+	a.speed = float(weapon.get("flight", SwingBuild.STAFF_FLIGHT)) * (SwingBuild.ORB_FLIGHT if kind == "orb" else 1.0)
+	a.left = float(weapon.get("range", SwingBuild.STAFF_RANGE))
+	a.damage = float(weapon.get("damage", 4.0)) * power
+	a.knock = float(info["knock"])
+	a.stun = float(info.get("stun", 0.1))
+	a.freeze = float(info.get("freeze", 0.03))
+	a.heavy = kind == "burst" or kind == "orb"
+	a.finisher = finisher
+	a.crit = float(weapon.get("crit", 0.05))
+	a.crit_damage = float(weapon.get("crit_damage", 1.5))
+	a.color = weapon.get("hit_color", Color.WHITE)
+	a.half_width = SwingBuild.BOLT_WIDTH * size * (0.6 if kind == "spark" else (1.5 if a.heavy else 1.0))
+	if kind == "burst":
+		a.splash = SwingBuild.BURST_RADIUS * size
+	elif kind == "orb":
+		a.splash = SwingBuild.ORB_RADIUS * size
+	get_parent().add_child(a)
+	a.global_position = global_position
+	a.reset_physics_interpolation()
+	return a
+
+
+## One of your bolts hit an enemy.
+func _bolt_hit(a, e) -> void:
+	_hit_enemy(e, a.damage, a.dir, a.knock, a.stun, a.freeze, {}, false, a)
+	Sfx.play(self, "hit", -6.0 if a.heavy else -10.0, 1.1 if a.heavy else 1.4)
+	var hits: Array = [e]
+	if a.splash > 0.0:
+		hits.append_array(_bolt_burst(a, e.global_position, {e.get_instance_id(): true}))
+	# Runes belong to the staff that cast it, and a spray counts once.
+	if a.stamp != weapon_stamp or a.rune != "" or a.quiet:
+		return
+	_hit_refund()
+	_trigger("hit", hits)
+
+
+## One of your bolts stopped in a wall or at the end of its reach.
+func _bolt_spent(a) -> void:
+	if a.splash > 0.0:
+		var hits := _bolt_burst(a, a.global_position, {})
+		if not hits.is_empty() and a.stamp == weapon_stamp and a.rune == "" and not a.quiet:
+			_hit_refund()
+			_trigger("hit", hits)
+		return
+	var fizz := _strip("bolt_hit", a.global_position + Arrow.HEIGHT, a.dir.angle(), 0.7)
+	if fizz != null:
+		fizz.modulate = a.color
+
+
+## A burst (or an orb) goes off at `at`: everything within its reach is hit,
+## except `skip` (the enemy it landed on, which the bolt itself has hit). Returns
+## the enemies it caught.
+func _bolt_burst(a, at: Vector2, skip: Dictionary) -> Array:
+	var caught: Array = []
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if not is_instance_valid(e) or e.dead or e.immune or skip.has(e.get_instance_id()):
+			continue
+		var rel: Vector2 = e.global_position - at
+		if rel.length() > float(a.splash) + float(e.radius):
+			continue
+		_hit_enemy(e, a.damage, rel.normalized() if rel.length() > 1.0 else a.dir, a.knock, a.stun, a.freeze, {}, false, a)
+		caught.append(e)
+	var orb: bool = a.bolt == "orb"
+	var name := "orb_hit" if orb else "burst_hit"
+	# (The pictures are drawn for a burst of 28 art pixels and an orb's of 44.)
+	var pop := _strip(name, at + Arrow.HEIGHT * 0.5, 0.0, float(a.splash) / (88.0 if orb else 56.0))
+	if pop != null:
+		pop.modulate = a.color
+	shake = maxf(shake, 7.0 if orb else 5.0)
+	Sfx.play(self, "finisher", -9.0, 1.5 if orb else 1.9)
+	return caught
+
+
+## Where the staff's crystal is, in the world: bolts and the cast's flash start there.
+func _crystal_world() -> Vector2:
+	var pose := _sword_pose()
+	var blade: String = weapon.get("blade", "wooden_apprentice")
+	var grip: String = weapon.get("grip", "wooden_shaft")
+	var seat := Vector2(SwordArt.blade_x(blade, "hand"), 0) + SwordArt.crystal_at(blade, "hand") - SwordArt.pivot(blade, grip, "hand")
+	return global_position + (pose[1] as Vector2) + (seat * Art.PIXEL).rotated(float(pose[0]) + PI * 0.5)
 
 
 # --- The bow's runes ----------------------------------------------------------------
@@ -1227,6 +1426,8 @@ func _swing_hits(info: Dictionary, dir: Vector2, reach: float) -> Array:
 				hit = along > -r and along <= reach + r and side_d <= float(info["width"]) + r
 			"circle":
 				hit = rel.length() <= reach + r
+			"impact":
+				hit = (rel - dir * reach * IMPACT_AT).length() <= float(weapon.get("impact", SwingBuild.HAMMER_IMPACT)) + r
 			_:
 				# The arc only has to touch the enemy's body, not reach its middle.
 				var d := rel.length()
@@ -1236,6 +1437,10 @@ func _swing_hits(info: Dictionary, dir: Vector2, reach: float) -> Array:
 			var kdir := rel.normalized() if rel.length() > 0.01 else dir
 			if shape == "line":
 				kdir = dir
+			elif shape == "impact":
+				# Thrown out from where the head came down.
+				var from_patch := rel - dir * reach * IMPACT_AT
+				kdir = from_patch.normalized() if from_patch.length() > 6.0 else dir
 			found.append([rel.dot(dir) if shape == "line" else rel.length(), e, kdir])
 	# A thrust stops after so many enemies, nearest first (the rapier goes through
 	# to a second one, the dagger's stab stays in the first).
@@ -1285,7 +1490,11 @@ func _hit_enemy(e, dmg: float, kdir: Vector2, knock: float, stun := 0.12, freeze
 	var spark_at: Vector2 = e.global_position - kdir * float(e.radius) * 0.4
 	var spark: Node2D = null
 	if shot != null and not crit:
-		spark = _strip("arrow_hit", spark_at + Arrow.HEIGHT * 0.5, kdir.angle())
+		spark = _strip("bolt_hit" if shot.bolt != "" else "arrow_hit", spark_at + Arrow.HEIGHT * 0.5, kdir.angle())
+		if spark != null and shot.bolt != "":
+			spark.modulate = shot.color
+	elif _is_hammer() and not crit and not ghost:
+		spark = Art.play_piece(self, "hammer_hit", spark_at, kdir.angle())
 	if spark == null:
 		spark = Art.play_piece(self, "hit_spark_crit" if crit else "hit_spark", spark_at, kdir.angle())
 	if ghost and spark != null:
@@ -2689,7 +2898,14 @@ func _rest_pose() -> Array:
 	if _is_bow():
 		var a: float = BOW_READY.get(facing8, BOW_READY.get(facing, 0.2))
 		return [a, _hand_point() + Vector2(BOW_OUT * signf(cos(a)), 0.0)]
+	if _is_staff():
+		return [STAFF_READY.get(facing8, STAFF_READY.get(facing, -1.5)), _hand_point()]
 	return [READY_ANGLE.get(facing8, READY_ANGLE.get(facing, -1.85)), _hand_point()]
+
+
+## A staff at rest stands upright in the hand, leaning a little the way you face.
+const STAFF_READY := {"right": -1.4, "left": -(PI - 1.4), "down": -1.66, "up": -1.48,
+	"down_right": -1.5, "down_left": -(PI - 1.5), "up_right": -1.4, "up_left": -(PI - 1.4)}
 
 
 ## The bow at rest: held upright at the side in the same hand as the sword, its
@@ -2839,6 +3055,15 @@ func _draw_ghost_trail() -> void:
 		_draw_smear(ghost_trail, sm)
 
 
+## The picture of a move's swing: the one drawn for it, or (until it is drawn)
+## the sword's that is nearest. "" for a move with no swing in it (a staff's cast).
+func _smear_piece(info: Dictionary) -> String:
+	var piece := str(info.get("smear", "slash_smear"))
+	if piece != "" and Art.piece_texture(piece) == null and info.has("smear_else"):
+		return str(info["smear_else"])
+	return piece
+
+
 ## One swing's smear on `layer`: {t0, a0, a1, center, dir, side, move}.
 func _draw_smear(layer: Node2D, sm: Dictionary) -> void:
 	var sa0: float = sm["a0"]
@@ -2855,7 +3080,9 @@ func _draw_smear(layer: Node2D, sm: Dictionary) -> void:
 	var r_in := 3.0 + length_px * 0.45
 	var r_out := 3.0 + length_px
 	var thrust := absf(sa1 - sa0) < 0.05
-	var piece := str(info.get("smear", "slash_smear"))
+	var piece := _smear_piece(info)
+	if piece == "":
+		return   # a cast: nothing is swung
 	if Art.piece_texture(piece) != null:
 		# The art reaches 40 px from the hand: scale it to this blade. A swing the
 		# other way is the same picture mirrored across the aim (flipped left to
@@ -2929,14 +3156,15 @@ func _draw_weapon() -> void:
 	var hidden := false
 	if current_step >= 0:
 		var times := _swing_times()
-		hidden = step_elapsed >= float(times[0]) and step_elapsed < float(times[1])
+		hidden = step_elapsed >= float(times[0]) and step_elapsed < float(times[1]) and _smear_piece(_move_info()) != ""
 	if not hidden:
 		# Art space: x right, y down, tip at the top. Rotate so "up" points along d.
 		weapon_layer.draw_set_transform(hand, angle + PI * 0.5, Vector2(Art.PIXEL, Art.PIXEL))
 		var blade: String = weapon["blade"]
 		var grip: String = weapon["grip"]
 		SwordArt.draw(weapon_layer, blade, grip, weapon["line"], "hand", _slot_glow(), -SwordArt.pivot(blade, grip, "hand"), Color.WHITE,
-			str(weapon.get("pommel", "plain_pommel")), SwordArt.one_edged(blade) and _edge_flipped(angle))
+			str(weapon.get("pommel", "plain_pommel")), SwordArt.one_edged(blade) and _edge_flipped(angle),
+			str(weapon.get("arrows", "")) if _is_staff() else "")
 	# The fist sits on the grip but is drawn upright, never spun with the sword.
 	var fist := Art.texture("body/hand.png")
 	if fist != null:

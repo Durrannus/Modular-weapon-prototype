@@ -652,7 +652,7 @@ func _sample() -> PackedByteArray:
 		var held := local.attack_held
 		var pressed := [local.attack_pressed, local.dash_pressed, local.interact_pressed]
 		var ability := 0
-		for k in 2:
+		for k in 3:
 			if local.ability_held[k]:
 				ability |= 1 << (k * 2)
 			if local.ability_pressed[k]:

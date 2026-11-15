@@ -534,7 +534,7 @@ func _check_bow(forge, main) -> void:
 	print("bow numbers fit: %d comparisons, the tightest is %s" % [pairs, tight])
 	forge.build.set_data(SwingBuild.TEST_BOW)
 	forge.build.changed.emit()
-	main.swap_weapon(0)
+	main.swap_weapon(0, "sword")
 	if forge.build.weapon() != "sword":
 		_fail("swapping back did not return the sword to the anvil")
 	print("bow at the forge: parts, pictures, tabs and numbers")

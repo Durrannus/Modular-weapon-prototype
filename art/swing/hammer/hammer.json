@@ -1,0 +1,307 @@
+{
+ "heads": {
+  "wooden_maul": {
+   "name": "Wooden Maul",
+   "slots": 0,
+   "hand": {
+    "size": [
+     11,
+     11
+    ],
+    "slot_rects": []
+   }
+  },
+  "tin_maul": {
+   "name": "Tin Maul",
+   "slots": 1,
+   "hand": {
+    "size": [
+     11,
+     12
+    ],
+    "slot_rects": [
+     [
+      5,
+      10,
+      1,
+      1
+     ]
+    ]
+   }
+  },
+  "iron_maul": {
+   "name": "Iron Maul",
+   "slots": 2,
+   "hand": {
+    "size": [
+     13,
+     17
+    ],
+    "slot_rects": [
+     [
+      6,
+      15,
+      1,
+      1
+     ],
+     [
+      6,
+      13,
+      1,
+      1
+     ]
+    ]
+   }
+  },
+  "iron_warhammer": {
+   "name": "Iron Warhammer",
+   "slots": 2,
+   "hand": {
+    "size": [
+     15,
+     16
+    ],
+    "slot_rects": [
+     [
+      7,
+      14,
+      1,
+      1
+     ],
+     [
+      7,
+      12,
+      1,
+      1
+     ]
+    ]
+   },
+   "note": "the flat striking face is on the LEFT, the beak on the right; the neck is still centred"
+  }
+ },
+ "hafts": {
+  "wooden_haft": {
+   "name": "Wooden Haft",
+   "slots": 1,
+   "hand": {
+    "size": [
+     9,
+     13
+    ],
+    "slot_rects": [
+     [
+      4,
+      11,
+      1,
+      1
+     ]
+    ],
+    "pivot": [
+     4.5,
+     7.0
+    ],
+    "pommel_at": [
+     0,
+     13
+    ]
+   }
+  },
+  "tin_haft": {
+   "name": "Tin Haft",
+   "slots": 1,
+   "hand": {
+    "size": [
+     9,
+     13
+    ],
+    "slot_rects": [
+     [
+      4,
+      11,
+      1,
+      1
+     ]
+    ],
+    "pivot": [
+     4.5,
+     7.0
+    ],
+    "pommel_at": [
+     0,
+     13
+    ]
+   }
+  },
+  "bound_haft": {
+   "name": "Bound Haft",
+   "slots": 2,
+   "hand": {
+    "size": [
+     9,
+     15
+    ],
+    "slot_rects": [
+     [
+      4,
+      13,
+      1,
+      1
+     ],
+     [
+      4,
+      11,
+      1,
+      1
+     ]
+    ],
+    "pivot": [
+     4.5,
+     7.0
+    ],
+    "pommel_at": [
+     0,
+     15
+    ]
+   }
+  },
+  "studded_haft": {
+   "name": "Studded Haft",
+   "slots": 3,
+   "hand": {
+    "size": [
+     9,
+     17
+    ],
+    "slot_rects": [
+     [
+      4,
+      15,
+      1,
+      1
+     ],
+     [
+      4,
+      13,
+      1,
+      1
+     ],
+     [
+      4,
+      11,
+      1,
+      1
+     ]
+    ],
+    "pivot": [
+     4.5,
+     7.0
+    ],
+    "pommel_at": [
+     0,
+     17
+    ]
+   }
+  }
+ },
+ "weights": {
+  "plain_weight": {
+   "name": "Plain Weight",
+   "hand_size": [
+    9,
+    2
+   ],
+   "colour": "#94a8b8"
+  },
+  "keen_weight": {
+   "name": "Keen Weight",
+   "hand_size": [
+    9,
+    3
+   ],
+   "colour": "#78c0cc"
+  },
+  "heavy_weight": {
+   "name": "Heavy Weight",
+   "hand_size": [
+    9,
+    3
+   ],
+   "colour": "#cf8a48"
+  },
+  "light_weight": {
+   "name": "Light Weight",
+   "hand_size": [
+    9,
+    3
+   ],
+   "colour": "#e8e4bc"
+  }
+ },
+ "fx": {
+  "hammer_smear": {
+   "frames": 4,
+   "frame": [
+    96,
+    96
+   ],
+   "fps": 40,
+   "origin": [
+    48,
+    48
+   ],
+   "loop": false,
+   "note": "ADDITIVE. The hammer's side swing. Origin = the hand; clockwise from -50 to +50 degrees, outer radius 40; mirror and scale as slash_smear. Frame 0 whole, 1 to 3 dissolve"
+  },
+  "hammer_slam_smear": {
+   "frames": 4,
+   "frame": [
+    96,
+    96
+   ],
+   "fps": 40,
+   "origin": [
+    48,
+    48
+   ],
+   "loop": false,
+   "note": "ADDITIVE. The overhead, -80 to +20 degrees, heavier"
+  },
+  "hammer_impact": {
+   "frames": 6,
+   "frame": [
+    96,
+    64
+   ],
+   "fps": 20,
+   "origin": [
+    48,
+    40
+   ],
+   "loop": false,
+   "note": "ADDITIVE, once. Where the head lands on the floor, seen from above; never turned. Dust ring radius about 22 (an ellipse)"
+  },
+  "hammer_hit": {
+   "frames": 5,
+   "frame": [
+    40,
+    40
+   ],
+   "fps": 24,
+   "origin": [
+    20,
+    20
+   ],
+   "loop": false,
+   "note": "ADDITIVE, once. Where the head hits an enemy; faces right, turn it to the hit direction"
+  }
+ },
+ "hud": {
+  "weapon_hammer": {
+   "size": [
+    12,
+    12
+   ]
+  }
+ },
+ "note": "The hammer: all its numbers. Built like a sword: head (the blades' format) on a haft (the grips' format) with a counterweight (the pommels' format). Hand pictures have no outline. Heads are centred on the frame's middle column; their 3 px neck carries the slot dots, listed bottom-up. On a haft the hold (pivot) is 7 px down, slots below it. Weights echo the four pommels: plain iron, keen blue steel, heavy bronze, light pale ring."
+}

@@ -30,8 +30,13 @@ static func _part(kind: String, id: String, scale: String) -> Dictionary:
 ## (bow.json "fx"), else the sword's (swing_path.json "fx"). The pictures are
 ## all in art/swing/fx/.
 static func fx(name: String) -> Dictionary:
-	var own: Dictionary = data().get("fx", {}).get(name, {})
-	return own if not own.is_empty() else Art.json("swing/swing_path.json").get("fx", {}).get(name, {})
+	# (The hammer's and the staff's strips are found here too: each weapon keeps
+	# its numbers in its own file.)
+	for book in [DIR + "bow.json", "swing/hammer/hammer.json", "swing/staff/staff.json"]:
+		var own: Dictionary = Art.json(book).get("fx", {}).get(name, {})
+		if not own.is_empty():
+			return own
+	return Art.json("swing/swing_path.json").get("fx", {}).get(name, {})
 
 
 ## An effect strip's picture. Most are in art/swing/fx/; the bow runes' are in

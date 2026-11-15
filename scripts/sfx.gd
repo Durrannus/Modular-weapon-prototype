@@ -58,6 +58,8 @@ static func _make(kind: String) -> AudioStreamWAV:
 		"dodge": length = 0.12
 		"ghost": length = 0.5
 		"bow": length = 0.16
+		"cast": length = 0.15
+		"thud": length = 0.14
 	var n := int(RATE * length)
 	data.resize(n * 2)
 	var phase := 0.0
@@ -140,6 +142,14 @@ static func _make(kind: String) -> AudioStreamWAV:
 				phase += TAU * lerpf(520.0, 170.0, minf(k * 3.0, 1.0)) / RATE
 				noise = lerpf(noise, randf_range(-1, 1), lerpf(0.6, 0.2, k))
 				v = sin(phase) * 0.6 * pow(maxf(1.0 - k * 3.0, 0.0), 2.0) + noise * 0.32 * sin(k * PI) * (1.0 - k * 0.5)
+			"cast":  # a staff's bolt leaving: a soft, bright note sliding up, with a breath of air
+				phase += TAU * lerpf(560.0, 940.0, sqrt(k)) / RATE
+				noise = lerpf(noise, randf_range(-1, 1), 0.3)
+				v = (sin(phase) * 0.42 + sin(phase * 2.0) * 0.12) * pow(1.0 - k, 1.6) + noise * 0.14 * sin(k * PI)
+			"thud":  # a hammer landing on a body: low and blunt, no ring to it
+				phase += TAU * lerpf(170.0, 55.0, k) / RATE
+				noise = lerpf(noise, randf_range(-1, 1), 0.3)
+				v = (sin(phase) * 0.85 + noise * 0.45 * (1.0 - k)) * pow(1.0 - k, 1.7)
 			"dodge":  # a quick whoosh
 				noise = lerpf(noise, randf_range(-1, 1), lerpf(0.5, 0.1, k))
 				v = noise * 0.3 * sin(k * PI)

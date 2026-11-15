@@ -178,7 +178,19 @@ static func json(rel_path: String) -> Dictionary:
 ## One entry of art/gaps.json: the single effects and pieces drawn on 10 November
 ## (warnings, sparks, shadows, icons). {file, frame, frames, fps, origin, glow, note}.
 static func piece(name: String) -> Dictionary:
-	return json("gaps.json").get("files", {}).get(name, {})
+	var own: Dictionary = json("gaps.json").get("files", {}).get(name, {})
+	if not own.is_empty():
+		return own
+	# The hammer's and the staff's pieces (15 November) are listed in their own
+	# files, without a path: they are additive strips in swing/fx/ (or "folder").
+	for book in ["swing/hammer/hammer.json", "swing/staff/staff.json"]:
+		var e: Dictionary = json(book).get("fx", {}).get(name, {})
+		if not e.is_empty():
+			if not e.has("file"):
+				e["file"] = "%s/%s.png" % [str(e.get("folder", "swing/fx")), name]
+				e["note"] = "ADDITIVE. " + str(e.get("note", ""))
+			return e
+	return {}
 
 
 static func piece_texture(name: String) -> Texture2D:

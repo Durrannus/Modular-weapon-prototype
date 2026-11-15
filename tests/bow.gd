@@ -177,7 +177,7 @@ func _run() -> void:
 	_check(m.build.weapon() == "bow" and m.build.get_data() == test_bow, "swapping puts the iron shortbow in your hand")
 	_check(p.weapon.get("weapon") == "bow" and p._is_bow(), "and the player knows it is a bow")
 	_check(m.build.stowed.get("sword") == sword and not m.build.stowed.has("bow"), "the sword waits, exactly as it was")
-	_check(m.hud.swap_button.text == "SWAP TO SWORD (B)", "the button now offers the sword")
+	_check(m.hud.swap_button.text == "SWAP TO HAMMER (B)", "the button now offers the next weapon, the hammer")
 	_check(is_equal_approx(float(p.weapon["damage"]), 11.0 * SwingBuild.BOW_DAMAGE) and is_equal_approx(float(p.weapon["damage"]), 8.8), "an iron arrow does 8.8: four fifths of an iron sword's 11")
 	_check(is_equal_approx(float(p.weapon["range"]), 520.0) and is_equal_approx(float(p.weapon["flight"]), 1300.0), "it flies 520 px at 1300 a second")
 	var chain: Array = []
@@ -185,14 +185,16 @@ func _run() -> void:
 		chain.append(st["move"])
 	_check(chain == ["quick_shot", "quick_shot", "heavy_shot"], "shortbow: quick shot, quick shot, heavy shot")
 	_check(p.weapon.get("arrows") == "iron_arrows", "with iron arrows")
-	m.swap_weapon(0)
+	m.swap_weapon(0, "sword")
 	await _frames(2)
 	_check(m.build.get_data() == sword and p.weapon.get("weapon") == "sword", "swapping back gives the same sword, runes and all")
 	_check(m.build.stowed.get("bow") == test_bow and not m.build.stowed.has("sword"), "and now the bow waits")
 	await _key(KEY_B)
 	_check(m.build.weapon() == "bow", "the B key swaps too")
 	await _key(KEY_B)
-	_check(m.build.weapon() == "sword", "and back")
+	await _key(KEY_B)
+	await _key(KEY_B)
+	_check(m.build.weapon() == "sword", "and three more presses come round to the sword (by way of the hammer and the staff)")
 	m.hud.swap_button.pressed.emit()
 	await _frames(2)
 	_check(m.build.weapon() == "bow", "so does the button on the screen")
@@ -202,7 +204,7 @@ func _run() -> void:
 	fresh.take("bow")
 	_check(fresh.get_data() == SwingBuild.STARTERS["bow"] and fresh.compute()["weapon"] == "bow", "someone who never had a bow gets the wooden shortbow")
 	_check(is_equal_approx(float(fresh.compute()["damage"]), 4.0), "whose wooden arrows do 4: a chain of 4 + 4 + 6 is one crawler's 14")
-	fresh.take("staff")
+	fresh.take("spear")
 	_check(fresh.weapon() == "bow", "(asking for a weapon that doesn't exist changes nothing)")
 
 	# --- The bow at the forge: its own parts, its own presets, no sword runes -----------
@@ -255,10 +257,10 @@ func _run() -> void:
 	_check(m.build.preset == 1 and m.build.preset_sword(0) == bow_a, "preset B starts as a copy and is changed; A keeps the longbow")
 	forge._really_close()
 	await _frames(2)
-	m.swap_weapon(0)
+	m.swap_weapon(0, "sword")
 	await _frames(2)
 	_check(m.build.get_data() == sword and m.build.preset == 0 and m.build.preset_data == [null, null, null], "the sword's presets are its own: still on A, untouched by the bow's")
-	m.swap_weapon(0)
+	m.swap_weapon(0, "bow")
 	await _frames(2)
 	_check(m.build.get_data() == bow_b and m.build.preset == 1 and m.build.preset_sword(0) == bow_a, "back on the bow: still on its preset B, with A waiting")
 	m.build.use_preset(0)
@@ -389,7 +391,7 @@ func _run() -> void:
 			break
 	_check(_arrows().size() == 1, "an arrow is on its way")
 	var before: int = m.net_state().size()
-	m.swap_weapon(0)
+	m.swap_weapon(0, "sword")
 	await _frames(1)
 	_check(m.build.weapon() == "sword", "swapping to the sword while it flies")
 	await _frames(40)
@@ -412,7 +414,7 @@ func _run() -> void:
 	await _still()
 
 	# --- The longbow: three slow heavy shots, further, within a tenth of the shortbow ----
-	m.swap_weapon(0)
+	m.swap_weapon(0, "bow")
 	await _frames(2)
 	m.build.set_blade("iron_longbow")
 	await _still()
@@ -440,7 +442,7 @@ func _run() -> void:
 	await _still()
 	var short_dps: float = await _dps(Vector2(200, 0))
 	_check(absf(long_dps / short_dps - 1.0) < 0.1, "longbow %.1f damage a second, shortbow %.1f: within a tenth (%.2f)" % [long_dps, short_dps, long_dps / short_dps])
-	m.swap_weapon(0)
+	m.swap_weapon(0, "sword")
 	await _still()
 
 	# --- Ranged must not beat melee: the bow does less a second than the sword ----------
@@ -449,7 +451,7 @@ func _run() -> void:
 	m.build.changed.emit()
 	await _still()
 	var sword_dps: float = await _dps(Vector2(34, 0))
-	m.swap_weapon(0)
+	m.swap_weapon(0, "bow")
 	await _still()
 	var bow_dps: float = await _dps(Vector2(200, 0))
 	var ratio := bow_dps / sword_dps

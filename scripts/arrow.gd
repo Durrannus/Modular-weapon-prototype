@@ -15,6 +15,7 @@ const SpriteOnce := preload("res://scripts/fx/sprite_once.gd")
 const HALF_WIDTH := 4.0        # how close its line must pass to an enemy's edge
 const HEIGHT := Vector2(0, -14)
 const HIDE_FIRST := 22.0       # not drawn until it has cleared the bow
+const HIDE_FIRST_BOLT := 40.0  # ...or, a staff's bolt, until it is past the crystal
 const STUCK_TIME := 0.9        # how long a spent arrow stays
 const STUCK_FADE := 0.3
 const WALLS := 4               # the physics layer walls are on
@@ -44,6 +45,12 @@ var rune := ""
 var color := Color.WHITE       # the rune's colour: the number over the enemy, and the streak's tint
 var streak := ""               # the streak's strip, if not the usual one ("pierce_trail", "snipe_trail")
 var bounce := {}               # Ricochet: what its next jump is like ({jumps, range, splinter})
+## A staff's cast (15 November) flies the same way: "bolt", "burst", "spark" or
+## "orb" ("" for an arrow). It is drawn from a strip tinted with `color` (the
+## crystal's), and never sticks: it is gone where it stops.
+var bolt := ""
+var splash := 0.0              # a burst or an orb: it hurts everything this near where it stops
+var quiet := false             # one of a spray's side sparks: it sets no rune off
 var flown := 0.0
 var hit_flown := 0.0           # how far it had flown when it last hit someone (Snipe counts it)
 var flying := true
@@ -57,6 +64,12 @@ func _ready() -> void:
 	rotation = 0.0
 	# Arrows stay bright in the dark, like the players' rims: you have to see them.
 	material = Art.unshaded()
+	if bolt != "":
+		# A bolt is light: it adds to what is behind it, like its streak.
+		var glow := CanvasItemMaterial.new()
+		glow.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+		glow.light_mode = CanvasItemMaterial.LIGHT_MODE_UNSHADED
+		material = glow
 	z_index = 1
 	_trail = Node2D.new()
 	var add := CanvasItemMaterial.new()
@@ -125,11 +138,18 @@ func _physics_process(delta: float) -> void:
 
 
 ## It has stopped without hitting anyone: it stands where it is for a moment.
+## (A bolt doesn't: it is gone.)
 func _stop() -> void:
 	flying = false
 	rest = 0.0
 	if is_instance_valid(shooter):
 		shooter.arrow_spent(self)
+	if bolt != "":
+		queue_free()
+
+
+func _hide_first() -> float:
+	return HIDE_FIRST_BOLT if bolt != "" else HIDE_FIRST
 
 
 func _process(_delta: float) -> void:
@@ -138,6 +158,9 @@ func _process(_delta: float) -> void:
 
 
 func _draw() -> void:
+	if bolt != "":
+		_draw_bolt()
+		return
 	if flying:
 		if flown < HIDE_FIRST:
 			return
@@ -167,17 +190,39 @@ func _draw() -> void:
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 
+## A staff's bolt: its strip, tinted, turned to the way it flies (an orb is round
+## and isn't turned).
+func _draw_bolt() -> void:
+	if not flying or flown < HIDE_FIRST_BOLT:
+		return
+	var name := bolt + "_fly"
+	var tex := BowArt.fx_texture(name)
+	var info := BowArt.fx(name)
+	if tex == null or info.is_empty():
+		draw_circle(HEIGHT, 9.0 if heavy else 5.0, color)
+		return
+	var n := maxi(int(info.get("frames", 4)), 1)
+	var frame := int(Time.get_ticks_msec() / 1000.0 * float(info.get("fps", 16))) % n
+	var fw := float(tex.get_width()) / n
+	var o: Array = info.get("origin", [fw - 4.0, tex.get_height() * 0.5])
+	draw_set_transform(HEIGHT, 0.0 if bolt == "orb" else dir.angle(), Vector2(Art.PIXEL, Art.PIXEL))
+	draw_texture_rect_region(tex, Rect2(-float(o[0]), -float(o[1]), fw, tex.get_height()), Rect2(frame * fw, 0, fw, tex.get_height()), color)
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+
+
 ## The streak behind it: the art's strip if there is one, else a plain pale line.
 func _draw_trail() -> void:
-	if not flying or flown < HIDE_FIRST:
+	if not flying or flown < _hide_first() or bolt == "orb":
 		return
 	var name := streak if streak != "" else ("arrow_trail_heavy" if heavy else "arrow_trail")
+	if bolt != "" and streak == "":
+		name = "bolt_trail"
 	var tex := BowArt.fx_texture(name)
 	var info := BowArt.fx(name)
 	var o: Array = info.get("origin", [31, 4])
 	# It grows out of the bow: never longer than the arrow has flown (or the strip).
-	var length := minf(flown - HIDE_FIRST, (float(o[0]) + 1.0) * Art.PIXEL)
-	var tail := HEIGHT - dir * 24.0
+	var length := minf(flown - _hide_first(), (float(o[0]) + 1.0) * Art.PIXEL)
+	var tail := HEIGHT - dir * (34.0 if bolt == "burst" else (20.0 if bolt != "" else 24.0))
 	if length <= 0.0:
 		return
 	if tex != null and not info.is_empty():
@@ -205,6 +250,8 @@ func _draw_trail() -> void:
 ## A rune's arrow has the usual streak in the rune's colour (the strips drawn for
 ## one rune, like Snipe's, are that colour already).
 func _streak_tint() -> Color:
+	if bolt != "":
+		return Color(color.r, color.g, color.b, 0.8)
 	if rune == "" or streak != "":
 		return Color.WHITE
 	return color.lerp(Color.WHITE, 0.25)

@@ -48,12 +48,15 @@ func _ready() -> void:
 	# each button, and the passive ones beside them. A and B are the 3 November
 	# test swords, C is two actives and Shockwave; keys 1 to 4 at the forge load
 	# A to D.
-	# Everyone also carries the test bow (B swaps): an iron shortbow with iron
-	# arrows, the iron sword's match.
+	# Everyone also carries a test bow, hammer and staff (B swaps round the four):
+	# an iron shortbow with iron arrows, an iron maul and an iron apprentice staff
+	# with an iron-bound crystal, the iron sword's matches.
 	can_swap = true
 	for b in builds:
 		b.load_test("D")
 		b.stowed["bow"] = SwingBuild.TEST_BOW.duplicate(true)
+		b.stowed["hammer"] = SwingBuild.TEST_HAMMER.duplicate(true)
+		b.stowed["staff"] = SwingBuild.TEST_STAFF.duplicate(true)
 
 	_make_ui()
 	hud.mode = "arena"
@@ -81,7 +84,7 @@ func _toggle_invincible() -> void:
 		_set_invincible(not invincible)
 
 
-## Sword or bow. Online it is sent to both computers, like the switches.
+## The next weapon. Online it is sent to both computers, like the switches.
 func _swap_weapon(i: int) -> void:
 	if Net.online():
 		Net.command(["weapon"])

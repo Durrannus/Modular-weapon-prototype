@@ -32,6 +32,9 @@ var result_ok := false
 var arena_step := 0
 var arrows_seen := {}          # every arrow that flew in the arena run
 var runes_seen := {}           # the bow's runes that went off in the arena run
+var bolts_seen := {}           # the staff's bolts in the arena run
+var hammer_ticks := 0          # ticks someone spent swinging a hammer there
+var weak_ticks := 0            # ticks a staff was out of mana
 var second_held := 0           # ticks the second ability button stays down
 var hard := false
 var started := 0
@@ -167,9 +170,16 @@ func _arena_tick() -> void:
 		arrows_seen[a.get_instance_id()] = true
 		if a.rune != "":
 			runes_seen[a.rune] = true
+	for a in get_nodes_in_group("arrows"):
+		if a.bolt != "":
+			bolts_seen[a.get_instance_id()] = true
 	for p in m.players:
 		if p.rains.size() > 0:
 			runes_seen["arrow_rain"] = true
+		if p.weapon.get("weapon") == "hammer" and p.current_step >= 0:
+			hammer_ticks += 1
+		if p.weapon.get("weapon") == "staff" and p.cast_weak:
+			weak_ticks += 1
 	if frame > 60 * 40:
 		session.sampling.disconnect(_arena_tick)
 		var runes := true
@@ -177,6 +187,12 @@ func _arena_tick() -> void:
 			if not runes_seen.has(id):
 				print("FAIL: the bow's %s never went off" % id)
 				runes = false
+		if bolts_seen.size() < 6 or hammer_ticks < 60:
+			print("FAIL: the hammer or the staff was hardly used (%d ticks of swinging, %d bolts)" % [hammer_ticks, bolts_seen.size()])
+			runes = false
+		if m.builds[0].weapon() != "sword" or m.builds[1].weapon() != "bow":
+			print("FAIL: the swaps didn't all happen (%s, %s at the end)" % [m.builds[0].weapon(), m.builds[1].weapon()])
+			runes = false
 		_report(m.kills > 0 and arrows_seen.size() > 10 and runes)
 		return
 	if m.build_menu.is_open:
@@ -224,18 +240,20 @@ func _arena_tick() -> void:
 				arena_step = 0
 		return
 	# Each player opens their forge at a different moment, and once at the same one.
-	if frame in [300 + me * 140, 1200] or (me == 1 and frame == 1800):   # (player 2's last visit is with the bow)
+	if frame in [300 + me * 140, 1200] or (me == 1 and frame == 1800):
 		Net.command(["forge_open"])
 	if me == 0 and frame in [700, 900]:
 		Net.command(["pause_enemies"])
 	if me == 1 and frame in [500, 1500]:
 		Net.command(["invincible"])
-	# Sword and bow: each player swaps at their own moments (player 1 has the bow
-	# out when both ask for the forge at 1200, so that one is turned away on both
-	# computers; player 2 ends the run with the bow).
-	if me == 0 and frame in [1000, 1400, 1900, 2150]:
+	# The four weapons: each player goes round them at their own moments (sword,
+	# bow, hammer, staff), never while at the forge. Player 1 has the hammer out
+	# when both ask for the forge at 1200, and player 2 the staff at 1800: those
+	# two are turned away on both computers. Player 1 ends the run with the sword,
+	# player 2 with the bow.
+	if me == 0 and frame in [650, 1000, 1500, 2150]:
 		Net.command(["weapon"])
-	if me == 1 and frame in [760, 1100, 1700]:
+	if me == 1 and frame in [700, 1450, 1700, 2100, 2110]:
 		Net.command(["weapon"])
 	_fight(me)
 	# The active runes: a press on each button now and then, the first one held
@@ -272,6 +290,7 @@ func _report(ok: bool) -> void:
 		ok = false
 	if arena:
 		print("        bow runes that went off: %s" % ", ".join(runes_seen.keys()))
+		print("        hammer: %d ticks of swinging; staff: %d bolts, %d ticks out of mana" % [hammer_ticks, bolts_seen.size(), weak_ticks])
 		print("%s: arena, %d kills, %d arrows shot, weapons %s" % ["PASS" if ok else "FAIL", m.kills, arrows_seen.size(), str([m.builds[0].get_data(), m.builds[1].get_data()])])
 	print("[%s] %s at tick %d (waited on %d frames, %.0f s on the clock), last checksum %d" % [role, "ok" if ok else "FAILED", session.tick, session.waits, float(Time.get_ticks_msec() - started) / 1000.0, int(session._hashes.get(session._last_hash_tick, 0))])
 	result_ok = ok

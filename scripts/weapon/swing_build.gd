@@ -48,7 +48,9 @@ const MOVE_NAMES := {"slash": "slash", "overhead": "overhead",
 	"thrust": "thrust", "long_thrust": "lunge",
 	"chop": "chop", "cleave": "cleave",
 	"great_sweep": "sweep", "great_back": "backswing", "slam": "slam",
-	"quick_shot": "quick shot", "heavy_shot": "heavy shot", "long_shot": "long shot"}
+	"quick_shot": "quick shot", "heavy_shot": "heavy shot", "long_shot": "long shot",
+	"maul_swing": "swing", "maul_slam": "slam", "crush": "crushing blow",
+	"bolt": "bolt", "burst": "burst", "spray": "spray", "orb": "orb"}
 
 ## A broadsword's damage in each metal. (Later metals each add about a quarter.)
 const METALS := {"wood": 5.0, "tin": 8.0, "iron": 11.0}
@@ -165,32 +167,272 @@ const ARROWS := {
 }
 const ARROW_ORDER := ["wooden_arrows", "tin_arrows", "iron_arrows"]
 
-## What everyone starts with, and the arena's test bow (the iron sword's match).
+# --- Hammers ---------------------------------------------------------------------
+# Game Bible, the weapons table; built 15 November. "The close-range heavy hitter:
+# big damage in a small area, so you must get in close." A hammer is put together
+# exactly like a sword, and lives in the same three places:
+#   head           (`blade`)   its weight sets the chain, the swing speed and the
+#                              impact size; its metal is the damage; slots by tier
+#   haft           (`grip`)    slots
+#   counterweight  (`pommel`)  numbers only
+
+## Head shapes. The numbers are multiples of the broadsword of the same metal.
+## A hammer does about a fifth more a second than a sword to what it can reach
+## (it reaches three quarters as far, swings slowly and slows your feet), and it
+## pins what it hits where a sword shoves it away.
+##   impact  how big the patch of floor is that a slam hits (1.0 = HAMMER_IMPACT)
+const HAMMER_SHAPES := {
+	"maul": {"name": "Maul", "chain": ["maul_swing", "maul_swing", "maul_slam"],
+		"damage": 1.7, "speed": 0.7, "reach": 0.75, "impact": 1.0, "swing_move": 0.8,
+		"desc": "Swing, swing, slam: short, slow and very heavy. The slam hits everything on a patch of floor."},
+	# Three slams are 4.5 hits in the time a maul makes 3.5, so each is lighter and
+	# the two heads do the same a second. Every blow lands on a patch of floor and
+	# stuns for longer; you walk slower still.
+	"warhammer": {"name": "Warhammer", "chain": ["crush", "crush", "crush"],
+		"damage": 1.5, "speed": 0.7, "reach": 0.75, "impact": 0.85, "swing_move": 0.7,
+		"desc": "Three slow crushing blows. Each one lands on a patch of floor and leaves enemies reeling."},
+}
+const HAMMER_IMPACT := 38.0    # the radius of a maul's slam on the floor
+const HAMMER_MOVE := 0.8       # walking speed while swinging one
+
+const HEADS := {
+	"wooden_maul": {"name": "Wooden Maul", "shape": "maul", "metal": "wood", "slots": 0,
+		"desc": "Swing, swing, slam: a training hammer."},
+	"tin_maul": {"name": "Tin Maul", "shape": "maul", "metal": "tin", "slots": 1,
+		"desc": "Swing, swing, slam: wood, capped with tin."},
+	"iron_maul": {"name": "Iron Maul", "shape": "maul", "metal": "iron", "slots": 2},
+	"iron_warhammer": {"name": "Iron Warhammer", "shape": "warhammer", "metal": "iron", "slots": 2},
+}
+const HEAD_ORDER := ["iron_maul", "iron_warhammer"]
+
+const HAFTS := {
+	"wooden_haft": {"name": "Wooden Haft", "slots": 1, "desc": "One slot."},
+	"tin_haft": {"name": "Tin Haft", "slots": 1, "desc": "One slot."},
+	"bound_haft": {"name": "Bound Haft", "slots": 2, "desc": "Two slots."},
+	"studded_haft": {"name": "Studded Haft", "slots": 3, "desc": "Three slots."},
+}
+const HAFT_ORDER := ["wooden_haft", "bound_haft", "studded_haft"]
+
+## Counterweights: no slots, numbers only. The same four fixed test rolls as the pommels.
+const WEIGHTS := {
+	"plain_weight": {"name": "Plain Counterweight", "desc": "No bonus.", "color": Color("#94a8b8")},
+	"keen_weight": {"name": "Keen Counterweight", "crit": 0.08, "desc": "+8% crit chance.", "color": Color("#78c0cc")},
+	"heavy_weight": {"name": "Heavy Counterweight", "crit_damage": 0.4, "desc": "+40% crit damage.", "color": Color("#cf8a48")},
+	"light_weight": {"name": "Light Counterweight", "speed": 0.1, "desc": "+10% swing speed.", "color": Color("#e8e4bc")},
+}
+const WEIGHT_ORDER := ["plain_weight", "keen_weight", "heavy_weight", "light_weight"]
+
+
+## Everything about a hammer's head in one place, like blade_info.
+static func hammer_info(id: String) -> Dictionary:
+	var h: Dictionary = HEADS[id]
+	var s: Dictionary = HAMMER_SHAPES[h["shape"]]
+	return {
+		"name": h["name"], "shape": h["shape"], "shape_name": s["name"], "metal": h["metal"],
+		"slots": int(h["slots"]), "element": "",
+		"chain": s["chain"],
+		"damage": float(METALS[h["metal"]]) * float(s["damage"]),
+		"speed": float(s["speed"]),
+		"reach": float(s["reach"]),
+		"impact": HAMMER_IMPACT * float(s["impact"]),
+		"crit": float(s.get("crit", 0.0)),
+		"swing_move": float(s.get("swing_move", HAMMER_MOVE)),
+		"desc": str(h.get("desc", s["desc"])),
+	}
+
+
+# --- Staffs ----------------------------------------------------------------------
+# Game Bible, the weapons table and "Staff."; built 15 November. A staff is four
+# parts, like a bow, and lives in the same places:
+#   head     (`blade`)   the chain you always cast, the cast speed and the spell
+#                        size; slots by tier
+#   shaft    (`grip`)    slots
+#   cap      (`pommel`)  numbers only
+#   crystal  (`arrows`)  the damage (its tier)
+# Mana is its resource: each cast costs a little and it refills quickly; with none
+# left you still cast, but weak, slow bolts.
+
+## Head shapes. Multiples of the apprentice head with the same crystal.
+##   range  how far a bolt flies, as a multiple of STAFF_RANGE
+##   size   spell size: how wide a bolt is and how far a burst reaches
+const STAFF_SHAPES := {
+	"apprentice": {"name": "Apprentice", "chain": ["bolt", "bolt", "burst"],
+		"damage": 1.0, "speed": 1.0, "range": 1.0, "size": 1.0,
+		"desc": "Bolt, bolt, burst: the balanced staff. The burst hurts everything near where it lands."},
+	# A spray is three sparks: all three only hit from close by. The orb is slow
+	# and bursts wide. Up close it does what the apprentice does a second.
+	"storm": {"name": "Storm", "chain": ["spray", "spray", "orb"],
+		"damage": 0.9, "speed": 1.0, "range": 0.7, "size": 1.25,
+		"desc": "Spray, spray, orb: three sparks at a time for close work, then a big slow orb that bursts wide."},
+}
+## A bolt is worth this much of a broadsword's hit in the same tier: what an
+## arrow is, for the same reason (BOW_DAMAGE). A wooden staff's chain is then
+## 4 + 4 + 6 = 14, one crawler.
+const STAFF_DAMAGE := 0.8
+const STAFF_RANGE := 400.0     # how far an apprentice's bolt flies (an arrow: 520)
+const STAFF_FLIGHT := 760.0    # how fast, a second (an arrow: 1300)
+const STAFF_MOVE := 0.8        # walking speed while casting
+const BOLT_WIDTH := 7.0        # how close a bolt's line must pass to an enemy's edge (an arrow: 4)
+const BURST_RADIUS := 56.0     # how far from where it lands a burst hurts
+const SPRAY_SPREAD := 0.17     # radians between one spark of a spray and the next
+const SPRAY_DAMAGE := 0.4      # each spark, in bolts
+const ORB_FLIGHT := 0.4        # the orb's speed, as a share of a bolt's
+const ORB_RADIUS := 70.0        # how far from where it stops an orb hurts (a storm head's is a quarter wider)
+## Mana. Casting without a rest drains it in about a quarter of a minute; a
+## moment's rest fills it again.
+const MANA := 100.0
+const MANA_REGEN := 10.0       # a second, always
+const MANA_REST := 0.7         # this long without a cast...
+const MANA_REST_REGEN := 45.0  # ...and it comes back this fast
+const MANA_WEAK := 0.5         # a cast with too little mana: its damage...
+const MANA_SLOW := 0.75        # ...and how fast you cast it
+
+const STAFF_HEADS := {
+	"wooden_apprentice": {"name": "Wooden Apprentice Head", "shape": "apprentice", "slots": 0,
+		"desc": "Bolt, bolt, burst: a training staff."},
+	"tin_apprentice": {"name": "Tin Apprentice Head", "shape": "apprentice", "slots": 1,
+		"desc": "Bolt, bolt, burst: wood, shod with tin."},
+	"iron_apprentice": {"name": "Iron Apprentice Head", "shape": "apprentice", "slots": 2},
+	"iron_storm": {"name": "Iron Storm Head", "shape": "storm", "slots": 2},
+}
+const STAFF_HEAD_ORDER := ["iron_apprentice", "iron_storm"]
+
+const SHAFTS := {
+	"wooden_shaft": {"name": "Wooden Shaft", "slots": 1, "desc": "One slot."},
+	"tin_shaft": {"name": "Tin Shaft", "slots": 1, "desc": "One slot."},
+	"carved_shaft": {"name": "Carved Shaft", "slots": 2, "desc": "Two slots."},
+	"twisted_shaft": {"name": "Twisted Shaft", "slots": 3, "desc": "Three slots."},
+}
+const SHAFT_ORDER := ["wooden_shaft", "carved_shaft", "twisted_shaft"]
+
+## Caps: no slots, numbers only. The same four fixed test rolls as the pommels.
+const CAPS := {
+	"plain_cap": {"name": "Plain Cap", "desc": "No bonus.", "color": Color("#94a8b8")},
+	"keen_cap": {"name": "Keen Cap", "crit": 0.08, "desc": "+8% crit chance.", "color": Color("#78c0cc")},
+	"heavy_cap": {"name": "Heavy Cap", "crit_damage": 0.4, "desc": "+40% crit damage.", "color": Color("#cf8a48")},
+	"light_cap": {"name": "Light Cap", "speed": 0.1, "desc": "+10% cast speed.", "color": Color("#e8e4bc")},
+}
+const CAP_ORDER := ["plain_cap", "keen_cap", "heavy_cap", "light_cap"]
+
+## Crystals: the staff's damage. Three tiers that match wood, tin and iron, and
+## each tints the staff's bolts its own colour.
+const CRYSTALS := {
+	"sea_glass": {"name": "Sea Glass", "metal": "wood", "color": Color("#7fe6b4"),
+		"desc": "A shard off the beach: the lightest hit."},
+	"tin_crystal": {"name": "Tin-bound Crystal", "metal": "tin", "color": Color("#6ab8ff"),
+		"desc": "A crystal in a tin setting: a harder hit."},
+	"iron_crystal": {"name": "Iron-bound Crystal", "metal": "iron", "color": Color("#c090ff"),
+		"desc": "A crystal in an iron setting: the hardest hit so far."},
+}
+const CRYSTAL_ORDER := ["sea_glass", "tin_crystal", "iron_crystal"]
+
+
+## Everything about a staff's head in one place, like limb_info. `crystal` gives
+## the damage.
+static func staff_info(id: String, crystal: String) -> Dictionary:
+	var h: Dictionary = STAFF_HEADS[id]
+	var s: Dictionary = STAFF_SHAPES[h["shape"]]
+	var metal: String = CRYSTALS[crystal]["metal"] if CRYSTALS.has(crystal) else "wood"
+	return {
+		"name": h["name"], "shape": h["shape"], "shape_name": s["name"], "metal": metal,
+		"slots": int(h["slots"]), "element": "",
+		"chain": s["chain"],
+		"damage": float(METALS[metal]) * STAFF_DAMAGE * float(s["damage"]),
+		"speed": float(s["speed"]),
+		"reach": 1.0,
+		"range": STAFF_RANGE * float(s["range"]),
+		"flight": STAFF_FLIGHT,
+		"size": float(s["size"]),
+		"crit": float(s.get("crit", 0.0)),
+		"swing_move": float(s.get("swing_move", STAFF_MOVE)),
+		"desc": str(h.get("desc", s["desc"])),
+	}
+
+
+# --- The four weapons --------------------------------------------------------------
+
+const WEAPON_ORDER := ["sword", "bow", "hammer", "staff"]
+const WEAPON_NAMES := {"sword": "Sword", "bow": "Bow", "hammer": "Hammer", "staff": "Staff"}
+
+## What everyone starts with, and the arena's test weapons (the iron sword's match).
 const STARTERS := {
 	"sword": ["wooden_blade", "wooden_grip", "plain_pommel", [""]],
 	"bow": ["wooden_shortbow", "wooden_bow_grip", "plain_string", [""], "wooden_arrows"],
+	"hammer": ["wooden_maul", "wooden_haft", "plain_weight", [""]],
+	"staff": ["wooden_apprentice", "wooden_shaft", "plain_cap", [""], "sea_glass"],
 }
 const TEST_BOW := ["iron_shortbow", "wrapped_bow_grip", "plain_string", ["volley", "snipe", "arrow_rain", "ricochet"], "iron_arrows"]
+const TEST_HAMMER := ["iron_maul", "bound_haft", "plain_weight", ["", "", "", ""]]
+const TEST_STAFF := ["iron_apprentice", "carved_shaft", "plain_cap", ["", "", "", ""], "iron_crystal"]
 
 
-## Which weapon a blade or a pair of limbs makes: "sword" or "bow".
+## The parts of one weapon, by the place they take: its heads (a sword's blades, a
+## bow's limbs), its grips, its butts (pommels, strings, counterweights, caps) and,
+## for a bow or a staff, what it shoots (arrows, crystals).
+static func heads_of(kind: String) -> Dictionary:
+	match kind:
+		"bow": return LIMBS
+		"hammer": return HEADS
+		"staff": return STAFF_HEADS
+	return BLADES
+
+
+static func grips_of(kind: String) -> Dictionary:
+	match kind:
+		"bow": return BOW_GRIPS
+		"hammer": return HAFTS
+		"staff": return SHAFTS
+	return GRIPS
+
+
+static func butts_of(kind: String) -> Dictionary:
+	match kind:
+		"bow": return STRINGS
+		"hammer": return WEIGHTS
+		"staff": return CAPS
+	return POMMELS
+
+
+static func shots_of(kind: String) -> Dictionary:
+	match kind:
+		"bow": return ARROWS
+		"staff": return CRYSTALS
+	return {}
+
+
+## A bow and a staff fight from range and have a fourth part (arrows, a crystal).
+static func ranged(kind: String) -> bool:
+	return kind == "bow" or kind == "staff"
+
+
+## Which weapon a head makes: "sword", "bow", "hammer" or "staff".
 static func weapon_of(head: String) -> String:
-	return "bow" if LIMBS.has(head) else "sword"
+	for kind in WEAPON_ORDER:
+		if heads_of(kind).has(head):
+			return kind
+	return "sword"
 
 
-## A sword's blade or a bow's limbs: the part that sets the chain.
+## A sword's blade, a bow's limbs, a hammer's or a staff's head: the part that
+## sets the chain.
 static func head_part(id: String) -> Dictionary:
-	return LIMBS[id] if LIMBS.has(id) else BLADES[id]
+	return heads_of(weapon_of(id))[id]
 
 
-## A grip of either weapon.
+## A grip of any weapon.
 static func grip_part(id: String) -> Dictionary:
-	return BOW_GRIPS[id] if BOW_GRIPS.has(id) else GRIPS[id]
+	for kind in WEAPON_ORDER:
+		if grips_of(kind).has(id):
+			return grips_of(kind)[id]
+	return GRIPS[id]
 
 
-## A sword's pommel or a bow's string: the part that is numbers only.
+## A pommel, a string, a counterweight or a cap: the part that is numbers only.
 static func butt_part(id: String) -> Dictionary:
-	return STRINGS[id] if STRINGS.has(id) else POMMELS[id]
+	for kind in WEAPON_ORDER:
+		if butts_of(kind).has(id):
+			return butts_of(kind)[id]
+	return POMMELS[id]
 
 
 ## Everything about a bow's limbs in one place, like blade_info. `arrows` gives
@@ -474,10 +716,10 @@ func _refit(old_grip_slots: int) -> void:
 		line.append("" if x == null else x)
 
 
-## The four setters take a part of the weapon in the hand; a part of the other
+## The four setters take a part of the weapon in the hand; a part of another
 ## weapon is ignored (a blade doesn't go on a bow).
 func set_blade(id: String) -> void:
-	if LIMBS.has(id) != (weapon() == "bow") or not (LIMBS.has(id) or BLADES.has(id)):
+	if not heads_of(weapon()).has(id):
 		return
 	var old := grip_slots()
 	blade = id
@@ -486,7 +728,7 @@ func set_blade(id: String) -> void:
 
 
 func set_grip(id: String) -> void:
-	if BOW_GRIPS.has(id) != (weapon() == "bow") or not (BOW_GRIPS.has(id) or GRIPS.has(id)):
+	if not grips_of(weapon()).has(id):
 		return
 	var old := grip_slots()
 	grip = id
@@ -502,24 +744,26 @@ func set_slot(i: int, fitting: String) -> void:
 
 
 func set_pommel(id: String) -> void:
-	if STRINGS.has(id) != (weapon() == "bow") or not (STRINGS.has(id) or POMMELS.has(id)):
+	if not butts_of(weapon()).has(id):
 		return
 	pommel = id
 	changed.emit()
 
 
+## A bow's arrows or a staff's crystal.
 func set_arrows(id: String) -> void:
-	if weapon() != "bow" or not ARROWS.has(id):
+	if not shots_of(weapon()).has(id):
 		return
 	arrows = id
 	changed.emit()
 
 
 ## The whole weapon as plain values, to send to the other computer online. A
-## sword is [blade, grip, pommel, line]; a bow is [limbs, grip, string, line, arrows].
+## sword or a hammer is [head, grip, butt, line]; a bow or a staff has a fifth
+## value, its arrows or its crystal.
 func get_data() -> Array:
 	var out: Array = [blade, grip, pommel, line.duplicate()]
-	if weapon() == "bow":
+	if ranged(weapon()):
 		out.append(arrows)
 	return out
 
@@ -532,17 +776,21 @@ static func valid_data(data) -> bool:
 		return false
 	if not (data[0] is String and data[1] is String and data[2] is String):
 		return false
-	if LIMBS.has(data[0]):
-		if data.size() != 5 or not (data[4] is String) or not ARROWS.has(data[4]):
+	var kind := ""
+	for k in WEAPON_ORDER:
+		if heads_of(k).has(data[0]):
+			kind = k
+	if kind == "" or not (grips_of(kind).has(data[1]) and butts_of(kind).has(data[2])):
+		return false
+	if ranged(kind):
+		if data.size() != 5 or not (data[4] is String) or not shots_of(kind).has(data[4]):
 			return false
-		if not (BOW_GRIPS.has(data[1]) and STRINGS.has(data[2])):
-			return false
-	elif data.size() != 4 or not (BLADES.has(data[0]) and GRIPS.has(data[1]) and POMMELS.has(data[2])):
+	elif data.size() != 4:
 		return false
 	if data[3].size() != int(grip_part(data[1])["slots"]) + int(head_part(data[0])["slots"]):
 		return false
 	for id in data[3]:
-		if not (id is String) or (id != "" and not fits(id, weapon_of(data[0]))):
+		if not (id is String) or (id != "" and not fits(id, kind)):
 			return false
 	return true
 
@@ -1008,12 +1256,18 @@ static func abilities(effects: Array) -> Array:
 	return out
 
 
-## Everything the player needs, as one plain dictionary. A bow gives the same
-## things as a sword ("blade" is its limbs, "pommel" its string), and also
-## "arrows", "range" and "flight".
+## Everything the player needs, as one plain dictionary. Every weapon gives the
+## same things ("blade" is its head, "pommel" its butt); a bow and a staff also
+## give "arrows" (the arrows or the crystal), "range" and "flight", a hammer its
+## "impact" and a staff its spell "size".
 func compute() -> Dictionary:
-	var bow := weapon() == "bow"
-	var b := limb_info(blade, arrows) if bow else blade_info(blade)
+	var kind := weapon()
+	var b: Dictionary
+	match kind:
+		"bow": b = limb_info(blade, arrows)
+		"hammer": b = hammer_info(blade)
+		"staff": b = staff_info(blade, arrows)
+		_: b = blade_info(blade)
 	var g: Dictionary = grip_part(grip)
 	var butt: Dictionary = butt_part(pommel)
 	var steps: Array = []
@@ -1028,7 +1282,7 @@ func compute() -> Dictionary:
 	if element != "":
 		hit_color = ELEMENT_COLORS[element]
 	var out := {
-		"weapon": weapon(),
+		"weapon": kind,
 		"blade": blade,
 		"shape": b["shape"],
 		"grip": grip,
@@ -1051,10 +1305,15 @@ func compute() -> Dictionary:
 		"combos": [],
 		"hit_color": hit_color,
 	}
-	if bow:
+	if ranged(kind):
 		out["arrows"] = arrows
 		out["range"] = float(b["range"])
 		out["flight"] = float(b["flight"])
+	if kind == "hammer":
+		out["impact"] = float(b["impact"])
+	if kind == "staff":
+		out["size"] = float(b["size"])
+		out["hit_color"] = CRYSTALS[arrows]["color"] if CRYSTALS.has(arrows) else Color.WHITE
 	return out
 
 
