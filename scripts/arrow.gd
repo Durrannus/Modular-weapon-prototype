@@ -51,6 +51,11 @@ var bounce := {}               # Ricochet: what its next jump is like ({jumps, r
 var bolt := ""
 var splash := 0.0              # a burst or an orb: it hurts everything this near where it stops
 var quiet := false             # one of a spray's side sparks: it sets no rune off
+var halo := ""                 # Overflow: a strip drawn round the bolt as it flies ("overflow_glow")
+var big := 1.0                 # Overflow: the bolt is drawn this much bigger
+## A Spectre's copy of an arrow or a bolt (15 November): the share of the real one
+## it is worth (0 for a real one). It is drawn in the ghost's colour.
+var copy := 0.0
 var flown := 0.0
 var hit_flown := 0.0           # how far it had flown when it last hit someone (Snipe counts it)
 var flying := true
@@ -205,9 +210,28 @@ func _draw_bolt() -> void:
 	var frame := int(Time.get_ticks_msec() / 1000.0 * float(info.get("fps", 16))) % n
 	var fw := float(tex.get_width()) / n
 	var o: Array = info.get("origin", [fw - 4.0, tex.get_height() * 0.5])
-	draw_set_transform(HEIGHT, 0.0 if bolt == "orb" else dir.angle(), Vector2(Art.PIXEL, Art.PIXEL))
+	draw_set_transform(HEIGHT, 0.0 if bolt == "orb" else dir.angle(), Vector2(Art.PIXEL, Art.PIXEL) * big)
 	draw_texture_rect_region(tex, Rect2(-float(o[0]), -float(o[1]), fw, tex.get_height()), Rect2(frame * fw, 0, fw, tex.get_height()), color)
+	_draw_halo()
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+
+
+## Overflow's halo round a bolt cast on full mana: the art's own colours, turned
+## with the bolt.
+func _draw_halo() -> void:
+	if halo == "":
+		return
+	var tex := BowArt.fx_texture(halo)
+	var info := BowArt.fx(halo)
+	if tex == null or info.is_empty():
+		draw_arc(Vector2.ZERO, 9.0, 0.0, TAU, 16, Color(0.42, 0.72, 1.0, 0.8), 1.5)
+		return
+	var n := maxi(int(info.get("frames", 4)), 1)
+	var frame := int(Time.get_ticks_msec() / 1000.0 * float(info.get("fps", 16))) % n
+	var fw := float(tex.get_width()) / n
+	var o: Array = info.get("origin", [fw * 0.5, tex.get_height() * 0.5])
+	draw_set_transform(HEIGHT, dir.angle(), Vector2(Art.PIXEL, Art.PIXEL) * big)
+	draw_texture_rect_region(tex, Rect2(-float(o[0]), -float(o[1]), fw, tex.get_height()), Rect2(frame * fw, 0, fw, tex.get_height()))
 
 
 ## The streak behind it: the art's strip if there is one, else a plain pale line.
@@ -250,6 +274,8 @@ func _draw_trail() -> void:
 ## A rune's arrow has the usual streak in the rune's colour (the strips drawn for
 ## one rune, like Snipe's, are that colour already).
 func _streak_tint() -> Color:
+	if copy > 0.0 and bolt == "":
+		return Color(color.r, color.g, color.b, 0.7)
 	if bolt != "":
 		return Color(color.r, color.g, color.b, 0.8)
 	if rune == "" or streak != "":

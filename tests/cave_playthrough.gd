@@ -2,7 +2,7 @@ extends SceneTree
 ## Plays the tutorial cave from start to finish with scripted players, to prove
 ## the whole run works: crate, crawlers, burrowers, the rune, the forge, the
 ## guardian, the smith, the tin sword or bow and the stairs.
-##   godot --headless --path . --fixed-fps 60 -s tests/cave_playthrough.gd -- [players=2] [bow] [shots] [mortal]
+##   godot --headless --path . --fixed-fps 60 -s tests/cave_playthrough.gd -- [players=2] [bow] [shots] [mortal] [limit=<seconds of game time>]
 ## "bow": player one takes the bow from the crate (player two, if there is one,
 ## the sword). "bows": everyone takes the bow. "swap": player one takes the sword,
 ## then goes back to the crate after room 1 and swaps it for the bow.
@@ -20,6 +20,7 @@ var m
 var n_players := 1
 var shots := false
 var mortal := false
+var limit := 60 * 12           # seconds of game time before it gives up ("limit=200" for less)
 var test_wipe := false
 var test_down := false
 var weapons: Array = []     # what each bot takes from the crate
@@ -50,6 +51,8 @@ func _init() -> void:
 			shots = true
 			if a.begins_with("shots="):
 				shot_dir = a.split("=")[1].rstrip("/") + "/"
+		elif a.begins_with("limit="):
+			limit = int(a.substr(6))
 		elif a == "mortal":
 			mortal = true
 		elif a == "wipe":
@@ -293,11 +296,12 @@ func _tick() -> void:
 	if finished:
 		_done(true)
 		return
-	if frame > 60 * 60 * 12:
+	if frame > 60 * limit:
 		print("FAIL: ran out of time in stage '%s'" % m.stage)
 		for i in m.players.size():
 			var q = m.players[i]
 			print("  P%d at tile %s down=%s frozen=%s weapon=%s owned=%s" % [i + 1, str((q.global_position / m.TILE).snapped(Vector2(0.1, 0.1))), str(q.is_down), str(q.frozen), str(m.builds[i].get_data()), str(m.owned[i])])
+			print("     pressing %s, moving %s, step %d, hold %d, dodge %.2f, stuck %s" % [str(_inp(i).move.snapped(Vector2(0.01, 0.01))), str(q.velocity.snapped(Vector2(0.1, 0.1))), q.current_step, q.hold_button, q.dodge_timer, str(stuck.get(i, []))])
 		print("  forge open=%s forging=%d busy=%s forge_step=%d" % [str(m.build_menu.is_open), m.forging, str(m.ui.busy()), forge_step])
 		_done(false)
 		return
@@ -424,7 +428,14 @@ func _forge_stage(stage: String) -> void:
 			who = i
 			break
 	for i in m.players.size():
-		if i != who:
+		if i == who:
+			continue
+		# Whoever isn't at the forge waits, but inside the forge room: left behind
+		# in room 3, the shared screen would hold the other one back from the forge
+		# (nobody can get further from their partner than one screen).
+		if m.players[i].global_position.y > 17.0 * T:
+			_go(i, Vector2(20.5 * T + (float(i) - float(m.players.size() - 1) * 0.5) * 40.0, 16.0 * T), 14.0)
+		else:
 			_inp(i).move = Vector2.ZERO
 	if _go(who, Vector2(20.5, 7.75) * T, 22.0) and frame % 10 == 0:
 		forge_step = 0

@@ -327,7 +327,11 @@ func _draw_abilities(p, right: bool, x: float, y: float, block_w: float) -> void
 		var out_left := clampf(float(p.bulwark_left) / maxf(float(p.bulwark_total), 0.1), 0.0, 1.0) if shield_out else 0.0
 		if ghost_out:
 			out_left = clampf(float(p.ghost_left) / maxf(float(p.ghost_total), 0.1), 0.0, 1.0)
-		ghost_out = ghost_out or shield_out
+		# Spectre the same, while the ghost you called is out (with you or a teammate).
+		var spectre_left: float = p.spectre_out() if a["id"] == "spectre" else 0.0
+		if spectre_left > 0.0:
+			out_left = spectre_left
+		ghost_out = ghost_out or shield_out or spectre_left > 0.0
 		var dim := Color.WHITE if ready or ghost_out else Color(0.55, 0.55, 0.6)
 		if glyph != null:
 			panel.draw_texture(glyph, Vector2(sx + 4, y + 4), dim)

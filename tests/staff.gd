@@ -13,8 +13,10 @@ const BowArt := preload("res://scripts/weapon/bow_art.gd")
 const Player := preload("res://scripts/player.gd")
 const Art := preload("res://scripts/art.gd")
 
-## The runes the forge offers a staff (none until they are built).
-const RUNES := []
+## The runes the forge offers a staff (tests/staff_runes.gd has what they do).
+const RUNES := ["orbit", "chain", "overflow", "nova", "lance", "spectre"]
+## The arena's staff comes with runes: the sums here are done with a bare one.
+const BARE := ["iron_apprentice", "carved_shaft", "plain_cap", ["", "", "", ""], "iron_crystal"]
 
 var m
 var p
@@ -259,7 +261,7 @@ func _run() -> void:
 	for i in tray.size():
 		if tray[i]["id"] in ["iron_storm", "twisted_shaft", "heavy_cap", "tin_crystal"]:
 			forge._use_card(i)
-	_check(m.build.get_data() == ["iron_storm", "twisted_shaft", "heavy_cap", ["", "", "", "", ""], "tin_crystal"], "clicking a head, a shaft, a cap and a crystal fits them: %s" % [m.build.get_data()])
+	_check(m.build.get_data() == ["iron_storm", "twisted_shaft", "heavy_cap", ["nova", "lance", "", "spectre", "chain"], "tin_crystal"], "clicking a head, a shaft, a cap and a crystal fits them, and the runes stay in their slots: %s" % [m.build.get_data()])
 	_check(_near(float(p.weapon["damage"]), 8.0 * 0.8 * 0.9) and _near(float(p.weapon["range"]), 280.0) and p.weapon["steps"][2]["move"] == "orb", "and the staff in your hand is that storm staff: 5.76 a spark's worth, 280 px, ending in an orb")
 	_check(p.weapon.get("hit_color") == Color("#6ab8ff"), "casting in the tin crystal's blue")
 	forge._load_test("A")
@@ -280,7 +282,7 @@ func _run() -> void:
 	await _frames(2)
 	_check(m.build.get_data() == staff_b and m.build.preset == 1 and m.build.preset_sword(0) == staff_a, "back on the staff: still on its preset B, with A waiting")
 	m.build.use_preset(0)
-	m.build.set_data(test_staff)
+	m.build.set_data(BARE)
 	m.build.changed.emit()
 	await _still()
 
@@ -548,7 +550,7 @@ func _run() -> void:
 	_check(absf(staff_dps / bow_dps - 1.0) < 0.1, "and about what the iron shortbow does (%.1f): the staff reaches less far and its burst spreads" % bow_dps)
 	m.swap_weapon(0, "staff")
 	await _frames(2)
-	_check(m.build.get_data() == test_staff, "back on the staff it is as it was")
+	_check(m.build.get_data() == BARE, "back on the staff it is as it was")
 
 	print("RESULT: %s (%d failed)" % ["all passed" if fails == 0 else "FAILED", fails])
 	quit(1 if fails > 0 else 0)

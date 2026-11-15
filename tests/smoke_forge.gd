@@ -84,7 +84,29 @@ func _init() -> void:
 			["wider", "saved_up", "on_dodge", "momentum", "quake"],
 			["wider", "saved_up", "on_dodge", "stagger", "bulwark"],
 		])
-	await _check_other(forge, main, "staff", [["iron_storm", "twisted_shaft"], ["wooden_apprentice", "wooden_shaft"], ["iron_apprentice", "carved_shaft"]])
+	await _check_other(forge, main, "staff", [["iron_storm", "twisted_shaft"], ["wooden_apprentice", "wooden_shaft"], ["iron_apprentice", "carved_shaft"]],
+		["orbit", "chain", "overflow", "nova", "lance", "spectre"], [
+			["nova", "lance", "spectre", "chain", "orbit"],
+			["nova", "lance", "spectre", "overflow", "orbit"],
+			["on_dodge", "lance", "every_hit", "nova", "spectre"],
+			["saved_up", "lance", "on_dodge", "nova", "chain"],
+			["twice", "nova", "every_hit", "spectre", "overflow"],
+			["on_dodge", "wider", "orbit", "every_hit", "chain"],
+			["saved_up", "orbit", "on_dodge", "overflow", "chain"],
+			["every_hit", "saved_up", "chain", "on_dodge", "overflow"],
+			["wider", "on_dodge", "lance", "every_hit", "nova"],
+			["on_dodge", "nova", "on_dodge", "lance", "spectre"],
+			["every_hit", "saved_up", "on_dodge", "lance", "nova"],
+			["twice", "wider", "saved_up", "on_dodge", "orbit"],
+			["twice", "wider", "saved_up", "on_dodge", "chain"],
+			["twice", "wider", "saved_up", "on_dodge", "overflow"],
+			["twice", "every_hit", "saved_up", "on_dodge", "overflow"],
+			["twice", "wider", "saved_up", "on_dodge", "lance"],
+			["twice", "wider", "saved_up", "on_dodge", "nova"],
+			["twice", "wider", "saved_up", "on_dodge", "spectre"],
+			["wider", "saved_up", "on_dodge", "orbit", "nova"],
+			["wider", "saved_up", "on_dodge", "overflow", "spectre"],
+		])
 	forge._set_tab(0)
 	for i in forge._cards().size():
 		forge._use_card(i)

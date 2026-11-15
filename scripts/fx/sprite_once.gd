@@ -26,6 +26,7 @@ var fade_out := false
 var wait := 0.0           # > 0: stay hidden this long before playing (a row of bursts going off in turn)
 var hold := 0.0           # > 0: once the strip has played, its last frame stays this long and fades
 var fade_tail := 0.0      # > 0 (with life): it fades out over this many of its last seconds
+var backwards := false    # the strip plays from its last frame to its first (something leaving the way it came)
 var t := 0.0
 
 
@@ -68,6 +69,8 @@ func _frame() -> int:
 	var frame := int(t * fps)
 	if life <= 0.0:
 		frame = mini(frame, frames - 1)
+	if backwards:
+		frame = frames - 1 - posmod(frame, frames)
 	return frame
 
 

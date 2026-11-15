@@ -337,6 +337,22 @@ func _ready() -> void:
 	under_bright.material = Art.unshaded()
 	add_child(under_bright)
 	under_bright.draw.connect(_draw_ring)
+	# Orbit's orbs go round you: behind the body on one layer, in front on another.
+	staff_back = _glow_layer()
+	staff_back.show_behind_parent = true
+	staff_back.draw.connect(_draw_orbs.bind(staff_back, false))
+	# A Spectre: your body and weapon again, beside you (see "The staff's runes").
+	spectre_group = CanvasGroup.new()
+	spectre_group.name = "Spectre"
+	var spectre_mat := ShaderMaterial.new()
+	spectre_mat.shader = GHOST_SHADER
+	spectre_group.material = spectre_mat
+	spectre_group.fit_margin = 24.0
+	spectre_group.visible = false
+	add_child(spectre_group)
+	spectre_layer = Node2D.new()
+	spectre_group.add_child(spectre_layer)
+	spectre_layer.draw.connect(_draw_spectre)
 	rim = Node2D.new()
 	rim.material = Art.unshaded()
 	add_child(rim)
@@ -373,6 +389,8 @@ func _ready() -> void:
 	weapon_layer = Node2D.new()
 	weapon_group.add_child(weapon_layer)
 	weapon_layer.draw.connect(_draw_weapon)
+	staff_front = _glow_layer()
+	staff_front.draw.connect(_draw_orbs.bind(staff_front, true))
 	# A small cool light that follows the player, so they read in the darkest corner.
 	light = PointLight2D.new()
 	var stepped := Art.stepped_light(64)
@@ -382,6 +400,17 @@ func _ready() -> void:
 	light.color = Color(0.85, 0.92, 1.0)
 	light.position = Vector2(0, -10)
 	add_child(light)
+
+
+## A layer of your own that glows: added on top of the picture and never dimmed.
+func _glow_layer() -> Node2D:
+	var n := Node2D.new()
+	var add := CanvasItemMaterial.new()
+	add.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	add.light_mode = CanvasItemMaterial.LIGHT_MODE_UNSHADED
+	n.material = add
+	add_child(n)
+	return n
 
 
 func set_weapon(stats: Dictionary) -> void:
@@ -404,6 +433,11 @@ func set_weapon(stats: Dictionary) -> void:
 	_drop_momentum()
 	rumbles.clear()
 	_end_bulwark(true)
+	overflow_rune = _overflow_rune()
+	_drop_overflow()
+	orbs.clear()
+	spectre_swings.clear()
+	spectre_shots.clear()
 	cast_weak = false
 	dodge_arrow = false
 	snipe_button = -1
@@ -440,12 +474,16 @@ func _physics_process(delta: float) -> void:
 	_update_momentum(delta)
 	_update_bulwark(delta)
 	_update_mana(delta)
+	_run_orbs()
+	_run_spectre(delta)
 	if is_down:
 		_stop_hold(true)
 		snipe_button = -1
 		_drop_steady()
 		_drop_momentum()
 		_end_bulwark(true)
+		_drop_overflow()
+		orbs.clear()
 		_refill_abilities(delta)
 		walk_vel = Vector2.ZERO
 		hurt_vel = hurt_vel.move_toward(Vector2.ZERO, 1800.0 * delta)
@@ -457,12 +495,13 @@ func _physics_process(delta: float) -> void:
 	_update_facing(delta, move)
 	_update_dodge(delta, move)
 	_update_abilities(delta)
+	_update_lance()
 
 	# Walking: a few frames to get going and to stop, so it has weight without lag.
 	var speed := MOVE_SPEED * (1.0 + float(weapon.get("move_speed", 0.0)))
 	var target := move * speed
 	if hold_button >= 0:
-		target *= HOLD_MOVE
+		target *= SwingBuild.LANCE_MOVE if _beaming() else HOLD_MOVE
 	elif snipe_button >= 0:
 		target *= SwingBuild.SNIPE_MOVE
 	elif current_step >= 0:
@@ -571,6 +610,7 @@ func _update_dodge(delta: float, move: Vector2) -> void:
 		dodge_started = game_time
 		dodge_from = global_position
 		dodge_arrow = true
+		overflow_dodge = true
 		_dust(global_position + FEET)
 		Sfx.play(self, "dodge", -12.0)
 		_trigger("dodge", [])
@@ -797,6 +837,12 @@ func _do_move(move: String) -> void:
 		for n in ghost_count:
 			ghost_swings.append({"at": game_time + GHOST_DELAY + n * GHOST_GAP, "move": move, "dir": dir,
 				"side": -swing_side if n % 2 == 0 else swing_side, "finisher": finisher, "fired": fired})
+	# A Spectre with you does the same, whatever you swing (see "The staff's runes").
+	if spectre_left > 0.0:
+		for n in spectre_count:
+			spectre_swings.append({"at": game_time + SwingBuild.SPECTRE_DELAY + float(n) * SwingBuild.SPECTRE_GAP, "move": move, "dir": dir,
+				"side": -swing_side if n % 2 == 0 else swing_side, "finisher": finisher, "fired": fired,
+				"power": spectre_power, "dmg": dmg, "spectre": true})
 
 
 const FINISHER_PAUSE := 0.07
@@ -837,9 +883,11 @@ func _loose(info: Dictionary) -> void:
 		snap.follow_offset = pose_hand
 	Sfx.play(self, "bow", -5.0 if a.heavy else -9.0, 0.8 if a.heavy else 1.0)
 	squash = Vector2(1.06, 0.95) if a.heavy else Vector2(1.03, 0.98)
+	var fired: Array = []
 	if finisher:
 		shake = maxf(shake, 2.5)
-		_trigger("finisher", [])
+		fired = _trigger("finisher", [])
+	_spectre_copies(a, fired)
 
 
 ## One of your arrows hit an enemy (called by the arrow, on the tick it lands).
@@ -854,22 +902,26 @@ func arrow_hit(a, e) -> void:
 	if a.rune != "":
 		_rune_arrow_hit(a, e, dmg)
 		return
-	_hit_enemy(e, dmg, a.dir, a.knock, a.stun, a.freeze, {}, false, a)
+	# (copied: a Spectre's copy of an arrow. It hits in the ghost's colour and sets
+	# your passive runes off at its share, but it is no arrow of yours: no time off
+	# a recharge for it, and nothing for Steady Aim.)
+	var copied: bool = float(a.copy) > 0.0
+	_hit_enemy(e, dmg, a.dir, a.knock, a.stun, a.freeze, {}, copied, a)
 	Sfx.play(self, "hit", -6.0 if a.heavy else -9.0, 1.0 if a.heavy else 1.25)
-	if a.heavy:
+	if a.heavy and not copied:
 		shake = maxf(shake, float(MOVES["heavy_shot"].get("shake", 6.0)))
 	# Runes belong to the bow that loosed it: an arrow still in the air when you
 	# changed weapon is only an arrow.
 	if a.stamp != weapon_stamp:
 		return
-	if a.through == 0:
+	if a.through == 0 and not copied:
 		# Once for each arrow, however many enemies it goes on through.
 		if a.pierce > 0:
 			_label("PIERCE!", SwingBuild.FITTINGS["pierce"]["color"])
 		_hit_refund()
 		if steady_rune.get("per_hit", false):
 			_add_steady(SwingBuild.STEADY_HIT)
-	_trigger("hit", [e])
+	_trigger("hit", [e], _copy_ghost(a))
 	_ricochet(a, e, dmg)
 
 
@@ -908,35 +960,43 @@ func _cast(info: Dictionary) -> void:
 	anim_dir = dir
 	var finisher := current_step == _steps().size() - 1 and _steps().size() > 1
 	var weak := cast_weak
+	# Overflow: a cast made on full mana (before it is paid for) is a bigger one.
+	var over := _overflow_cast(mana_full())
 	if weak:
 		mana_denied = game_time
 	else:
 		mana = maxf(mana - _cast_cost(info), 0.0)
 	mana_rest = 0.0
-	var power := float(info["power"]) * (SwingBuild.MANA_WEAK if weak else 1.0)
+	var power := float(info["power"]) * (SwingBuild.MANA_WEAK if weak else 1.0) * float(over["damage"])
 	var kind := "spark" if weak else str(info["bolt"])
+	var made: Array = []
 	if kind == "spray":
 		# Three sparks in a fan. The middle one is the cast as far as runes go.
 		for i in 3:
-			var spark := _bolt("spark", dir.rotated(float(i - 1) * SwingBuild.SPRAY_SPREAD), power * SwingBuild.SPRAY_DAMAGE, info, finisher)
+			var spark := _bolt("spark", dir.rotated(float(i - 1) * SwingBuild.SPRAY_SPREAD), power * SwingBuild.SPRAY_DAMAGE, info, finisher, over)
 			spark.quiet = i != 1
+			made.append(spark)
 	else:
-		_bolt(kind, dir, power, info, finisher)
+		made.append(_bolt(kind, dir, power, info, finisher, over))
 	var heavy: bool = info.get("big", false) and not weak
 	var flash := _strip("cast_flash", _crystal_world(), dir.angle(), 1.4 if heavy else 1.0)
 	if flash != null:
 		flash.modulate = weapon.get("hit_color", Color.WHITE)
 	Sfx.play(self, "cast", -7.0 if heavy else -11.0, (0.75 if heavy else 1.0) * (1.3 if weak else 1.0))
 	squash = Vector2(1.05, 0.96) if heavy else Vector2(1.02, 0.99)
+	var fired: Array = []
 	if finisher:
 		shake = maxf(shake, 2.5)
-		_trigger("finisher", [])
+		fired = _trigger("finisher", [])
+	for b in made:
+		_spectre_copies(b, fired)
 
 
 ## One bolt on its way. kind: "bolt", "burst" (it bursts where it lands), "spark"
 ## (small and weak) or "orb" (slow, and it bursts wide).
-func _bolt(kind: String, dir: Vector2, power: float, info: Dictionary, finisher: bool) -> Node2D:
-	var size := float(weapon.get("size", 1.0))
+## over: what Overflow does to it (see _overflow_cast).
+func _bolt(kind: String, dir: Vector2, power: float, info: Dictionary, finisher: bool, over: Dictionary = {}) -> Node2D:
+	var size := float(weapon.get("size", 1.0)) * float(over.get("size", 1.0))
 	var a := Arrow.new()
 	a.shooter = self
 	a.stamp = weapon_stamp
@@ -958,6 +1018,9 @@ func _bolt(kind: String, dir: Vector2, power: float, info: Dictionary, finisher:
 		a.splash = SwingBuild.BURST_RADIUS * size
 	elif kind == "orb":
 		a.splash = SwingBuild.ORB_RADIUS * size
+	a.big = float(over.get("size", 1.0))
+	if over.get("glow", false):
+		a.halo = "overflow_glow"
 	get_parent().add_child(a)
 	a.global_position = global_position
 	a.reset_physics_interpolation()
@@ -966,16 +1029,20 @@ func _bolt(kind: String, dir: Vector2, power: float, info: Dictionary, finisher:
 
 ## One of your bolts hit an enemy.
 func _bolt_hit(a, e) -> void:
-	_hit_enemy(e, a.damage, a.dir, a.knock, a.stun, a.freeze, {}, false, a)
+	var at: Vector2 = e.global_position
+	var copied: bool = float(a.copy) > 0.0   # a Spectre's copy of a bolt (see arrow_hit)
+	_hit_enemy(e, a.damage, a.dir, a.knock, a.stun, a.freeze, {}, copied, a)
 	Sfx.play(self, "hit", -6.0 if a.heavy else -10.0, 1.1 if a.heavy else 1.4)
 	var hits: Array = [e]
 	if a.splash > 0.0:
-		hits.append_array(_bolt_burst(a, e.global_position, {e.get_instance_id(): true}))
+		hits.append_array(_bolt_burst(a, at, {e.get_instance_id(): true}))
 	# Runes belong to the staff that cast it, and a spray counts once.
 	if a.stamp != weapon_stamp or a.rune != "" or a.quiet:
 		return
-	_hit_refund()
-	_trigger("hit", hits)
+	if not copied:
+		_hit_refund()
+	_trigger("hit", hits, _copy_ghost(a))
+	_chain_bolt(a, at, hits)
 
 
 ## One of your bolts stopped in a wall or at the end of its reach.
@@ -983,8 +1050,11 @@ func _bolt_spent(a) -> void:
 	if a.splash > 0.0:
 		var hits := _bolt_burst(a, a.global_position, {})
 		if not hits.is_empty() and a.stamp == weapon_stamp and a.rune == "" and not a.quiet:
-			_hit_refund()
-			_trigger("hit", hits)
+			var first: Vector2 = hits[0].global_position
+			if float(a.copy) <= 0.0:
+				_hit_refund()
+			_trigger("hit", hits, _copy_ghost(a))
+			_chain_bolt(a, first, hits)
 		return
 	var fizz := _strip("bolt_hit", a.global_position + Arrow.HEIGHT, a.dir.angle(), 0.7)
 	if fizz != null:
@@ -1002,7 +1072,7 @@ func _bolt_burst(a, at: Vector2, skip: Dictionary) -> Array:
 		var rel: Vector2 = e.global_position - at
 		if rel.length() > float(a.splash) + float(e.radius):
 			continue
-		_hit_enemy(e, a.damage, rel.normalized() if rel.length() > 1.0 else a.dir, a.knock, a.stun, a.freeze, {}, false, a)
+		_hit_enemy(e, a.damage, rel.normalized() if rel.length() > 1.0 else a.dir, a.knock, a.stun, a.freeze, {}, float(a.copy) > 0.0, a)
 		caught.append(e)
 	var orb: bool = a.bolt == "orb"
 	var name := "orb_hit" if orb else "burst_hit"
@@ -1063,13 +1133,16 @@ func _repeat_gap(id: String, why: String) -> float:
 			return SwingBuild.AFTERSHOCK_GAP
 		"quake":
 			return SwingBuild.QUAKE_GAP
+		"nova":
+			return SwingBuild.NOVA_GAP
 	return REPEAT_GAP
 
 
 ## Runes whose Twice is one bigger firing, not two firings: Weak Point (two marks),
-## Ricochet (two jumps), Bulwark (the stun lasts twice as long).
+## Ricochet (two jumps), Bulwark (the stun lasts twice as long), Chain (twice as
+## many jumps), Spectre (two copies of each attack).
 static func _fires_once(id: String) -> bool:
-	return id in ["weak_point", "ricochet", "bulwark"]
+	return id in ["weak_point", "ricochet", "bulwark", "chain", "spectre"]
 
 
 ## Pierce and Steady Aim's burst change an arrow of the chain as it leaves the bow.
@@ -1786,6 +1859,709 @@ func _bulwark_block(from: Vector2) -> void:
 	_label("BLOCKED!", col)
 
 
+# --- The staff's runes ---------------------------------------------------------------
+# Orbit, Chain and Overflow are passive; Nova, Lance and Spectre go on the ability
+# buttons. Overflow doesn't "fire": it changes the bolts you cast on full mana.
+# Chain goes off where the finisher's bolt lands, not as it is cast. What a rune
+# hits (an orb's strike, a jump of lightning, a ring, the beam) never crits and
+# sets nothing else off. The buttons run on their own recharge, not on mana.
+
+var overflow_rune := {}       # what the staff's Overflow runes come to ({} with none): see _overflow_rune
+var overflow_left := 0        # casts that still get it (Twice: the one after the full one too)
+var overflow_count := 0       # Saved Up: full-mana casts counted towards the big one
+var overflow_dodge := false   # the next cast is the first one since a dodge
+var overflow_said := -9.0     # game_time "OVERFLOW!" was last written
+var overflow_aura: Node2D = null   # the sign at the crystal while mana is full
+var orbs: Array = []          # Orbit's orbs circling you, oldest first: [{until, dmg, reach, col}]
+var orb_struck := -9.0        # game_time an orb last struck
+var chain_jumps := 0          # Chain: every jump its lightning has made (both computers must count the same)
+var lance_at := Vector2.ZERO  # where the beam ends this tick, in the world
+var lance_on = null           # the enemy it is burning into (null: a wall, or nothing)
+var lance_wall := false       # it ends on a wall
+var lance_stage := 1          # its strength: 1 to 3
+var lance_size := 1.0         # Wider: a thicker beam
+var lance_fx: Node2D = null   # the beam's picture
+var spectre_left := 0.0       # seconds a Spectre has left with you (0: none)
+var spectre_total := 1.0      # how long this one was called for (the HUD's bar)
+var spectre_power := 0.5      # what its copies do, as a share of the attack they copy
+var spectre_count := 1        # copies of each attack (Twice: two)
+var spectre_by: Node2D = null # whose rune it is: you, or a teammate with a staff
+var spectre_stamp := 0        # that player's weapon when they called it
+var spectre_on: Node2D = null # the caster's side: who has your Spectre now
+var spectre_shots: Array = [] # its copies of your arrows and bolts, on their way: [{at, arrow, fired, power, stamp}]
+var spectre_swings: Array = []   # its copies of your swings, on their way (as ghost_swings, with their own "power")
+var spectre_born := -9.0
+var spectre_gone := -9.0
+var spectre_group: CanvasGroup   # the ghost's picture: your body and weapon again, see-through
+var spectre_layer: Node2D
+var spectre_offset := Vector2(-20, -8)   # where the ghost stands, from you (what is on screen)
+var staff_back: Node2D        # the orbs when they pass behind you...
+var staff_front: Node2D       # ...and in front
+const ORBIT_CENTRE := Vector2(0, -4)
+const MANA_FULL := 0.01       # mana within this of the top counts as full
+
+
+## What the staff's Overflow runes come to together ({} with none).
+##   bonus: how much harder a bolt cast on full mana hits (0.3 is +30%)
+##   size: Wider, bigger still    casts: Twice, the bolt after it too
+##   every: Saved Up, only every so many full-mana casts
+##   per_hit: Every Hit, what every other bolt gets (half of one rune's bonus)
+##   dodge: the first bolt after a dodge counts as cast on full mana
+func _overflow_rune() -> Dictionary:
+	var out := {}
+	var effects: Array = weapon.get("effects", [])
+	for i in effects.size():
+		var e: Dictionary = effects[i]
+		if e["id"] != "overflow":
+			continue
+		if out.is_empty():
+			out = {"bonus": 0.0, "size": 1.0, "casts": 1, "every": 1, "per_hit": 0.0, "dodge": false, "effects": []}
+		out["bonus"] = float(out["bonus"]) + SwingBuild.OVERFLOW_DAMAGE * maxf(float(e.get("power", 1.0)), 1.0)
+		if e.get("per_hit", false):
+			out["per_hit"] = float(out["per_hit"]) + SwingBuild.OVERFLOW_DAMAGE * SwingBuild.EVERY_HIT_POWER
+		out["size"] = maxf(float(out["size"]), float(e["size"]))
+		out["casts"] = maxi(int(out["casts"]), int(e["count"]))
+		out["every"] = maxi(int(out["every"]), int(e.get("every", 1)))
+		out["dodge"] = out["dodge"] or "dodge" in e.get("also", [])
+		out["effects"].append(i)
+	return out
+
+
+func mana_full() -> bool:
+	return mana >= SwingBuild.MANA - MANA_FULL
+
+
+## A cast is leaving the staff. full: mana was full before it was paid for.
+## Returns what Overflow does to it: {damage, size (both to multiply by), glow}.
+func _overflow_cast(full: bool) -> Dictionary:
+	var out := {"damage": 1.0, "size": 1.0, "glow": false}
+	if overflow_rune.is_empty():
+		return out
+	var after_dodge: bool = overflow_dodge and overflow_rune["dodge"]
+	overflow_dodge = false
+	if full or after_dodge:
+		var every := int(overflow_rune["every"])
+		overflow_count += 1
+		if every <= 1 or overflow_count % every == 0:
+			overflow_left = int(overflow_rune["casts"])
+	if overflow_left > 0:
+		overflow_left -= 1
+		out["damage"] = 1.0 + float(overflow_rune["bonus"])
+		out["size"] = 1.0 + SwingBuild.OVERFLOW_SIZE * float(overflow_rune["size"])
+		out["glow"] = true
+		for i in overflow_rune["effects"]:
+			_flash_effect(i)
+		if game_time - overflow_said > 1.5:
+			overflow_said = game_time
+			_label("OVERFLOW +%d%%!" % roundi(float(overflow_rune["bonus"]) * 100.0), SwingBuild.FITTINGS["overflow"]["color"])
+	else:
+		out["damage"] = 1.0 + float(overflow_rune["per_hit"])
+	return out
+
+
+func _drop_overflow() -> void:
+	overflow_left = 0
+	overflow_count = 0
+	overflow_dodge = false
+
+
+## The sign at the crystal while mana is full (only with the rune): it says the
+## next bolt is an Overflow one.
+func _update_overflow_aura() -> void:
+	var on := not overflow_rune.is_empty() and _is_staff() and mana_full() and not is_down and weapon_group.visible and visible
+	if on and not is_instance_valid(overflow_aura):
+		overflow_aura = _strip("overflow_aura", _crystal_world())
+		if overflow_aura != null:
+			overflow_aura.life = 100000.0
+			overflow_aura.follow = self
+	elif not on and is_instance_valid(overflow_aura):
+		overflow_aura.queue_free()
+		overflow_aura = null
+	if is_instance_valid(overflow_aura):
+		overflow_aura.follow_offset = _crystal_world() - global_position
+
+
+## Orbit: one more orb circles you. It waits for an enemy to come near (see
+## _run_orbs). Only so many at once: a new one takes the oldest one's place.
+func _orbit(size: float, power: float, col: Color) -> void:
+	if is_down:
+		return
+	while orbs.size() >= SwingBuild.ORBIT_MAX:
+		orbs.pop_front()
+	orbs.append({"until": game_time + SwingBuild.ORBIT_TIME, "dmg": float(weapon.get("damage", 8.0)) * SwingBuild.ORBIT_DAMAGE * power,
+		"reach": SwingBuild.ORBIT_REACH * size, "col": col})
+	Sfx.play(self, "click", -11.0, 1.8)
+
+
+## Where orb `k` of `n` is right now, from your centre. They share one circle,
+## evenly spaced, and go round together.
+func _orb_place(k: int, n: int) -> Vector2:
+	var turn := _orb_turn(k, n)
+	return ORBIT_CENTRE + Vector2(cos(turn) * SwingBuild.ORBIT_RADIUS, sin(turn) * SwingBuild.ORBIT_RADIUS * SwingBuild.ORBIT_FLAT)
+
+
+func _orb_turn(k: int, n: int) -> float:
+	return TAU * game_time / SwingBuild.ORBIT_PERIOD + TAU * float(k) / float(maxi(n, 1))
+
+
+## Every tick: an orb whose time is up goes, and the oldest one strikes the
+## nearest enemy that has come within its reach.
+func _run_orbs() -> void:
+	while not orbs.is_empty() and float(orbs[0]["until"]) <= game_time:
+		orbs.pop_front()
+	if orbs.is_empty() or game_time - orb_struck < SwingBuild.ORBIT_GAP:
+		return
+	var o: Dictionary = orbs[0]
+	var best = null
+	var best_d := float(o["reach"])
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if not is_instance_valid(e) or e.dead or e.immune:
+			continue
+		var d: float = e.global_position.distance_to(global_position) - float(e.radius)
+		if d < best_d:
+			best_d = d
+			best = e
+	if best == null:
+		return
+	var from := global_position + _orb_place(0, orbs.size())
+	orbs.pop_front()
+	orb_struck = game_time
+	var to: Vector2 = best.global_position
+	var rel := to - global_position
+	best.take_hit(float(o["dmg"]), rel.normalized() if rel.length() > 1.0 else aim_dir, SwingBuild.ORBIT_KNOCK, false, o["col"], SwingBuild.ORBIT_STUN, 0.04)
+	# The orb darts across and bursts on them. (The hit has landed already: this
+	# is only what you see.)
+	var zip := _strip("orbit_orb", from)
+	if zip != null:
+		zip.life = 0.07
+		zip.velocity = (to + Arrow.HEIGHT * 0.5 - from) / 0.07
+	var pop := _strip("orbit_hit", to + Arrow.HEIGHT * 0.5)
+	if pop != null:
+		pop.wait = 0.06
+	shake = maxf(shake, 3.0)
+	Sfx.play(self, "hit", -9.0, 1.6)
+
+
+## The orbs, drawn on the layer behind you while they pass behind and on the one
+## in front while they pass in front.
+func _draw_orbs(layer: Node2D, front: bool) -> void:
+	if orbs.is_empty() or is_down:
+		return
+	var tex := BowArt.fx_texture("orbit_orb")
+	var info := BowArt.fx("orbit_orb")
+	var n := orbs.size()
+	for k in n:
+		if (sin(_orb_turn(k, n)) >= 0.0) != front:
+			continue
+		var at := _orb_place(k, n)
+		# It blinks through its last second and a half, so you see it going.
+		var left := float(orbs[k]["until"]) - game_time
+		var tint := Color.WHITE
+		if left < 1.5 and int(left * 8.0) % 2 == 1:
+			tint.a = 0.35
+		if tex == null or info.is_empty():
+			var col: Color = orbs[k]["col"]
+			layer.draw_circle(at, 5.0, Color(col.r, col.g, col.b, tint.a))
+			continue
+		var frames := maxi(int(info.get("frames", 6)), 1)
+		var frame := int(anim_time * float(info.get("fps", 12)) + k * 2) % frames
+		var fw := float(tex.get_width()) / frames
+		var o: Array = info.get("origin", [fw * 0.5, tex.get_height() * 0.5])
+		layer.draw_set_transform(at, 0.0, Vector2(Art.PIXEL, Art.PIXEL))
+		layer.draw_texture_rect_region(tex, Rect2(-float(o[0]), -float(o[1]), fw, tex.get_height()), Rect2(frame * fw, 0, fw, tex.get_height()), tint)
+	layer.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+
+
+## Chain: one of your bolts landed at `at` and caught `hits`. With the rune, a
+## finisher's forks into lightning there (Every Hit: any bolt's).
+func _chain_bolt(a, at: Vector2, hits: Array) -> void:
+	var effects: Array = weapon.get("effects", [])
+	var fired: Array = []
+	var jumps := 0
+	var power := 0.0
+	var reach := 0.0
+	for i in effects.size():
+		var f: Dictionary = effects[i]
+		if f["id"] != "chain" or not (f["trigger"] == "hit" or (a.finisher and f["trigger"] == "finisher")):
+			continue
+		if not _counts(i):
+			continue
+		fired.append(i)
+		jumps += SwingBuild.CHAIN_JUMPS * int(f["count"])
+		power = maxf(power, float(f.get("power", 1.0)))
+		reach = maxf(reach, SwingBuild.CHAIN_RANGE * float(f["size"]))
+	if fired.is_empty():
+		return
+	# (A Spectre's copy of the bolt forks too, at its share, in the ghost's colour.)
+	var copied: bool = float(a.copy) > 0.0
+	var col: Color = GHOST_COLOR if copied else SwingBuild.FITTINGS["chain"]["color"]
+	var skip := {}
+	for h in hits:
+		if is_instance_valid(h):
+			skip[h.get_instance_id()] = true
+			break   # only the one it struck: the lightning may go on to the rest of the burst
+	ghost_fx = copied
+	var made := _chain_lightning(at, skip, mini(jumps, SwingBuild.CHAIN_JUMPS * SwingBuild.MAX_COUNT), reach,
+		float(weapon.get("damage", 8.0)) * SwingBuild.CHAIN_DAMAGE * power * (float(a.copy) if copied else 1.0), col)
+	ghost_fx = false
+	if made > 0 and not copied:
+		for i in fired:
+			_flash_effect(i)
+		_label("CHAIN!" if power <= 1.0 else "CHAIN x%s!" % str(snappedf(power, 0.5)).trim_suffix(".0"), col)
+
+
+## Lightning from `from` to the nearest enemy that isn't in `struck`, then on to
+## the next nearest from there, `jumps` times. Returns how many it reached.
+func _chain_lightning(from: Vector2, struck: Dictionary, jumps: int, reach: float, dmg: float, col: Color) -> int:
+	var taken := struck.duplicate()
+	var at := from
+	var made := 0
+	for k in jumps:
+		var best = null
+		var best_d := reach
+		for e in get_tree().get_nodes_in_group("enemies"):
+			if not is_instance_valid(e) or e.dead or e.immune or taken.has(e.get_instance_id()):
+				continue
+			var d: float = e.global_position.distance_to(at) - float(e.radius)
+			if d < best_d:
+				best_d = d
+				best = e
+		if best == null:
+			break
+		taken[best.get_instance_id()] = true
+		var to: Vector2 = best.global_position
+		var gap := to - at
+		best.take_hit(dmg, gap.normalized() if gap.length() > 1.0 else Vector2.UP, 70.0, false, col, 0.15, 0.02)
+		# (All the jumps land on this tick. On screen each shows a moment after the last.)
+		var arc := _strip("chain_arc", at + Arrow.HEIGHT * 0.5)
+		if arc != null:
+			arc.rotation = gap.angle()
+			arc.scale = Vector2(maxf(gap.length(), 12.0) / (96.0 * Art.PIXEL), 1.0)
+			arc.wait = 0.04 * float(made)
+		else:
+			var line := Fx.new()
+			line.kind = "chain"
+			line.to = gap
+			line.color = col
+			line.life = 0.18
+			_fx_root().add_child(line)
+			line.global_position = at
+		var pop := _strip("chain_hit", to + Arrow.HEIGHT * 0.5)
+		if pop != null:
+			pop.wait = 0.04 * float(made)
+		at = to
+		made += 1
+	if made > 0:
+		chain_jumps += made
+		shake = maxf(shake, 4.0)
+		Sfx.play(self, "cast", -6.0, 1.8)
+	return made
+
+
+## Nova: a ring bursts out from `at`. Everything inside it is hit and thrown
+## outwards. It is an oval, like everything that lies on the floor.
+func _nova(size: float, power: float, col: Color, at: Vector2) -> void:
+	var rad := Vector2(SwingBuild.NOVA_RADIUS, SwingBuild.NOVA_RADIUS * SwingBuild.NOVA_FLAT) * size
+	var centre := at + FEET
+	# (The picture is drawn for a ring that reaches 60 art pixels to the sides.)
+	if _strip("nova_ring", centre, 0.0, rad.x / (60.0 * Art.PIXEL)) == null:
+		var ring := RuneFx.new()
+		ring.kind = "ring"
+		ring.size = rad.x
+		ring.color = col
+		ring.life = 0.3
+		_fx_root().add_child(ring)
+		ring.global_position = centre
+	var dmg := float(weapon.get("damage", 8.0)) * SwingBuild.NOVA_DAMAGE * power
+	var struck := 0
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if not is_instance_valid(e) or e.dead:
+			continue
+		var rel: Vector2 = e.global_position + e._feet() - centre
+		if (rel / (rad + Vector2.ONE * float(e.radius))).length_squared() > 1.0:
+			continue
+		e.take_hit(dmg, rel.normalized() if rel.length() > 4.0 else aim_dir, SwingBuild.NOVA_KNOCK, false, col, SwingBuild.NOVA_STUN, 0.06)
+		struck += 1
+	shake = maxf(shake, (8.0 if struck > 0 else 4.0) * minf(size, 1.6))
+	squash = Vector2(1.08, 0.93)
+	Sfx.play(self, "shockwave", -4.0 if struck > 0 else -9.0, 1.3 / sqrt(size))
+
+
+## Is Lance's beam being held?
+func _beaming() -> bool:
+	var list := _abilities()
+	return hold_button >= 0 and hold_button < list.size() and str(list[hold_button]["id"]) == "lance"
+
+
+## Where a beam from here along `dir` stops: at the first enemy on its line, at a
+## wall, or at the end of the staff's range. {end, enemy (or null), wall}
+func _lance_scan(dir: Vector2, size: float) -> Dictionary:
+	var from := global_position
+	var reach := float(weapon.get("range", SwingBuild.STAFF_RANGE))
+	var wall := false
+	var q := PhysicsRayQueryParameters2D.create(from, from + dir * reach, Arrow.WALLS)
+	var stop := get_world_2d().direct_space_state.intersect_ray(q)
+	if not stop.is_empty():
+		reach = from.distance_to(stop["position"])
+		wall = true
+	var best = null
+	var half := SwingBuild.LANCE_WIDTH * size
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if not is_instance_valid(e) or e.dead or e.immune:
+			continue
+		var rel: Vector2 = e.global_position - from
+		var along := rel.dot(dir)
+		var side := absf(rel.dot(dir.orthogonal()))
+		var r: float = float(e.radius) + half
+		if side > r or along + r < 0.0:
+			continue
+		var enter := maxf(along - sqrt(r * r - side * side), 0.0)
+		if enter < reach:
+			reach = enter
+			best = e
+	return {"end": from + dir * reach, "enemy": best, "wall": wall and best == null}
+
+
+## One pulse of the beam along your aim: whoever it is burning into is hurt.
+## stage: its strength, 1 to 3. Returns whether it hit someone.
+func _lance_pulse(size: float, power: float, col: Color, stage: int) -> bool:
+	var scan := _lance_scan(aim_dir, size)
+	lance_at = scan["end"]
+	lance_on = scan["enemy"]
+	lance_wall = scan["wall"]
+	lance_stage = stage
+	lance_size = size
+	var e = scan["enemy"]
+	if e == null:
+		Sfx.play(self, "cast", -15.0, 0.7 + 0.15 * float(stage))
+		return false
+	e.take_hit(float(weapon.get("damage", 8.0)) * SwingBuild.LANCE_DAMAGE * float(stage) * power, aim_dir, 30.0 * float(stage), false, col, 0.12, 0.0)
+	shake = maxf(shake, 1.5 + 1.5 * float(stage))
+	Sfx.play(self, "cast", -10.0, 0.7 + 0.15 * float(stage))
+	return true
+
+
+## Every tick while the beam is held: it follows your aim, so its picture ends
+## where it would hit now. When the hold is over the picture goes.
+func _update_lance() -> void:
+	if not _beaming():
+		_end_lance()
+		return
+	var scan := _lance_scan(aim_dir, lance_size)
+	lance_at = scan["end"]
+	lance_on = scan["enemy"]
+	lance_wall = scan["wall"]
+	if not is_instance_valid(lance_fx):
+		lance_fx = _beam_node()
+		lance_fx.draw.connect(_draw_lance)
+
+
+func _end_lance() -> void:
+	if is_instance_valid(lance_fx):
+		lance_fx.queue_free()
+	lance_fx = null
+
+
+## A layer for a beam's picture: above everything and never dimmed, like the
+## other effects. It sits at the world's origin, so it is drawn on in world places.
+func _beam_node() -> Node2D:
+	var n := Node2D.new()
+	var add := CanvasItemMaterial.new()
+	add.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	add.light_mode = CanvasItemMaterial.LIGHT_MODE_UNSHADED
+	n.material = add
+	n.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
+	_fx_root().add_child(n)
+	n.z_index = 30
+	n.global_position = Vector2.ZERO
+	return n
+
+
+func _draw_lance() -> void:
+	if not is_instance_valid(lance_fx):
+		return
+	_draw_beam(lance_fx, _crystal_world(), lance_at + Arrow.HEIGHT * 0.6, lance_stage, lance_size, lance_on != null or lance_wall)
+
+
+## A beam from `from` to `to`: the art's strip for its strength laid end to end,
+## a flare where it starts and (capped) where it burns in.
+func _draw_beam(layer: Node2D, from: Vector2, to: Vector2, stage: int, size: float, capped: bool) -> void:
+	var d := to - from
+	var length := d.length()
+	if length < 2.0:
+		return
+	var name := "lance_beam_%d" % clampi(stage, 1, SwingBuild.LANCE_STAGES)
+	var tex := BowArt.fx_texture(name)
+	var info := BowArt.fx(name)
+	if tex == null or info.is_empty():
+		var col: Color = SwingBuild.FITTINGS["lance"]["color"]
+		layer.draw_line(from, to, col, (2.0 + 2.0 * float(stage)) * size)
+	else:
+		var n := maxi(int(info.get("frames", 4)), 1)
+		var frame := int(anim_time * float(info.get("fps", 16))) % n
+		var fw := float(tex.get_width()) / n
+		var fh := float(tex.get_height())
+		var o: Array = info.get("origin", [0, fh * 0.5])
+		var art_len := length / Art.PIXEL
+		layer.draw_set_transform(from, d.angle(), Vector2(Art.PIXEL, Art.PIXEL * size))
+		var x := 0.0
+		while x < art_len:
+			var w := minf(fw, art_len - x)
+			layer.draw_texture_rect_region(tex, Rect2(x, -float(o[1]), w, fh), Rect2(frame * fw, 0, w, fh))
+			x += fw
+		layer.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+	_draw_fx_frame(layer, "lance_start", from, 0.8 + 0.2 * float(stage))
+	if capped:
+		_draw_fx_frame(layer, "lance_end", to, (0.6 + 0.2 * float(stage)) * sqrt(size))
+
+
+## The frame a looping effect strip is on right now, drawn on `layer` at `at`.
+func _draw_fx_frame(layer: Node2D, name: String, at: Vector2, size := 1.0) -> void:
+	var tex := BowArt.fx_texture(name)
+	var info := BowArt.fx(name)
+	if tex == null or info.is_empty():
+		return
+	var n := maxi(int(info.get("frames", 4)), 1)
+	var frame := int(anim_time * float(info.get("fps", 16))) % n
+	var fw := float(tex.get_width()) / n
+	var o: Array = info.get("origin", [fw * 0.5, tex.get_height() * 0.5])
+	layer.draw_set_transform(at, 0.0, Vector2(Art.PIXEL, Art.PIXEL) * size)
+	layer.draw_texture_rect_region(tex, Rect2(-float(o[0]), -float(o[1]), fw, tex.get_height()), Rect2(frame * fw, 0, fw, tex.get_height()))
+	layer.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+
+
+## On Dodge on Lance: one flash of the beam at full strength, there and gone.
+func _lance_flash(size: float, power: float, col: Color) -> void:
+	var kept := [lance_at, lance_on, lance_wall, lance_stage, lance_size]
+	var struck := _lance_pulse(size, power * SwingBuild.LANCE_DODGE, col, SwingBuild.LANCE_STAGES)
+	var from := global_position + Arrow.HEIGHT
+	var to: Vector2 = lance_at + Arrow.HEIGHT * 0.6
+	var capped: bool = struck or lance_wall
+	# (A beam that is being held keeps its own end.)
+	lance_at = kept[0]
+	lance_on = kept[1]
+	lance_wall = kept[2]
+	lance_stage = kept[3]
+	lance_size = kept[4]
+	var n := _beam_node()
+	n.draw.connect(func() -> void: _draw_beam(n, from, to, SwingBuild.LANCE_STAGES, size, capped))
+	var fade := n.create_tween()
+	fade.tween_property(n, "modulate:a", 0.0, 0.2)
+	fade.tween_callback(n.queue_free)
+
+
+## Who a Spectre goes to: the teammate you are aiming at, if one is near enough
+## and close enough to your aim; otherwise you.
+func _spectre_target() -> Node2D:
+	var best: Node2D = self
+	var best_off := SwingBuild.SPECTRE_CONE
+	for p in get_tree().get_nodes_in_group("player"):
+		if p == self or not is_instance_valid(p) or p.is_down:
+			continue
+		var rel: Vector2 = p.global_position - global_position
+		if rel.length() > SwingBuild.SPECTRE_AIM or rel.length() < 1.0:
+			continue
+		var off := absf(aim_dir.angle_to(rel))
+		if off < best_off:
+			best_off = off
+			best = p
+	return best
+
+
+## Calls the Spectre from its button. Every Spectre rune on the staff is one copy
+## of each attack: a second rune counts like a Twice, and the longest and
+## strongest of them win.
+func _summon_spectre(effects: Array) -> void:
+	var count := 0
+	var time := 0.0
+	var power := 0.0
+	for i in effects:
+		var e: Dictionary = weapon["effects"][i]
+		count += int(e["count"])
+		time = maxf(time, SwingBuild.spectre_time(float(e["size"])))
+		power = maxf(power, SwingBuild.spectre_power(float(e.get("power", 1.0))))
+		_flash_effect(i)
+	var who := _spectre_target()
+	who.take_spectre(self, time, power, clampi(count, 1, SwingBuild.MAX_COUNT))
+	_label("SPECTRE!" if power < 1.0 else "SPECTRE x2!", GHOST_COLOR)
+
+
+## A Spectre comes to stand with you, called by `by` (yourself, or a teammate):
+## for `time` seconds it copies your basic attacks at `power` of their strength.
+func take_spectre(by: Node2D, time: float, power: float, count: int) -> void:
+	if is_down:
+		return
+	var fresh := spectre_left <= 0.0
+	if not fresh and is_instance_valid(spectre_by) and spectre_by != by and spectre_by.spectre_on == self:
+		spectre_by.spectre_on = null   # one ghost each: the new one takes the old one's place
+	spectre_power = power if fresh or time >= spectre_left else maxf(spectre_power, power)
+	spectre_count = count if fresh or time >= spectre_left else maxi(spectre_count, count)
+	spectre_left = maxf(spectre_left, time)
+	spectre_total = spectre_left
+	spectre_by = by
+	spectre_stamp = by.weapon_stamp
+	by.spectre_on = self
+	if fresh:
+		spectre_born = game_time
+		spectre_gone = -9.0
+		var arrive := _strip("spectre_appear", global_position + spectre_offset + FEET)
+		if arrive != null:
+			arrive.follow = self
+			arrive.follow_offset = spectre_offset + FEET
+	Sfx.play(self, "ghost", -5.0, 1.25)
+
+
+## The Spectre goes: its time is up, you were knocked out, or the staff it came
+## from was changed. quiet: no picture or sound.
+func _end_spectre(quiet := false) -> void:
+	var was := spectre_left > 0.0
+	spectre_left = 0.0
+	if is_instance_valid(spectre_by) and spectre_by.spectre_on == self:
+		spectre_by.spectre_on = null
+	spectre_by = null
+	if not was or quiet:
+		spectre_gone = -9.0
+		return
+	spectre_gone = game_time
+	var leave := _strip("spectre_appear", global_position + spectre_offset + FEET)
+	if leave != null:
+		leave.backwards = true
+		leave.follow = self
+		leave.follow_offset = spectre_offset + FEET
+	Sfx.play(self, "ghost", -11.0, 0.8)
+
+
+## How much of its time the Spectre you called has left, 0 to 1 (0: it isn't out).
+func spectre_out() -> float:
+	if not is_instance_valid(spectre_on) or spectre_on.spectre_by != self or float(spectre_on.spectre_left) <= 0.0:
+		return 0.0
+	return clampf(float(spectre_on.spectre_left) / maxf(float(spectre_on.spectre_total), 0.1), 0.0, 1.0)
+
+
+## Every tick: the Spectre's time runs down and its copies that are due go off.
+func _run_spectre(delta: float) -> void:
+	if spectre_left > 0.0:
+		if spectre_left <= delta or is_down or not is_instance_valid(spectre_by) or int(spectre_by.weapon_stamp) != spectre_stamp:
+			_end_spectre()
+		else:
+			spectre_left -= delta
+	if is_down:
+		spectre_swings.clear()
+		spectre_shots.clear()
+		return
+	var due: Array = []
+	for g in spectre_swings:
+		if float(g["at"]) <= game_time:
+			due.append(g)
+	for g in due:
+		spectre_swings.erase(g)
+		_ghost_swing(g)
+	due = []
+	for s in spectre_shots:
+		if float(s["at"]) <= game_time:
+			due.append(s)
+	for s in due:
+		spectre_shots.erase(s)
+		_spectre_shot(s)
+
+
+## An arrow or a bolt of yours has just left: a Spectre with you looses it again
+## a moment later. fired: the runes its leaving set off (a finisher's).
+func _spectre_copies(a, fired: Array) -> void:
+	if spectre_left <= 0.0:
+		return
+	var props := {}
+	for k in ["dir", "speed", "left", "damage", "knock", "stun", "freeze", "heavy", "finisher", "kind", "crit", "crit_damage",
+			"pierce", "pierce_power", "half_width", "streak", "bolt", "splash", "quiet", "halo", "big"]:
+		props[k] = a.get(k)
+	for n in spectre_count:
+		spectre_shots.append({"at": game_time + SwingBuild.SPECTRE_DELAY + float(n) * SwingBuild.SPECTRE_GAP, "arrow": props,
+			"fired": fired, "power": spectre_power, "stamp": weapon_stamp})
+
+
+## The Spectre's copy of one arrow or bolt: the same one again along the same
+## line, in the ghost's colour, at its share of the damage. It costs no mana.
+func _spectre_shot(s: Dictionary) -> void:
+	if int(s["stamp"]) != weapon_stamp:
+		return
+	var props: Dictionary = s["arrow"]
+	var share := float(s["power"])
+	var a := Arrow.new()
+	a.shooter = self
+	a.stamp = weapon_stamp
+	for k in props:
+		a.set(k, props[k])
+	a.damage = float(props["damage"]) * share
+	a.knock = float(props["knock"]) * GHOST_SHOVE
+	a.stun = float(props["stun"]) * GHOST_SHOVE
+	a.freeze = float(props["freeze"]) * GHOST_SHOVE
+	a.copy = share
+	a.color = GHOST_COLOR
+	get_parent().add_child(a)
+	if str(props["bolt"]) == "":
+		a.material = _ghost_glow()
+	a.global_position = global_position
+	a.reset_physics_interpolation()
+	Sfx.play(self, "cast" if str(props["bolt"]) != "" else "bow", -17.0, 1.5)
+	if props["finisher"] and not props["quiet"]:
+		_trigger("finisher", [], {"power": share, "fired": s["fired"]})
+
+
+## What _trigger is told when a Spectre's arrow or bolt is doing the triggering.
+## (Its copies of runes with Saved Up keep their own count.)
+func _copy_ghost(a) -> Dictionary:
+	if float(a.copy) <= 0.0:
+		return {}
+	return {"power": float(a.copy), "fired": [], "counts": true}
+
+
+## Is the Spectre on screen? It appears partway through its arriving picture
+## and stays for the first moments of its leaving one.
+func _spectre_shown() -> bool:
+	if spectre_left > 0.0:
+		return game_time - spectre_born >= 3.0 / 16.0
+	return game_time - spectre_gone < 2.0 / 16.0
+
+
+## Where the Spectre stands: at your shoulder, a little behind, whichever way you
+## face. It eases there as you turn.
+func _update_spectre(delta: float) -> void:
+	var shown := _spectre_shown() and not is_down and rise_timer <= 0.0
+	spectre_group.visible = shown
+	if spectre_left <= 0.0 and not shown:
+		return
+	var want := (face_dir.orthogonal() * 24.0 - face_dir * 9.0) * Vector2(1.0, 0.75)
+	spectre_offset = spectre_offset.lerp(want, 1.0 - exp(-9.0 * delta))
+	if not shown:
+		return
+	spectre_group.show_behind_parent = spectre_offset.y < 0.0
+	# It shimmers, and blinks through its last second and a half so you see it going.
+	var solid := 0.85 + 0.15 * sin(anim_time * 5.0)
+	if spectre_left > 0.0 and spectre_left < 1.5:
+		solid = 0.95 if int(spectre_left * 8.0) % 2 == 0 else 0.45
+	var scale_px := maxf(floorf(float(get_window().size.y) / 360.0), 1.0)
+	(spectre_group.material as ShaderMaterial).set_shader_parameter("px", scale_px)
+	(spectre_group.material as ShaderMaterial).set_shader_parameter("strength", solid)
+	spectre_layer.queue_redraw()
+
+
+## The Spectre: your own body and weapon drawn again beside you. (Its
+## CanvasGroup's material turns the whole picture see-through and ghost-coloured.)
+func _draw_spectre() -> void:
+	var b := _body_now()
+	var behind: bool = weapon_group.show_behind_parent
+	if behind:
+		_draw_weapon_on(spectre_layer, spectre_offset, {})
+	if b.is_empty():
+		spectre_layer.draw_circle(spectre_offset, RADIUS, Color.WHITE)
+	else:
+		spectre_layer.draw_set_transform(spectre_offset + (b["at"] as Vector2), b["angle"], b["scale"])
+		spectre_layer.draw_texture_rect_region(b["tex"], Rect2(-_body_origin(), b["src"].size), b["src"])
+		spectre_layer.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+	if not behind:
+		_draw_weapon_on(spectre_layer, spectre_offset, {})
+
+
 ## How far this move reaches from the player's centre.
 func _move_reach(info: Dictionary) -> float:
 	if not weapon.has("blade"):
@@ -1905,18 +2681,21 @@ func _trigger(trigger: String, hits: Array, ghost: Dictionary = {}) -> Array:
 		# The bow's passive runes don't fire like this (see "The bow's runes"): only
 		# a dodge sends a Ricochet through here.
 		# Nor do Momentum and Stagger, which build hit by hit (see "The hammer's runes").
-		if e["id"] in ["pierce", "steady_aim", "momentum", "stagger"] or (e["id"] == "ricochet" and trigger != "dodge"):
+		# Nor does Overflow, and a Chain forks where a bolt lands (see "The staff's runes").
+		if e["id"] in ["pierce", "steady_aim", "momentum", "stagger", "overflow"] or (e["id"] in ["ricochet", "chain"] and trigger != "dodge"):
 			continue
 		# Saved Up: count the triggers and only fire on every third one. The ghost
 		# doesn't count: it copies a saved-up rune when the swing it copies set it off.
+		# (A Spectre's arrow or bolt lands in its own time, so those keep their own count.)
 		var every := int(e.get("every", 1))
 		if every > 1:
-			if not ghost.is_empty():
+			if not ghost.is_empty() and not ghost.get("counts", false):
 				if not (i in ghost.get("fired", [])):
 					continue
 			else:
-				rune_counts[i] = int(rune_counts.get(i, 0)) + 1
-				if int(rune_counts[i]) % every != 0:
+				var key := i if ghost.is_empty() else -1 - i
+				rune_counts[key] = int(rune_counts.get(key, 0)) + 1
+				if int(rune_counts[key]) % every != 0:
 					continue
 		fired.append(i)
 		var power := float(e.get("power", 1.0)) * (1.0 if ghost.is_empty() else float(ghost["power"]))
@@ -2108,6 +2887,40 @@ func _fire_rune_now(q: Dictionary) -> void:
 			var f: Dictionary = weapon["effects"][effect]
 			var times := mini(int(f["count"]) + (q["merged"] as Array).size(), SwingBuild.MAX_COUNT)
 			_bulwark(SwingBuild.bulwark_time(size, power, SwingBuild.BULWARK_DODGE if q.get("why", "") == "dodge" else -1.0), SwingBuild.BULWARK_STUN * times, col)
+		"orbit":
+			_orbit(size, power, col)
+		"chain":
+			# (A bolt that lands forks by itself, see _chain_bolt. This is On Dodge: the
+			# lightning goes out from you.)
+			var f: Dictionary = weapon["effects"][effect]
+			var jumps := SwingBuild.CHAIN_JUMPS * mini(int(f["count"]) + (q["merged"] as Array).size(), SwingBuild.MAX_COUNT)
+			if _chain_lightning(global_position, {}, jumps, SwingBuild.CHAIN_RANGE * size, dmg * SwingBuild.CHAIN_DAMAGE * power, col) == 0:
+				return
+		"nova":
+			# (On Dodge: a half one where the dodge began.)
+			var dodged: bool = q.get("why", "") == "dodge"
+			_nova(size, power * (SwingBuild.DODGE_SHARE if dodged else 1.0), col, dodge_from if dodged else global_position)
+		"lance":
+			if q.get("why", "") == "dodge":
+				_lance_flash(size, power, col)
+			else:
+				# One pulse of the beam. It grows a step for each third of a full hold.
+				var turns := int(_abilities()[hold_button]["turns"]) if _beaming() else int(SwingBuild.FITTINGS["lance"]["turns"])
+				var stage := SwingBuild.lance_stage(hold_turns, turns)
+				var grew := hold_turns > 1 and stage > lance_stage
+				_lance_pulse(size, power, col, stage)
+				if hold_turns > 1:
+					# (Only the first pulse of a hold is named, and each time it grows.)
+					if grew:
+						_label("LANCE x%d!" % stage, col)
+					return
+		"spectre":
+			# (Its button calls it straight away, so this is On Dodge: it comes to you
+			# for a moment.)
+			var f: Dictionary = weapon["effects"][effect]
+			take_spectre(self, SwingBuild.spectre_time(size, SwingBuild.SPECTRE_DODGE), SwingBuild.spectre_power(power),
+				clampi(int(f["count"]) + (q["merged"] as Array).size(), 1, SwingBuild.MAX_COUNT))
+			return
 		"arrow_rain":
 			var wide := SwingBuild.rain_scale(size)
 			# (Saved Up: much heavier arrows, and they pin what they hit.)
@@ -2161,7 +2974,7 @@ func _fire_rune_now(q: Dictionary) -> void:
 		var shown := power
 		if id == "snipe":
 			shown = 3.0 if int(weapon["effects"][effect].get("every", 1)) > 1 else 1.0
-		elif id == "quake" and q.get("why", "") == "dodge":
+		elif id in ["quake", "nova", "lance"] and q.get("why", "") == "dodge":
 			shown = 1.0   # (a dodge's is a half one: not worth a number)
 		_label(str(SwingBuild.FITTINGS[id]["name"]).to_upper() + ("!" if shown <= 1.0 else " x%s!" % str(snappedf(shown, 0.5)).trim_suffix(".0")), col)
 
@@ -2273,6 +3086,9 @@ func _update_abilities(delta: float) -> void:
 			if a["id"] == "ghostwield":
 				_summon_ghost(b, a["effects"])
 				continue
+			if a["id"] == "spectre":
+				_summon_spectre(a["effects"])
+				continue
 			for i in a["effects"]:
 				var e: Dictionary = weapon["effects"][i]
 				var gap := _repeat_gap(str(e["id"]), "")
@@ -2293,7 +3109,7 @@ func _hit_refund() -> void:
 		# (Nor for a ghost that is still out: like a spin that's going, it is in use.)
 		if b == ghost_button and ghost_left > 0.0:
 			continue
-		if _shield_up(list[b]):
+		if _shield_up(list[b]) or (str(list[b]["id"]) == "spectre" and spectre_out() > 0.0):
 			continue
 		ability_charge[b] = minf(float(ability_charge[b]) + seconds / float(list[b]["recharge"]), 1.0)
 		ability_refunded[b] = game_time
@@ -2320,6 +3136,7 @@ func _start_turn(b: int) -> void:
 func _stop_hold(cut: bool) -> void:
 	if hold_button < 0:
 		return
+	_end_lance()
 	ability_wait[hold_button] = ABILITY_WAIT
 	hold_button = -1
 	hold_left = 0.0
@@ -2335,7 +3152,10 @@ func _stop_hold(cut: bool) -> void:
 
 
 ## Which way the spin points right now, as an angle.
+## (Lance's beam isn't a spin: it points wherever you aim.)
 func _hold_angle_now() -> float:
+	if _beaming():
+		return aim_dir.angle()
 	return hold_angle + hold_side * TAU * clampf(1.0 - hold_left / hold_turn, 0.0, 1.0)
 
 
@@ -2416,18 +3236,25 @@ func _ghost_swing(g: Dictionary) -> void:
 	var info: Dictionary = MOVES.get(move, MOVES["slash"])
 	var dir: Vector2 = g["dir"]
 	var side: float = g["side"]
-	var dmg := float(weapon.get("damage", 4.0)) * float(info["power"]) * ghost_power
+	# (A Spectre's copy comes through here too: it has its own share of the swing
+	# it copies, and it is the figure beside you that swings, not a second sword.)
+	var spectre: bool = g.get("spectre", false)
+	var share := float(g.get("power", ghost_power))
+	var dmg := (float(g["dmg"]) if g.has("dmg") else float(weapon.get("damage", 4.0)) * float(info["power"])) * share
 	var hit_list: Array = []
 	for f in _swing_hits(info, dir, _move_reach(info)):
 		_hit_enemy(f[1], dmg, f[2], float(info["knock"]) * GHOST_SHOVE, float(info.get("stun", 0.12)) * GHOST_SHOVE,
 			float(info.get("freeze", 0.05)) * GHOST_SHOVE, {}, true)
 		hit_list.append(f[1])
+		if spectre:
+			_add_stagger(f[1], float(info["power"]) * share)
 	var curve: Array = info["curve"]
-	ghost_show = {"t0": game_time, "dir": dir, "side": side, "move": move}
+	if not spectre:
+		ghost_show = {"t0": game_time, "dir": dir, "side": side, "move": move}
 	ghost_smears.append({"t0": game_time, "a0": dir.angle() + float(curve[0]) * side, "a1": dir.angle() + float(curve[1]) * side,
-		"center": _off_hand_point(), "dir": dir.angle(), "side": side, "move": move})
+		"center": spectre_offset + _hand_point() if spectre else _off_hand_point(), "dir": dir.angle(), "side": side, "move": move})
 	Sfx.play(self, "swing", -19.0, 1.5)
-	var ghost := {"power": ghost_power, "fired": g["fired"]}
+	var ghost := {"power": share, "fired": g["fired"]}
 	if g["finisher"]:
 		_trigger("finisher", hit_list, ghost)
 	if not hit_list.is_empty():
@@ -2957,6 +3784,12 @@ func _process(delta: float) -> void:
 		down_time += delta
 	rise_timer = maxf(rise_timer - delta, 0.0)
 	_update_pose(delta)
+	_update_overflow_aura()
+	_update_spectre(delta)
+	staff_back.queue_redraw()
+	staff_front.queue_redraw()
+	if is_instance_valid(lance_fx):
+		lance_fx.queue_redraw()
 	trail_layer.queue_redraw()
 	# The outline is one game pixel: as many screen pixels as the window's scale.
 	var scale_px := maxf(floorf(float(get_window().size.y) / 360.0), 1.0)
@@ -3560,20 +4393,26 @@ func draw_colored_polygon_on(ci: CanvasItem, pts: PackedVector2Array, c: Color) 
 
 
 func _draw_weapon() -> void:
+	_draw_weapon_on(weapon_layer, Vector2.ZERO, _slot_glow())
+
+
+## The weapon in your hand, drawn on `layer` and moved by `off` (a Spectre's is
+## yours again, beside you). glow: how lit each slot is.
+func _draw_weapon_on(layer: Node2D, off: Vector2, glow: Dictionary) -> void:
 	if not weapon.has("blade"):
 		# Empty-handed: just the fist at the side.
 		var bare := Art.texture("body/hand.png")
 		if bare != null:
-			weapon_layer.draw_set_transform(_hand_point(), 0.0, Vector2(Art.PIXEL, Art.PIXEL))
-			weapon_layer.draw_texture(bare, -bare.get_size() * 0.5)
-			weapon_layer.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+			layer.draw_set_transform(off + _hand_point(), 0.0, Vector2(Art.PIXEL, Art.PIXEL))
+			layer.draw_texture(bare, -bare.get_size() * 0.5)
+			layer.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 		return
 	if _is_bow():
-		_draw_bow()
+		_draw_bow_on(layer, off, glow)
 		return
 	var pose := _sword_pose()
 	var angle: float = pose[0]
-	var hand: Vector2 = pose[1]
+	var hand: Vector2 = off + (pose[1] as Vector2)
 	# Mid-sweep the sword is hidden: the smear shows the swing (reads as a fast blur).
 	var hidden := false
 	if current_step >= 0:
@@ -3581,18 +4420,18 @@ func _draw_weapon() -> void:
 		hidden = step_elapsed >= float(times[0]) and step_elapsed < float(times[1]) and _smear_piece(_move_info()) != ""
 	if not hidden:
 		# Art space: x right, y down, tip at the top. Rotate so "up" points along d.
-		weapon_layer.draw_set_transform(hand, angle + PI * 0.5, Vector2(Art.PIXEL, Art.PIXEL))
+		layer.draw_set_transform(hand, angle + PI * 0.5, Vector2(Art.PIXEL, Art.PIXEL))
 		var blade: String = weapon["blade"]
 		var grip: String = weapon["grip"]
-		SwordArt.draw(weapon_layer, blade, grip, weapon["line"], "hand", _slot_glow(), -SwordArt.pivot(blade, grip, "hand"), Color.WHITE,
+		SwordArt.draw(layer, blade, grip, weapon["line"], "hand", glow, -SwordArt.pivot(blade, grip, "hand"), Color.WHITE,
 			str(weapon.get("pommel", "plain_pommel")), SwordArt.one_edged(blade) and _edge_flipped(angle),
 			str(weapon.get("arrows", "")) if _is_staff() else "")
 	# The fist sits on the grip but is drawn upright, never spun with the sword.
 	var fist := Art.texture("body/hand.png")
 	if fist != null:
-		weapon_layer.draw_set_transform(hand, 0.0, Vector2(Art.PIXEL, Art.PIXEL))
-		weapon_layer.draw_texture(fist, -fist.get_size() * 0.5)
-	weapon_layer.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+		layer.draw_set_transform(hand, 0.0, Vector2(Art.PIXEL, Art.PIXEL))
+		layer.draw_texture(fist, -fist.get_size() * 0.5)
+	layer.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 
 ## Aiming to the left the bow's picture is turned over, so the grip's slots stay
@@ -3612,16 +4451,16 @@ func _bow_point(local: Vector2) -> Vector2:
 ## The bow in the hand: stave, string and arrow turned to the aim, then the fist
 ## on the grip, upright as always. (A second fist on the string hid the face
 ## whenever you aimed down, so the string is drawn back without one.)
-func _draw_bow() -> void:
+func _draw_bow_on(layer: Node2D, off: Vector2, glow: Dictionary) -> void:
 	var limbs: String = weapon["blade"]
-	weapon_layer.draw_set_transform(pose_hand, pose_angle, Vector2(Art.PIXEL, -Art.PIXEL if _bow_flipped() else Art.PIXEL))
-	BowArt.draw_hand(weapon_layer, limbs, str(weapon["grip"]), str(weapon.get("pommel", "plain_string")), str(weapon.get("arrows", "")),
-		weapon.get("line", []), _slot_glow(), bow_draw, bow_nocked)
+	layer.draw_set_transform(off + pose_hand, pose_angle, Vector2(Art.PIXEL, -Art.PIXEL if _bow_flipped() else Art.PIXEL))
+	BowArt.draw_hand(layer, limbs, str(weapon["grip"]), str(weapon.get("pommel", "plain_string")), str(weapon.get("arrows", "")),
+		weapon.get("line", []), glow, bow_draw, bow_nocked)
 	var fist := Art.texture("body/hand.png")
 	if fist != null:
-		weapon_layer.draw_set_transform(pose_hand, 0.0, Vector2(Art.PIXEL, Art.PIXEL))
-		weapon_layer.draw_texture(fist, -fist.get_size() * 0.5)
-	weapon_layer.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+		layer.draw_set_transform(off + pose_hand, 0.0, Vector2(Art.PIXEL, Art.PIXEL))
+		layer.draw_texture(fist, -fist.get_size() * 0.5)
+	layer.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 
 ## Where the other hand is: the sword hand's place mirrored across the body. Side
