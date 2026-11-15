@@ -13,6 +13,7 @@ This branch has four things to try:
 - **The bow** (versions 18 to 21, Game Bible milestone 6). In the test arena press **B** (or click the right stick) to swap your sword for an iron shortbow and back, and open the forge with the bow in your hand to change its limbs, grip, string and arrows and to fit its own six runes (Pierce, Ricochet, Steady Aim, Volley, Snipe, Arrow Rain). In the tutorial cave take the wooden bow from the crate and play the whole cave with it. See "The bow" below.
 - **The hammer and the staff** (version 22 on, Game Bible milestone 7). In the test arena **B** now goes round four weapons: sword, bow, an iron maul and an iron staff, and since version 23 the forge changes the one in your hand: another head, haft or shaft, counterweight or cap, crystal, bands, and three presets of its own. Since version 24 the hammer has its six runes (Momentum, Stagger, Aftershock, Quake, Bulwark, Hook) and since version 25 the staff has its own (Orbit, Chain, Overflow, Nova, Lance, Spectre); since version 27 the tutorial cave's crate hands both out, and you can play the whole cave with either. See "The hammer and the staff" below.
 - **The lab** (version 28). Press **L** in the test arena, or choose **Lab: change numbers** in the pause menu anywhere: about 200 of the game's numbers (damage, speeds, recharges, health, the boss) can be changed while the game runs, are in force at once in the arena and the cave, and are kept on your computer. Its **Spawn** page puts any enemy in the game into the arena, the forge guardian included, and **Copy my changes** hands your numbers back so they can become the game's own. Since version 29 it has a **search box**: type "dagger", "recharge" or "health" and every number with that word shows, from all the pages. See "The lab" below.
+- **Slim runes and bands** (version 30). The bronze boxes round the sockets are gone: runes are small gems in their own colour, bands are thin rings, and the weapon runs unbroken underneath. See "Slim runes and bands" below.
 
 ## How to run it
 
@@ -395,6 +396,18 @@ Darren, 15 November: "can we make a lab so I can adjust numbers myself without h
 **How it is built.** `scripts/lab.gd` is the list: each row says which page and group a number is on, what it is called, where it lives in the code, and its step and limits. The numbers themselves are still in the code where they always were (`scripts/weapon/swing_build.gd`, `scripts/player.gd`, `scripts/enemy.gd`, the cave's enemies), now as `static var` in place of `const` so they can be written to while the game runs. To put another number in the lab: make it a `static var`, add one `_add(...)` line, and `tests/lab.gd` checks it. Only the game's front door (`scripts/boot.gd`) reads the lab file, so the tests, which load a scene directly, always run on the game's own numbers. The screen is `scripts/ui/lab_screen.gd`; the spawner is `spawn_enemies` in `scripts/main.gd`. The search is `Lab.find(text)`: a number is found by its page, group and name and by its place in the code (`SLAM_DAMAGE` counts as "slam damage"), and the everyday words it also understands are the short list `Lab.ALSO`.
 
 Which keys open it, which numbers are in it, their steps and limits, the spawner's details, and how the search works (its keys, the everyday words it understands) are Claude's choices, for Darren to change.
+
+## Slim runes and bands (version 30, 15 November)
+
+Darren, 15 November: "I don't like how the bands and runes look, they are so bulky and take away from the weapons look redesign them". The art thread redrew them the same evening and version 30 puts them in the game. Nothing about how the game plays changed.
+
+- **No bronze boxes.** A socket used to sit in a bronze collar as wide as the weapon, so a sword with four sockets was half boxes. Now the blade, limb, haft or shaft runs unbroken and a socket is a small dark setting let into it.
+- **Runes are small gems** in the rune's own colour: round for a passive rune, square for one on a button, a diamond for the rare Relay. A rune that fires flashes white with four sparks.
+- **Bands are thin rings** round the weapon, where they used to be thick cuffs.
+- **At the forge** an empty socket is no longer blacked out (the black square was bigger than the new setting), and the socket you are on has bolder amber corners with a dark edge, because the menu's thin corners were lost against a pale blade.
+- The pictures in the forge's tray lost their collars too. The rune pictures in the tray (the amber stones) are as they were.
+
+198 pictures changed (`art/swing/`: blades, grips, bow limbs and grips, hammer heads and hafts, staff heads and shafts at the forge and in the tray; every rune's forge stone and hand dot; the bands at the forge). Their sizes, the sockets' places and every number in `art/swing/swing_path.json` are the same. The 15 November pictures are kept in the project files (`art/concept-art-3/before-slim/`) and in this repository's history, should the old look be wanted back.
 
 ## The swing path
 

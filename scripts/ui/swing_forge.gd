@@ -1242,16 +1242,33 @@ func _draw_sword(stats: Dictionary) -> void:
 		for s2 in group:
 			rr = rr.merge(_slot_screen(s2))
 		root.draw_rect(rr.grow(4), _group_color(ei), false, 1.0)
-	# Sockets: clickable, empty ones darkened, focus on the selected one.
+	# Sockets: clickable, focus on the selected one. An empty one is the small
+	# dark setting the part's own picture shows (since the slim runes of 15
+	# November nothing is drawn over it: a black square would hide its lip).
 	for i in build.line.size():
 		var r := _slot_screen(i)
 		buttons["slot:%d" % i] = r.grow(3)
-		if build.line[i] == "":
-			root.draw_rect(r.grow(-2), Color(0.02, 0.02, 0.03, 0.9))
 		if hover == "slot:%d" % i:
 			root.draw_rect(r.grow(2), Color(1, 1, 1, 0.5), false, 1.0)
 		if i == selected:
-			_nine("focus_corners", r.grow(7))
+			_socket_focus(r.grow(4))
+
+
+## The corners round the chosen socket: amber with a dark edge, so they read on
+## steel, bronze and wood alike. (A slim socket has no dark box behind it, and
+## the thin corners of the menu kit were lost against a pale blade.)
+func _socket_focus(b: Rect2) -> void:
+	var dark := Color("#19142a")
+	var amber := Color("#ffc850")
+	var arm := 6.0
+	for corner in [[b.position, Vector2(1, 1)], [Vector2(b.end.x, b.position.y), Vector2(-1, 1)],
+			[Vector2(b.position.x, b.end.y), Vector2(1, -1)], [b.end, Vector2(-1, -1)]]:
+		var c: Vector2 = corner[0]
+		var d: Vector2 = corner[1]
+		root.draw_rect(Rect2(c - d, Vector2(d.x * (arm + 2.0), d.y * 4.0)).abs(), dark)
+		root.draw_rect(Rect2(c - d, Vector2(d.x * 4.0, d.y * (arm + 2.0))).abs(), dark)
+		root.draw_rect(Rect2(c, Vector2(d.x * arm, d.y * 2.0)).abs(), amber)
+		root.draw_rect(Rect2(c, Vector2(d.x * 2.0, d.y * arm)).abs(), amber)
 
 
 func _slot_screen(i: int) -> Rect2:
