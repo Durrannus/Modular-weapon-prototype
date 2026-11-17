@@ -23,6 +23,7 @@ const Arrow := preload("res://scripts/arrow.gd")
 const RuneFx := preload("res://scripts/fx/rune_fx.gd")
 const Sfx := preload("res://scripts/sfx.gd")
 const SpriteOnce := preload("res://scripts/fx/sprite_once.gd")
+const ForgeSpirit := preload("res://scripts/fx/forge_spirit.gd")
 const PlayerInput := preload("res://scripts/player_input.gd")
 const Sim := preload("res://scripts/sim.gd")
 
@@ -183,6 +184,8 @@ var return_from: Array = [0.0, Vector2.ZERO]
 
 var weapon: Dictionary = {}
 var weapon_stamp := 0      # goes up every time the weapon changes (an arrow remembers which one loosed it)
+var spirit: Node2D         # the forge spirit at your shoulder: it holds the runes, so none are drawn on the weapon
+var spirit_lit := -9.0     # when an active rune's sign last landed in the weapon (it lights for a moment)
 var step_index := 0        # next combo step
 var current_step := -1     # step being played, -1 when idle
 var step_timer := 0.0
@@ -392,6 +395,10 @@ func _ready() -> void:
 	weapon_layer.draw.connect(_draw_weapon)
 	staff_front = _glow_layer()
 	staff_front.draw.connect(_draw_orbs.bind(staff_front, true))
+	spirit = ForgeSpirit.new()
+	spirit.name = "Spirit"
+	spirit.player = self
+	add_child(spirit)
 	# A small cool light that follows the player, so they read in the darkest corner.
 	light = PointLight2D.new()
 	var stepped := Art.stepped_light(64)
@@ -4566,7 +4573,8 @@ func _draw_weapon_on(layer: Node2D, off: Vector2, glow: Dictionary) -> void:
 		layer.draw_set_transform(hand, angle + PI * 0.5, Vector2(Art.PIXEL, Art.PIXEL))
 		var blade: String = weapon["blade"]
 		var grip: String = weapon["grip"]
-		SwordArt.draw(layer, blade, grip, weapon["line"], "hand", glow, -SwordArt.pivot(blade, grip, "hand"), Color.WHITE,
+		# (No runes or threads on it: the spirit holds those. An empty line draws none.)
+		SwordArt.draw(layer, blade, grip, [], "hand", glow, -SwordArt.pivot(blade, grip, "hand"), _spirit_tint(layer),
 			str(weapon.get("pommel", "plain_pommel")), SwordArt.one_edged(blade) and _edge_flipped(angle),
 			str(weapon.get("arrows", "")) if _is_staff() else "")
 	# The fist sits on the grip but is drawn upright, never spun with the sword.
@@ -4575,6 +4583,26 @@ func _draw_weapon_on(layer: Node2D, off: Vector2, glow: Dictionary) -> void:
 		layer.draw_set_transform(hand, 0.0, Vector2(Art.PIXEL, Art.PIXEL))
 		layer.draw_texture(fist, -fist.get_size() * 0.5)
 	layer.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+
+
+## The hand that holds the weapon, from the player's centre: where the forge
+## spirit sends a rune's sign.
+func weapon_hand() -> Vector2:
+	return pose_hand if weapon.has("blade") else _hand_point()
+
+
+## Where that hand rests for the way the body faces (the spirit keeps to the other side).
+func rest_hand() -> Vector2:
+	return _hand_point()
+
+
+## The weapon lit by the spirit: ember when a sign has just landed in it, fading
+## back to its own colours. Only your own weapon, not a ghost's or a Spectre's.
+func _spirit_tint(layer: Node2D) -> Color:
+	var since := game_time - spirit_lit
+	if layer != weapon_layer or since < 0.0 or since >= ForgeSpirit.TINT_TIME:
+		return Color.WHITE
+	return ForgeSpirit.EMBER.lerp(Color.WHITE, since / ForgeSpirit.TINT_TIME)
 
 
 ## Aiming to the left the bow's picture is turned over, so the grip's slots stay
@@ -4598,7 +4626,7 @@ func _draw_bow_on(layer: Node2D, off: Vector2, glow: Dictionary) -> void:
 	var limbs: String = weapon["blade"]
 	layer.draw_set_transform(off + pose_hand, pose_angle, Vector2(Art.PIXEL, -Art.PIXEL if _bow_flipped() else Art.PIXEL))
 	BowArt.draw_hand(layer, limbs, str(weapon["grip"]), str(weapon.get("pommel", "plain_string")), str(weapon.get("arrows", "")),
-		weapon.get("line", []), glow, bow_draw, bow_nocked)
+		[], glow, bow_draw, bow_nocked, _spirit_tint(layer))
 	var fist := Art.texture("body/hand.png")
 	if fist != null:
 		layer.draw_set_transform(off + pose_hand, 0.0, Vector2(Art.PIXEL, Art.PIXEL))
@@ -4673,7 +4701,7 @@ func _draw_ghost() -> void:
 	var blade: String = weapon["blade"]
 	var grip: String = weapon["grip"]
 	ghost_layer.draw_set_transform(pose[1], angle + PI * 0.5, Vector2(Art.PIXEL, Art.PIXEL))
-	SwordArt.draw(ghost_layer, blade, grip, weapon["line"], "hand", {}, -SwordArt.pivot(blade, grip, "hand"), Color.WHITE,
+	SwordArt.draw(ghost_layer, blade, grip, [], "hand", {}, -SwordArt.pivot(blade, grip, "hand"), Color.WHITE,
 		str(weapon.get("pommel", "plain_pommel")), SwordArt.one_edged(blade) and cos(angle) <= 0.0)
 	ghost_layer.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 

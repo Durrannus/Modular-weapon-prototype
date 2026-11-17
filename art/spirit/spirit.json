@@ -1,0 +1,653 @@
+{
+ "note": "The forge spirit, 17 November. Darren chose design B (the ringed ember), the name Threads for bands, and no locked seats. Sizes in art px, 1 art px = 1 screen px except where it says 2x. Nothing here uses colour to tell things apart: that is kept for elements.",
+ "files": {
+  "spirit": {
+   "file": "spirit/play/spirit.png",
+   "frame": [
+    19,
+    19
+   ],
+   "frames": 6,
+   "origin": [
+    9,
+    11
+   ],
+   "fps": 8,
+   "loop": true,
+   "note": "the spirit beside a player. origin = the ember. Loops. Float it up and down 1 px in code."
+  },
+  "mark_ready": {
+   "file": "spirit/play/mark_ready.png",
+   "frame": [
+    5,
+    5
+   ],
+   "frames": 1,
+   "origin": [
+    2,
+    2
+   ],
+   "note": "one mark per ACTIVE rune fitted, in a shallow arc over the spirit"
+  },
+  "mark_half": {
+   "file": "spirit/play/mark_half.png",
+   "frame": [
+    5,
+    5
+   ],
+   "frames": 1,
+   "origin": [
+    2,
+    2
+   ],
+   "note": "shown for the last third of the recharge"
+  },
+  "mark_recharging": {
+   "file": "spirit/play/mark_recharging.png",
+   "frame": [
+    5,
+    5
+   ],
+   "frames": 1,
+   "origin": [
+    2,
+    2
+   ]
+  },
+  "mark_ping": {
+   "file": "spirit/play/mark_ping.png",
+   "frame": [
+    9,
+    9
+   ],
+   "frames": 3,
+   "origin": [
+    4,
+    4
+   ],
+   "fps": 14,
+   "loop": false,
+   "note": "plays once on a mark when its rune is ready again"
+  },
+  "sign_whirlwind": {
+   "file": "spirit/signs/sign_whirlwind.png",
+   "frame": [
+    14,
+    14
+   ],
+   "frames": 1,
+   "origin": [
+    7,
+    7
+   ]
+  },
+  "sign_leap": {
+   "file": "spirit/signs/sign_leap.png",
+   "frame": [
+    14,
+    14
+   ],
+   "frames": 1,
+   "origin": [
+    7,
+    7
+   ]
+  },
+  "sign_ghostwield": {
+   "file": "spirit/signs/sign_ghostwield.png",
+   "frame": [
+    14,
+    14
+   ],
+   "frames": 1,
+   "origin": [
+    7,
+    7
+   ]
+  },
+  "sign_volley": {
+   "file": "spirit/signs/sign_volley.png",
+   "frame": [
+    14,
+    14
+   ],
+   "frames": 1,
+   "origin": [
+    7,
+    7
+   ]
+  },
+  "sign_snipe": {
+   "file": "spirit/signs/sign_snipe.png",
+   "frame": [
+    14,
+    14
+   ],
+   "frames": 1,
+   "origin": [
+    7,
+    7
+   ]
+  },
+  "sign_arrow_rain": {
+   "file": "spirit/signs/sign_arrow_rain.png",
+   "frame": [
+    14,
+    14
+   ],
+   "frames": 1,
+   "origin": [
+    7,
+    7
+   ]
+  },
+  "sign_quake": {
+   "file": "spirit/signs/sign_quake.png",
+   "frame": [
+    14,
+    14
+   ],
+   "frames": 1,
+   "origin": [
+    7,
+    7
+   ]
+  },
+  "sign_bulwark": {
+   "file": "spirit/signs/sign_bulwark.png",
+   "frame": [
+    14,
+    14
+   ],
+   "frames": 1,
+   "origin": [
+    7,
+    7
+   ]
+  },
+  "sign_hook": {
+   "file": "spirit/signs/sign_hook.png",
+   "frame": [
+    14,
+    14
+   ],
+   "frames": 1,
+   "origin": [
+    7,
+    7
+   ]
+  },
+  "sign_nova": {
+   "file": "spirit/signs/sign_nova.png",
+   "frame": [
+    14,
+    14
+   ],
+   "frames": 1,
+   "origin": [
+    7,
+    7
+   ]
+  },
+  "sign_lance": {
+   "file": "spirit/signs/sign_lance.png",
+   "frame": [
+    14,
+    14
+   ],
+   "frames": 1,
+   "origin": [
+    7,
+    7
+   ]
+  },
+  "sign_spectre": {
+   "file": "spirit/signs/sign_spectre.png",
+   "frame": [
+    14,
+    14
+   ],
+   "frames": 1,
+   "origin": [
+    7,
+    7
+   ]
+  },
+  "cast": {
+   "file": "spirit/play/cast.png",
+   "frame": [
+    32,
+    32
+   ],
+   "frames": 5,
+   "origin": [
+    16,
+    16
+   ],
+   "fps": 18,
+   "loop": false,
+   "note": "additive. On the spirit when an active rune is fired"
+  },
+  "infuse": {
+   "file": "spirit/play/infuse.png",
+   "frame": [
+    32,
+    32
+   ],
+   "frames": 5,
+   "origin": [
+    16,
+    16
+   ],
+   "fps": 18,
+   "loop": false,
+   "note": "additive. On the weapon (at the hand) when the sign lands in it"
+  },
+  "trail": {
+   "file": "spirit/play/trail.png",
+   "frame": [
+    5,
+    5
+   ],
+   "frames": 4,
+   "origin": [
+    2,
+    2
+   ],
+   "fps": 16,
+   "loop": false,
+   "note": "additive. Drop one every 4 px behind the flying sign"
+  },
+  "spirit_forge": {
+   "file": "spirit/forge/spirit_forge.png",
+   "frame": [
+    44,
+    52
+   ],
+   "frames": 1,
+   "origin": [
+    21,
+    28
+   ],
+   "note": "draw at 2x on the forge screen, like the weapon. origin = the ember"
+  },
+  "spirit_forge_lit": {
+   "file": "spirit/forge/spirit_forge_lit.png",
+   "frame": [
+    44,
+    52
+   ],
+   "frames": 1,
+   "origin": [
+    21,
+    28
+   ],
+   "note": "swap to this for a moment when a rune or thread is fitted"
+  },
+  "seat": {
+   "file": "spirit/forge/seat.png",
+   "frame": [
+    32,
+    32
+   ],
+   "frames": 1,
+   "origin": [
+    16,
+    16
+   ]
+  },
+  "seat_selected": {
+   "file": "spirit/forge/seat_selected.png",
+   "frame": [
+    32,
+    32
+   ],
+   "frames": 1,
+   "origin": [
+    16,
+    16
+   ]
+  },
+  "seat_special": {
+   "file": "spirit/forge/seat_special.png",
+   "frame": [
+    32,
+    32
+   ],
+   "frames": 1,
+   "origin": [
+    16,
+    16
+   ]
+  },
+  "start_mark": {
+   "file": "spirit/forge/start_mark.png",
+   "frame": [
+    11,
+    11
+   ],
+   "frames": 1,
+   "origin": [
+    5,
+    5
+   ]
+  },
+  "ring_arrow": {
+   "file": "spirit/forge/ring_arrow.png",
+   "frame": [
+    7,
+    7
+   ],
+   "frames": 1,
+   "origin": [
+    3,
+    3
+   ],
+   "note": "points right; turn it to follow the ring"
+  },
+  "etch_tick": {
+   "file": "spirit/forge/etch_tick.png",
+   "frame": [
+    3,
+    2
+   ],
+   "frames": 1,
+   "origin": [
+    1,
+    1
+   ]
+  },
+  "etch_tick_lit": {
+   "file": "spirit/forge/etch_tick_lit.png",
+   "frame": [
+    3,
+    2
+   ],
+   "frames": 1,
+   "origin": [
+    1,
+    1
+   ]
+  },
+  "twice_icon": {
+   "file": "spirit/threads/twice_icon.png",
+   "frame": [
+    26,
+    26
+   ],
+   "frames": 1,
+   "origin": [
+    13,
+    13
+   ],
+   "note": "the thread in the tray and in a seat"
+  },
+  "twice_line": {
+   "file": "spirit/threads/twice_line.png",
+   "frame": [
+    40,
+    11
+   ],
+   "frames": 1,
+   "origin": [
+    0,
+    5
+   ],
+   "note": "the thread's pattern on a straight 40 px run, start on the left. On the ring the game draws the same pattern along the arc: see thread_rule"
+  },
+  "twice_line_idle": {
+   "file": "spirit/threads/twice_line_idle.png",
+   "frame": [
+    40,
+    11
+   ],
+   "frames": 1,
+   "origin": [
+    0,
+    5
+   ],
+   "note": "the same, asleep: a thread with no rune after it"
+  },
+  "wider_icon": {
+   "file": "spirit/threads/wider_icon.png",
+   "frame": [
+    26,
+    26
+   ],
+   "frames": 1,
+   "origin": [
+    13,
+    13
+   ],
+   "note": "the thread in the tray and in a seat"
+  },
+  "wider_line": {
+   "file": "spirit/threads/wider_line.png",
+   "frame": [
+    40,
+    11
+   ],
+   "frames": 1,
+   "origin": [
+    0,
+    5
+   ],
+   "note": "the thread's pattern on a straight 40 px run, start on the left. On the ring the game draws the same pattern along the arc: see thread_rule"
+  },
+  "wider_line_idle": {
+   "file": "spirit/threads/wider_line_idle.png",
+   "frame": [
+    40,
+    11
+   ],
+   "frames": 1,
+   "origin": [
+    0,
+    5
+   ],
+   "note": "the same, asleep: a thread with no rune after it"
+  },
+  "every_hit_icon": {
+   "file": "spirit/threads/every_hit_icon.png",
+   "frame": [
+    26,
+    26
+   ],
+   "frames": 1,
+   "origin": [
+    13,
+    13
+   ],
+   "note": "the thread in the tray and in a seat"
+  },
+  "every_hit_line": {
+   "file": "spirit/threads/every_hit_line.png",
+   "frame": [
+    40,
+    11
+   ],
+   "frames": 1,
+   "origin": [
+    0,
+    5
+   ],
+   "note": "the thread's pattern on a straight 40 px run, start on the left. On the ring the game draws the same pattern along the arc: see thread_rule"
+  },
+  "every_hit_line_idle": {
+   "file": "spirit/threads/every_hit_line_idle.png",
+   "frame": [
+    40,
+    11
+   ],
+   "frames": 1,
+   "origin": [
+    0,
+    5
+   ],
+   "note": "the same, asleep: a thread with no rune after it"
+  },
+  "saved_up_icon": {
+   "file": "spirit/threads/saved_up_icon.png",
+   "frame": [
+    26,
+    26
+   ],
+   "frames": 1,
+   "origin": [
+    13,
+    13
+   ],
+   "note": "the thread in the tray and in a seat"
+  },
+  "saved_up_line": {
+   "file": "spirit/threads/saved_up_line.png",
+   "frame": [
+    40,
+    11
+   ],
+   "frames": 1,
+   "origin": [
+    0,
+    5
+   ],
+   "note": "the thread's pattern on a straight 40 px run, start on the left. On the ring the game draws the same pattern along the arc: see thread_rule"
+  },
+  "saved_up_line_idle": {
+   "file": "spirit/threads/saved_up_line_idle.png",
+   "frame": [
+    40,
+    11
+   ],
+   "frames": 1,
+   "origin": [
+    0,
+    5
+   ],
+   "note": "the same, asleep: a thread with no rune after it"
+  },
+  "on_dodge_icon": {
+   "file": "spirit/threads/on_dodge_icon.png",
+   "frame": [
+    26,
+    26
+   ],
+   "frames": 1,
+   "origin": [
+    13,
+    13
+   ],
+   "note": "the thread in the tray and in a seat"
+  },
+  "on_dodge_line": {
+   "file": "spirit/threads/on_dodge_line.png",
+   "frame": [
+    40,
+    11
+   ],
+   "frames": 1,
+   "origin": [
+    0,
+    5
+   ],
+   "note": "the thread's pattern on a straight 40 px run, start on the left. On the ring the game draws the same pattern along the arc: see thread_rule"
+  },
+  "on_dodge_line_idle": {
+   "file": "spirit/threads/on_dodge_line_idle.png",
+   "frame": [
+    40,
+    11
+   ],
+   "frames": 1,
+   "origin": [
+    0,
+    5
+   ],
+   "note": "the same, asleep: a thread with no rune after it"
+  },
+  "empty_line": {
+   "file": "spirit/threads/empty_line.png",
+   "frame": [
+    40,
+    11
+   ],
+   "frames": 1,
+   "origin": [
+    0,
+    5
+   ],
+   "note": "the faint dotted spoke from the spirit to each seat"
+  },
+  "forge_backdrop_spirit": {
+   "file": "spirit/forge/forge_backdrop_spirit.png",
+   "frame": [
+    640,
+    360
+   ],
+   "note": "still. The niche is centred on (352, 166), where the spirit floats; the weapon stands on the anvil at x = 214 with its foot at y = 326"
+  }
+ },
+ "play": {
+  "spirit_at": "the ember sits 13 px behind the player's back and 26 px above the feet (on the side away from where they face), drawn in front of the floor and behind nothing",
+  "marks": "one per active rune fitted, in fitting order left to right, 6 px apart, centred over the ember, 12 px above it; the middle of three sits 2 px higher. No marks if no active rune is fitted. Passive runes get no mark.",
+  "firing": "1) cast on the spirit, the rune's mark goes to recharging. 2) the rune's sign flies from the spirit to the weapon hand over about 0.12 s on a low arc, leaving trail sparks. 3) infuse on the weapon, tint the weapon ember (#ffc850) for 0.15 s, then the rune's own effect plays as before. 4) the mark turns to half for the last third of the recharge, then mark_ping and ready."
+ },
+ "forge": {
+  "ring_centre": [
+   352,
+   166
+  ],
+  "ring_radius": 88,
+  "spirit_scale": 2,
+  "seats": "one seat for every socket the fitted parts give, never a locked or empty placeholder for a socket the parts do not give. Order is the swing path's: grip sockets first, then blade (head, limb) sockets. Seat i of n sits at angle 180 - (i + 0.5) * 360 / n degrees (0 = right, 90 = down), so the order starts at the start mark on the left (180), runs along the bottom, up the right side and back along the top.",
+  "seat_angles_examples": {
+   "1": [
+    0.0
+   ],
+   "2": [
+    90.0,
+    -90.0
+   ],
+   "3": [
+    120.0,
+    0.0,
+    -120.0
+   ],
+   "4": [
+    135.0,
+    45.0,
+    -45.0,
+    -135.0
+   ],
+   "5": [
+    144.0,
+    72.0,
+    0.0,
+    -72.0,
+    -144.0
+   ],
+   "6": [
+    150.0,
+    90.0,
+    30.0,
+    -30.0,
+    -90.0,
+    -150.0
+   ]
+  },
+  "ring_line": "a 1 px circle in #1a5654 from seat to seat, with a gap of 24 degrees centred on the start mark; ring_arrow between each pair of seats, 11 px inside the ring",
+  "part_arcs": "outside the seats (radius 108) a 1 px arc in #12383e spans each part's seats, with the part's name beside it (GRIP, BLADE)",
+  "special_seat": "seat_special is for a seat a rare part gives with a rule of its own (today: the Gilded Grip's ruby socket, which doubles what is in it)",
+  "thread_rule": {
+   "what": "A thread sits in a seat like a rune, and its line runs along the ring from its seat to the next seat. Lit (ember #ffec98 on the centre line, #ffc850 off it) when the next seat holds a rune, idle (verdigris #2a7f70 / #1a5654) when it does not. s = px along the line from the thread's seat, d = px off the centre line, u = s / length. A pixel is part of the thread when:",
+   "twice": "abs(abs(d) - 1.5) < 0.6",
+   "wider": "abs(d) < 0.6 or abs(abs(d) - (0.5 + 3.4 * u)) < 0.6",
+   "every_hit": "abs(d) < 0.6 or (int(s) % 6 in (2, 3) and abs(d) < 1.6)",
+   "saved_up": "abs(d) < 0.6 or (u > 0.2 and int(s) % 7 < 2 + int(u * 3) and abs(d) < 0.6 + 2.6 * u)",
+   "on_dodge": "abs(d - 2.2 * (abs((s % 8) - 4) - 2) / 2) < 0.75",
+   "empty_spoke": "abs(d) < 0.6 and int(s) % 4 < 2, in #1a5654",
+   "ends": "start and stop 19 px short of each seat's centre"
+  },
+  "etch": "one etch_tick per fitted rune, low on the blade beside the channel, 9 forge px apart going up (drawn at the weapon's 2x). Optional."
+ },
+ "clean_parts": "spirit/clean_parts/swing/... holds the 74 pictures of weapon parts that had sockets, redrawn with none: the forge picture and the hand picture of every blade, grip, limb, bow grip, hammer head, haft, staff head and shaft that gives a seat. Same file names, same sizes, same numbers as swing/ (the slot_rects in the JSON files are simply no longer drawn on). The list is in spirit/clean_parts/clean_parts.json. Copy the swing/ folder there over the game's swing/ in the same version that stops drawing runes and threads on the weapon, not before: with these pictures an empty socket has nothing to sit in. Not changed: tray icons (they keep their small holes, which is where a player sees how many seats a part gives), pommels, weights, caps, crystals, strings, arrows, and the wooden blade, bow and heads that never had a socket. The Ringed Grip keeps its built-in ring."
+}
