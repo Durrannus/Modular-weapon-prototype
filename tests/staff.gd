@@ -244,7 +244,7 @@ func _run() -> void:
 	_check(now.has("range") and now.has("size") and now.has("mana") and now.has("cast_move") and not now.has("reach"), "a staff's numbers show range, blast, mana and walking while casting")
 	_check(Forge.stat_text("damage", now["damage"]) == "Damage 8.8" and Forge.stat_text("range", now["range"]) == "Range 77%" and Forge.stat_text("size", now["size"]) == "Blast 100%",
 		"an iron staff reads Damage 8.8, Range 77% (of a shortbow's), Blast 100%")
-	_check(Forge.stat_text("mana", now["mana"]) == "Mana a chain 22" and Forge.stat_text("cast_move", now["cast_move"]) == "Walk while casting 80%", "Mana a chain 22 (6 + 6 + 10), Walk while casting 80%")
+	_check(Forge.stat_text("mana", now["mana"]) == "Mana a chain 22" and Forge.stat_text("cast_move", now["cast_move"]) == "Walk, casting 80%", "Mana a chain 22 (6 + 6 + 10), Walk, casting 80%")
 	_check(Forge.stat_rows(forge.build.compute()).size() == 9, "nine numbers, on five rows")
 	var change: Dictionary = Forge.stat_changes(now, Forge.stat_values(forge.stats_with("iron_storm")))
 	_check(change == {"damage": "-0.9", "range": "-23%", "size": "+25%", "mana": "+2"}, "pointing at the storm head shows a lighter hit, less range, bigger spells, a dearer chain: %s" % [change])
@@ -254,7 +254,7 @@ func _run() -> void:
 	_check(change == {"slots": "+1"}, "a twisted shaft only adds a slot")
 	change = Forge.stat_changes(now, Forge.stat_values(forge.stats_with("light_cap")))
 	_check(change == {"speed": "+10%"}, "a light cap only casts faster: %s" % [change])
-	_check(forge.info_lines("iron_storm").size() <= 3 and forge._name("iron_storm") == "Iron Storm Head", "the info plate names a part and says what it is in three lines at most")
+	_check(forge.info_lines("iron_storm").size() <= forge.INFO_LINES and forge._name("iron_storm") == "Iron Storm Head", "the info plate names a part and says what it is in the lines it has")
 	# Fitting parts from the tray.
 	forge._set_tab(0)
 	var tray: Array = forge._cards()

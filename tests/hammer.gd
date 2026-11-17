@@ -210,8 +210,8 @@ func _run() -> void:
 	# The numbers plate: impact beside reach, and what a part would change.
 	var now: Dictionary = Forge.stat_values(forge.build.compute())
 	_check(now.has("reach") and now.has("impact") and now.has("move") and not now.has("range"), "a hammer's numbers show reach, impact and walking while swinging")
-	_check(Forge.stat_text("damage", now["damage"]) == "Damage 18.7" and Forge.stat_text("impact", now["impact"]) == "Impact 100%" and Forge.stat_text("move", now["move"]) == "Walk while swinging 80%",
-		"an iron maul reads Damage 18.7, Impact 100%, Walk while swinging 80%")
+	_check(Forge.stat_text("damage", now["damage"]) == "Damage 18.7" and Forge.stat_text("impact", now["impact"]) == "Impact 100%" and Forge.stat_text("move", now["move"]) == "Walk, swinging 80%",
+		"an iron maul reads Damage 18.7, Impact 100%, Walk, swinging 80%")
 	_check(Forge.stat_rows(forge.build.compute()).size() == 8, "eight numbers, on five rows")
 	var change: Dictionary = Forge.stat_changes(now, Forge.stat_values(forge.stats_with("iron_warhammer")))
 	_check(change == {"damage": "-2.2", "impact": "-15%", "move": "-10%"}, "pointing at the warhammer shows a lighter hit, a smaller patch, slower feet: %s" % [change])
@@ -221,7 +221,7 @@ func _run() -> void:
 	_check(change == {"speed": "+7%"}, "a light counterweight only swings faster, by a tenth of the maul's 70%%: %s" % [change])
 	change = Forge.stat_changes(now, Forge.stat_values(forge.stats_with("heavy_weight")))
 	_check(change == {"crit_damage": "+0.4"}, "a heavy one only crits harder: %s" % [change])
-	_check(forge.info_lines("iron_warhammer").size() <= 3 and forge._name("iron_warhammer") == "Iron Warhammer", "the info plate names a part and says what it is in three lines at most")
+	_check(forge.info_lines("iron_warhammer").size() <= forge.INFO_LINES and forge._name("iron_warhammer") == "Iron Warhammer", "the info plate names a part and says what it is in the lines it has")
 	# Fitting parts from the tray.
 	forge._set_tab(0)
 	var tray: Array = forge._cards()

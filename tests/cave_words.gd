@@ -137,14 +137,16 @@ func _one(kinds: Array) -> void:
 	m.stage = "smith"
 	m._talk_smith(0)
 	var said: Array = m.ui.lines.duplicate()
-	_check(said.size() == 7, "%s: the smith has seven things to say (%d)" % [who, said.size()])
+	_check(said.size() == 8, "%s: the smith has eight things to say (%d)" % [who, said.size()])
+	# Since version 31 his second line is about the forge spirit that holds your runes.
+	_check(str(said[1]).contains("forge spirit") and str(said[1]).contains("holds your runes"), "%s: he tells you about the forge spirit: %s" % [who, said[1]])
 	for n in said.size():
 		_fits(m, who, "the smith's line %d" % (n + 1), said[n], SAY_WIDTH, SAY_LINES)
 	if same:
 		_check(str(said[1]).contains("your %s" % kinds[0]), "%s: he names the %s" % [who, kinds[0]])
-		_check(str(said[2]).begins_with("Square stones like yours" if not active.is_empty() else "Round stones like yours"), "%s: he knows which kind of stone it is: %s" % [who, said[2]])
+		_check(str(said[3]).begins_with("Square stones like yours" if not active.is_empty() else "Round stones like yours"), "%s: he knows which kind of stone it is: %s" % [who, said[3]])
 	else:
-		_check(str(said[2]).begins_with("Round stones work" if active.size() == 1 else ("Square stones like yours" if active.size() == 2 else "Round stones like yours")), "%s: he knows which kinds of stone they are: %s" % [who, said[2]])
+		_check(str(said[3]).begins_with("Round stones work" if active.size() == 1 else ("Square stones like yours" if active.size() == 2 else "Round stones like yours")), "%s: he knows which kinds of stone they are: %s" % [who, said[3]])
 	# He hands over the tin parts, each their own weapon's.
 	m.ui.lines = []
 	m.ui.on_said.call()
