@@ -43,7 +43,7 @@ const UNITS := {
 	"": {"step": 1.0, "lo": 0.0, "hi": 100000.0},
 }
 
-const PAGES := ["All weapons", "Sword", "Bow", "Hammer", "Staff", "Sword runes", "Bow runes", "Hammer runes", "Staff runes", "Bands", "Players", "Enemies", "Forge guardian"]
+const PAGES := ["All weapons", "Sword", "Bow", "Hammer", "Staff", "Sword runes", "Bow runes", "Hammer runes", "Staff runes", "Threads", "Players", "Enemies", "Forge guardian"]
 
 ## A line under a page's name, where one helps.
 const PAGE_NOTES := {
@@ -56,7 +56,7 @@ const PAGE_NOTES := {
 	"Bow runes": "A rune's damage is a share of one arrow from the bow it sits on.",
 	"Hammer runes": "A rune's damage is a share of one swing of the hammer it sits on.",
 	"Staff runes": "A rune's damage is a share of one bolt from the staff it sits on.",
-	"Bands": "The forge's sentences keep their own words for these (\"half strength\").",
+	"Threads": "The forge's sentences keep their own words for these (\"half strength\").",
 	"Players": "Everyone gets the same numbers.",
 	"Enemies": "Enemies already here keep the same share of their health.",
 	"Forge guardian": "The tutorial cave's boss. You can also put him in the arena: see Spawn.",
@@ -317,13 +317,13 @@ static func _build_rows() -> void:
 	_add(p, g, "The ghost stays", "build:FITTINGS/spectre/time", "s", 0.5, 1.0, 120.0)
 	_recharge(p, g, "spectre")
 
-	p = "Bands"
+	p = "Threads"
 	g = "Twice"
 	_add(p, g, "The most times one rune can fire", "build:MAX_COUNT", "n", 1.0, 2.0, 6.0)
 	g = "Wider"
-	_add(p, g, "One band: the rune's size", "build:WIDER_STEPS/0", "%", 0.05, 1.0, 4.0)
-	_add(p, g, "Two bands", "build:WIDER_STEPS/1", "%", 0.05, 1.0, 4.0)
-	_add(p, g, "Three bands", "build:WIDER_STEPS/2", "%", 0.05, 1.0, 4.0)
+	_add(p, g, "One thread: the rune's size", "build:WIDER_STEPS/0", "%", 0.05, 1.0, 4.0)
+	_add(p, g, "Two threads", "build:WIDER_STEPS/1", "%", 0.05, 1.0, 4.0)
+	_add(p, g, "Three threads", "build:WIDER_STEPS/2", "%", 0.05, 1.0, 4.0)
 	_add(p, g, "The biggest a rune can get", "build:MAX_SIZE", "%", 0.05, 1.0, 4.0)
 	g = "Every Hit"
 	_add(p, g, "A passive rune, on every hit, is this strong", "build:EVERY_HIT_POWER", "%", 0.05, 0.05, 0.95)

@@ -70,10 +70,10 @@ const WORDS := {
 		"rune": "A rune gives your swing a new trick. This one hums in your hand, but your sword can't wake it.",
 		"trick": "A rune gives your swing a new trick: yours throws a shockwave off the last hit of the chain.",
 		"each": "a shockwave off the sword's last hit",
-		"grip": "grip", "top": "tip", "slot": "the blade has a slot of its own",
+		"grip": "grip", "top": "tip", "slot": "the blade gives your spirit another seat",
 		"tin": "Tin blade and tin grip",
-		"tin_hint": "Sword tab: pick the tin blade and the tin grip. Keep the rune in a slot.",
-		"tin_say": "Blade and grip first, on the Sword tab. Then the rune. Read it from the grip up to the tip.",
+		"tin_hint": "Sword tab: pick the tin blade and the tin grip. Keep the rune on a seat.",
+		"tin_say": "Blade and grip first, on the Sword tab. Then the rune, back on a seat by your spirit.",
 	},
 	"bow": {
 		"card": ["Wooden bow", "A training bow. Its arrows never run out.", "[mouse_left] shoots where you point.", "[pad_x] shoots the way you face, or aim with [stick_r]."],
@@ -81,10 +81,10 @@ const WORDS := {
 		"rune": "A rune gives your shots a new trick. This one hums in your hand, but your bow can't wake it.",
 		"trick": "A rune gives your shots a new trick: yours makes you shoot faster the longer you stand your ground.",
 		"each": "faster shots for the bow that stands its ground",
-		"grip": "grip", "top": "tip", "slot": "the limbs have a slot of their own",
+		"grip": "grip", "top": "tip", "slot": "the limbs give your spirit another seat",
 		"tin": "Tin limbs, grip and arrows",
-		"tin_hint": "Bow tab: pick the tin limbs, the tin grip and the tin arrows. Keep the rune in a slot.",
-		"tin_say": "Limbs, grip and arrows first, on the Bow tab. Then the rune. Read it from the grip up to the tip.",
+		"tin_hint": "Bow tab: pick the tin limbs, the tin grip and the tin arrows. Keep the rune on a seat.",
+		"tin_say": "Limbs, grip and arrows first, on the Bow tab. Then the rune, back on a seat by your spirit.",
 	},
 	"hammer": {
 		"card": ["Wooden hammer", "A training maul. Slow, but every blow lands hard, and the third slams the floor.", "[mouse_left] swings where you point.", "[pad_x] swings the way you face, or aim with [stick_r]."],
@@ -93,10 +93,10 @@ const WORDS := {
 		"trick": "A rune gives a weapon a new trick: yours makes the ground erupt under the enemy you aim at.",
 		"each": "an eruption under the hammer's enemy",
 		"use": "Press [ability] and the ground erupts under the enemy you aim at.\nIt is ready again after 5 seconds.",
-		"grip": "haft", "top": "head", "slot": "the head has a slot of its own",
+		"grip": "haft", "top": "head", "slot": "the head gives your spirit another seat",
 		"tin": "Tin head and tin haft",
-		"tin_hint": "Hammer tab: pick the tin head and the tin haft. Keep the rune in a slot.",
-		"tin_say": "Head and haft first, on the Hammer tab. Then the rune. Read it from the haft up to the head.",
+		"tin_hint": "Hammer tab: pick the tin head and the tin haft. Keep the rune on a seat.",
+		"tin_say": "Head and haft first, on the Hammer tab. Then the rune, back on a seat by your spirit.",
 	},
 	"staff": {
 		"card": ["Wooden staff", "A training staff. Its bolts use mana, the blue bar under your health. Stop casting for a moment and it fills.", "[mouse_left] casts where you point.", "[pad_x] casts the way you face, or aim with [stick_r]."],
@@ -105,10 +105,10 @@ const WORDS := {
 		"trick": "A rune gives a weapon a new trick: yours is a beam that grows stronger the longer you hold it.",
 		"each": "a long beam from the staff",
 		"use": "Hold [ability] for a beam into the enemy you aim at, stronger the longer you hold.\nIts meter fills again when you let go.",
-		"grip": "shaft", "top": "head", "slot": "the head has a slot of its own",
+		"grip": "shaft", "top": "head", "slot": "the head gives your spirit another seat",
 		"tin": "Tin head, shaft and crystal",
-		"tin_hint": "Staff tab: pick the tin head, the tin shaft and the tin crystal. Keep the rune in a slot.",
-		"tin_say": "Head, shaft and crystal first, on the Staff tab. Then the rune. Read it from the shaft up to the head.",
+		"tin_hint": "Staff tab: pick the tin head, the tin shaft and the tin crystal. Keep the rune on a seat.",
+		"tin_say": "Head, shaft and crystal first, on the Staff tab. Then the rune, back on a seat by your spirit.",
 	},
 }
 const GUARDIAN_AT := Vector2(20.5, 12.62) # the casting circle he kneels on
@@ -170,6 +170,9 @@ func _ready() -> void:
 	_make_walls()
 	_make_props()
 	_add_players(SPAWN * TILE)
+	# Nobody has a forge spirit yet: it joins each player at the forge.
+	for p in players:
+		p.with_spirit = false
 	for i in players.size():
 		players[i].auto_respawn = false
 		players[i].face_dir = Vector2.UP
@@ -1129,12 +1132,10 @@ func _forge_objective() -> void:
 	var what := _weapon_word()
 	if stage == "forge":
 		ui.objective = "Fit the rune to your %s at the forge" % what + _waiting_on(_fitted)
-		var kinds := _kinds()
-		var where := "your weapon" if kinds.size() != 1 else "the %s" % WORDS[kinds[0]]["grip"]
-		ui.hint = "The forge is the great sword in the north wall. Drag the rune onto the slot in %s." % where
+		ui.hint = "The forge is the great sword in the north wall. Its spirit holds your runes: drag the rune onto the seat."
 	elif stage == "tin":
 		ui.objective = "Forge your tin %s at the forge" % what + _waiting_on(_tin_done)
-		ui.hint = _by_weapon("tin_hint", "First tab: pick every tin part on it. Keep the rune in a slot.")
+		ui.hint = _by_weapon("tin_hint", "First tab: pick every tin part on it. Keep the rune on a seat.")
 
 
 ## "sword", "bow", "hammer" or "staff" when everyone holds the same, else "weapon".
@@ -1146,6 +1147,8 @@ func _weapon_word() -> String:
 func _use_forge(i: int) -> void:
 	if not Net.online() or i == Net.me():
 		build_menu.owned = owned[i]
+	# The forge's spirit joins whoever comes to it, and stays at their shoulder.
+	players[i].with_spirit = true
 	open_forge(i)
 
 
@@ -1181,6 +1184,8 @@ func _forge_done(_i: int) -> void:
 ## abilities on a button: a card says which button first, because the fight that
 ## follows is where they are for.
 func _rune_fitted() -> void:
+	for p in players:
+		p.with_spirit = true
 	var active := _active_kinds()
 	if active.is_empty():
 		_wake_guardian()
@@ -1289,28 +1294,31 @@ func _talk_smith(_i: int) -> void:
 		# Whether the players' first runes work by themselves (round stones), are
 		# abilities on a button (square ones), or some of each.
 		var active := _active_kinds()
-		var stones := "Round stones like yours work by themselves. Square ones are active: slot one into your %s and it gives you an ability on a button." % what
+		var stones := "Round stones like yours work by themselves. Square ones are active: give one to your spirit and your %s has an ability on a button." % what
 		if active.size() == kinds.size():
-			stones = "Square stones like yours are active: slotted into your %s, one gives you an ability on a button. Round stones work by themselves." % what
+			stones = "Square stones like yours are active: held by your spirit, one gives your %s an ability on a button. Round stones work by themselves." % what
 		elif not active.is_empty():
-			stones = "Round stones work by themselves. Square ones are active: slotted into a weapon, one gives you an ability on a button."
+			stones = "Round stones work by themselves. Square ones are active: held by a spirit, one gives its weapon an ability on a button."
 		# The words for players whose weapons differ, then for one kind of weapon.
-		var rune := "Those stones in your weapons are runes. A rune gives a weapon a new trick: %s." % _list(kinds.map(func(kind): return WORDS[kind]["each"]))
-		var read := "So read a weapon from the bottom up to the top."
+		var rune := "Those stones your spirits hold are runes. A rune gives a weapon a new trick: %s." % _list(kinds.map(func(kind): return WORDS[kind]["each"]))
+		var read := "So read the ring from its mark, the way the little arrows point."
 		var sticks := "Those sticks won't last on the surface. Here, take these."
-		var tin := "with a slot of its own. Forge it, set your runes"
+		var spark := "And it gave each of you a spark of itself. A forge spirit holds your runes, and your weapon draws on it."
+		var tin := "with another seat for your spirit. Forge it, set your runes"
 		if same:
 			var words: Dictionary = WORDS[kinds[0]]
-			rune = "That stone in your %s is a rune. %s" % [what, words["trick"]]
-			read = "So read a %s from the bottom of the %s up to the %s." % [what, words["grip"], words["top"]]
+			rune = "That stone your spirit holds is a rune. %s" % words["trick"]
 			sticks = "That stick won't last on the surface. Here, take these."
+			if players.size() == 1:
+				spark = "And it gave you a spark of itself. A forge spirit holds your runes, and your %s draws on it." % what
 			tin = "and %s. Forge it, set your rune" % words["slot"]
 		ui.say("Old smith", "cave/smith_portrait.png", [
 			"You woke the forge. I'd stopped hoping anyone would. That thing has kept me in here since the roof came down.",
+			spark,
 			rune,
 			stones,
-			"Bands are the other half. A band does nothing alone. It changes the next rune above it on the %s: twice, wider, and stranger things." % what,
-			read + " A band boosts the rune above it. You'll find bands out there soon enough.",
+			"Threads are the other half. A thread does nothing alone. It changes the next rune round the spirit's ring: twice, wider, and stranger things.",
+			read + " A thread changes the rune after it. You'll find threads out there soon enough.",
 			sticks,
 			"Tin. Soft, but it's real metal, %s, and take the stairs. I'll follow when I've banked the fire." % tin,
 		], func():
@@ -1323,11 +1331,11 @@ func _talk_smith(_i: int) -> void:
 			for p in players:
 				_given(p)
 			stage = "tin_card"
-			ui.card(_by_weapon("tin", "Tin parts"), "Real metal, with a slot of its own. Take them to the forge.", 0.0, func():
+			ui.card(_by_weapon("tin", "Tin parts"), "Real metal, with another seat for your spirit. Take them to the forge.", 0.0, func():
 				stage = "tin"
 				_forge_objective()))
 	elif stage == "tin":
-		ui.say("Old smith", "cave/smith_portrait.png", [_by_weapon("tin_say", "The tin parts first, on the first tab. Then the rune. Read it from the bottom up to the top.")], done)
+		ui.say("Old smith", "cave/smith_portrait.png", [_by_weapon("tin_say", "The tin parts first, on the first tab. Then the rune, back on a seat by your spirit.")], done)
 	else:
 		ui.say("Old smith", "cave/smith_portrait.png", ["Go on, up the stairs. Mind your eyes: it's bright out there."], done)
 

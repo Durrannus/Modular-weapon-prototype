@@ -26,7 +26,7 @@ const SETTLE := 0.2           # seconds they must face a new way before it chang
 const GLIDE := 9.0            # how briskly it crosses to the other side
 const OVER := 5.0             # art px it lifts on the way across, so it goes over the head and not through the face
 const FLOAT_EVERY := 1.6      # seconds for one float up and down (1 art px)
-const FADE := 0.25            # seconds to appear when you first hold a weapon
+const FADE := 0.25            # seconds to appear (when you first hold a weapon, or when it joins you)
 
 const FRAME := Vector2(19, 19)
 const ORIGIN := Vector2(9, 11)     # the ember, in the spirit's picture
@@ -129,7 +129,7 @@ func _process(delta: float) -> void:
 	if not is_instance_valid(player):
 		return
 	_t += delta
-	_there = move_toward(_there, 1.0 if player.armed() else 0.0, delta / FADE)
+	_there = move_toward(_there, 1.0 if player.armed() and player.with_spirit else 0.0, delta / FADE)
 	var want := _side_wanted()
 	_want_for = _want_for + delta if want == _want else 0.0
 	_want = want

@@ -36,15 +36,20 @@ func _init() -> void:
 			forge.selected = i
 			forge.root.queue_redraw()
 			await process_frame
-	if not forge.buttons.has("tab:3"):
-		print("FAIL: the forge never drew")
-	forge._set_tab(3)
+	if not forge.buttons.has("tab:2") or forge.buttons.has("tab:3"):
+		_fail("the forge should draw three tabs (the weapon, runes, threads)")
+	forge._set_tab(2)
+	var thread_tab: Array = []
+	for c in forge._cards():
+		thread_tab.append(str(c.get("id", "")))
+	if thread_tab != ["twice", "wider", "every_hit", "saved_up", "on_dodge", "relay"]:
+		_fail("the threads tab should offer the five threads and then the rare Relay: %s" % [thread_tab])
 	forge.selected = 0
 	forge._put("mirror")
 	forge.selected = 3
 	forge._put("relay")
 	print("one bender kept: ", forge.build.line)
-	# Drag and drop: tray card onto slot 0, slot 0 onto slot 1 (swap), slot 1 off the sword.
+	# Drag and drop: tray card onto seat 0, seat 0 onto seat 1 (swap), seat 1 off the ring.
 	forge.build.line = ["", "leap", "", ""]
 	forge._set_tab(1)
 	forge.drag_id = forge._drag_source("card:0"); forge.drag_from = -1; forge.drag_key = "card:0"; forge.dragging = true
@@ -59,6 +64,7 @@ func _init() -> void:
 	forge.drag_id = forge._drag_source("card:2"); forge.drag_from = -1; forge.drag_key = "card:2"; forge.dragging = false
 	forge._drop("")
 	print("press without drag = click, selected card: ", forge.card)
+	await _check_ring(forge)
 	await _check_words(forge)
 	await _check_presets(forge)
 	await _check_back(forge)
@@ -83,6 +89,9 @@ func _init() -> void:
 			["twice", "wider", "saved_up", "on_dodge", "quake"],
 			["wider", "saved_up", "on_dodge", "momentum", "quake"],
 			["wider", "saved_up", "on_dodge", "stagger", "bulwark"],
+			["twice", "wider", "every_hit", "on_dodge", "quake"],
+			["quake", "twice", "wider", "every_hit", "saved_up"],
+			["every_hit", "on_dodge", "bulwark", "quake", "twice"],
 		])
 	await _check_other(forge, main, "staff", [["iron_storm", "twisted_shaft"], ["wooden_apprentice", "wooden_shaft"], ["iron_apprentice", "carved_shaft"]],
 		["orbit", "chain", "overflow", "nova", "lance", "spectre"], [
@@ -106,6 +115,10 @@ func _init() -> void:
 			["twice", "wider", "saved_up", "on_dodge", "spectre"],
 			["wider", "saved_up", "on_dodge", "orbit", "nova"],
 			["wider", "saved_up", "on_dodge", "overflow", "spectre"],
+			["every_hit", "saved_up", "on_dodge", "lance", ""],
+			["spectre", "twice", "wider", "saved_up", "on_dodge"],
+			["every_hit", "on_dodge", "spectre", "lance", "twice"],
+			["every_hit", "on_dodge", "spectre", "nova", "lance"],
 		])
 	forge._set_tab(0)
 	for i in forge._cards().size():
@@ -158,9 +171,7 @@ func _check_words(forge) -> void:
 	parts.append_array(SwingBuild.POMMELS.keys())
 	parts.append_array(SwingBuild.FITTINGS.keys())
 	for id in parts:
-		var n: int = forge.info_lines(id).size()
-		if n > 3:
-			_fail("%s: its sentence takes %d lines on the info plate (3 fit)" % [id, n])
+		_sentence_fits(forge, id)
 	print("sentences fit: ", parts.size(), " parts")
 	# Every rune in the tray has its "hold Alt" picture.
 	for id in SwingBuild.FITTING_ORDER:
@@ -190,6 +201,9 @@ func _check_words(forge) -> void:
 		["saved_up", "ghostwield", "every_hit", "whirlwind"],
 		["twice", "wider", "every_hit", "ghostwield"],
 		["leap", "every_hit", "on_dodge", "ghostwield"],
+		# One long rune and threads with nothing after them.
+		["leap", "twice", "wider", "saved_up"],
+		["ghostwield", "every_hit", "on_dodge", "saved_up"],
 	]
 	forge.build.set_blade("iron_greatsword")
 	forge._set_tab(1)
@@ -200,13 +214,18 @@ func _check_words(forge) -> void:
 			forge.build.set_grip(grip)
 			for l in full:
 				forge.build.line = l.duplicate()
-				forge.root.queue_redraw()
-				await process_frame
-				await process_frame
-				if not forge.does_fits:
+				if not await _does_fits(forge):
 					_fail("what it does runs off its plate: %s %s" % [grip, l])
 	forge.keys = was_keys
-	print("what it does fits: ", full.size() * 6, " swords")
+	# The longest ring a sword has: five seats, on a long grip.
+	forge.build.set_grip("long_grip")
+	for l in [["whirlwind", "leap", "ghostwield", "weak_point", "shards"], ["twice", "every_hit", "saved_up", "on_dodge", "leap"],
+			["leap", "twice", "wider", "saved_up", "on_dodge"], ["every_hit", "on_dodge", "ghostwield", "whirlwind", "leap"],
+			["wider", "every_hit", "saved_up", "on_dodge", "whirlwind"], ["every_hit", "ghostwield", "twice", "", "wider"]]:
+		forge.build.line = l.duplicate()
+		if not await _does_fits(forge):
+			_fail("what it does runs off its plate: long_grip %s" % [l])
+	print("what it does fits: ", full.size() * 6 + 6, " swords, with each seat chosen in turn")
 	# Compare on hover. The Game Bible's example: a sabre fitted, pointing at a
 	# greatsword shows more reach and damage, less crit and speed.
 	forge.build.set_grip("wrapped_grip")
@@ -226,7 +245,7 @@ func _check_words(forge) -> void:
 		_fail("sabre to greatsword should leave slots and crit damage alone")
 	ch = Forge.stat_changes(now, Forge.stat_values(forge.stats_with("long_grip")))
 	if ch != {"slots": "+1"}:
-		_fail("a long grip should only add a slot, got %s" % ch)
+		_fail("a long grip should only add a seat, got %s" % ch)
 	# Every sword, pointing at every part: each number and its change fit the column.
 	var widest := -999.0
 	var tight := ""
@@ -248,9 +267,7 @@ func _check_words(forge) -> void:
 					for row in Forge.STAT_ROWS:
 						var key: String = row[0]
 						var w: float = forge.stat_width(Forge.stat_text(key, now[key]), Forge.delta_text(key, float(then[key]) - float(now[key])))
-						var room: float = Forge.STAT_COL - 3.0
-						if key == "move" or int(row[1]) == 1:
-							room = Forge.STATS.size.x - Forge.stat_at(row).x - 6.0
+						var room: float = Forge.stat_room()
 						if w - room > widest:
 							widest = w - room
 							tight = "%s on a %s %s %s, pointing at %s (%d of %d px)" % [key, blade, grip, pommel, id, w, room]
@@ -405,11 +422,16 @@ func _check_back(forge) -> void:
 			if title_x < r.end.x + 4.0:
 				_fail("%s: the screen's name touches it" % what)
 			if whose != "":
-				if forge.whose_at().x < row_end + 4.0:
-					_fail("%s: '%s' touches the screen's name" % [what, whose])
-				row_end = forge.whose_at().x + forge._head_width(whose)
-			if row_end > forge.TRAY.end.x:
-				_fail("%s: the row runs past the tray (%d px, the tray ends at %d)" % [what, row_end, forge.TRAY.end.x])
+				if forge._head_width(whose) > forge.WHOSE_W:
+					_fail("%s: '%s' is wider than its place over the ring" % [what, whose])
+				var named := Rect2(forge.whose_at() - Vector2(0, 9), Vector2(forge.WHOSE_W, 11))
+				if named.position.x < row_end + 4.0 or named.end.x > forge.PRESETS.position.x:
+					_fail("%s: '%s' touches the screen's name or the presets" % [what, whose])
+				for k in forge.buttons:
+					if str(k).begins_with("slot:") and named.intersects(forge.buttons[k]):
+						_fail("%s: '%s' covers a seat" % [what, whose])
+			if row_end > forge.CENTRE_X - 20.0:
+				_fail("%s: the row runs into the weapon (%d px, the weapon stands at %d)" % [what, row_end, forge.CENTRE_X])
 	forge.keys = was_keys
 	forge.whose = ""
 	# A click with nothing changed leaves at once; after a change the "forged"
@@ -445,8 +467,7 @@ func _check_bow(forge, main) -> void:
 	for table in [SwingBuild.LIMBS, SwingBuild.BOW_GRIPS, SwingBuild.STRINGS, SwingBuild.ARROWS]:
 		parts.append_array(table.keys())
 	for id in parts:
-		if forge.info_lines(id).size() > 3:
-			_fail("%s: its sentence takes %d lines on the info plate (3 fit)" % [id, forge.info_lines(id).size()])
+		_sentence_fits(forge, id)
 	for id in SwingBuild.LIMBS:
 		for what in ["hand", "forge_upper", "forge_lower", "icon"]:
 			if not FileAccess.file_exists("res://art/swing/bow/limbs/%s_%s.png" % [id, what]):
@@ -472,10 +493,7 @@ func _check_bow(forge, main) -> void:
 			forge.root.queue_redraw()
 			await process_frame
 			await process_frame
-		for i in forge.build.line.size():
-			var slot: Rect2 = forge._slot_screen(i)
-			if slot.position.y < 0.0 or slot.end.y > 360.0 or slot.position.x < forge.TRAY.end.x or slot.end.x > forge.DOES.position.x:
-				_fail("%s on a %s: slot %d is off the anvil's space %s" % [bow[0], bow[1], i, slot])
+		_seats_in_place(forge, "%s on a %s" % [bow[0], bow[1]])
 	forge._set_tab(0)
 	var was_owned = forge.owned
 	for owned in [null, parts]:      # the arena's tray, and the fullest a cave could ever show
@@ -496,17 +514,14 @@ func _check_bow(forge, main) -> void:
 				if (rects[a] as Rect2).intersects(rects[b]):
 					_fail("two BOW tab cards overlap: %s %s" % [rects[a], rects[b]])
 	forge.owned = was_owned
-	# Bands with no rune to boost: "what it does" says so for each, and still fits.
+	# Threads with no rune to change: "what it does" says so for each, and still fits.
 	forge.build.set_blade("iron_longbow")
 	forge.build.set_grip("horn_bow_grip")
 	forge.build.line = ["twice", "wider", "every_hit", "saved_up", "on_dodge"]
 	forge._set_tab(2)
-	forge.root.queue_redraw()
-	await process_frame
-	await process_frame
-	if not forge.does_fits:
-		_fail("what it does runs off its plate for a bow with five bands")
-	# The fullest bows (five slots on the longbow with the horn grip, four on the
+	if not await _does_fits(forge):
+		_fail("what it does runs off its plate for a bow with five threads")
+	# The fullest bows (five seats on the longbow with the horn grip, four on the
 	# shortbow with the wrapped one), with keyboard and with controller button names.
 	var full := [
 		["volley", "snipe", "arrow_rain", "ricochet", "pierce"],
@@ -520,6 +535,11 @@ func _check_bow(forge, main) -> void:
 		["wider", "on_dodge", "snipe", "every_hit", "volley"],
 		["on_dodge", "arrow_rain", "on_dodge", "snipe", "volley"],
 		["every_hit", "saved_up", "on_dodge", "arrow_rain", "snipe"],
+		# The longest sentences there are, and one long rune with idle threads after it.
+		["twice", "every_hit", "saved_up", "on_dodge", "arrow_rain"],
+		["wider", "every_hit", "saved_up", "on_dodge", "snipe"],
+		["arrow_rain", "twice", "wider", "every_hit", "saved_up"],
+		["every_hit", "on_dodge", "snipe", "arrow_rain", "twice"],
 	]
 	var was_keys = forge.keys
 	var bows := 0
@@ -530,15 +550,12 @@ func _check_bow(forge, main) -> void:
 			forge.build.set_grip(kit[1])
 			for l in full:
 				forge.build.line = l.slice(0, kit[2])
-				forge.root.queue_redraw()
-				await process_frame
-				await process_frame
 				bows += 1
-				if not forge.does_fits:
+				if not await _does_fits(forge):
 					_fail("what it does runs off its plate: %s %s" % [kit, forge.build.line])
 	forge.keys = was_keys
 	print("what it does fits: ", bows, " bows")
-	# The bow's tray of runes: its own six and the bands, and none of the sword's.
+	# The bow's tray of runes: its own six, and none of the sword's.
 	forge._set_tab(1)
 	var tray: Array = []
 	for c in forge._cards():
@@ -566,9 +583,7 @@ func _check_bow(forge, main) -> void:
 						for row in Forge.stat_rows(stats):
 							var key: String = row[0]
 							var w: float = forge.stat_width(Forge.stat_text(key, now[key]), Forge.delta_text(key, float(then[key]) - float(now[key])))
-							var room: float = Forge.STAT_COL - 3.0
-							if key == "shoot_move" or int(row[1]) == 1:
-								room = Forge.STATS.size.x - Forge.stat_at(row).x - 6.0
+							var room: float = Forge.stat_room()
 							if w - room > widest:
 								widest = w - room
 								tight = "%s on a %s %s %s %s, pointing at %s (%d of %d px)" % [key, limbs, grip, string, arrows, id, w, room]
@@ -586,10 +601,10 @@ func _check_bow(forge, main) -> void:
 
 ## The hammer or the staff on the anvil (15 November), checked as the bow is: every
 ## part has its pictures and a sentence that fits, the rows of the first tab stay
-## inside the tray, the slots stay on the anvil, each tab draws, and every number
-## fits its column whatever is pointed at. `kits` are [head, grip] pairs to draw.
+## inside the tray, the seats stay in the spirit's niche, each tab draws, and every
+## number fits its plate whatever is pointed at. `kits` are [head, grip] pairs to draw.
 ## `runes`: what its rune tray must offer.  `full`: the fullest lines of runes and
-## bands to read out in "what it does" (cut to the slots each kit has).
+## threads to read out in "what it does" (cut to the seats each kit has).
 func _check_other(forge, main, weapon: String, kits: Array, runes: Array = [], full: Array = []) -> void:
 	var Forge := preload("res://scripts/ui/swing_forge.gd")
 	main.swap_weapon(0, weapon)
@@ -601,8 +616,7 @@ func _check_other(forge, main, weapon: String, kits: Array, runes: Array = [], f
 	for row in rows:
 		for id in row[3]:
 			parts.append(id)
-			if forge.info_lines(id).size() > 3:
-				_fail("%s: its sentence takes %d lines on the info plate (3 fit)" % [id, forge.info_lines(id).size()])
+			_sentence_fits(forge, id)
 			if forge.info_lines(id).is_empty() or str(forge._name(id)) == "":
 				_fail("%s has no name or no sentence" % id)
 			for what in ["hand", "forge", "icon"]:
@@ -613,7 +627,7 @@ func _check_other(forge, main, weapon: String, kits: Array, runes: Array = [], f
 				_fail("%s is offered in the arena but is not in the full list" % id)
 	if forge.TABS[0] != "sword" or forge._tab_label(0).to_lower() != weapon:
 		_fail("the first tab should be named after the %s: %s" % [weapon, forge._tab_label(0)])
-	# Every tab draws with the tallest and the smallest; the slots stay on the anvil.
+	# Every tab draws with the tallest and the smallest; the seats stay in the niche.
 	for kit in kits:
 		forge.build.set_blade(kit[0])
 		forge.build.set_grip(kit[1])
@@ -622,10 +636,7 @@ func _check_other(forge, main, weapon: String, kits: Array, runes: Array = [], f
 			forge.root.queue_redraw()
 			await process_frame
 			await process_frame
-		for i in forge.build.line.size():
-			var slot: Rect2 = forge._slot_screen(i)
-			if slot.position.y < 0.0 or slot.end.y > 360.0 or slot.position.x < forge.TRAY.end.x or slot.end.x > forge.DOES.position.x:
-				_fail("%s on a %s: slot %d is off the anvil's space %s" % [kit[0], kit[1], i, slot])
+		_seats_in_place(forge, "%s on a %s" % [kit[0], kit[1]])
 	# The first tab's cards stay inside the tray and don't touch each other.
 	forge._set_tab(0)
 	var was_owned = forge.owned
@@ -650,16 +661,13 @@ func _check_other(forge, main, weapon: String, kits: Array, runes: Array = [], f
 				if (rects[a] as Rect2).intersects(rects[b]):
 					_fail("two %s tab cards overlap: %s %s" % [weapon, rects[a], rects[b]])
 	forge.owned = was_owned
-	# Bands with no rune to boost: "what it does" says so for each, and still fits.
+	# Threads with no rune to change: "what it does" says so for each, and still fits.
 	forge.build.set_blade(kits[0][0])
 	forge.build.set_grip(kits[0][1])
 	forge.build.line = ["twice", "wider", "every_hit", "saved_up", "on_dodge"].slice(0, forge.build.slot_count())
 	forge._set_tab(2)
-	forge.root.queue_redraw()
-	await process_frame
-	await process_frame
-	if not forge.does_fits:
-		_fail("what it does runs off its plate for a %s full of bands" % weapon)
+	if not await _does_fits(forge):
+		_fail("what it does runs off its plate for a %s full of threads" % weapon)
 	# Its fullest lines of runes, with keyboard and with controller button names.
 	var was_keys = forge.keys
 	var read := 0
@@ -670,11 +678,8 @@ func _check_other(forge, main, weapon: String, kits: Array, runes: Array = [], f
 			forge.build.set_grip(kit[1])
 			for l in full:
 				forge.build.line = l.slice(0, forge.build.slot_count())
-				forge.root.queue_redraw()
-				await process_frame
-				await process_frame
 				read += 1
-				if not forge.does_fits:
+				if not await _does_fits(forge):
 					_fail("what it does runs off its plate: %s %s" % [kit, forge.build.line])
 	forge.keys = was_keys
 	if read > 0:
@@ -687,8 +692,7 @@ func _check_other(forge, main, weapon: String, kits: Array, runes: Array = [], f
 	if offered != runes:
 		_fail("the %s's rune tray should offer %s: %s" % [weapon, runes, offered])
 	for id in runes:
-		if forge.info_lines(id).size() > 3:
-			_fail("%s: its sentence takes %d lines on the info plate (3 fit)" % [id, forge.info_lines(id).size()])
+		_sentence_fits(forge, id)
 	forge.build.set_blade(kits[0][0])
 	forge.build.set_grip(kits[0][1])
 	forge.build.line = ["", "", "", "", ""].slice(0, forge.build.slot_count())
@@ -722,9 +726,7 @@ func _check_other(forge, main, weapon: String, kits: Array, runes: Array = [], f
 								_fail("the %s's stats plate has no words for %s" % [weapon, key])
 								return
 							var w: float = forge.stat_width(Forge.stat_text(key, now[key]), Forge.delta_text(key, float(then[key]) - float(now[key])))
-							var room: float = Forge.STAT_COL - 3.0
-							if key in ["move", "cast_move"] or int(row[1]) == 1:
-								room = Forge.STATS.size.x - Forge.stat_at(row, table).x - 6.0
+							var room: float = Forge.stat_room()
 							if w - room > widest:
 								widest = w - room
 								tight = "%s on a %s %s %s %s, pointing at %s (%d of %d px)" % [key, head, grip, butt, shot, id, w, room]
@@ -732,9 +734,12 @@ func _check_other(forge, main, weapon: String, kits: Array, runes: Array = [], f
 								_fail("%s on a %s %s %s %s, pointing at %s: %d px wide, %d fit" % [key, head, grip, butt, shot, id, w, room])
 								return
 	# The last row of numbers stays on the plate.
-	var last: Array = Forge.stat_rows(forge.build.compute())[-1]
-	if Forge.stat_at(last, Forge.stat_rows(forge.build.compute())).y > Forge.STATS.size.y - 4.0:
+	var last_stats: Dictionary = forge.build.compute()
+	var last: Array = Forge.stat_rows(last_stats)[-1]
+	if Forge.stat_at(last, Forge.stat_rows(last_stats)).y > Forge.stats_rect(last_stats).size.y - 4.0:
 		_fail("the %s's last row of numbers hangs off the stats plate" % weapon)
+	if Forge.does_rect(last_stats).size.y < 150.0 or Forge.does_rect(last_stats).intersects(Forge.stats_rect(last_stats)):
+		_fail("the %s's numbers leave too little room for what it does" % weapon)
 	print("%s numbers fit: %d comparisons, the tightest is %s" % [weapon, pairs, tight])
 	# Fitting from the tray: the first card of each row goes onto the anvil.
 	forge.build.set_data(SwingBuild.TEST_HAMMER if weapon == "hammer" else SwingBuild.TEST_STAFF)
@@ -757,3 +762,126 @@ func _fits_help(forge, text: String) -> void:
 	var w: float = preload("res://scripts/art.gd").font("PixelifySans-Regular").get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 11).x
 	if w > forge.HELP.size.x - 14.0:
 		_fail("help line too wide (%d px): %s" % [w, text])
+
+
+## A part's name and sentence fit the info plate under the tray: five lines, or
+## four for a rune (the last line is its "hold Alt to preview").
+func _sentence_fits(forge, id: String) -> void:
+	var n: int = forge.info_lines(id).size()
+	var room: int = forge.INFO_LINES_RUNE if forge._is_rune(id) else forge.INFO_LINES
+	if n == 0:
+		_fail("%s has no sentence" % id)
+	if n > room:
+		_fail("%s: its sentence takes %d lines on the info plate (%d fit)" % [id, n, room])
+	var w: float = preload("res://scripts/art.gd").font("PixelifySans-Regular").get_string_size(str(forge._name(id)), HORIZONTAL_ALIGNMENT_LEFT, -1, forge.info_name_size(id)).x
+	if w > forge.INFO_NAME_ROOM:
+		_fail("%s: its name is too wide for the info plate (%d px)" % [id, w])
+
+
+## "What it does" fits its plate with each seat chosen in turn. (On a crowded ring
+## only the rune you point at is written out, so the longest sentence must be tried.)
+func _does_fits(forge) -> bool:
+	var was: int = forge.selected
+	var ok := true
+	for i in maxi(forge.build.line.size(), 1):
+		forge.selected = i
+		forge.root.queue_redraw()
+		await process_frame
+		await process_frame
+		if not forge.does_fits:
+			ok = false
+	forge.selected = clampi(was, 0, maxi(forge.build.line.size() - 1, 0))
+	return ok
+
+
+## Every seat on the ring is inside the spirit's niche (right of the weapon, left
+## of the right-hand plates, above the help), and no two touch.
+func _seats_in_place(forge, what: String) -> void:
+	var n: int = forge.build.line.size()
+	for i in n:
+		var seat: Rect2 = forge._slot_screen(i)
+		if seat.position.x < 258.0 or seat.end.x > forge.RIGHT.position.x - 8.0 or seat.position.y < 40.0 or seat.end.y > forge.HELP.position.y:
+			_fail("%s: seat %d of %d is outside the niche %s" % [what, i + 1, n, seat])
+		for j in i:
+			if seat.grow(2).intersects(forge._slot_screen(j)):
+				_fail("%s: seats %d and %d of %d touch" % [what, j + 1, i + 1, n])
+
+
+## The spirit's ring (17 November): one seat for every socket the fitted parts
+## give and never a locked one, in the old order from the start mark on the left
+## (grip seats along the bottom, then up the right and back along the top).
+func _check_ring(forge) -> void:
+	var Forge := preload("res://scripts/ui/swing_forge.gd")
+	# The art's rule (art/spirit/spirit.json): seat i of n at 180 - (i + 0.5) * 360 / n degrees.
+	var rule: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("res://art/spirit/spirit.json"))
+	if rule == null or rule.is_empty():
+		_fail("art/spirit/spirit.json is missing")
+		return
+	for n in range(1, 7):
+		for i in n:
+			var a := 180.0 - (i + 0.5) * 360.0 / n
+			if absf(Forge.seat_angle(i, n) - a) > 0.001:
+				_fail("seat %d of %d should be at %.1f degrees, not %.1f" % [i + 1, n, a, Forge.seat_angle(i, n)])
+	var first: Vector2 = Forge.seat_at(0, 4)
+	if not (first.x < Forge.RING_AT.x and first.y > Forge.RING_AT.y):
+		_fail("the first of four seats should be at the lower left, after the start mark: %s" % first)
+	var kits := [["wooden_blade", "wooden_grip", 1], ["tin_blade", "wooden_grip", 2], ["iron_broadsword", "wooden_grip", 3],
+		["iron_broadsword", "wrapped_grip", 4], ["iron_greatsword", "long_grip", 5], ["iron_broadsword", "gilded_grip", 4]]
+	for kit in kits:
+		forge.build.set_blade(kit[0])
+		forge.build.set_grip(kit[1])
+		forge.root.queue_redraw()
+		await process_frame
+		await process_frame
+		var seats := 0
+		for k in forge.buttons:
+			if str(k).begins_with("slot:"):
+				seats += 1
+		if forge.build.line.size() != kit[2] or seats != kit[2]:
+			_fail("%s on a %s should give the spirit %d seats and show no other: %d drawn" % [kit[0], kit[1], kit[2], seats])
+		_seats_in_place(forge, "%s on a %s" % [kit[0], kit[1]])
+		# The three tabs stay inside the tray.
+		for t in forge.TABS.size():
+			if not forge.TRAY.grow(-2).encloses(forge.buttons["tab:%d" % t]):
+				_fail("tab %d leaves the tray: %s" % [t, forge.buttons["tab:%d" % t]])
+	# A thread is lit only while it changes a rune: one with no rune after it is idle.
+	forge.build.set_blade("iron_broadsword")
+	forge.build.set_grip("wrapped_grip")
+	forge.build.line = ["twice", "shockwave", "wider", ""]
+	var live: Array = forge._live(forge.build.compute())
+	if live != [true, true, false, false]:
+		_fail("Twice before Shockwave is at work and Wider with nothing after it is not: %s" % [live])
+	# Threads in the grip carry over to the first rune in the blade (Darren's question, 16 November).
+	forge.build.line = ["twice", "wider", "leap", ""]
+	live = forge._live(forge.build.compute())
+	if live != [true, true, true, false]:
+		_fail("two threads in the grip should both be at work on the blade's rune: %s" % [live])
+	# Every thread has its own pattern, so two can be told apart without colour.
+	var seen := {}
+	for id in ["twice", "wider", "every_hit", "saved_up", "on_dodge"]:
+		var shape := ""
+		for sx in 40:
+			for d in range(-4, 5):
+				shape += "1" if Forge.thread_pixel(id, float(sx), float(d), sx / 40.0) else "0"
+		if not shape.contains("1"):
+			_fail("the %s thread draws nothing along the ring" % id)
+		if seen.has(shape):
+			_fail("the %s thread looks the same as the %s thread" % [id, seen[shape]])
+		seen[shape] = id
+		if not FileAccess.file_exists("res://art/spirit/threads/%s_icon.png" % id):
+			_fail("the %s thread has no icon" % id)
+	# A row of "what it does" is a button: clicking it chooses that rune's seat.
+	forge.build.line = ["twice", "shockwave", "", "leap"]
+	forge.selected = 0
+	forge.root.queue_redraw()
+	await process_frame
+	await process_frame
+	if not forge.buttons.has("does:1"):
+		_fail("what it does has no row to click for the second rune")
+	else:
+		if not Forge.does_rect(forge.build.compute()).encloses(forge.buttons["does:1"]):
+			_fail("a row of what it does leaves its plate: %s" % forge.buttons["does:1"])
+		forge._click("does:1")
+		if forge.selected != 3:
+			_fail("clicking Leap's row should choose its seat (the fourth), got %d" % (forge.selected + 1))
+	print("ring: 1 to 5 seats in place, threads lit only when at work, rows choose seats")

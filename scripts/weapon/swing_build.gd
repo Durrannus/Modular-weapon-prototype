@@ -143,10 +143,10 @@ const LIMBS := {
 const LIMB_ORDER := ["iron_shortbow", "iron_longbow"]
 
 const BOW_GRIPS := {
-	"wooden_bow_grip": {"name": "Wooden Bow Grip", "slots": 1, "desc": "One slot."},
-	"tin_bow_grip": {"name": "Tin Bow Grip", "slots": 1, "desc": "One slot."},
-	"wrapped_bow_grip": {"name": "Wrapped Bow Grip", "slots": 2, "desc": "Two slots."},
-	"horn_bow_grip": {"name": "Horn Bow Grip", "slots": 3, "desc": "Three slots."},
+	"wooden_bow_grip": {"name": "Wooden Bow Grip", "slots": 1, "desc": "Gives your spirit one seat."},
+	"tin_bow_grip": {"name": "Tin Bow Grip", "slots": 1, "desc": "Gives your spirit one seat."},
+	"wrapped_bow_grip": {"name": "Wrapped Bow Grip", "slots": 2, "desc": "Gives your spirit two seats."},
+	"horn_bow_grip": {"name": "Horn Bow Grip", "slots": 3, "desc": "Gives your spirit three seats."},
 }
 const BOW_GRIP_ORDER := ["wooden_bow_grip", "wrapped_bow_grip", "horn_bow_grip"]
 
@@ -206,10 +206,10 @@ const HEADS := {
 const HEAD_ORDER := ["iron_maul", "iron_warhammer"]
 
 const HAFTS := {
-	"wooden_haft": {"name": "Wooden Haft", "slots": 1, "desc": "One slot."},
-	"tin_haft": {"name": "Tin Haft", "slots": 1, "desc": "One slot."},
-	"bound_haft": {"name": "Bound Haft", "slots": 2, "desc": "Two slots."},
-	"studded_haft": {"name": "Studded Haft", "slots": 3, "desc": "Three slots."},
+	"wooden_haft": {"name": "Wooden Haft", "slots": 1, "desc": "Gives your spirit one seat."},
+	"tin_haft": {"name": "Tin Haft", "slots": 1, "desc": "Gives your spirit one seat."},
+	"bound_haft": {"name": "Bound Haft", "slots": 2, "desc": "Gives your spirit two seats."},
+	"studded_haft": {"name": "Studded Haft", "slots": 3, "desc": "Gives your spirit three seats."},
 }
 const HAFT_ORDER := ["wooden_haft", "bound_haft", "studded_haft"]
 
@@ -300,10 +300,10 @@ const STAFF_HEADS := {
 const STAFF_HEAD_ORDER := ["iron_apprentice", "iron_storm"]
 
 const SHAFTS := {
-	"wooden_shaft": {"name": "Wooden Shaft", "slots": 1, "desc": "One slot."},
-	"tin_shaft": {"name": "Tin Shaft", "slots": 1, "desc": "One slot."},
-	"carved_shaft": {"name": "Carved Shaft", "slots": 2, "desc": "Two slots."},
-	"twisted_shaft": {"name": "Twisted Shaft", "slots": 3, "desc": "Three slots."},
+	"wooden_shaft": {"name": "Wooden Shaft", "slots": 1, "desc": "Gives your spirit one seat."},
+	"tin_shaft": {"name": "Tin Shaft", "slots": 1, "desc": "Gives your spirit one seat."},
+	"carved_shaft": {"name": "Carved Shaft", "slots": 2, "desc": "Gives your spirit two seats."},
+	"twisted_shaft": {"name": "Twisted Shaft", "slots": 3, "desc": "Gives your spirit three seats."},
 }
 const SHAFT_ORDER := ["wooden_shaft", "carved_shaft", "twisted_shaft"]
 
@@ -462,14 +462,14 @@ static func limb_info(id: String, arrows: String) -> Dictionary:
 ## Slots never make a part weaker (Game Bible): a grip with more of them swings
 ## just as fast.
 const GRIPS := {
-	"tin_grip": {"name": "Tin Grip", "slots": 1, "desc": "One slot."},
-	"wooden_grip": {"name": "Wooden Grip", "slots": 1, "desc": "One slot."},
-	"wrapped_grip": {"name": "Wrapped Grip", "slots": 2, "desc": "Two slots."},
-	"long_grip": {"name": "Long Grip", "slots": 3, "desc": "Three slots."},
+	"tin_grip": {"name": "Tin Grip", "slots": 1, "desc": "Gives your spirit one seat."},
+	"wooden_grip": {"name": "Wooden Grip", "slots": 1, "desc": "Gives your spirit one seat."},
+	"wrapped_grip": {"name": "Wrapped Grip", "slots": 2, "desc": "Gives your spirit two seats."},
+	"long_grip": {"name": "Long Grip", "slots": 3, "desc": "Gives your spirit three seats."},
 	"ringed_grip": {"name": "Ringed Grip", "slots": 2, "built_in": "wider",
-		"desc": "Two slots, and a band built into the pommel makes every rune a bit bigger."},
+		"desc": "Two seats, and the thread wound into it makes every rune a bit bigger."},
 	"gilded_grip": {"name": "Gilded Grip", "slots": 2, "ruby_slot": 1,
-		"desc": "Two slots, and the ruby top slot doubles what is in it: a rune fires twice, a band counts as two."},
+		"desc": "Two seats. Its ruby seat doubles what is in it: a rune fires twice, a thread counts as two."},
 }
 const GRIP_ORDER := ["wooden_grip", "wrapped_grip", "long_grip", "ringed_grip", "gilded_grip"]
 
@@ -570,24 +570,24 @@ static var FITTINGS := {
 	"lance": {"kind": "rune", "weapon": "staff", "name": "Lance", "trigger": "active", "use": "hold", "recharge": 8.0, "turns": 12, "turn": 0.25, "color": Color("#fff078"),
 		"desc": "Hold its button: a beam into the first enemy on your aim that builds the longer you hold."},
 	"spectre": {"kind": "rune", "weapon": "staff", "name": "Spectre", "trigger": "active", "use": "press", "recharge": 30.0, "time": 6.0, "color": Color("#a8b4ff"),
-		"desc": "Press its button: a ghost of you, or of the teammate you aim at, copies their basic attacks."},
+		"desc": "Press its button: a ghost of you, or of the teammate you aim at, copies basic attacks."},
 	"twice": {"kind": "band", "name": "Twice", "color": Color("#86d4a4"),
-		"desc": "The rune above happens twice."},
+		"desc": "The next rune happens twice."},
 	"wider": {"kind": "band", "name": "Wider", "color": Color("#86d4a4"),
-		"desc": "The rune above is bigger."},
+		"desc": "The next rune is bigger."},
 	# On an active rune it is a different rule (Darren, 11 November afternoon): the
 	# rune stays on its button, and every swing you land brings it back sooner.
 	"every_hit": {"kind": "band", "name": "Every Hit", "color": Color("#86d4a4"),
-		"desc": "A passive rune above fires on every hit at half strength. Your hits recharge an active one."},
+		"desc": "A passive rune next fires on every hit, at half strength. An active one recharges as you land hits."},
 	"saved_up": {"kind": "band", "name": "Saved Up", "color": Color("#86d4a4"),
-		"desc": "The rune above is three times as strong, but comes a third as often."},
+		"desc": "The next rune is three times as strong, but comes a third as often."},
 	"on_dodge": {"kind": "band", "name": "On Dodge", "color": Color("#86d4a4"),
-		"desc": "The rune above also happens when you dodge."},
+		"desc": "The next rune also happens when you dodge."},
 	# Mirror is parked (Darren, 6 November): it overlapped Twice too much. The rules stay, but it's kept out of the forge.
 	"mirror": {"kind": "bender", "name": "Mirror", "color": Color("#a878d0"), "parked": true,
-		"desc": "Rare. Copies the fitting below it. One rule-bender per sword."},
+		"desc": "Rare. Copies what is in the seat before it. One rule-bender per weapon."},
 	"relay": {"kind": "bender", "name": "Relay", "color": Color("#a878d0"),
-		"desc": "Rare: the bands under the rune below also boost the next rune above."},
+		"desc": "Rare. Put it after a rune: that rune's threads change the next rune too."},
 }
 ## Passive runes first, then active ones (the forge tray shows them as two groups).
 ## Whether this fitting can go on that weapon ("sword", "bow", "hammer", "staff").
@@ -1081,7 +1081,7 @@ static func resolve(slots: Array, ruby := -1) -> Dictionary:
 		var f: Dictionary = FITTINGS[id]
 		if f["kind"] == "bender":  # Relay (Mirror was swapped for its copy above)
 			if effects.is_empty() or not pending.is_empty():
-				info[i] = {"unused": true, "relay": true, "why": "Needs a rune right below it."}
+				info[i] = {"unused": true, "relay": true, "why": "Needs a rune in the seat before it."}
 				continue
 			relay_bands = (effects[-1]["band_slots"] as Array).duplicate()
 			relay_slot = i
@@ -1092,11 +1092,11 @@ static func resolve(slots: Array, ruby := -1) -> Dictionary:
 			continue
 		if f["trigger"] == "active" and not (id in buttons) and buttons.size() >= ACTIVE_BUTTONS:
 			# A fourth kind of active rune has no button left.
-			info[i] = {"unused": true, "why": "Only three active runes work on one sword."}
+			info[i] = {"unused": true, "why": "Only three active runes work on one weapon."}
 			for s in pending:
-				info[s] = {"unused": true, "why": "The rune above it has no button."}
+				info[s] = {"unused": true, "why": "The rune after it has no button."}
 			if relay_slot >= 0:
-				info[relay_slot] = {"unused": true, "relay": true, "why": "The rune above it has no button."}
+				info[relay_slot] = {"unused": true, "relay": true, "why": "The rune after it has no button."}
 				relay_slot = -1
 				relay_bands = []
 			pending = []
@@ -1126,9 +1126,9 @@ static func resolve(slots: Array, ruby := -1) -> Dictionary:
 		effects.append(e)
 		pending = []
 	for s in pending:
-		info[s] = {"unused": true, "why": "No rune above it, so it does nothing."}
+		info[s] = {"unused": true, "why": "No rune after it, so it does nothing."}
 	if relay_slot >= 0:
-		info[relay_slot] = {"unused": true, "relay": true, "why": "Needs a rune above it."}
+		info[relay_slot] = {"unused": true, "relay": true, "why": "Needs a rune after it."}
 	for i in slots.size():
 		if slots[i] == "mirror":
 			info[i] = info.get(i, {})
@@ -1146,7 +1146,7 @@ static func _apply_mirror(slots: Array, info: Dictionary) -> Array:
 		if id == "" or FITTINGS[id]["kind"] != "bender":
 			continue
 		if seen:
-			info[i] = {"unused": true, "why": "Only one rule-bender works on a sword."}
+			info[i] = {"unused": true, "why": "Only one rule-bender works on a weapon."}
 			continue
 		seen = true
 		if id != "mirror":
@@ -1157,7 +1157,7 @@ static func _apply_mirror(slots: Array, info: Dictionary) -> Array:
 				below = line[j]
 				break
 		if below == "":
-			info[i] = {"unused": true, "mirror": true, "why": "Nothing below it to copy."}
+			info[i] = {"unused": true, "mirror": true, "why": "Nothing before it to copy."}
 		else:
 			line[i] = below
 			info[i] = {"mirror": true}

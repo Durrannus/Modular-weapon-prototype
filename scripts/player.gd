@@ -186,6 +186,7 @@ var weapon: Dictionary = {}
 var weapon_stamp := 0      # goes up every time the weapon changes (an arrow remembers which one loosed it)
 var spirit: Node2D         # the forge spirit at your shoulder: it holds the runes, so none are drawn on the weapon
 var spirit_lit := -9.0     # when an active rune's sign last landed in the weapon (it lights for a moment)
+var with_spirit := true    # false until the spirit has joined you (the tutorial cave: at the forge)
 var step_index := 0        # next combo step
 var current_step := -1     # step being played, -1 when idle
 var step_timer := 0.0

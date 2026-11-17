@@ -2,13 +2,20 @@ extends CanvasLayer
 ## The forge for the swing path. Drawn at the 640x360 base size.
 ## Top left: the BACK button (the way out, with the key that does the same) and
 ## the screen's name.
-## Left: the parts tray (blades, grips and pommels; runes in a passive and an
-## active group; bands; rule-benders), then a plate with the name and one plain
-## sentence for the part under the cursor, then how to use the screen.
-## Centre: the sword upright over the anvil. Its sockets are the menu.
-## Right: the three loadout presets (A, B and C: whole saved swords, one click to
-## switch), what the sword does, a line per rune, and the sword's numbers on a
-## plate of their own. Pointing at a part you could fit shows what it would
+## Left: the parts tray (the weapon's own parts; runes in a passive and an active
+## group; threads and the rare rule-benders), then a plate with the name and one
+## plain sentence for the part under the cursor.
+## Then the weapon, upright over the anvil, with nothing fitted on it: since the
+## forge spirit (Darren, 16 and 17 November) the runes are the spirit's.
+## Centre: the spirit in its niche with ONE ring of seats round it, a seat for
+## every socket the fitted parts give and never one more. The seats are the
+## menu. They are read from the start mark on the left: along the bottom, up the
+## right and back along the top (grip seats first, then the head's), and a
+## thread's line runs along the ring to the seat after it. Under the ring: how
+## to use the screen.
+## Right: the three loadout presets (A, B and C: whole saved weapons, one click
+## to switch), what the weapon does, a row per rune, and the weapon's numbers on
+## a plate of their own. Pointing at a part you could fit shows what it would
 ## change beside each number.
 ## Nothing on this screen may overlap (Game Bible, 11 November): every kind of
 ## words has its own plate, and the words are made to fit it.
@@ -41,24 +48,45 @@ const FOCUS := Color("#fff0b4")
 const PLATE := Color("#19142a")
 const WELL := Color("#0f0b18")
 
-const TABS := ["sword", "runes", "bands", "rare"]
+const TABS := ["sword", "runes", "threads"]
 const BACK_AT := Vector2(6, 9)              # the BACK button; the screen's name follows it on the same row
 const BACK_H := 18.0
-const TRAY := Rect2(6, 30, 203, 188)        # tabs and part cards
-const INFO := Rect2(6, 221, 203, 88)        # the part under the cursor: its name and one sentence
-const HELP := Rect2(6, 312, 203, 42)        # how to use the screen
-const PRESETS := Rect2(396, 8, 238, 23)     # loadout presets A, B and C, and the chosen one's name
-const DOES := Rect2(396, 34, 238, 234)      # what the sword does, a line per rune
-const STATS := Rect2(396, 271, 238, 83)     # the sword's numbers
-const STAT_COL := 116.0                     # the width of a column of numbers
-const PREVIEW := Rect2(211, 92, 184, 150)   # the picture shown while Alt is held (fits between the plates)
+const TRAY := Rect2(6, 30, 158, 229)        # tabs and part cards
+const INFO := Rect2(6, 262, 158, 92)        # the part under the cursor: its name and one sentence
+const HELP := Rect2(264, 294, 184, 42)      # how to use the screen, at the foot of the spirit's niche (clear of the anvil)
+const PRESETS := Rect2(464, 8, 170, 23)     # loadout presets A, B and C, and the chosen one's name
+const RIGHT := Rect2(464, 34, 170, 320)     # "what it does" over the weapon's numbers (see does_rect, stats_rect)
+const STAT_HEAD := 22.0                     # the numbers' plate: its title, then a line for each number
+const STAT_LINE := 11.0
+const STAT_FOOT := 6.0
+const PREVIEW := Rect2(260, 91, 184, 150)   # the picture shown while Alt is held (over the spirit, inside the niche)
 const GAIN := Color("#86d4a4")              # compare: this number would go up
 const LOSS := Color("#ff6a4a")              # compare: it would go down
 const SWORD_TOP := 4.0
 const SWORD_SLACK := 7.0     # what a sword too tall for that may borrow (4 above, 3 below)
-const CENTRE_X := 300.0
+const CENTRE_X := 214.0      # the weapon stands here, between the tray and the niche
 const SWORD_BOTTOM := 326.0  # the pommel sits just above the anvil
 var sword_bottom := SWORD_BOTTOM
+
+# The spirit's ring (art/spirit/spirit.json has the art's numbers).
+const RING_AT := Vector2(352, 166)   # the spirit's ember, the middle of the niche
+const RING_R := 88.0                 # from the ember to the middle of each seat
+const SEAT := 32.0                   # a seat's picture
+const ARC_R := 102.0                 # the arc behind the seats' outer edge that says which part gives them
+const ARC_PAD := 12.0                # degrees an arc runs on past its first and last seat
+const START_GAP := 24.0              # degrees the ring's line is open at the start mark
+const THREAD_SHORT := 19.0           # a thread's line stops this far from the middle of a seat
+const ARROW_IN := 11.0               # the little arrows sit this far inside the ring
+const SPOKE_FROM := 52.0             # the dotted spoke from the spirit to each seat
+const SPOKE_TO := RING_R - THREAD_SHORT
+const RING_HALF := 116               # the ring's picture reaches this far each way from the ember
+const RING_LINE := Color("#1a5654")
+const ARC_LINE := Color("#12383e")
+const THREAD_HOT := Color("#ffec98")     # a thread that is changing a rune: its centre line
+const THREAD_WARM := Color("#ffc850")    # ... and the rest of its pattern
+const THREAD_IDLE_HOT := Color("#2a7f70")    # a thread with no rune after it
+const THREAD_IDLE := Color("#1a5654")
+const LIT_TIME := 0.35               # seconds the spirit stays lit when something is fitted
 
 var build: SwingBuild
 var root: Control
@@ -174,9 +202,7 @@ func _on_changed() -> void:
 	heat = 1.0
 	strike_t = 0.0
 	var i := clampi(selected, 0, build.slot_count() - 1)
-	strike_at = sword_top + _slot_rect(i).get_center() * zoom
-	if sword_size == Vector2.ZERO:
-		strike_at = Vector2(CENTRE_X, 150)
+	strike_at = _slot_screen(i).get_center()
 	playing.append(["sparks", strike_at, t])
 	playing.append(["hammer_strike", Vector2(CENTRE_X, sword_bottom + 4), t])
 	for n in 12:
@@ -411,6 +437,10 @@ func _click(key: String) -> void:
 			_use_card(card)
 		"test":
 			_load_test(p[1])
+		"does":
+			var effects: Array = build.compute()["effects"]
+			if int(p[1]) < effects.size():
+				selected = int(effects[int(p[1])]["slot"])
 		"preset":
 			_use_preset(int(p[1]))
 		"rename":
@@ -514,6 +544,14 @@ func _part_table(id: String) -> Dictionary:
 	return {}
 
 
+## Which pictures a fitting uses: "runes", "threads" or "rare".
+static func _fit_kind(id: String) -> String:
+	match str(SwingBuild.FITTINGS[id]["kind"]):
+		"rune": return "runes"
+		"band": return "threads"
+	return "rare"
+
+
 ## The first tab is the weapon's own parts, and is called after it.
 func _tab_label(i: int) -> String:
 	return build.weapon() if i == 0 else str(TABS[i])
@@ -540,14 +578,13 @@ func _cards() -> Array:
 				if SwingBuild.FITTINGS[id]["kind"] == "rune" and not SwingBuild.FITTINGS[id].get("parked", false) and _has(id) and SwingBuild.fits(id, build.weapon()):
 					out.append({"id": id, "name": SwingBuild.FITTINGS[id]["name"], "locked": false,
 						"group": "active" if SwingBuild.FITTINGS[id]["trigger"] == "active" else "passive"})
-		"bands":
-			for id in SwingBuild.FITTING_ORDER:
-				if SwingBuild.FITTINGS[id]["kind"] == "band" and _has(id):
-					out.append({"id": id, "name": SwingBuild.FITTINGS[id]["name"], "locked": false})
-		"rare":
-			for id in SwingBuild.FITTING_ORDER:
-				if SwingBuild.FITTINGS[id]["kind"] == "bender" and not SwingBuild.FITTINGS[id].get("parked", false) and _has(id):
-					out.append({"id": id, "name": SwingBuild.FITTINGS[id]["name"], "locked": false})
+		"threads":
+			# Threads, then the rare rule-benders (they change how threads count).
+			for kind in ["band", "bender"]:
+				for id in SwingBuild.FITTING_ORDER:
+					if SwingBuild.FITTINGS[id]["kind"] == kind and not SwingBuild.FITTINGS[id].get("parked", false) and _has(id):
+						out.append({"id": id, "name": SwingBuild.FITTINGS[id]["name"], "locked": false,
+							"group": "thread" if kind == "band" else "rare", "kind": _fit_kind(id)})
 	return out
 
 
@@ -665,10 +702,20 @@ func _wrap(text: String, width: float) -> Array:
 	return lines
 
 
+## A part's picture for the tray (null if it has none).
+func _icon_texture(kind: String, id: String) -> Texture2D:
+	match kind:
+		"threads":
+			return Art.texture("spirit/threads/%s_icon.png" % id)
+		"runes", "rare", "pommels", "blades", "grips":
+			return Art.texture("swing/%s/%s_icon.png" % [kind, id])
+	return Art.texture("swing/%s/%s_icon.png" % [ICON_DIRS.get(kind, kind), id])
+
+
 func _icon(kind: String, id: String, center: Vector2, part_scale := 2.0, tint := Color.WHITE) -> void:
 	match kind:
-		"runes", "bands", "rare":
-			var tex := Art.texture("swing/%s/%s_icon.png" % [kind, id])
+		"runes", "threads", "rare":
+			var tex := _icon_texture(kind, id)
 			if tex != null:
 				root.draw_texture(tex, (center - tex.get_size() * 0.5).round(), tint)
 			elif SwingBuild.FITTINGS.has(id):
@@ -720,25 +767,26 @@ func _icon(kind: String, id: String, center: Vector2, part_scale := 2.0, tint :=
 
 func _draw_forge() -> void:
 	buttons.clear()
-	# A still backdrop (the forge's niche), then a plate behind every kind of words.
-	var backdrop := Art.texture("swing/ui/forge_backdrop.png")
+	# A still backdrop (the spirit's niche), then a plate behind every kind of words.
+	var backdrop := Art.texture("spirit/forge/forge_backdrop_spirit.png")
 	if backdrop != null:
 		root.draw_texture(backdrop, Vector2.ZERO)
 	else:
 		root.draw_rect(Rect2(Vector2.ZERO, root.size), WELL)
+	var stats := build.compute()
 	_nine("panel", TRAY)
 	_nine("panel_titled", INFO)
 	_nine("well", HELP)
 	_nine("well", PRESETS)
-	_nine("panel", DOES)
-	_nine("panel_titled", STATS)
+	_nine("panel", does_rect(stats))
+	_nine("panel_titled", stats_rect(stats))
 	_draw_back()
 	_head("The forge", title_at(), AMBER, 16)
 	if whose != "":
-		_head(whose, whose_at(), INK, 8)
-	var stats := build.compute()
+		_head(whose, whose_at(), INK, 8, WHOSE_W, HORIZONTAL_ALIGNMENT_CENTER)
 	_draw_tray()
 	_draw_sword(stats)
+	_draw_ring(stats)
 	_draw_presets()
 	_draw_does(stats)
 	_draw_info()
@@ -748,10 +796,19 @@ func _draw_forge() -> void:
 		for i in build.line.size():
 			var r := _slot_screen(i)
 			var on := hover == "slot:%d" % i
-			root.draw_rect(r.grow(5 if on else 3), FOCUS if on else Color(1, 1, 1, 0.35), false, 1.0)
-		var f: Dictionary = SwingBuild.FITTINGS[drag_id]
-		var kind := "runes" if f["kind"] == "rune" else ("bands" if f["kind"] == "band" else "rare")
-		_icon(kind, drag_id, root.get_local_mouse_position())
+			root.draw_rect(r.grow(3 if on else 1), FOCUS if on else Color(1, 1, 1, 0.35), false, 1.0)
+		_icon(_fit_kind(drag_id), drag_id, root.get_local_mouse_position())
+
+
+## The plate of numbers sits at the foot of the right-hand column, as tall as the
+## weapon has numbers; "what it does" has the rest.
+static func stats_rect(stats: Dictionary) -> Rect2:
+	var h := STAT_HEAD + stat_rows(stats).size() * STAT_LINE + STAT_FOOT
+	return Rect2(RIGHT.position.x, RIGHT.end.y - h, RIGHT.size.x, h)
+
+
+static func does_rect(stats: Dictionary) -> Rect2:
+	return Rect2(RIGHT.position, Vector2(RIGHT.size.x, RIGHT.size.y - stats_rect(stats).size.y - 3.0))
 
 
 ## The way out, top left: a button to click, saying the key that does the same.
@@ -771,8 +828,12 @@ func title_at() -> Vector2:
 	return Vector2(back_rect().end.x + 8.0, 24)
 
 
+## Whose weapon this is, with two players at one forge: at the top of the niche,
+## in the middle (the title's row has the weapon's tip beside it now).
+const WHOSE_W := 90.0
+
 func whose_at() -> Vector2:
-	return Vector2(title_at().x + _head_width("The forge", 16) + 7.0, 24)
+	return Vector2(RING_AT.x - WHOSE_W * 0.5, 36)
 
 
 func _head_width(text: String, size := 8) -> float:
@@ -791,18 +852,18 @@ func _draw_back() -> void:
 
 ## Left: tabs and icon-only cards.
 func _draw_tray() -> void:
-	var x := 14.0
+	var x := 13.0
 	var f := Art.font("Silkscreen-Regular")
 	for i in TABS.size():
 		var w := f.get_string_size(_tab_label(i).to_upper(), HORIZONTAL_ALIGNMENT_LEFT, -1, 8).x
-		var r := Rect2(x - 5, 38, w + 10, 14)
+		var r := Rect2(x - 4, 38, w + 9, 14)
 		buttons["tab:%d" % i] = r
 		# The chosen tab stands proud (its picture starts 2 px higher than the others').
 		var drawn := Art.draw_nine(root, "swing/ui/tab_selected.png" if i == tab else "swing/ui/tab.png", r, 4)
 		_head(_tab_label(i), Vector2(x, 48), INK if i == tab else (FOCUS if hover == "tab:%d" % i else DIM))
 		if i == tab and not drawn:
 			root.draw_rect(Rect2(x, 51, w, 1), AMBER)
-		x += w + 13
+		x += w + 11
 	var cards := _cards()
 	card = clampi(card, 0, maxi(cards.size() - 1, 0))
 	if cards.is_empty():
@@ -831,46 +892,50 @@ func _draw_tray() -> void:
 				root.draw_rect(Rect2(r.end.x - 6, r.position.y + 2, 4, 4), AMBER)
 
 
+## How big a part's card is: its picture and a little room. Every card in a row
+## is as tall as the row's tallest picture.
+const CARD_PAD := Vector2(4, 4)
+
+func _card_size(c: Dictionary, row_h: float) -> Vector2:
+	var tex := _icon_texture(str(c.get("kind", "")), str(c["id"]))
+	var w := 26.0 if tex == null else float(tex.get_width())
+	return Vector2(maxf(w + CARD_PAD.x, 20.0), row_h)
+
+
 ## Where each card on the current tab goes, in card order. Draws the headings of
 ## the rows and groups on the way.
 func _place_cards(cards: Array) -> Array:
 	var rects: Array = []
 	rects.resize(cards.size())
-	var part_rows: Array = PART_ROWS[build.weapon()]
-	match TABS[tab] if not (tab == 0 and part_rows.size() == 4) else "four":
-		"four":
-			# Four rows: a bow's limbs, grip, string and arrows; a staff's head, shaft, cap and crystal.
-			var count := [0, 0, 0, 0]
-			for c in cards:
-				count[int(c["row"])] += 1
-			for ri in 4:
-				_head(part_rows[ri][0], Vector2(14, 64 + ri * 38), DIM)
-			var k := [0, 0, 0, 0]
-			for i in cards.size():
-				var ri: int = cards[i]["row"]
-				var w := clampi(192 / maxi(int(count[ri]), 1), 30, ROW_WIDTHS[build.weapon()][ri])
-				rects[i] = Rect2(14 + int(k[ri]) * w, 67 + ri * 38, w - 3, 26)
-				k[ri] += 1
+	var left := TRAY.position.x + 8.0
+	var right := TRAY.end.x - 8.0
+	match TABS[tab]:
 		"sword":
-			# Three rows: blades, grips, pommels. More than three blades go in rows
-			# of three (the greatsword's picture is 62 wide), and the rows below
-			# move down to make room.
-			var totals := [0, 0, 0]
-			for c in cards:
-				totals[int(c["row"])] += 1
-			var blade_rows: int = (int(totals[0]) + 2) / 3 if int(totals[0]) > 3 else 1
-			var push := (blade_rows - 1) * 26.0 - (7.0 if blade_rows > 1 else 0.0)
-			for ri in 3:
-				_head(part_rows[ri][0], Vector2(14, 66 + ri * 44 + (push if ri > 0 else 0.0)), DIM)
-			var n := [0, 0, 0]
-			for i in cards.size():
-				var ri: int = cards[i]["row"]
-				var w := clampi(192 / maxi(int(totals[ri]), 1), 30, 64 if ri == 0 else 34)
-				var r := Rect2(14 + int(n[ri]) * w, 70 + ri * 44 + (push if ri > 0 else 0.0), w - 3, 31)
-				if ri == 0 and blade_rows > 1:
-					r = Rect2(14 + (int(n[ri]) % 3) * 64, 70 + (int(n[ri]) / 3) * 26, 62, 24)
-				n[ri] += 1
-				rects[i] = r
+			# The weapon's own parts: a heading and a row of cards for each kind, each
+			# card as wide as its picture. A row that is full carries on underneath.
+			var part_rows: Array = PART_ROWS[build.weapon()]
+			var y := 56.0
+			for ri in part_rows.size():
+				var row_h := 0.0
+				for c in cards:
+					if int(c["row"]) == ri:
+						var tex := _icon_texture(str(c["kind"]), str(c["id"]))
+						row_h = maxf(row_h, (20.0 if tex == null else float(tex.get_height())) + CARD_PAD.y)
+				if row_h <= 0.0:
+					continue
+				_head(part_rows[ri][0], Vector2(left, y + 7), DIM)
+				y += 9.0
+				var x := left
+				for i in cards.size():
+					if int(cards[i]["row"]) != ri:
+						continue
+					var size := _card_size(cards[i], row_h)
+					if x > left and x + size.x > right:
+						x = left
+						y += row_h + 1.0
+					rects[i] = Rect2(x, y, size.x, size.y)
+					x += size.x + 1.0
+				y += row_h + 3.0
 		"runes":
 			# Two groups, so the two kinds can be told apart before reading anything:
 			# passive runes (round stones), then active ones (square, with a button badge).
@@ -883,16 +948,28 @@ func _place_cards(cards: Array) -> Array:
 					if k == 0:
 						var tag := Art.texture("swing/ui/tray_%s.png" % group)
 						if tag != null:
-							root.draw_texture(tag, Vector2(14, y))
+							root.draw_texture(tag, Vector2(left, y))
 						else:
-							_head(group, Vector2(14, y + 8), DIM)
-					rects[i] = Rect2(14 + (k % 3) * 44, y + 12 + (k / 3) * 44, 38, 38)
+							_head(group, Vector2(left, y + 8), DIM)
+					rects[i] = Rect2(left + (k % 3) * 44, y + 12 + (k / 3) * 44, 38, 38)
 					k += 1
 				if k > 0:
 					y += 12 + ((k + 2) / 3) * 44 + 4
 		_:
-			for i in cards.size():
-				rects[i] = Rect2(14 + (i % 3) * 44, 60 + (i / 3) * 44, 38, 38)
+			# Threads, then (under a heading of their own) the rare rule-benders.
+			var y := 60.0
+			for group in ["thread", "rare"]:
+				var k := 0
+				for i in cards.size():
+					if cards[i].get("group", "thread") != group:
+						continue
+					if k == 0 and group == "rare":
+						_head("Rare", Vector2(left, y + 7), DIM)
+						y += 11.0
+					rects[i] = Rect2(left + (k % 3) * 44, y + (k / 3) * 44, 38, 38)
+					k += 1
+				if k > 0:
+					y += ((k + 2) / 3) * 44 + 2
 	return rects
 
 
@@ -952,23 +1029,35 @@ func _draw_info() -> void:
 	if id == "":
 		_head("Parts", at + Vector2(14, 14), DIM)
 		return
-	root.draw_string(Art.font("PixelifySans-Regular"), at + Vector2(14, 16), _name(id), HORIZONTAL_ALIGNMENT_LEFT, -1, 13, AMBER)
-	var y := at.y + 35.0
+	root.draw_string(Art.font("PixelifySans-Regular"), at + Vector2(14, 16), _name(id), HORIZONTAL_ALIGNMENT_LEFT, -1, info_name_size(id), AMBER)
+	var y := at.y + 33.0
 	for l in info_lines(id):
-		_body(l, Vector2(at.x + 10, y))
-		y += 13
+		_body(l, Vector2(at.x + 9, y))
+		y += 12
 	if _is_rune(id):
-		_body("Hold %s to preview" % ("LT" if _on_pad() else "Alt"), Vector2(at.x + 10, INFO.end.y - 10), DIM)
+		_body("Hold %s to preview" % ("LT" if _on_pad() else "Alt"), Vector2(at.x + 9, INFO.end.y - 7), DIM)
 
 
-## A part's sentence, wrapped for the info plate. (Three lines at most fit above
-## the preview hint: tests/smoke_forge.gd checks every part.)
+## A part's sentence, wrapped for the info plate. (Five lines fit, four above a
+## rune's preview hint: tests/smoke_forge.gd checks every part.)
+const INFO_LINES := 5
+const INFO_LINES_RUNE := 4
+
 func info_lines(id: String) -> Array:
-	return _wrap(_desc(id), INFO.size.x - 20)
+	return _wrap(_desc(id), INFO.size.x - 18)
+
+
+## How big a part's name is written on the info plate: 13, or 11 for the few
+## names too long for that.
+const INFO_NAME_ROOM := 136.0
+
+func info_name_size(id: String) -> int:
+	var w := Art.font("PixelifySans-Regular").get_string_size(_name(id), HORIZONTAL_ALIGNMENT_LEFT, -1, 13).x
+	return 13 if w <= INFO_NAME_ROOM else 11
 
 
 func _draw_help() -> void:
-	var at := HELP.position + Vector2(8, 0)
+	var at := HELP.position + Vector2(7, 0)
 	var y := 13.0
 	for l in help_lines():
 		_body(l[0], at + Vector2(0, y), l[1])
@@ -986,11 +1075,11 @@ func help_lines() -> Array:
 			out.append([l, INK])
 		return out
 	if _preset_hover() >= 0:
-		return [["A preset is a whole saved %s." % build.weapon(), DIM], ["Click A, B or C to switch to it.", DIM], ["Click its name to change the name.", DIM]]
+		return [["A preset is a saved %s." % build.weapon(), DIM], ["Click A, B or C to switch to it.", DIM], ["Click its name to rename it.", DIM]]
 	if _on_pad():
-		return [["Stick: pick   A: fit   X: take off", DIM], ["LB RB: tabs   Select: next preset", DIM], ["B or Y: back to the game", DIM]]
-	return [["Drag a part onto a slot to fit it.", DIM], ["Right-click a slot to take it off.", DIM],
-		["T: try at the dummy   Esc: back" if sandbox else "Esc or Tab: back to the game", DIM]]
+		return [["Stick: pick   A: fit   X: empty", DIM], ["LB RB: tabs   Select: preset", DIM], ["B or Y: back to the game", DIM]]
+	return [["Drag a rune onto a seat to fit.", DIM], ["Right-click a seat to empty it.", DIM],
+		["T: try at dummy   Esc: back" if sandbox else "Esc or Tab: back to the game", DIM]]
 
 
 ## The preset the mouse is on (its tab, or the name beside the tabs), or the one
@@ -1004,11 +1093,19 @@ func _preset_hover() -> int:
 
 
 ## Top right: the three loadout presets as tabs, then the chosen one's name.
+## (While a name is being typed the box takes the whole plate, so all of it shows.)
 func _draw_presets() -> void:
 	var at := PRESETS.position
-	_head("Preset", at + Vector2(8, 15), DIM)
+	if renaming:
+		var box := Rect2(at.x + 4, at.y + 4, PRESETS.size.x - 8, 15)
+		buttons["rename"] = box
+		root.draw_rect(box, WELL)
+		root.draw_rect(box, FOCUS, false, 1.0)
+		_head(rename_text + ("_" if fmod(t, 0.8) < 0.5 else ""), Vector2(box.position.x + 4, at.y + 15), FOCUS)
+		return
+	_head("Preset", at + Vector2(7, 15), DIM)
 	for i in build.preset_data.size():
-		var r := Rect2(at.x + 50 + i * 21, at.y + 5, 18, 14)
+		var r := Rect2(at.x + 44 + i * 20, at.y + 5, 18, 14)
 		var key := "preset:%d" % i
 		buttons[key] = r
 		var on: bool = i == build.preset
@@ -1018,17 +1115,23 @@ func _draw_presets() -> void:
 		_head(SwingBuild.PRESET_LETTERS[i], Vector2(r.position.x + 1, at.y + 15), col, 8, r.size.x, HORIZONTAL_ALIGNMENT_CENTER)
 		if on and not drawn:
 			root.draw_rect(Rect2(r.position.x + 3, r.end.y - 1, r.size.x - 6, 1), AMBER)
-	var nr := Rect2(at.x + 116, at.y + 4, PRESETS.size.x - 122, 15)
+	var nr := Rect2(at.x + 106, at.y + 4, PRESETS.size.x - 110, 15)
 	buttons["rename"] = nr
 	var name := str(build.preset_names[build.preset])
-	if renaming:
-		root.draw_rect(nr, WELL)
-		root.draw_rect(nr, FOCUS, false, 1.0)
-		_head(rename_text + ("_" if fmod(t, 0.8) < 0.5 else ""), Vector2(nr.position.x + 4, at.y + 15), FOCUS)
-	elif name != "":
-		_head(name, Vector2(nr.position.x + 4, at.y + 15), FOCUS if hover == "rename" else INK)
+	if name != "":
+		_head(_cut_head(name, nr.size.x - 4), Vector2(nr.position.x + 3, at.y + 15), FOCUS if hover == "rename" else INK)
 	else:
-		_head("Name it", Vector2(nr.position.x + 4, at.y + 15), FOCUS if hover == "rename" else FAINT)
+		_head("Name it", Vector2(nr.position.x + 3, at.y + 15), FOCUS if hover == "rename" else FAINT)
+
+
+## A heading cut short to fit `width`, ending in two dots when something is left off.
+func _cut_head(text: String, width: float) -> String:
+	if _head_width(text) <= width:
+		return text
+	var cut := text
+	while cut.length() > 1 and _head_width(cut + "..") > width:
+		cut = cut.left(-1)
+	return cut.strip_edges() + ".."
 
 
 ## The info plate while the mouse is on a preset: its name, and the sword it
@@ -1040,31 +1143,30 @@ func _draw_preset_info(i: int) -> void:
 	var data = build.preset_sword(i)
 	if data == null:
 		var y := at.y + 35.0
-		for l in _wrap("Empty. Click it to start it as a copy of this %s." % build.weapon(), INFO.size.x - 20):
-			_body(l, Vector2(at.x + 10, y))
-			y += 13
+		for l in _wrap("Empty. Click it to start it as a copy of this %s." % build.weapon(), INFO.size.x - 18):
+			_body(l, Vector2(at.x + 9, y))
+			y += 12
 		return
 	var missing := SwingBuild.parts_missing(data, owned)
 	var kinds: Array = PART_ROWS[SwingBuild.weapon_of(data[0])]
-	if kinds.size() == 4:
-		_part_icon(kinds[0][1], data[0], Vector2(at.x + 42, at.y + 38), missing)
-		_part_icon(kinds[1][1], data[1], Vector2(at.x + 90, at.y + 38), missing)
-		_part_icon(kinds[2][1], data[2], Vector2(at.x + 122, at.y + 38), missing)
-		if data.size() > 4:
-			_part_icon(kinds[3][1], data[4], Vector2(at.x + 158, at.y + 38), missing)
-	else:
-		_part_icon(kinds[0][1], data[0], Vector2(at.x + 42, at.y + 38), missing)
-		_part_icon(kinds[1][1], data[1], Vector2(at.x + 96, at.y + 38), missing)
-		_part_icon(kinds[2][1], data[2], Vector2(at.x + 130, at.y + 38), missing)
-	var x := at.x + 10.0
+	# Its parts side by side, each as wide as its picture, then what is in the seats.
+	var part_ids: Array = [data[0], data[1], data[2]]
+	if kinds.size() == 4 and data.size() > 4:
+		part_ids.append(data[4])
+	var x := at.x + 9.0
+	for k in part_ids.size():
+		var tex := _icon_texture(str(kinds[k][1]), str(part_ids[k]))
+		var w := 26.0 if tex == null else float(tex.get_width())
+		_part_icon(kinds[k][1], part_ids[k], Vector2(x + floorf(w * 0.5), at.y + 38), missing)
+		x += w + 4.0
+	x = at.x + 9.0
 	for id in data[3]:
 		if id == "":
-			root.draw_rect(Rect2(x + 8, at.y + 61, 14, 14), WELL)
-			root.draw_rect(Rect2(x + 8, at.y + 61, 14, 14), FAINT, false, 1.0)
+			root.draw_rect(Rect2(x + 6, at.y + 63, 14, 14), WELL)
+			root.draw_rect(Rect2(x + 6, at.y + 63, 14, 14), FAINT, false, 1.0)
 		else:
-			var kind: String = SwingBuild.FITTINGS[id]["kind"]
-			_part_icon("runes" if kind == "rune" else ("bands" if kind == "band" else "rare"), id, Vector2(x + 15, at.y + 68), missing)
-		x += 32.0
+			_part_icon(_fit_kind(id), id, Vector2(x + 13, at.y + 70), missing)
+		x += 28.0
 
 
 func _part_icon(kind: String, id: String, center: Vector2, missing: Array) -> void:
@@ -1176,39 +1278,26 @@ func _band_line(band: String, rune: String) -> String:
 	return ""
 
 
-## Group colours: a band (or Relay) and the rune it boosts share one outline,
-## and the same colour marks that rune's line on the right.
-const GROUP_COLORS := [Color("#ffc850"), Color("#78c0cc"), Color("#a878d0"), Color("#86d4a4"), Color("#f078b4")]
-
-
-func _group_color(effect_index: int) -> Color:
-	return GROUP_COLORS[effect_index % GROUP_COLORS.size()]
-
-
-## The weapon's frame at the forge, a slot's place in it, and the weapon itself:
-## a sword's from SwordArt (a hammer and a staff are drawn like swords), a bow's from BowArt.
+## The weapon's frame at the forge: a sword's from SwordArt (a hammer and a staff
+## are drawn like swords), a bow's from BowArt.
 func _frame_size() -> Vector2:
 	if _bow():
 		return BowArt.forge_size(build.blade, build.grip)
 	return SwordArt.frame_size(build.blade, build.grip, "forge")
 
 
-func _slot_rect(i: int) -> Rect2:
-	if _bow():
-		return BowArt.forge_slot_rect(build.blade, build.grip, i)
-	return SwordArt.slot_rect(build.blade, build.grip, "forge", i)
-
-
+## The weapon itself, with nothing fitted on it: the spirit holds the runes and
+## threads now, so the line that is passed on is an empty one.
 func _draw_weapon(ci: CanvasItem) -> void:
 	if _bow():
-		BowArt.draw_forge(ci, build.blade, build.grip, build.pommel, build.arrows, build.line)
+		BowArt.draw_forge(ci, build.blade, build.grip, build.pommel, build.arrows, [])
 	else:
-		SwordArt.draw(ci, build.blade, build.grip, build.line, "forge", {}, Vector2.ZERO, Color.WHITE, build.pommel, false,
+		SwordArt.draw(ci, build.blade, build.grip, [], "forge", {}, Vector2.ZERO, Color.WHITE, build.pommel, false,
 			build.arrows if build.weapon() == "staff" else "")
 
 
-## Centre: the sword (or bow) big over the anvil. Its sockets are the menu.
-func _draw_sword(stats: Dictionary) -> void:
+## The weapon big over the anvil, between the tray and the niche.
+func _draw_sword(_stats: Dictionary) -> void:
 	var size := _frame_size()
 	# Twice its size whenever that fits. A taller sword is drawn smaller, by a
 	# whole number of screen pixels for each of its own, so they stay square.
@@ -1228,35 +1317,208 @@ func _draw_sword(stats: Dictionary) -> void:
 	root.draw_set_transform(top, 0.0, Vector2(zoom, zoom))
 	_draw_weapon(root)
 	root.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
-	# Group outlines.
+
+
+# --- The spirit's ring ---------------------------------------------------------
+
+## Where seat `i` of `n` is on the ring, in degrees (0 = right, 90 = down). The
+## order starts at the start mark on the left, runs along the bottom, up the
+## right side and back along the top.
+static func seat_angle(i: int, n: int) -> float:
+	return 180.0 - (float(i) + 0.5) * 360.0 / float(maxi(n, 1))
+
+
+static func seat_at(i: int, n: int) -> Vector2:
+	var a := deg_to_rad(seat_angle(i, n))
+	return (RING_AT + Vector2(cos(a), sin(a)) * RING_R).round()
+
+
+## A seat's place on the screen. (Still "slot" in the code: a seat is the socket
+## a part gives, and `build.line` holds what is in each, grip first.)
+func _slot_screen(i: int) -> Rect2:
+	return Rect2(seat_at(i, build.line.size()) - Vector2(SEAT, SEAT) * 0.5, Vector2(SEAT, SEAT))
+
+
+## True where a thread's pattern has a pixel. s: px along the line from the
+## thread's seat, d: px off the centre line, u: s / the line's length. (The
+## art's rule: art/spirit/spirit.json, "thread_rule".)
+static func thread_pixel(kind: String, s: float, d: float, u: float) -> bool:
+	match kind:
+		"twice":
+			return absf(absf(d) - 1.5) < 0.6
+		"wider":
+			return absf(d) < 0.6 or absf(absf(d) - (0.5 + 3.4 * u)) < 0.6
+		"every_hit":
+			return absf(d) < 0.6 or (int(s) % 6 in [2, 3] and absf(d) < 1.6)
+		"saved_up":
+			return absf(d) < 0.6 or (u > 0.2 and int(s) % 7 < 2 + int(u * 3.0) and absf(d) < 0.6 + 2.6 * u)
+		"on_dodge":
+			return absf(d - 2.2 * (absf(fmod(s, 8.0) - 4.0) - 2.0) / 2.0) < 0.75
+	return absf(d) < 0.6
+
+
+## Which seats hold something that is doing its job (a rune, or a thread or
+## rule-bender that changes one). A thread with no rune after it is not.
+func _live(stats: Dictionary) -> Array:
 	var info: Dictionary = stats["slot_info"]
-	var effects: Array = stats["effects"]
-	for ei in effects.size():
-		var group: Array = [int(effects[ei]["slot"])]
-		for s2 in info:
-			if int(info[s2].get("band", -1)) == ei:
-				group.append(int(s2))
-		if group.size() < 2:
-			continue
-		var rr := _slot_screen(group[0])
-		for s2 in group:
-			rr = rr.merge(_slot_screen(s2))
-		root.draw_rect(rr.grow(4), _group_color(ei), false, 1.0)
-	# Sockets: clickable, focus on the selected one. An empty one is the small
-	# dark setting the part's own picture shows (since the slim runes of 15
-	# November nothing is drawn over it: a black square would hide its lip).
+	var out: Array = []
 	for i in build.line.size():
+		out.append(build.line[i] != "" and not (info.get(i, {}) as Dictionary).has("unused"))
+	return out
+
+
+var _ring_key := ""
+var _ring_tex: ImageTexture
+
+## The ring's still lines as one picture: the ring itself (open at the start
+## mark), each thread's pattern along it to the next seat, the dotted spokes,
+## and the arcs that say which part gives which seats. It is drawn again only
+## when something on the ring changes.
+func _ring_picture(live: Array) -> Texture2D:
+	var n := build.line.size()
+	var gs := build.grip_slots()
+	var key := "%d/%d" % [n, gs]
+	for i in n:
+		key += "/%s%s" % [build.line[i], "+" if live[i] else ""]
+	if key == _ring_key and _ring_tex != null:
+		return _ring_tex
+	_ring_key = key
+	var size := RING_HALF * 2 + 1
+	var img := Image.create(size, size, false, Image.FORMAT_RGBA8)
+	var mid := Vector2(RING_HALF, RING_HALF)
+	var step := 360.0 / float(maxi(n, 1))
+	var first := seat_angle(0, n)
+	# The arcs: the grip's seats, then the head's (none for a part that gives no seat).
+	var arcs: Array = []
+	if gs > 0 and n > 0:
+		arcs.append([0, mini(gs, n) - 1])
+	if n > gs:
+		arcs.append([gs, n - 1])
+	var ring_in := (RING_R - 5.5) * (RING_R - 5.5)
+	var ring_out := (RING_R + 5.5) * (RING_R + 5.5)
+	var arc_in := (ARC_R - 0.5) * (ARC_R - 0.5)
+	var arc_out := (ARC_R + 0.5) * (ARC_R + 0.5)
+	for y in size:
+		for x in size:
+			var v := Vector2(x, y) - mid
+			var rr := v.length_squared()
+			if rr < ring_in or rr > arc_out or (rr > ring_out and rr < arc_in):
+				continue
+			var deg := rad_to_deg(atan2(v.y, v.x))
+			var turn := fposmod(first - deg, 360.0)      # degrees round from the first seat, the way it is read
+			if rr >= arc_in:
+				for a in arcs:
+					if fposmod(turn - (float(a[0]) * step - ARC_PAD), 360.0) <= float(a[1] - a[0]) * step + ARC_PAD * 2.0:
+						img.set_pixel(x, y, ARC_LINE)
+				continue
+			var d := sqrt(rr) - RING_R
+			var i := int(turn / step)
+			var id: String = build.line[i] if i < n - 1 else ""
+			if id != "" and SwingBuild.FITTINGS[id]["kind"] == "band":
+				var length := deg_to_rad(step) * RING_R - THREAD_SHORT * 2.0
+				var along := deg_to_rad(turn - float(i) * step) * RING_R - THREAD_SHORT
+				if along >= 0.0 and along <= length:
+					if thread_pixel(id, along, d, along / length):
+						var hot := absf(d) < 0.6
+						img.set_pixel(x, y, (THREAD_HOT if hot else THREAD_WARM) if live[i] else (THREAD_IDLE_HOT if hot else THREAD_IDLE))
+					continue
+			# The plain ring: one pixel wide, open at the start mark on the left.
+			if absf(d) < 0.5 and absf(fposmod(deg, 360.0) - 180.0) > START_GAP * 0.5:
+				img.set_pixel(x, y, RING_LINE)
+	for i in n:
+		var a := deg_to_rad(seat_angle(i, n))
+		var dir := Vector2(cos(a), sin(a))
+		for k in int(SPOKE_TO - SPOKE_FROM):
+			if k % 4 < 2:
+				img.set_pixelv(Vector2i((mid + dir * (SPOKE_FROM + k)).round()), RING_LINE)
+	_ring_tex = ImageTexture.create_from_image(img)
+	return _ring_tex
+
+
+## What the head and the grip are called for this weapon ("Blade", "Grip").
+func _part_word(head: bool) -> String:
+	return str(PART_ROWS[build.weapon()][0 if head else 1][0])
+
+
+## The words beside a part's arc: which part gives these seats, and how many.
+## Under the arc when it is in the lower half of the ring, over it in the upper.
+func _draw_arc_label(first: int, last: int, n: int, head: bool) -> void:
+	var count := last - first + 1
+	var text := "%s: %d %s" % [_part_word(head), count, "seat" if count == 1 else "seats"]
+	var from := seat_angle(first, n) + ARC_PAD     # the arc runs from here ...
+	var to := seat_angle(last, n) - ARC_PAD        # ... round to here (angles go down)
+	var middle := deg_to_rad((from + to) * 0.5)
+	var w := _head_width(text)
+	# (The niche is an arch: there is less room across at the top than at the bottom.)
+	var room := 94.0 if sin(middle) >= 0.0 else 73.0
+	var x := clampf(RING_AT.x + cos(middle) * ARC_R - w * 0.5, RING_AT.x - room, RING_AT.x + room - w)
+	var y: float
+	if sin(middle) >= 0.0:
+		# The lowest point the arc reaches: straight down if it passes there.
+		var low := 1.0 if (from >= 90.0 and to <= 90.0) else maxf(sin(deg_to_rad(from)), sin(deg_to_rad(to)))
+		y = RING_AT.y + low * ARC_R + 11.0
+	else:
+		var high := -1.0 if (from >= -90.0 and to <= -90.0) else minf(sin(deg_to_rad(from)), sin(deg_to_rad(to)))
+		y = RING_AT.y + high * ARC_R - 5.0
+	_head(text, Vector2(roundf(x), roundf(y)), FAINT)
+
+
+## Centre: the spirit, and round it one seat for every socket the fitted parts
+## give. The seats are the menu.
+func _draw_ring(stats: Dictionary) -> void:
+	var n := build.line.size()
+	var gs := build.grip_slots()
+	var live := _live(stats)
+	root.draw_texture(_ring_picture(live), RING_AT - Vector2(RING_HALF, RING_HALF))
+	if gs > 0 and n > 0:
+		_draw_arc_label(0, mini(gs, n) - 1, n, false)
+	if n > gs:
+		_draw_arc_label(gs, n - 1, n, true)
+	var start := Art.texture("spirit/forge/start_mark.png")
+	if start != null:
+		root.draw_texture(start, RING_AT + Vector2(-RING_R, 0) - Vector2(5, 5))
+	# A little arrow between each pair of seats: the way the ring is read.
+	var arrow := Art.texture("spirit/forge/ring_arrow.png")
+	if arrow != null:
+		for i in n - 1:
+			var a := deg_to_rad(seat_angle(i, n) - 180.0 / float(n))
+			root.draw_set_transform((RING_AT + Vector2(cos(a), sin(a)) * (RING_R - ARROW_IN)).round(), a - PI * 0.5, Vector2.ONE)
+			root.draw_texture(arrow, Vector2(-3, -3))
+		root.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+	# The spirit, twice its size like the weapon. It lights for a moment when
+	# something is fitted. (It keeps still: nothing in the forge's backdrop moves.)
+	var spirit := Art.texture("spirit/forge/spirit_forge_lit.png" if strike_t < LIT_TIME else "spirit/forge/spirit_forge.png")
+	if spirit != null:
+		root.draw_set_transform(RING_AT, 0.0, Vector2(2, 2))
+		root.draw_texture(spirit, -Vector2(21, 28))
+		root.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+	# The seats: clickable, the chosen one marked. A rare part's own seat (the
+	# Gilded Grip's ruby one) has its own picture.
+	var special := int(SwingBuild.grip_part(build.grip).get("ruby_slot", -1))
+	var row_seat := _does_seat(stats)
+	for i in n:
 		var r := _slot_screen(i)
-		buttons["slot:%d" % i] = r.grow(3)
-		if hover == "slot:%d" % i:
-			root.draw_rect(r.grow(2), Color(1, 1, 1, 0.5), false, 1.0)
+		buttons["slot:%d" % i] = r
+		var seat := Art.texture("spirit/forge/seat_special.png" if i == special else ("spirit/forge/seat_selected.png" if i == selected else "spirit/forge/seat.png"))
+		if seat != null:
+			root.draw_texture(seat, r.position)
+		else:
+			root.draw_rect(r, WELL)
+			root.draw_rect(r, AMBER if i == selected else FAINT, false, 1.0)
+		var id: String = build.line[i]
+		if id != "" and not (dragging and drag_from == i):
+			# Something that is doing nothing here (a thread with no rune after it) is dimmed.
+			_icon(_fit_kind(id), id, r.get_center(), 2.0, Color.WHITE if live[i] else Color(0.55, 0.6, 0.62, 0.8))
+			if SwingBuild.FITTINGS[id].get("trigger", "") == "active":
+				_badge(r.get_center())
+		if hover == "slot:%d" % i or row_seat == i:
+			root.draw_rect(r.grow(1), Color(1, 1, 1, 0.5), false, 1.0)
 		if i == selected:
-			_socket_focus(r.grow(4))
+			_socket_focus(r.grow(2))
 
 
-## The corners round the chosen socket: amber with a dark edge, so they read on
-## steel, bronze and wood alike. (A slim socket has no dark box behind it, and
-## the thin corners of the menu kit were lost against a pale blade.)
+## The corners round the chosen seat: amber with a dark edge, so they read on the
+## niche's dark and on a lit seat alike.
 func _socket_focus(b: Rect2) -> void:
 	var dark := Color("#19142a")
 	var amber := Color("#ffc850")
@@ -1269,11 +1531,6 @@ func _socket_focus(b: Rect2) -> void:
 		root.draw_rect(Rect2(c - d, Vector2(d.x * 4.0, d.y * (arm + 2.0))).abs(), dark)
 		root.draw_rect(Rect2(c, Vector2(d.x * arm, d.y * 2.0)).abs(), amber)
 		root.draw_rect(Rect2(c, Vector2(d.x * 2.0, d.y * arm)).abs(), amber)
-
-
-func _slot_screen(i: int) -> Rect2:
-	var r := _slot_rect(i)
-	return Rect2(sword_top + r.position * zoom, r.size * zoom)
 
 
 # --- Forge effects -----------------------------------------------------------
@@ -1407,7 +1664,7 @@ func _draw_banner() -> void:
 		# (A bow, a hammer and a staff have no heat pictures of their own: the glow
 		# drawn in code, clipped to the weapon, does it; see _draw_heat_fill.)
 		var fade := clampf((FINISH_TIME - finishing) / 0.3, 0.0, 1.0)
-		_fx_strip(banner, "forged_banner", Vector2(CENTRE_X, sword_top.y + 40), start + 0.2, true, fade)
+		_fx_strip(banner, "forged_banner", Vector2(CENTRE_X + 20.0, sword_top.y + 40), start + 0.2, true, fade)
 		return
 	var k := finishing / FINISH_TIME
 	var a := clampf(k * 4.0, 0.0, 1.0) * clampf((1.0 - k) * 4.0, 0.0, 1.0)
@@ -1425,62 +1682,134 @@ func _draw_banner() -> void:
 	banner.draw_string(Art.font("PixelifySans-Regular"), Vector2(0, y + 18), sub, HORIZONTAL_ALIGNMENT_CENTER, 640, 11, Color(0.9, 0.86, 0.8, a))
 
 
-## How "what it does" is set out, roomiest first. The first one that fits is used:
-## stone size, where the words start, line height, the gap between runes.
+## How "what it does" is set out, roomiest first. The first one that fits is used.
+## icon: the rune's 26 px picture beside its words. full: every rune's whole
+## sentence; without it only the rune you point at (or the chosen seat's) is
+## written out and the others keep to their names, so a full ring still fits.
+const DOES_HINT := "Point at a seat to read it."
 const DOES_PLANS := [
-	{"stone": 26, "text_x": 38.0, "line": 13.0, "gap": 8.0, "least": 28.0},
-	{"stone": 26, "text_x": 38.0, "line": 13.0, "gap": 3.0, "least": 27.0},
-	{"stone": 9, "text_x": 16.0, "line": 13.0, "gap": 5.0, "least": 13.0},
-	{"stone": 9, "text_x": 16.0, "line": 12.0, "gap": 2.0, "least": 12.0},
+	{"icon": true, "text_x": 33.0, "line": 13.0, "gap": 7.0, "full": true},
+	{"icon": false, "text_x": 8.0, "line": 12.0, "gap": 5.0, "full": true},
+	{"icon": false, "text_x": 8.0, "line": 12.0, "gap": 4.0, "full": false},
+	{"icon": false, "text_x": 8.0, "line": 11.0, "gap": 2.0, "full": false},
 ]
 
 
-## Sets out the "what it does" rows for one plan: {rows: [{lines, h}], notes, height}.
-func _plan_does(effects: Array, notes: Array, plan: Dictionary) -> Dictionary:
-	var width := DOES.size.x - 16.0
+## The seat "what it does" is about: the one the mouse is on, else the chosen one.
+func _focus_seat() -> int:
+	if hover.begins_with("slot:"):
+		return int(hover.split(":")[1])
+	return selected
+
+
+## The rune (its number among the effects) that the mouse or the chosen seat
+## points at: the rune in that seat, or the rune a thread there changes. A row
+## of "what it does" under the mouse counts too. -1: none.
+func _focus_effect(stats: Dictionary) -> int:
+	if hover.begins_with("does:"):
+		return int(hover.split(":")[1])
+	var seat := _focus_seat()
+	var effects: Array = stats["effects"]
+	for ei in effects.size():
+		if int(effects[ei]["slot"]) == seat:
+			return ei
+	var si: Dictionary = (stats["slot_info"] as Dictionary).get(seat, {})
+	return int(si.get("band", -1))
+
+
+## The seat of the rune whose row in "what it does" the mouse is on (-1: none),
+## so the ring can show which seat the row is about.
+func _does_seat(stats: Dictionary) -> int:
+	if not hover.begins_with("does:"):
+		return -1
+	var ei := int(hover.split(":")[1])
+	var effects: Array = stats["effects"]
+	return int(effects[ei]["slot"]) if ei < effects.size() else -1
+
+
+## A rune's name for its row. With its sentence left out, an active rune's row
+## says which button fires it (the sentence would have).
+func _does_title(e: Dictionary, with_key: bool) -> String:
+	var name := str(SwingBuild.FITTINGS[e["id"]]["name"])
+	if with_key and e["trigger"] == "active" and int(e.get("button", -1)) >= 0 and int(e["button"]) < keys.size():
+		return "%s: %s" % [name, keys[int(e["button"])]]
+	return name
+
+
+## Sets out "what it does" for one plan: {rows: [{title, lines, h}], notes, hint, height}.
+## idle: the fittings doing nothing, as {seat, name, why}. seat: the seat pointed
+## at. room: the height there is (the hint is only added when it still fits).
+func _plan_does(effects: Array, idle: Array, plan: Dictionary, focus: int, seat: int, width: float, room: float) -> Dictionary:
 	var rows: Array = []
 	var height := 0.0
-	for e in effects:
-		var lines := _wrap(SwingBuild.sentence(e, keys), width - float(plan["text_x"]))
-		var h := maxf(float(plan["least"]), lines.size() * float(plan["line"]))
-		rows.append({"lines": lines, "h": h})
+	var line: float = plan["line"]
+	for ei in effects.size():
+		var e: Dictionary = effects[ei]
+		var lines: Array = []
+		if plan["full"] or ei == focus:
+			lines = _wrap(SwingBuild.sentence(e, keys), width - float(plan["text_x"]))
+		var h := line + lines.size() * line
+		if plan["icon"]:
+			h = maxf(h, 28.0)
+		rows.append({"title": _does_title(e, lines.is_empty()), "lines": lines, "h": h})
 		height += h + float(plan["gap"])
+	# What does nothing, and why. On a crowded ring only the one pointed at says
+	# why; the others are named in one line.
 	var note_lines: Array = []
-	for n in notes:
-		note_lines.append(_wrap(n, width))
-		height += (note_lines[-1] as Array).size() * float(plan["line"]) + 4.0
-	return {"rows": rows, "notes": note_lines, "height": height}
+	var named: PackedStringArray = []
+	for n in idle:
+		if plan["full"] or int(n["seat"]) == seat:
+			note_lines.append(_wrap("%s: %s" % [n["name"], n["why"]], width))
+		else:
+			named.append(str(n["name"]))
+	if not named.is_empty():
+		note_lines.append(_wrap("Doing nothing here: %s." % ", ".join(named), width))
+	for l in note_lines:
+		height += (l as Array).size() * line + 4.0
+	# With only one written out, a last line says how to read the others.
+	var hint: Array = []
+	if not plan["full"] and effects.size() + idle.size() >= 2:
+		var words := _wrap(DOES_HINT, width)
+		if height + words.size() * line <= room:
+			hint = words
+			height += hint.size() * line
+	return {"rows": rows, "notes": note_lines, "hint": hint, "height": height}
 
 
-## Right: one short line per rune, its bar in its group colour; then the
-## fittings that do nothing (and why). It never runs off its plate: with more
-## to say, the rows close up and the stones get smaller.
+## Right: a row per rune, its name and one sentence; then the fittings that do
+## nothing (and why). It never runs off its plate: with more to say the rows
+## close up, and with a full ring only the rune you point at is written out.
+## Pointing at a row marks its seat on the ring; clicking it chooses that seat.
 func _draw_does(stats: Dictionary) -> void:
-	var x := DOES.position.x + 8.0
-	_head("What it does", Vector2(x, DOES.position.y + 14), DIM)
+	var plate := does_rect(stats)
+	var x := plate.position.x + 8.0
+	var width := plate.size.x - 16.0
+	_head("What it does", Vector2(x, plate.position.y + 14), DIM)
 	var effects: Array = stats["effects"]
 	var info: Dictionary = stats["slot_info"]
-	var top := DOES.position.y + 24.0
-	var bottom := DOES.end.y - 8.0
-	var notes: Array = []
+	var top := plate.position.y + 22.0
+	var bottom := plate.end.y - 7.0
+	var idle: Array = []
 	for i in build.line.size():
 		var si: Dictionary = info.get(i, {})
 		if build.line[i] != "" and si.has("unused"):
-			notes.append("%s: %s" % [SwingBuild.FITTINGS[build.line[i]]["name"], si.get("why", "does nothing here.")])
-	if effects.is_empty() and notes.is_empty():
-		# (With bands but no rune, the notes below say why nothing happens instead.)
+			idle.append({"seat": i, "name": str(SwingBuild.FITTINGS[build.line[i]]["name"]), "why": str(si.get("why", "does nothing here."))})
+	if effects.is_empty() and idle.is_empty():
+		# (With threads but no rune, the notes below say why nothing happens instead.)
 		var ey := top + 10.0
-		for l in _wrap("Nothing fitted yet. Pick a rune on the left, then click a slot.", DOES.size.x - 16.0):
+		for l in _wrap("Nothing fitted yet. Pick a rune on the left, then click a seat.", width):
 			_body(l, Vector2(x, ey), DIM)
 			ey += 13
+	var focus := _focus_effect(stats)
 	var plan: Dictionary = DOES_PLANS[0]
 	var set_out := {}
 	for pl in DOES_PLANS:
 		plan = pl
-		set_out = _plan_does(effects, notes, pl)
+		set_out = _plan_does(effects, idle, pl, focus, _focus_seat(), width, bottom - top)
 		if float(set_out["height"]) <= bottom - top:
 			break
 	does_fits = float(set_out["height"]) <= bottom - top
+	does_plan = DOES_PLANS.find(plan)
 	var y := top
 	var line_h: float = plan["line"]
 	var rows: Array = set_out["rows"]
@@ -1488,23 +1817,24 @@ func _draw_does(stats: Dictionary) -> void:
 		var row: Dictionary = rows[ei]
 		var h: float = row["h"]
 		if y + h > bottom + 0.5:
-			# (Only with more runes than any sword in the prototype can hold.)
+			# (Only with more runes than any weapon in the prototype can hold.)
 			_body("and %d more" % (effects.size() - ei), Vector2(x, bottom - 2), DIM)
 			return
 		var e: Dictionary = effects[ei]
-		root.draw_rect(Rect2(x, y, 3, h), _group_color(ei))
-		if int(plan["stone"]) == 26:
-			_icon("runes", e["id"], Vector2(x + 20, y + 14))
-			if SwingBuild.FITTINGS[e["id"]]["trigger"] == "active":
-				_badge(Vector2(x + 20, y + 14))
-		else:
-			var stone := Art.texture("swing/runes/%s_forge.png" % e["id"])
-			if stone != null:
-				root.draw_texture(stone, Vector2(x + 5, y + 2))
+		var key := "does:%d" % ei
+		buttons[key] = Rect2(plate.position.x + 4.0, y - 1.0, plate.size.x - 8.0, h + 2.0)
+		# Its bar is lit when this is the rune being pointed at (on the ring or here).
+		var on := ei == focus
+		root.draw_rect(Rect2(x, y, 2, h), FOCUS if on else FAINT)
+		if plan["icon"]:
+			_icon("runes", e["id"], Vector2(x + 18, y + 14))
+			if e["trigger"] == "active":
+				_badge(Vector2(x + 18, y + 14))
 		var ly := y + line_h - 2.0
+		_body(row["title"], Vector2(x + float(plan["text_x"]), ly), AMBER if on or plan["full"] else INK)
 		for l in row["lines"]:
-			_body(l, Vector2(x + float(plan["text_x"]), ly))
 			ly += line_h
+			_body(l, Vector2(x + float(plan["text_x"]), ly))
 		y += h + float(plan["gap"])
 	for lines in set_out["notes"]:
 		for l in lines:
@@ -1513,42 +1843,36 @@ func _draw_does(stats: Dictionary) -> void:
 			_body(l, Vector2(x, y + line_h - 3.0), DIM)
 			y += line_h
 		y += 4.0
+	for l in set_out["hint"]:
+		if y + line_h > bottom + 0.5:
+			return
+		_body(l, Vector2(x, y + line_h - 3.0), FAINT)
+		y += line_h
 
 
+var does_plan := 0      # which of DOES_PLANS the last "what it does" used
 var does_fits := true   # the last "what it does" fitted its plate (checked by tests/smoke_forge.gd)
 
 
 ## What each number is called, and where it sits on the stats plate (column, row).
+## One column since the forge spirit took the middle of the screen: the plate is
+## too narrow for two.
 const STAT_ROWS := [
-	["damage", 0, 0], ["speed", 1, 0],
-	["reach", 0, 1], ["crit", 1, 1],
-	["crit_damage", 0, 2], ["slots", 1, 2],
-	["move", 0, 3],
+	["damage", 0, 0], ["speed", 0, 1], ["reach", 0, 2], ["crit", 0, 3], ["crit_damage", 0, 4], ["slots", 0, 5], ["move", 0, 6],
 ]
 ## A bow's: how far its arrows fly where a sword has its reach, and walking while
 ## shooting. (Range is a share of the shortbow's, as reach is of the broadsword's.)
 const BOW_STAT_ROWS := [
-	["damage", 0, 0], ["speed", 1, 0],
-	["range", 0, 1], ["crit", 1, 1],
-	["crit_damage", 0, 2], ["slots", 1, 2],
-	["shoot_move", 0, 3],
+	["damage", 0, 0], ["speed", 0, 1], ["range", 0, 2], ["crit", 0, 3], ["crit_damage", 0, 4], ["slots", 0, 5], ["shoot_move", 0, 6],
 ]
-## A hammer's and a staff's have a number more than fits in four rows (how big the
-## patch of floor a slam hits is; a staff's spell size, written "Blast", and what a
-## chain costs in mana), so their plates have five, set closer (see stat_at).
+## A hammer's and a staff's have more: how big the patch of floor a slam hits is;
+## a staff's spell size, written "Blast", and what a chain costs in mana.
 const HAMMER_STAT_ROWS := [
-	["damage", 0, 0], ["speed", 1, 0],
-	["reach", 0, 1], ["impact", 1, 1],
-	["crit", 0, 2], ["crit_damage", 1, 2],
-	["slots", 0, 3],
-	["move", 0, 4],
+	["damage", 0, 0], ["speed", 0, 1], ["reach", 0, 2], ["impact", 0, 3], ["crit", 0, 4], ["crit_damage", 0, 5], ["slots", 0, 6], ["move", 0, 7],
 ]
 const STAFF_STAT_ROWS := [
-	["damage", 0, 0], ["speed", 1, 0],
-	["range", 0, 1], ["size", 1, 1],
-	["crit", 0, 2], ["crit_damage", 1, 2],
-	["mana", 0, 3], ["slots", 1, 3],
-	["cast_move", 0, 4],
+	["damage", 0, 0], ["speed", 0, 1], ["range", 0, 2], ["size", 0, 3], ["crit", 0, 4], ["crit_damage", 0, 5], ["mana", 0, 6], ["slots", 0, 7],
+	["cast_move", 0, 8],
 ]
 ## The picture beside a number, where it isn't called what the number is.
 const STAT_ICONS := {"shoot_move": "move", "cast_move": "move"}
@@ -1603,15 +1927,15 @@ static func stat_text(key: String, v: float) -> String:
 		"speed": return "Speed %d%%" % roundi(v)
 		"reach": return "Reach %d%%" % roundi(v)
 		"range": return "Range %d%%" % roundi(v)
-		"shoot_move": return "Walk while shooting %d%%" % roundi(v)
-		"cast_move": return "Walk while casting %d%%" % roundi(v)
+		"shoot_move": return "Walk, shooting %d%%" % roundi(v)     # ("Walk while ..." is too wide with a change beside it)
+		"cast_move": return "Walk, casting %d%%" % roundi(v)
 		"impact": return "Impact %d%%" % roundi(v)
 		"size": return "Blast %d%%" % roundi(v)     # ("Spell size" is too wide with a change beside it)
 		"mana": return "Mana a chain %s" % _plain(v)
 		"crit": return "Crit %d%%" % roundi(v)
 		"crit_damage": return "Crit hits x%s" % _plain(v)
-		"slots": return "Slots %d" % roundi(v)
-		"move": return "Walk while swinging %d%%" % roundi(v)
+		"slots": return "Seats %d" % roundi(v)
+		"move": return "Walk, swinging %d%%" % roundi(v)
 	return ""
 
 
@@ -1650,21 +1974,22 @@ func stats_with(id: String) -> Dictionary:
 	return b.compute()
 
 
-## The sword's numbers, on a bordered plate of their own. While the cursor is on
+## The weapon's numbers, on a bordered plate of their own. While the cursor is on
 ## a part you could fit, each number it would change shows the change beside it:
 ## green with a plus for a gain, red with a minus for a loss.
 func _draw_stats(stats: Dictionary) -> void:
-	var at := STATS.position
+	var plate := stats_rect(stats)
+	var at := plate.position
 	var with_id := _compare_id()
 	var now := stat_values(stats)
 	var then := now if with_id == "" else stat_values(stats_with(with_id))
 	if with_id == "":
 		_head("Stats", at + Vector2(14, 14), INK)
-		_head(_name(build.blade), at + Vector2(14, 14), DIM, 8, STATS.size.x - 26, HORIZONTAL_ALIGNMENT_RIGHT)
+		_head(_cut_head(_name(build.blade), plate.size.x - 60), at + Vector2(14, 14), DIM, 8, plate.size.x - 24, HORIZONTAL_ALIGNMENT_RIGHT)
+	elif stat_changes(now, then).is_empty():
+		_head("The same numbers", at + Vector2(14, 14), DIM)
 	else:
-		_head("With the " + _name(with_id), at + Vector2(14, 14), FOCUS)
-		if stat_changes(now, then).is_empty():
-			_head("same numbers", at + Vector2(14, 14), DIM, 8, STATS.size.x - 26, HORIZONTAL_ALIGNMENT_RIGHT)
+		_head(_cut_head("With the " + _name(with_id), plate.size.x - 24), at + Vector2(14, 14), FOCUS)
 	var rows := stat_rows(stats)
 	for row in rows:
 		var key: String = row[0]
@@ -1672,12 +1997,14 @@ func _draw_stats(stats: Dictionary) -> void:
 		_stat(key, stat_text(key, now[key]), at + stat_at(row, rows), delta_text(key, d), d > 0.0)
 
 
-## Where a number sits on the stats plate (its text baseline), from the plate's
-## corner. `rows` is the weapon's whole table: one with a fifth row is set closer.
-static func stat_at(row: Array, rows: Array = STAT_ROWS) -> Vector2:
-	if rows.size() > 0 and int(rows[-1][2]) >= 4:
-		return Vector2(8 + int(row[1]) * STAT_COL, 30 + int(row[2]) * 11)
-	return Vector2(8 + int(row[1]) * STAT_COL, 32 + int(row[2]) * 13)
+## Where a number sits on the stats plate (its text baseline), from the plate's corner.
+static func stat_at(row: Array, _rows: Array = STAT_ROWS) -> Vector2:
+	return Vector2(8, STAT_HEAD + 9.0 + int(row[2]) * STAT_LINE)
+
+
+## How much room a number has across the plate, with its change beside it.
+static func stat_room() -> float:
+	return RIGHT.size.x - 8.0 - 6.0
 
 
 ## The numbers a part would change: {name: "+8.3"}.
