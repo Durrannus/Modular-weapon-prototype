@@ -69,6 +69,8 @@ func _run() -> void:
 		await _one(kinds)
 	# Every weapon in the crate has its words, its first rune and its tin parts.
 	var cave = load("res://scripts/cave/cave.gd")
+	# The Game Bible's four starter runes (Darren, 17 November).
+	_check(cave.STARTER_RUNE == {"sword": "whirlwind", "bow": "volley", "hammer": "quake", "staff": "lance"}, "the first runes are Whirlwind, Volley, Quake and Lance: %s" % [cave.STARTER_RUNE])
 	for kind in cave.CRATE_WEAPONS:
 		_check(cave.WORDS.has(kind) and cave.STARTER_RUNE.has(kind) and cave.TIN_PARTS.has(kind) and SwingBuild.STARTERS.has(kind), "the crate's %s has words, a first rune, tin parts and a wooden starter" % kind)
 		_check(SwingBuild.FITTINGS[cave.STARTER_RUNE[kind]].get("weapon", "sword") == kind, "the %s's first rune is one of its own" % kind)
@@ -119,7 +121,9 @@ func _one(kinds: Array) -> void:
 		m.builds[i].set_data(data)
 		_check(m._fitted(i), "%s: P%d's rune is fitted" % [who, i + 1])
 	# An active first rune gets a card for its button before the guardian wakes.
-	var active: Array = kinds.filter(func(kind): return kind in ["hammer", "staff"])
+	# (Since version 32 every weapon's is: Whirlwind, Volley, Quake, Lance.)
+	var active: Array = kinds.filter(func(kind): return str(SwingBuild.FITTINGS[m.STARTER_RUNE[kind]]["trigger"]) == "active")
+	_check(active.size() == kinds.size(), "%s: every first rune is an active one" % who)
 	m._rune_fitted()
 	if active.is_empty():
 		_check(m.stage == "boss_wake" and m.ui.card_title == "", "%s: the guardian wakes at once" % who)
@@ -130,6 +134,10 @@ func _one(kinds: Array) -> void:
 			names.append(str(SwingBuild.FITTINGS[m.STARTER_RUNE[kind]]["name"]))
 		_check(m.ui.card_title == (names[0] if names.size() == 1 else "Active runes"), "%s: the ability card's title (%s)" % [who, m.ui.card_title])
 		_fits(m, who, "the ability card", m.ui.card_body, 330.0, CARD_LINES, ["[mouse_right]"] + (names if names.size() > 1 else []))
+		# It says how to use each one: a rune you hold says "hold", one you press "press".
+		for kind in active:
+			var how := "hold" if str(SwingBuild.FITTINGS[m.STARTER_RUNE[kind]]["use"]) == "hold" else "press"
+			_check(m.ui.card_body.to_lower().contains(how + " ["), "%s: the ability card says to %s the %s's button: %s" % [who, how, kind, m.ui.card_body])
 		m.ui.on_card.call()
 		_check(m.stage == "boss_wake", "%s: then the guardian wakes" % who)
 	# The smith.

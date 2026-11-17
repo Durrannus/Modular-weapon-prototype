@@ -8,8 +8,9 @@ extends SceneTree
 ## isn't named takes the sword). "bows", "hammers", "staffs": everyone takes that.
 ## "swap": player one takes the sword, then goes back to the crate after room 1
 ## and swaps it for the bow ("swap=staff": for the staff).
-## A hammer's or a staff's first rune is an ability on a button: the bots use it
-## on the guardian, and the run fails if it never went off.
+## Every weapon's first rune is an ability on a button (the sword's and the bow's
+## since version 32): the bots use it on the guardian, and the run fails if it
+## never went off.
 ## The bots can't be knocked out unless "mortal" is given (they dodge badly).
 ## "wipe" knocks everyone out once in room 2 and once at the boss, to prove both
 ## start over. "down" (two players) knocks player two out in room 1, to prove the
@@ -252,16 +253,23 @@ func _fight(i: int) -> void:
 			if p.current_step < 0:
 				inp.attack_pressed = true
 		return
-	# The first rune of a hammer or a staff is an ability on button one: Quake is a
-	# press (it erupts under the enemy aimed at, up to 240 away), Lance a beam for
-	# as long as the button is held. The bots keep them for the guardian.
+	# Every weapon's first rune is an ability on button one. Quake is a press (it
+	# erupts under the enemy aimed at, up to 240 away) and so is Volley (three
+	# arrows, from where a bow stands to shoot). Lance is a beam for as long as the
+	# button is held, and Whirlwind a spin for as long as it is, so the sword must
+	# be close enough for the spin to cut. The bots keep them for the guardian.
 	var list: Array = p.weapon.get("abilities", [])
 	if not list.is_empty() and foe.kind == "guardian":
 		if float(p.ability_used[0]) != float(ability_seen.get(i, -1.0)) and float(p.ability_used[0]) > 0.0:
 			ability_seen[i] = float(p.ability_used[0])
 			ability_uses[i] = int(ability_uses.get(i, 0)) + 1
 		var hold: bool = str(list[0]["use"]) == "hold"
-		var near: bool = rel.length() < (360.0 * far if hold else 220.0)
+		var from := 220.0
+		if bow:
+			from = (360.0 if hold else 420.0) * far
+		elif hold:
+			from = reach + 24.0
+		var near: bool = rel.length() < from
 		if near and (p.hold_button == 0 or (float(p.ability_charge[0]) >= 1.0 and p.current_step < 0)):
 			inp.stick_aim = rel.normalized()
 			inp.move = Vector2.ZERO
@@ -530,16 +538,16 @@ func _done(ok: bool) -> void:
 		var kind := _ends_with(i)
 		var data: Array = m.builds[i].get_data()
 		var right: Array = {
-			"sword": ["tin_blade", "tin_grip", "plain_pommel", ["shockwave", ""]],
-			"bow": ["tin_shortbow", "tin_bow_grip", "plain_string", ["steady_aim", ""], "tin_arrows"],
+			"sword": ["tin_blade", "tin_grip", "plain_pommel", ["whirlwind", ""]],
+			"bow": ["tin_shortbow", "tin_bow_grip", "plain_string", ["volley", ""], "tin_arrows"],
 			"hammer": ["tin_maul", "tin_haft", "plain_weight", ["quake", ""]],
 			"staff": ["tin_apprentice", "tin_shaft", "plain_cap", ["lance", ""], "tin_crystal"],
 		}[kind]
 		if data != right:
 			print("FAIL: P%d should leave with %s, not %s" % [i + 1, str(right), str(data)])
 			ok = false
-		# A hammer's Quake and a staff's Lance are buttons: they must have gone off.
-		if kind in ["hammer", "staff"] and int(ability_uses.get(i, 0)) < 1:
+		# Every first rune is a button: it must have gone off.
+		if int(ability_uses.get(i, 0)) < 1:
 			print("FAIL: P%d never used the %s's first rune on the guardian" % [i + 1, kind])
 			ok = false
 	if ok and missing.is_empty():

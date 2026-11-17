@@ -45,13 +45,13 @@ const CRATE_AT := Vector2(14.5, 61.62)    # the ship's crate (its feet), in tile
 const CRATE_WEAPONS := ["staff", "sword", "bow", "hammer"]
 const PICK_GAP := 68.0          # from one plate to the next (34 art pixels)
 const PICK_LIFT := 106.0        # the plates' centres, above the crate's feet
-## Each weapon's first rune, from the pedestal in room 3. The Game Bible gives the
-## sword Shockwave and the hammer Quake. The other two were open items and are
-## Claude's choices: Steady Aim for the bow (its only passive that helps against
-## a single boss, which a starter rune must) and Lance for the staff (the staff's
-## rune for one big enemy, and the one the staff on the title picture is using).
-## Quake and Lance are active runes, so the cave also teaches their button.
-const STARTER_RUNE := {"sword": "shockwave", "bow": "steady_aim", "hammer": "quake", "staff": "lance"}
+## Each weapon's first rune, from the pedestal in room 3. The Game Bible names all
+## four (Darren, 17 November: "Greystone Highlands, runes and loot"): Whirlwind for
+## the sword, Volley for the bow, Quake for the hammer and Lance for the staff.
+## Until version 32 the sword's was Shockwave and the bow's Steady Aim, the two
+## passive ones. All four are active runes now, so the cave teaches every
+## weapon's ability button before the guardian wakes.
+const STARTER_RUNE := {"sword": "whirlwind", "bow": "volley", "hammer": "quake", "staff": "lance"}
 ## What the smith hands over, by weapon.
 const TIN_PARTS := {"sword": ["tin_blade", "tin_grip"], "bow": ["tin_shortbow", "tin_bow_grip", "tin_arrows"],
 	"hammer": ["tin_maul", "tin_haft"], "staff": ["tin_apprentice", "tin_shaft", "tin_crystal"]}
@@ -67,9 +67,10 @@ const WORDS := {
 	"sword": {
 		"card": ["Wooden sword", "A training sword from the ship's crate.", "[mouse_left] swings where you point.", "[pad_x] swings the way you face, or aim with [stick_r]."],
 		"chain": "Hold [attack] to keep swinging. The third swing is the finisher.",
-		"rune": "A rune gives your swing a new trick. This one hums in your hand, but your sword can't wake it.",
-		"trick": "A rune gives your swing a new trick: yours throws a shockwave off the last hit of the chain.",
-		"each": "a shockwave off the sword's last hit",
+		"rune": "A rune gives your sword a new trick. This one hums in your hand, but your sword can't wake it.",
+		"trick": "A rune gives a weapon a new trick: yours is a spin that cuts everything around you.",
+		"each": "a cutting spin for the sword",
+		"use": "Hold [ability] to spin and cut everything around you.\nIts meter fills again when you let go.",
 		"grip": "grip", "top": "tip", "slot": "the blade gives your spirit another seat",
 		"tin": "Tin blade and tin grip",
 		"tin_hint": "Sword tab: pick the tin blade and the tin grip. Keep the rune on a seat.",
@@ -78,9 +79,10 @@ const WORDS := {
 	"bow": {
 		"card": ["Wooden bow", "A training bow. Its arrows never run out.", "[mouse_left] shoots where you point.", "[pad_x] shoots the way you face, or aim with [stick_r]."],
 		"chain": "Hold [attack] to keep shooting. The third shot is the heavy one.",
-		"rune": "A rune gives your shots a new trick. This one hums in your hand, but your bow can't wake it.",
-		"trick": "A rune gives your shots a new trick: yours makes you shoot faster the longer you stand your ground.",
-		"each": "faster shots for the bow that stands its ground",
+		"rune": "A rune gives your bow a new trick. This one hums in your hand, but your bow can't wake it.",
+		"trick": "A rune gives a weapon a new trick: yours looses three arrows at once, in a spread.",
+		"each": "three arrows at once from the bow",
+		"use": "Press [ability] to loose three arrows in a spread. Up close all three hit.\nIt is ready again after 4 seconds.",
 		"grip": "grip", "top": "tip", "slot": "the limbs give your spirit another seat",
 		"tin": "Tin limbs, grip and arrows",
 		"tin_hint": "Bow tab: pick the tin limbs, the tin grip and the tin arrows. Keep the rune on a seat.",
@@ -1179,10 +1181,10 @@ func _forge_done(_i: int) -> void:
 			_forge_objective()
 
 
-## Everyone's rune is fitted. The sword's and the bow's first runes work by
-## themselves, so the guardian wakes at once. The hammer's and the staff's are
-## abilities on a button: a card says which button first, because the fight that
-## follows is where they are for.
+## Everyone's rune is fitted. Every weapon's first rune is an ability on a button
+## (since version 32), so a card says which button first, because the fight that
+## follows is what they are for. (A first rune that worked by itself would wake
+## the guardian at once: the cave still copes with one.)
 func _rune_fitted() -> void:
 	for p in players:
 		p.with_spirit = true
