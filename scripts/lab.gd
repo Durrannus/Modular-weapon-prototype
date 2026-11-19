@@ -206,8 +206,9 @@ static func _build_rows() -> void:
 	_add(p, "Shockwave", "The wave, against a sword hit", "player:SHOCKWAVE_DAMAGE", "%")
 	g = "Shards"
 	_add(p, g, "Each shard, against a sword hit", "player:SHARD_DAMAGE", "%")
-	_add(p, g, "Jumps", "player:SHARD_JUMPS", "n", 1.0, 1.0, 8.0)
-	_add(p, g, "How far a shard jumps", "player:SHARD_RANGE", "d", 5.0, 20.0, 600.0)
+	_add(p, g, "Shards in a burst", "player:SHARD_COUNT", "n", 1.0, 1.0, 8.0)
+	_add(p, g, "How far a shard flies", "player:SHARD_RANGE", "d", 5.0, 20.0, 600.0)
+	_add(p, g, "How wide a burst fans out, in degrees", "player:SHARD_CONE", "n", 2.0, 0.0, 180.0)
 	g = "Weak Point"
 	_add(p, g, "The hit on a mark, against a normal hit", "player:WEAK_CRIT", "%", 0.1, 1.0, 10.0)
 	_add(p, g, "A mark lasts", "enemy:WEAK_LIFE", "s", 0.5, 1.0, 60.0)
@@ -276,12 +277,16 @@ static func _build_rows() -> void:
 	_recharge(p, g, "quake")
 	g = "Bulwark"
 	_add(p, g, "It lasts", "build:FITTINGS/bulwark/time", "s", 0.5, 0.5, 60.0)
-	_add(p, g, "Whoever hits it is stunned for", "build:BULWARK_STUN", "s", 0.1, 0.0, 10.0)
+	_add(p, g, "Hits it takes before it breaks", "build:BULWARK_HITS", "n", 1.0, 1.0, 20.0)
+	_add(p, g, "Broken, its burst stuns for", "build:BULWARK_STUN", "s", 0.1, 0.0, 10.0)
+	_add(p, g, "How far its burst reaches", "build:BULWARK_BURST", "d", 5.0, 20.0, 400.0)
 	_recharge(p, g, "bulwark")
 	g = "Hook"
-	_add(p, g, "The yank, against a swing", "player:HOOK_DAMAGE", "%")
+	_add(p, g, "The chain's bite, against a swing", "player:HOOK_DAMAGE", "%")
 	_add(p, g, "How far away it takes hold", "player:HOOK_REACH", "d", 10.0, 60.0, 1000.0)
-	_add(p, g, "It stuns for", "player:HOOK_STUN", "s", 0.05, 0.0, 5.0)
+	_add(p, g, "The dragged enemy can't act for", "player:HOOK_STUN", "s", 0.05, 0.0, 5.0)
+	_add(p, g, "Saved Up: extra stun when it arrives", "build:HOOK_SAVED_STUN", "s", 0.1, 0.0, 10.0)
+	_add(p, g, "Too heavy to drag: pulls you this far", "player:HOOK_TUG", "d", 5.0, 0.0, 300.0)
 	_recharge(p, g, "hook")
 
 	p = "Staff runes"

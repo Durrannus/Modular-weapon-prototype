@@ -1241,9 +1241,9 @@ func _desc(id: String) -> String:
 func _boost_text(band: String, rune: String) -> String:
 	match band:
 		"twice":
-			return {"shockwave": "two waves", "hook": "hooks twice", "shards": "two chains", "weak_point": "two marks", "leap": "two leaps", "whirlwind": "spins twice as long", "ghostwield": "copies each swing twice"}.get(rune, "twice")
+			return {"shockwave": "two waves", "hook": "a second chain", "shards": "two bursts", "weak_point": "two marks", "leap": "two leaps", "whirlwind": "spins twice as long", "ghostwield": "copies each swing twice"}.get(rune, "twice")
 		"wider":
-			return {"shockwave": "a bigger wave", "hook": "reaches further", "shards": "jumps further", "weak_point": "a bigger spot", "leap": "leaps from further away", "whirlwind": "a bigger circle", "ghostwield": "the ghost stays longer"}.get(rune, "bigger")
+			return {"shockwave": "a bigger wave", "hook": "reaches further", "shards": "fly further", "weak_point": "a bigger spot", "leap": "leaps from further away", "whirlwind": "a bigger circle", "ghostwield": "the ghost stays longer"}.get(rune, "bigger")
 		"every_hit":
 			if SwingBuild.FITTINGS.get(rune, {}).get("trigger", "") == "active":
 				return "back sooner with each hit"
@@ -1269,7 +1269,7 @@ func _band_line(band: String, rune: String) -> String:
 			return "%s %s." % [rn, _boost_text("wider", rune)]
 		"every_hit":
 			if rune == "shards":
-				return "Shards split in two at each jump, at half strength."
+				return "Twice as many shards, at half strength."
 			return "%s happens on every hit, at half strength." % rn
 		"saved_up":
 			return "%s happens every third time, three times as strong." % rn

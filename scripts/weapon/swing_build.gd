@@ -497,13 +497,15 @@ const POMMEL_ORDER := ["plain_pommel", "keen_pommel", "heavy_pommel", "light_pom
 static var FITTINGS := {
 	"shockwave": {"kind": "rune", "weapon": "sword", "name": "Shockwave", "trigger": "finisher", "color": Color("#ffc850"),
 		"desc": "Your finisher sends a wave forward."},
-	# Hook left the sword for the hammer (Darren, 11 November afternoon): an area
-	# pull that drags the crowd in to where a hammer can reach it.
+	# Hook left the sword for the hammer (Darren, 11 November afternoon) as an area
+	# pull. Since 19 November it is single target: one chain drags one enemy to
+	# you, and a boss is too heavy, so the chain pulls you towards it instead.
 	"hook": {"kind": "rune", "weapon": "hammer", "name": "Hook", "trigger": "active", "use": "press", "recharge": 4.0, "color": Color("#ff9c32"),
-		"desc": "Press its button to yank nearby enemies in."},
-	# Shards replaced Cleave (Darren, 6 November).
+		"desc": "Press its button: a chain drags the enemy you aim at to you. A boss drags you to it."},
+	# Shards replaced Cleave (Darren, 6 November). Since 19 November they burst out
+	# of the back of the enemy hit, in a cone, and fly straight.
 	"shards": {"kind": "rune", "weapon": "sword", "name": "Shards", "trigger": "hit", "color": Color("#d0dcd8"),
-		"desc": "Every hit sends shards jumping to the nearest enemies."},
+		"desc": "Every hit sends shards out of the enemy's back, into whoever stands behind it."},
 	# Weak Point (Darren, 11 November): the sword's single-target passive. The finisher
 	# marks the enemy it hit; the next sword hit on the mark is a big crit. Small
 	# enemies glow all over. Big ones get a spot on one side that you have to reach.
@@ -552,7 +554,7 @@ static var FITTINGS := {
 	"quake": {"kind": "rune", "weapon": "hammer", "name": "Quake", "trigger": "active", "use": "press", "recharge": 5.0, "color": Color("#6ad86a"),
 		"desc": "Press its button: the ground erupts under the enemy nearest your aim."},
 	"bulwark": {"kind": "rune", "weapon": "hammer", "name": "Bulwark", "trigger": "active", "use": "press", "recharge": 10.0, "time": 3.0, "color": Color("#7fe0f0"),
-		"desc": "Press its button: for a few seconds nothing can hurt you, and whoever hits you is stunned."},
+		"desc": "Press its button: a shield blocks hits. Broken by enemies, it bursts and stuns them."},
 	# The staff's own runes (15 November). Overflow, Nova, Lance and Spectre are
 	# Darren's (11 November afternoon), and so are Overflow's and Spectre's bands;
 	# Orbit and Chain were only names, so what they do is a first design, and so
@@ -703,7 +705,10 @@ static var QUAKE_RADIUS := 44.0       # everything this near the eruption is cau
 static var QUAKE_STUN := 0.6
 const QUAKE_EMPTY := 120.0       # with nobody in range it erupts this far the way you aim
 const QUAKE_GAP := 0.3           # Twice: the next eruption comes this long after
-static var BULWARK_STUN := 1.5        # whoever hits the shield is stunned this long (Twice: twice as long)
+static var BULWARK_STUN := 1.5        # when enemies break the shield, its burst stuns for this long (Twice: twice as long)
+static var BULWARK_HITS := 3          # hits a shield of the usual length takes: the last one breaks it
+static var BULWARK_BURST := 90.0      # the burst reaches enemies whose edge is this near you
+static var HOOK_SAVED_STUN := 2.0     # Saved Up on Hook: the enemy it drags in arrives stunned, for this much longer
 const BULWARK_DODGE := 1.0       # On Dodge: how long a dodge puts it up for
 
 
@@ -719,6 +724,13 @@ static func momentum_step(e: Dictionary) -> float:
 static func bulwark_time(size: float, power: float, seconds := -1.0) -> float:
 	var base := float(FITTINGS["bulwark"]["time"]) if seconds < 0.0 else seconds
 	return base * (1.0 + (size - 1.0) / 1.8) * (SAVED_UP_POWER if power >= SAVED_UP_POWER else 1.0)
+
+
+## How many hits a Bulwark put up for `seconds` takes before it breaks: as many
+## as the usual one for as long as the usual one, so a longer shield (Wider,
+## Saved Up) takes more and a dodge's short one takes one.
+static func bulwark_hits(seconds: float) -> int:
+	return maxi(roundi(float(BULWARK_HITS) * seconds / maxf(float(FITTINGS["bulwark"]["time"]), 0.1)), 1)
 
 
 ## The staff's runes, in numbers. Damage is a share of one bolt from the same staff.
@@ -1246,10 +1258,10 @@ static func sentence(e: Dictionary, keys: Array = ABILITY_KEYS["kbm"]) -> String
 	match str(e["id"]):
 		"shockwave":
 			what = "sends %s forward" % (("a big shockwave" if big else "a shockwave") if n == 1 else ("%s %sshockwaves" % [_num(n), "big " if big else ""]))
-		"hook":
-			what = "pulls enemies in%s%s" % [" from further away" if big else "", times]
 		"shards":
-			what = "sends shards jumping to the closest enemies%s%s%s" % [", splitting in two at each jump" if e.get("splinter", false) else "", times, ", from further away" if big else ""]
+			what = "sends %s out of the enemy's back, into whoever stands behind it%s" % [
+				("twice as many shards" if e.get("splinter", false) else "shards") if n == 1 else "%s bursts of %sshards" % [_num(n), "twice as many " if e.get("splinter", false) else ""],
+				", from further away" if big else ""]
 		"weak_point":
 			# Twice: two marks. Wider: a bigger spot on big enemies.
 			what = "marks %s%s, and your next hit on a mark is a %scrit" % ["the enemy it hits" if n == 1 else "up to %s enemies" % _num(n),
@@ -1436,7 +1448,9 @@ static func _active_sentence(e: Dictionary, keys: Array) -> String:
 	var what := ""
 	match str(e["id"]):
 		"hook":
-			what = "pulls enemies in%s%s" % [" from further away" if big else "", "" if n == 1 else (" twice" if n == 2 else " %d times" % n)]
+			what = "a chain drags the enemy nearest your aim to you%s%s%s" % [" from further away" if big else "",
+				"" if n == 1 else (", then another" if n == 2 else ", then %s more" % _num(n - 1)),
+				", stunned for %s seconds" % str(snappedf(HOOK_SAVED_STUN, 0.1)).trim_suffix(".0") if int(e.get("every", 1)) > 1 else ""]
 		"whirlwind":
 			what = "spins for up to %s turns, cutting everything around you%s" % [_num(int(f["turns"]) * n), ", in a bigger circle" if big else ""]
 		"leap":
@@ -1458,8 +1472,12 @@ static func _active_sentence(e: Dictionary, keys: Array) -> String:
 			what = "the ground erupts under the enemy nearest your aim%s%s" % [", over a bigger patch" if big else "",
 				"" if n == 1 else (", then under the next one" if n == 2 else ", then under %s more" % _num(n - 1))]
 		"bulwark":
-			# Its strength is how long it lasts, so say that.
-			what = "for %d seconds nothing can hurt you, and whoever hits you is stunned%s" % [roundi(bulwark_time(float(e["size"]), float(e.get("power", 1.0)))),
+			# Its strength is how long it lasts and how many hits it takes, so say that.
+			var secs := bulwark_time(float(e["size"]), float(e.get("power", 1.0)))
+			var hits := bulwark_hits(secs)
+			var nth: String = ["last", "last", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth", "ninth"][hits] if hits <= 9 else "last"
+			what = "for %d seconds a shield blocks %s, stunning enemies near you%s" % [roundi(secs),
+				"%s hits; the %s bursts it" % [_num(hits) if hits <= 9 else str(hits), nth] if hits > 1 else "one hit, which bursts it",
 				"" if n == 1 else (" for twice as long" if n == 2 else " for %s times as long" % _num(n))]
 		"nova":
 			what = "%s out from you and shove%s the crowd back" % [("a big ring bursts" if big else "a ring bursts") if n == 1 else "%s %srings burst" % [_num(n), "big " if big else ""], "s" if n == 1 else ""]
@@ -1473,7 +1491,7 @@ static func _active_sentence(e: Dictionary, keys: Array) -> String:
 		_:
 			return ""
 	var slow := int(e.get("every", 1))
-	if float(e.get("power", 1.0)) >= 3.0 and not (e["id"] in ["ghostwield", "bulwark", "spectre"]):
+	if float(e.get("power", 1.0)) >= 3.0 and not (e["id"] in ["ghostwield", "bulwark", "spectre", "hook"]):
 		what += ", three times as strong"
 		if e["id"] == "arrow_rain":
 			what += " and pinning enemies"
@@ -1499,6 +1517,8 @@ static func _active_sentence(e: Dictionary, keys: Array) -> String:
 			s += " %s fires one flash of it." % dodging
 		elif e["id"] == "spectre":
 			s += " When they dodge, %s where it stood." % ("it bursts" if n == 1 else "they burst")
+		elif e["id"] == "hook":
+			s += " %s throws a quick one at the nearest enemy." % dodging
 		elif e["id"] == "bulwark":
 			s += " %s puts it up for %s." % [dodging, "a second" if slow <= 1 else "%s seconds" % _num(roundi(bulwark_time(1.0, float(e.get("power", 1.0)), BULWARK_DODGE)))]
 		else:

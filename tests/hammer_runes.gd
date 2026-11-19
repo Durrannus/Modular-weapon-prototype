@@ -206,6 +206,7 @@ func _run() -> void:
 	_check(_near(SwingBuild.momentum_step(_effect(["momentum"])), 0.08) and _near(SwingBuild.momentum_step(_effect(["wider", "momentum"])), 0.128), "Momentum: +8% a step, +13% with Wider")
 	_check(_near(SwingBuild.momentum_step(_effect(["saved_up", "momentum"])), 0.2) and _near(SwingBuild.momentum_step(_effect(["wider", "saved_up", "momentum"])), 0.2), "a step is never more than +20%: at its most Momentum doubles a swing")
 	_check(_near(SwingBuild.bulwark_time(1.0, 1.0), 3.0) and _near(SwingBuild.bulwark_time(SwingBuild.wider_size(1), 1.0), 4.0) and _near(SwingBuild.bulwark_time(1.0, 3.0), 9.0), "Bulwark: 3 seconds, 4 with Wider, 9 with Saved Up")
+	_check(SwingBuild.bulwark_hits(3.0) == 3 and SwingBuild.bulwark_hits(4.0) == 4 and SwingBuild.bulwark_hits(9.0) == 9 and SwingBuild.bulwark_hits(1.0) == 1, "and it takes a hit for each of those seconds: 3, 4, 9, and one for a dodge's")
 	var says := {
 		["momentum"]: "Each swing that lands adds a step of +8% to your swings, up to +40%. Stop hitting and it drains away.",
 		["twice", "momentum"]: "Each swing that lands adds two steps of +8% to your swings, up to +40%. Stop hitting and it drains away.",
@@ -230,13 +231,17 @@ func _run() -> void:
 		["every_hit", "quake"]: "Press right mouse: the ground erupts under the enemy nearest your aim. Recharges in 5 seconds. Each hit you land takes half a second off.",
 		["saved_up", "quake"]: "Press right mouse: the ground erupts under the enemy nearest your aim, three times as strong. Recharges in 15 seconds.",
 		["on_dodge", "quake"]: "Press right mouse: the ground erupts under the enemy nearest your aim. Recharges in 5 seconds. Dodging sets one off too, at half strength.",
-		["bulwark"]: "Press right mouse: for 3 seconds nothing can hurt you, and whoever hits you is stunned. Recharges in 10 seconds.",
-		["twice", "bulwark"]: "Press right mouse: for 3 seconds nothing can hurt you, and whoever hits you is stunned for twice as long. Recharges in 10 seconds.",
-		["wider", "bulwark"]: "Press right mouse: for 4 seconds nothing can hurt you, and whoever hits you is stunned. Recharges in 10 seconds.",
-		["saved_up", "bulwark"]: "Press right mouse: for 9 seconds nothing can hurt you, and whoever hits you is stunned. Recharges in 30 seconds.",
-		["on_dodge", "bulwark"]: "Press right mouse: for 3 seconds nothing can hurt you, and whoever hits you is stunned. Recharges in 10 seconds. Dodging puts it up for a second.",
-		["hook"]: "Press right mouse: pulls enemies in. Recharges in 4 seconds.",
-		["wider", "hook"]: "Press right mouse: pulls enemies in from further away. Recharges in 4 seconds.",
+		["bulwark"]: "Press right mouse: for 3 seconds a shield blocks three hits; the third bursts it, stunning enemies near you. Recharges in 10 seconds.",
+		["twice", "bulwark"]: "Press right mouse: for 3 seconds a shield blocks three hits; the third bursts it, stunning enemies near you for twice as long. Recharges in 10 seconds.",
+		["wider", "bulwark"]: "Press right mouse: for 4 seconds a shield blocks four hits; the fourth bursts it, stunning enemies near you. Recharges in 10 seconds.",
+		["saved_up", "bulwark"]: "Press right mouse: for 9 seconds a shield blocks nine hits; the ninth bursts it, stunning enemies near you. Recharges in 30 seconds.",
+		["on_dodge", "bulwark"]: "Press right mouse: for 3 seconds a shield blocks three hits; the third bursts it, stunning enemies near you. Recharges in 10 seconds. Dodging puts it up for a second.",
+		["hook"]: "Press right mouse: a chain drags the enemy nearest your aim to you. Recharges in 4 seconds.",
+		["twice", "hook"]: "Press right mouse: a chain drags the enemy nearest your aim to you, then another. Recharges in 4 seconds.",
+		["wider", "hook"]: "Press right mouse: a chain drags the enemy nearest your aim to you from further away. Recharges in 4 seconds.",
+		["every_hit", "hook"]: "Press right mouse: a chain drags the enemy nearest your aim to you. Recharges in 4 seconds. Each hit you land takes half a second off.",
+		["saved_up", "hook"]: "Press right mouse: a chain drags the enemy nearest your aim to you, stunned for 2 seconds. Recharges in 12 seconds.",
+		["on_dodge", "hook"]: "Press right mouse: a chain drags the enemy nearest your aim to you. Recharges in 4 seconds. Dodging throws a quick one at the nearest enemy.",
 	}
 	for line in says:
 		var said: String = SwingBuild.sentence(_effect(line))
@@ -643,10 +648,11 @@ func _run() -> void:
 	await _press(0)
 	_check(p.bulwark_left > 2.9 and p.bulwark_left <= 3.0 and is_instance_valid(p.bulwark_fx), "Bulwark: the shield goes up for 3 seconds (%.2f)" % p.bulwark_left)
 	var hp0: float = p.hp
+	_check(p.bulwark_hits == 3, "it can take three hits (%d)" % p.bulwark_hits)
 	p.take_damage(10.0, biter.global_position)
 	_check(p.hp == hp0, "a hit that comes from an enemy doesn't hurt")
-	_check(biter.stun_time > 1.4 and biter.stun_time <= 1.5, "and whoever dealt it is stunned for 1.5 seconds (%.2f)" % biter.stun_time)
-	_check(p.game_time - p.bulwark_blocked < 0.1 and p.invuln == 0.0, "the shield took it")
+	_check(biter.stun_time == 0.0 and biter.knock == Vector2.ZERO, "and it does nothing to whoever dealt it: no stun, no shove (since 19 November)")
+	_check(p.game_time - p.bulwark_blocked < 0.1 and p.invuln == 0.0 and p.bulwark_hits == 2, "the shield took it: two hits left")
 	p.take_damage(10.0)
 	_check(_near(p.hp, hp0 - 10.0), "a hit that comes from nowhere still hurts")
 	p.hp = p.max_hp
@@ -668,14 +674,54 @@ func _run() -> void:
 	await _frames(15)
 	_check(p.ability_ready(0), "now")
 
-	# An enemy that walks into it: bitten for nothing, and stunned.
+	# Enemies break it: the third hit it stops bursts it, and the burst stuns
+	# everything near you (not the one far off), for 1.5 seconds. Nothing is hurt.
+	await _hammer(["bulwark"], home)
+	biter = _slime(Vector2(60, 0), true)
+	beside = _slime(Vector2(0, 80), true)
+	far_off = _slime(Vector2(-200, 0), true)
+	await _frames(2)
+	await _press(0)
+	hp0 = p.hp
+	p.take_damage(10.0, biter.global_position)
+	await _frames(20)
+	p.take_damage(10.0, biter.global_position)
+	await _frames(20)
+	_check(p.bulwark_left > 0.0 and p.bulwark_hits == 1 and biter.stun_time == 0.0, "two hits in, the shield is still up and nobody is stunned")
+	p.take_damage(10.0, biter.global_position)
+	_check(p.hp == hp0, "the third hit is stopped too")
+	_check(p.bulwark_left == 0.0 and p.bulwark_hits == 0 and not is_instance_valid(p.bulwark_fx), "and it breaks the shield")
+	_check(biter.stun_time > 1.4 and biter.stun_time <= 1.5 and beside.stun_time > 1.4, "the burst stuns the enemies around you for 1.5 seconds (%.2f, %.2f)" % [biter.stun_time, beside.stun_time])
+	_check(far_off.stun_time == 0.0, "but not one 200 away")
+	_check(_lost(biter) == 0.0 and _lost(beside) == 0.0, "the burst hurts nobody")
+	p.take_damage(10.0, biter.global_position)
+	_check(_near(p.hp, hp0 - 10.0), "with the shield gone the next hit hurts")
+	p.hp = p.max_hp
+	p.invuln = 0.0
+
+	# A shield that just runs out doesn't burst.
+	await _hammer(["bulwark"], home)
+	biter = _slime(Vector2(60, 0), true)
+	await _frames(2)
+	await _press(0)
+	p.take_damage(10.0, biter.global_position)
+	await _frames(190)
+	_check(p.bulwark_left == 0.0 and biter.stun_time == 0.0, "a shield that runs out with hits to spare stuns nobody")
+
+	# An enemy that walks into it: bitten for nothing. Leaning on it, it counts as
+	# a hit every 0.3 seconds, so it breaks the shield by itself and is stunned.
 	await _hammer(["bulwark"], home)
 	await _press(0)
 	hp0 = p.hp
 	biter = _slime(Vector2(27, 0), true)
 	biter.contact_damage = 10.0
+	await _frames(12)
+	_check(p.hp == hp0 and p.bulwark_hits == 2 and biter.stun_time == 0.0, "an enemy that touches the shield bites nothing, and is not stunned for it (%d hits left)" % p.bulwark_hits)
 	await _frames(40)
-	_check(p.hp == hp0 and biter.stun_time > 0.5, "an enemy that touches the shield bites nothing and is stunned (%.2f)" % biter.stun_time)
+	_check(p.hp == hp0 and p.bulwark_left == 0.0 and biter.stun_time > 0.5, "leaning on it, it breaks the shield in under a second and is stunned by the burst (%.2f)" % biter.stun_time)
+	biter.contact_damage = 0.0
+	await _hammer(["bulwark"], home)
+	await _press(0)
 	m.swap_weapon(0, "sword")
 	await _frames(2)
 	_check(p.bulwark_left == 0.0 and not is_instance_valid(p.bulwark_fx), "putting the hammer away drops the shield")
@@ -684,23 +730,25 @@ func _run() -> void:
 
 	await _hammer(["wider", "bulwark"], home)
 	await _press(0)
-	_check(p.bulwark_left > 3.9 and p.bulwark_left <= 4.0, "Wider: 4 seconds (%.2f)" % p.bulwark_left)
+	_check(p.bulwark_left > 3.9 and p.bulwark_left <= 4.0 and p.bulwark_hits == 4, "Wider: 4 seconds, and four hits (%.2f, %d)" % [p.bulwark_left, p.bulwark_hits])
 
 	await _hammer(["saved_up", "bulwark"], home)
 	await _press(0)
-	_check(p.bulwark_left > 8.9 and p.bulwark_left <= 9.0 and _near(float(p.weapon["abilities"][0]["recharge"]), 30.0), "Saved Up: 9 seconds, and 30 to recharge (%.2f)" % p.bulwark_left)
+	_check(p.bulwark_left > 8.9 and p.bulwark_left <= 9.0 and p.bulwark_hits == 9 and _near(float(p.weapon["abilities"][0]["recharge"]), 30.0), "Saved Up: 9 seconds and nine hits, and 30 to recharge (%.2f, %d)" % [p.bulwark_left, p.bulwark_hits])
 
 	await _hammer(["twice", "bulwark"], home)
 	biter = _slime(Vector2(60, 0), true)
 	await _frames(2)
 	await _press(0)
-	_check(p.bulwark_left > 2.9 and p.bulwark_left <= 3.0, "Twice: still 3 seconds")
-	p.take_damage(10.0, biter.global_position)
-	_check(biter.stun_time > 2.9 and biter.stun_time <= 3.0, "but whoever hits it is stunned twice as long (%.2f)" % biter.stun_time)
+	_check(p.bulwark_left > 2.9 and p.bulwark_left <= 3.0 and p.bulwark_hits == 3, "Twice: still 3 seconds and three hits")
+	for i in 3:
+		p.take_damage(10.0, biter.global_position)
+		await _frames(20)
+	_check(p.bulwark_left == 0.0 and biter.stun_time > 2.5 and biter.stun_time <= 3.0, "but its burst stuns twice as long (%.2f)" % biter.stun_time)
 
 	await _hammer(["on_dodge", "bulwark"], home)
 	await _dodge(Vector2.UP)
-	_check(p.bulwark_left > 0.7 and p.bulwark_left <= 1.0 and float(p.ability_charge[0]) >= 1.0, "On Dodge: a dodge puts it up for a second, and leaves the button full (%.2f)" % p.bulwark_left)
+	_check(p.bulwark_left > 0.7 and p.bulwark_left <= 1.0 and p.bulwark_hits == 1 and float(p.ability_charge[0]) >= 1.0, "On Dodge: a dodge puts it up for a second, good for one hit, and leaves the button full (%.2f)" % p.bulwark_left)
 	await _frames(60)
 	_check(p.bulwark_left == 0.0, "a second later it is down")
 	await _still()
@@ -711,8 +759,10 @@ func _run() -> void:
 	biter = _slime(Vector2(60, 0), true)
 	await _frames(2)
 	await _press(0)
-	p.take_damage(10.0, biter.global_position)
-	_check(biter.stun_time > 1.4 and p.game_time - p.bulwark_blocked < 0.1, "with Invincible on the shield still blocks and stuns")
+	for i in 3:
+		p.take_damage(10.0, biter.global_position)
+		await _frames(20)
+	_check(biter.stun_time > 1.0 and p.bulwark_left == 0.0, "with Invincible on the shield still blocks, breaks and bursts")
 	m._set_invincible(false)
 
 	# --- Hook: the hammer's now ---------------------------------------------------------
@@ -724,7 +774,7 @@ func _run() -> void:
 	await _press(0)
 	await _frames(30)
 	var d1: float = pulled.global_position.distance_to(p.global_position)
-	_check(d1 < d0 - 80.0, "Hook from a hammer pulls a far enemy in (%.0f -> %.0f)" % [d0, d1])
+	_check(d1 < 60.0, "Hook from a hammer drags a far enemy all the way to you (%.0f -> %.0f)" % [d0, d1])
 	_check(_near(_lost(pulled), SWING * 0.3), "and hurts it a little: three tenths of a swing (%.3f)" % _lost(pulled))
 	_check(float(p.ability_charge[0]) < 0.2 and _near(float(p.weapon["abilities"][0]["recharge"]), 4.0), "four seconds to recharge")
 	await _still()

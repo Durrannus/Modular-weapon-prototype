@@ -277,7 +277,7 @@ func net_state() -> Array:
 		out.append_array([p.global_position, p.hp, p.is_down, p.current_step, p.step_index, p.dodge_charges, p.invuln, p.walk_vel, p.aim_dir, p.frozen,
 			p.ability_charge[0], p.ability_charge[1], p.ability_charge[2], p.hold_button, p.hold_left, p.weak_marks.size(),
 			p.ghost_left, p.ghost_swings.size(), p.steady, p.snipe_button, p.snipe_t, p.rains.size(), p.mana, p.cast_weak,
-			p.momentum, p.momentum_idle, p.rumbles.size(), p.bulwark_left,
+			p.momentum, p.momentum_idle, p.rumbles.size(), p.bulwark_left, p.bulwark_hits, p.shard_queue.size(), p.lunge_timer,
 			p.orbs.size(), p.overflow_charge, p.overflow_count, p.overflow_echoes.size(), p.spectre_left, p.spectre_burst, p.spectre_shots.size(), p.spectre_swings.size(), p.lance_at, p.chain_jumps])
 	for b in builds:
 		out.append(b.get_data())

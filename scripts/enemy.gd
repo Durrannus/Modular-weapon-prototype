@@ -33,6 +33,7 @@ var dead := false
 var art_set := "enemies"   # "enemies": art/enemies + anchors.json. "cave": art/cave + cave.json
 var show_bar := true       # small health bar over its head once hurt
 var immune := false        # can't be hurt right now (burrowed, a statue)
+var elite := false         # a marked, stronger one of its kind: it always counts as the toughest (none in the game yet)
 var held := false          # "Pause enemies" in the test arena: it stands still and hurts nobody, but can still be hit
 
 var knock := Vector2.ZERO
@@ -150,6 +151,42 @@ func lab_changed() -> void:
 	var frac := hp / max_hp if max_hp > 0.0 else 1.0
 	_stats()
 	hp = max_hp * frac
+
+
+## A boss: too heavy for a chain to drag (the hammer's Hook pulls its player
+## towards it instead).
+const BOSSES := ["guardian"]
+
+func is_boss() -> bool:
+	return kind in BOSSES
+
+
+## The "toughest enemy" rule (Darren, 19 November), for every rune and thread that
+## picks the toughest: of the enemies within `reach` of `from` (to their edge) it
+## is the one with the most health left, but an elite in reach always counts as
+## tougher than one that is not. Two alike: the nearer one. null with nobody in
+## reach. skip: instance ids to leave out. Enemies that can't be hurt right now
+## (burrowed, a statue) are never picked.
+static func toughest(enemies: Array, from: Vector2, reach: float, skip: Dictionary = {}):
+	var best = null
+	for e in enemies:
+		if not is_instance_valid(e) or e.dead or e.immune or skip.has(e.get_instance_id()):
+			continue
+		var d: float = e.global_position.distance_to(from)
+		if d - float(e.radius) > reach:
+			continue
+		if best == null or tougher(e, d, best, best.global_position.distance_to(from)):
+			best = e
+	return best
+
+
+## Is `a` (this far away) tougher than `b` (that far away)?
+static func tougher(a, a_far: float, b, b_far: float) -> bool:
+	if a.elite != b.elite:
+		return a.elite
+	if not is_equal_approx(float(a.hp), float(b.hp)):
+		return float(a.hp) > float(b.hp)
+	return a_far < b_far
 
 
 ## Everyone still standing.

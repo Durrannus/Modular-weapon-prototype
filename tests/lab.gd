@@ -211,9 +211,9 @@ func _changes() -> void:
 	Lab.set_value("build:METALS/iron", 99999.0)
 	_check(is_equal_approx(Lab.value("build:METALS/iron"), 500.0), "a number can't go past its limit")
 	Lab.reset("build:METALS/iron")
-	Lab.set_value("player:SHARD_JUMPS", 3.4)
-	_check(Player.SHARD_JUMPS is int and Player.SHARD_JUMPS == 3, "a whole number stays whole (Shards: 3 jumps)")
-	Lab.reset("player:SHARD_JUMPS")
+	Lab.set_value("player:SHARD_COUNT", 4.4)
+	_check(Player.SHARD_COUNT is int and Player.SHARD_COUNT == 4, "a whole number stays whole (Shards: 4 in a burst)")
+	Lab.reset("player:SHARD_COUNT")
 	Lab.set_value("build:FITTINGS/whirlwind/recharge", 9.0)
 	_check(is_equal_approx(float(SwingBuild.FITTINGS["whirlwind"]["recharge"]), 9.0), "Whirlwind's recharge follows")
 	var e := {"id": "whirlwind", "count": 1, "size": 1.0, "power": 1.0, "every": 1, "also": [], "trigger": "active", "button": 0}

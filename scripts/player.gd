@@ -1163,7 +1163,7 @@ func _repeat_gap(id: String, why: String) -> float:
 
 
 ## Runes whose Twice is one bigger firing, not two firings: Weak Point (two marks),
-## Ricochet (two jumps), Bulwark (the stun lasts twice as long), Chain (twice as
+## Ricochet (two jumps), Bulwark (its burst stuns twice as long), Chain (twice as
 ## many jumps), Spectre (two copies of each attack).
 static func _fires_once(id: String) -> bool:
 	return id in ["weak_point", "ricochet", "bulwark", "chain", "spectre"]
@@ -1543,12 +1543,14 @@ var last_impact := Vector2.ZERO   # where the last swing landed
 var rumbles: Array = []       # Aftershock's rumbles on their way: [{at, where, scale, dmg, col}]
 var quake_targets: Array = [] # enemies a Quake has already erupted under in this burst
 var quake_burst := -9.0       # game_time the last eruption of a burst went off
+var hook_targets: Array = []  # enemies this press's chains already have hold of (Twice: the second takes another)
 var bulwark_left := 0.0       # seconds of Bulwark's shield left (0: it isn't up)
 var bulwark_total := 1.0      # how long this one was put up for (the HUD's bar)
-var bulwark_stun := 1.5       # how long it stuns whoever hits it
+var bulwark_stun := 1.5       # how long its burst stuns, when enemies break it
+var bulwark_hits := 0         # hits it can still take: the last one breaks it
 var bulwark_blocked := -9.0   # game_time it last stopped a hit
 var bulwark_fx: Node2D = null # the shield's picture
-const BULWARK_BLOCK_GAP := 0.3   # an enemy leaning on the shield is stopped (and stunned) this often at most
+const BULWARK_BLOCK_GAP := 0.3   # an enemy leaning on the shield counts as a hit this often at most
 const QUAKE_AIM := 300.0         # picking Quake's enemy: being a radian off the aim counts as this many px further away
 var stagger_said := -9.0         # game_time "STAGGER!" was last written (one swing can break several meters)
 
@@ -1809,16 +1811,106 @@ func _quake(size: float, power: float, col: Color) -> void:
 	Sfx.play(self, "slam", -5.0 if struck > 0 else -11.0, 1.1 / sqrt(size))
 
 
-## Bulwark: a shield for `time` seconds. Nothing that comes from somewhere hurts
-## you, and whoever hits it is stunned for `stun` seconds.
+## Hook: one chain takes hold of one enemy and drags it to you (Darren, 19
+## November; until version 33 it pulled in everyone near). It goes for the enemy
+## nearest your aim within reach; On Dodge's quick chain (`quick`) for the one
+## nearest you. A second chain of the same press (Twice, `again`) takes another
+## enemy, never the same one, and does nothing if there is no other. A boss, like
+## anything else that can't be moved, is too heavy: the chain pulls you a little
+## way towards it instead. With nobody in reach the chain flies out the way you
+## aim and comes back empty. `hit`: what the chain's bite does. `saved`: Saved Up,
+## the enemy arrives stunned. Returns whether to write the rune's name.
+func _hook(size: float, hit: float, saved: bool, col: Color, quick := false, again := false) -> bool:
+	if not again:
+		hook_targets.clear()
+	var reach := HOOK_REACH * size
+	var best = null
+	var best_score := INF
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if not is_instance_valid(e) or e.dead or e.immune or e in hook_targets:
+			continue
+		var rel: Vector2 = e.global_position - global_position
+		var d := rel.length()
+		if d > reach + float(e.radius):
+			continue
+		# The one you are pointing at: how far off your aim counts for more than how
+		# far away, and anyone behind you comes last. (A dodge's chain: the nearest.)
+		var score := d
+		if not quick:
+			var off := absf(aim_dir.angle_to(rel)) if d > 1.0 else 0.0
+			score += off * HOOK_AIM + (1000.0 if off > PI * 0.5 else 0.0)
+		if score < best_score:
+			best_score = score
+			best = e
+	var tip := _tip_world()
+	if best == null:
+		if again:
+			return false
+		_hook_chain(tip, null, global_position + aim_dir * reach, col)
+		Sfx.play(self, "hook", -9.0, 1.3)
+		return true
+	hook_targets.append(best)
+	var rel: Vector2 = global_position - best.global_position
+	var d := rel.length()
+	var toward := rel / d if d > 0.5 else -aim_dir
+	_hook_chain(tip, best, Vector2.INF, col)
+	_strip("hook_snag", best.global_position)
+	Sfx.play(self, "hook", -4.0)
+	best.take_hit(hit, toward, 0.0, false, col)
+	if best.is_boss() or float(best.knock_resist) <= 0.0:
+		# Too heavy: you go to it. Never right up against it.
+		var travel := clampf(d - float(best.radius) - HOOK_KEEP, 0.0, HOOK_TUG)
+		if travel > 1.0 and not is_down and not frozen:
+			var tick := 1.0 / float(Engine.physics_ticks_per_second)
+			var ticks := maxi(roundi(HOOK_TUG_TIME / tick), 1)
+			lunge_dir = -toward
+			lunge_timer = (float(ticks) - 0.5) * tick
+			lunge_speed = travel / (float(ticks) * tick)
+			_dust(global_position + FEET)
+		_label("TOO HEAVY!", col)
+		return false
+	if best.dead:
+		return true
+	# Dragged all the way, however hard it is to shove: the speed that the ground
+	# takes off again (1300 a second, see enemy.gd) over just that distance.
+	best.knock = toward * sqrt(2.0 * 1300.0 * maxf(d - float(best.radius) - HOOK_STOP, 0.0))
+	best.apply_stun(HOOK_STUN + (SwingBuild.HOOK_SAVED_STUN if saved else 0.0))
+	var yank := _strip("hook_yank", best.global_position, toward.angle())
+	if yank != null:
+		yank.follow = best
+		yank.life = 0.35
+	return true
+
+
+## The chain on screen: from the hammer to the enemy it has hold of, or out to
+## `to` and back with nobody on it.
+func _hook_chain(tip: Vector2, e, to: Vector2, col: Color) -> void:
+	var chain := RuneFx.new()
+	chain.kind = "chain"
+	chain.from_node = self
+	chain.from_offset = tip - global_position
+	chain.to_node = e
+	chain.to_at = to
+	chain.color = col
+	chain.life = 0.4 if e != null else 0.3
+	_fx_root().add_child(chain)
+
+
+## Bulwark: a shield for `time` seconds that blocks what comes from somewhere
+## (Darren, 19 November: it only blocks; until version 33 it also stunned
+## whoever hit it). It takes so many hits, one for each second it was put up
+## for, and the last one breaks it: then it bursts, and the enemies around you
+## are stunned for `stun` seconds. If it just runs out, nothing bursts.
 func _bulwark(time: float, stun: float, col: Color) -> void:
 	if is_down:
 		return
 	if is_instance_valid(bulwark_fx):
 		bulwark_fx.queue_free()
+	var was_up := bulwark_left > 0.0
+	bulwark_hits = maxi(SwingBuild.bulwark_hits(time), bulwark_hits if was_up else 0)
 	bulwark_left = maxf(bulwark_left, time)
 	bulwark_total = bulwark_left
-	bulwark_stun = maxf(stun, bulwark_stun if bulwark_left > time else 0.0)
+	bulwark_stun = maxf(stun, bulwark_stun if was_up else 0.0)
 	bulwark_fx = _strip("bulwark_shield", global_position)
 	if bulwark_fx != null:
 		bulwark_fx.follow = self
@@ -1843,10 +1935,11 @@ func _update_bulwark(delta: float) -> void:
 		_end_bulwark()
 
 
-## quiet: it is taken away (a new weapon, a knock-out), not run out.
+## quiet: it is taken away (a new weapon, a knock-out) or broken, not run out.
 func _end_bulwark(quiet := false) -> void:
 	var was := bulwark_left > 0.0 or is_instance_valid(bulwark_fx)
 	bulwark_left = 0.0
+	bulwark_hits = 0
 	if is_instance_valid(bulwark_fx):
 		bulwark_fx.queue_free()
 	bulwark_fx = null
@@ -1857,30 +1950,53 @@ func _end_bulwark(quiet := false) -> void:
 		Sfx.play(self, "ghost", -12.0, 0.8)
 
 
-## The shield stops a hit that came from `from`. Whoever stands there is stunned
-## and shoved back a little.
+## The shield stops a hit that came from `from`, and that is all it does to
+## whoever dealt it. Each hit it stops is one it can take no more: the last
+## breaks it. (An enemy leaning on it is stopped all the time, and counted once
+## every BULWARK_BLOCK_GAP.)
 func _bulwark_block(from: Vector2) -> void:
 	if game_time - bulwark_blocked < BULWARK_BLOCK_GAP:
 		return
 	bulwark_blocked = game_time
+	bulwark_hits -= 1
 	var col: Color = SwingBuild.FITTINGS["bulwark"]["color"]
 	var away := (from - global_position).normalized() if from.distance_to(global_position) > 0.5 else Vector2.RIGHT
 	_strip("bulwark_block", global_position + away * 20.0 + Vector2(0, -8), away.angle())
-	var best = null
-	var best_d := 70.0
+	shake = maxf(shake, 5.0)
+	Sfx.play(self, "anvil", -10.0, 1.6)
+	if bulwark_hits <= 0:
+		_bulwark_burst(col)
+	else:
+		_label("BLOCKED!", col)
+
+
+## Enemies broke the shield: it bursts. Everything near you is stunned and
+## shoved back a step; nothing is hurt.
+func _bulwark_burst(col: Color) -> void:
+	var stun := bulwark_stun
+	_end_bulwark(true)
+	var reach := SwingBuild.BULWARK_BURST
+	var ring := RuneFx.new()
+	ring.kind = "pulse"
+	ring.size = reach / 140.0
+	ring.color = col
+	ring.life = 0.35
+	_fx_root().add_child(ring)
+	ring.global_position = global_position
+	var gone := _strip("bulwark_end", global_position, 0.0, 1.5)
+	if gone != null:
+		gone.follow = self
 	for e in get_tree().get_nodes_in_group("enemies"):
 		if not is_instance_valid(e) or e.dead:
 			continue
-		var d: float = e.global_position.distance_to(from) - float(e.radius)
-		if d < best_d:
-			best_d = d
-			best = e
-	if best != null:
-		best.apply_stun(bulwark_stun)
-		best.knock = away * 220.0 * float(best.knock_resist)
-	shake = maxf(shake, 5.0)
-	Sfx.play(self, "anvil", -10.0, 1.6)
-	_label("BLOCKED!", col)
+		var rel: Vector2 = e.global_position - global_position
+		if rel.length() > reach + float(e.radius):
+			continue
+		e.apply_stun(stun)
+		e.knock = (rel.normalized() if rel.length() > 0.5 else Vector2.RIGHT) * 220.0 * float(e.knock_resist)
+	shake = maxf(shake, 10.0)
+	Sfx.play(self, "slam", -6.0, 1.5)
+	_label("SHIELD BURST!", col)
 
 
 # --- The staff's runes ---------------------------------------------------------------
@@ -2842,15 +2958,19 @@ func _trigger(trigger: String, hits: Array, ghost: Dictionary = {}) -> Array:
 		var power := float(e.get("power", 1.0)) * (1.0 if ghost.is_empty() else float(ghost["power"]))
 		# (Twice on Weak Point is two marks from one firing, not two firings.)
 		# (And on Ricochet it is two jumps, not two arrows.)
+		# (On Dodge on Hook: its quick chain goes out as the dodge ends, so what it
+		# drags comes to where you now stand.)
+		var wait := DODGE_TIME if trigger == "dodge" and str(e["id"]) == "hook" else 0.0
 		for n in (1 if _fires_once(str(e["id"])) else int(e["count"])):
-			_queue_rune(i, game_time + n * _repeat_gap(str(e["id"]), trigger), float(e["size"]), hits, power, false, trigger, not ghost.is_empty())
+			_queue_rune(i, game_time + wait + n * _repeat_gap(str(e["id"]), trigger), float(e["size"]), hits, power, false, trigger, not ghost.is_empty(), n)
 	return fired
 
 
 ## held: one turn of a hold rune (it follows the spin, and only the first turn is named).
 ## why: what set it off ("finisher", "hit", "kill", "dodge", or "" for its button).
 ## ghost: Ghostwield's copy of the rune (kept apart from the real one).
-func _queue_rune(effect: int, at: float, size: float, hits: Array, power := 1.0, held := false, why := "", ghost := false) -> void:
+## nth: which go of a Twice this is, from 0 (Hook's second chain takes another enemy).
+func _queue_rune(effect: int, at: float, size: float, hits: Array, power := 1.0, held := false, why := "", ghost := false, nth := 0) -> void:
 	var id: String = weapon["effects"][effect]["id"]
 	# (where: the place the swing that set it off landed, for an Aftershock.)
 	for q in rune_queue:
@@ -2859,7 +2979,7 @@ func _queue_rune(effect: int, at: float, size: float, hits: Array, power := 1.0,
 			q["power"] = float(q["power"]) + power
 			q["merged"].append(effect)
 			return
-	rune_queue.append({"at": at, "effect": effect, "size": size, "power": power, "hits": hits.duplicate(), "merged": [], "held": held, "why": why, "ghost": ghost, "where": last_impact})
+	rune_queue.append({"at": at, "effect": effect, "size": size, "power": power, "hits": hits.duplicate(), "merged": [], "held": held, "why": why, "ghost": ghost, "where": last_impact, "nth": nth})
 
 
 func _run_rune_queue() -> void:
@@ -2903,8 +3023,13 @@ func _flash_effect(effect: int) -> void:
 ## have everyone fighting from range). It was 1.1 times the blade's damage.
 static var SHOCKWAVE_DAMAGE := 0.4
 static var HOOK_DAMAGE := 0.3
-static var HOOK_REACH := 260.0     # how far away it takes hold of an enemy
-static var HOOK_STUN := 0.5          # long enough to land a swing on what you pulled in
+static var HOOK_REACH := 260.0     # how far away its chain takes hold of an enemy
+static var HOOK_STUN := 0.5          # the enemy it drags can't act for this long: about as long as the drag takes
+static var HOOK_TUG := 60.0          # a boss is too heavy to drag: the chain pulls you this far towards it instead
+const HOOK_AIM := 300.0              # picking its enemy: being a radian off the aim counts as this many px further away
+const HOOK_STOP := 31.0              # the dragged enemy stops with its edge about this far from your middle
+const HOOK_KEEP := 34.0              # a tug never brings you nearer than this to the boss's edge
+const HOOK_TUG_TIME := 0.15          # how long a tug takes
 static var WHIRLWIND_DAMAGE := 0.9   # for each turn
 
 
@@ -2947,43 +3072,17 @@ func _fire_rune_now(q: Dictionary) -> void:
 			shake = maxf(shake, (4.0 if ghost else 9.0) * size)
 			Sfx.play(self, "shockwave", -10.0 if ghost else -2.0, (1.4 if ghost else 1.0) / sqrt(size))
 		"hook":
-			var reach := HOOK_REACH * size
-			var ring := RuneFx.new()
-			ring.kind = "ring"
-			ring.size = reach
-			ring.color = col
-			ring.life = 0.3
-			_fx_root().add_child(ring)
-			ring.global_position = global_position
-			var tip := _tip_world()
-			for e in get_tree().get_nodes_in_group("enemies"):
-				if not is_instance_valid(e) or e.dead:
-					continue
-				var rel: Vector2 = global_position - e.global_position
-				var d := rel.length()
-				if d > reach + e.radius or d < 40.0:
-					continue
-				var pull := sqrt(2.0 * 1300.0 * maxf(d - 45.0, 0.0))
-				e.take_hit(dmg * HOOK_DAMAGE * power, rel / d, 0.0, false, col)
-				e.knock = rel / d * pull * e.knock_resist
-				e.apply_stun(HOOK_STUN)
-				var chain := RuneFx.new()
-				chain.kind = "chain"
-				chain.from_node = self
-				chain.from_offset = tip - global_position
-				chain.to_node = e
-				chain.color = col
-				chain.life = 0.4
-				_fx_root().add_child(chain)
-				_strip("hook_snag", e.global_position)
-				var yank := _strip("hook_yank", e.global_position, (rel / d).angle())
-				if yank != null:
-					yank.follow = e
-					yank.life = 0.35
-			Sfx.play(self, "hook", -4.0)
+			# One chain, one enemy (Darren, 19 November). Saved Up doesn't make the
+			# chain's own hit stronger: what it drags in arrives stunned. On Dodge's
+			# is a quick one, at half strength.
+			var dodged: bool = q.get("why", "") == "dodge"
+			var saved := int(weapon["effects"][effect].get("every", 1)) > 1
+			var share := (power / SwingBuild.SAVED_UP_POWER if saved else power) * (SwingBuild.DODGE_SHARE if dodged else 1.0)
+			if not _hook(size, dmg * HOOK_DAMAGE * share, saved, col, dodged, int(q.get("nth", 0)) > 0):
+				return
 		"shards":
-			# From each hit enemy (or from you, on a dodge), metal shards jump to the
-			# closest enemy, then on to the next closest.
+			# Out of the back of each enemy hit (or from you the way you aim, on a
+			# dodge), a cone of metal shards that fly straight.
 			var starts: Array = []
 			for h in q["hits"]:
 				if is_instance_valid(h):
@@ -3035,7 +3134,7 @@ func _fire_rune_now(q: Dictionary) -> void:
 		"quake":
 			_quake(size, power * (SwingBuild.DODGE_SHARE if q.get("why", "") == "dodge" else 1.0), col)
 		"bulwark":
-			# (Twice: whoever hits it is stunned twice as long.)
+			# (Twice: its burst stuns twice as long.)
 			var f: Dictionary = weapon["effects"][effect]
 			var times := mini(int(f["count"]) + (q["merged"] as Array).size(), SwingBuild.MAX_COUNT)
 			_bulwark(SwingBuild.bulwark_time(size, power, SwingBuild.BULWARK_DODGE if q.get("why", "") == "dodge" else -1.0), SwingBuild.BULWARK_STUN * times, col)
@@ -3243,7 +3342,7 @@ func _update_abilities(delta: float) -> void:
 				var e: Dictionary = weapon["effects"][i]
 				var gap := _repeat_gap(str(e["id"]), "")
 				for n in (1 if _fires_once(str(e["id"])) else int(e["count"])):
-					_queue_rune(i, game_time + n * gap, float(e["size"]), [], float(e.get("power", 1.0)))
+					_queue_rune(i, game_time + n * gap, float(e["size"]), [], float(e.get("power", 1.0)), false, "", false, n)
 
 
 ## Every Hit on an active rune (Darren, 11 November): a swing that lands takes a
@@ -3463,44 +3562,76 @@ func _ghost_shown() -> bool:
 	return game_time - ghost_gone < 2.0 / 14.0
 
 
-## Shards: a chain of metal shards from `from` to the closest enemy, then the next.
-## Each jump takes SHARD_FLIGHT; the hit lands when the shard arrives. Counted in
-## game ticks (not a timer), so it lands on the same tick on every computer.
-static var SHARD_JUMPS := 2
-static var SHARD_RANGE := 130.0
+## Shards (as Darren set it out on 19 November): when a hit lands, shards burst
+## out of the back of the enemy in a cone and fly straight, with no homing, into
+## whoever stands behind it. (Until version 33 they jumped to the closest enemy
+## and then the next.) Each shard cuts the first enemy on its line, and one burst
+## cuts an enemy once however many of its shards reach it: the others fly on
+## past. A wall stops a shard. Its line is fixed as it sets off and the cut lands
+## when it arrives, counted in game ticks (not a timer), so it lands on the same
+## tick on every computer.
+static var SHARD_COUNT := 3        # shards in one burst (Every Hit: twice as many, at half strength)
+static var SHARD_CONE := 44.0      # how wide a burst fans out, in degrees
+static var SHARD_RANGE := 130.0    # how far a shard flies (Wider: further)
 static var SHARD_DAMAGE := 0.6    # each shard, in blade hits
-var shard_queue: Array = []   # shards in the air: [{at, next, fronts, hit, jumps, size, power, dmg, col, splinter}]
+const SHARD_SPEED := 1100.0       # px a second
+const SHARD_WIDTH := 6.0          # a shard cuts an enemy whose edge it passes this near
+var shard_queue: Array = []   # shards in the air that will cut someone: [{at, enemy, dir, dmg, size, col, ghost}]
 
+## from: the enemy that was hit, or you (On Dodge: the burst leaves you the way you aim).
 func _shards(from: Node2D, size: float, power: float, dmg: float, col: Color, splinter := false) -> void:
-	_shard_jump({"fronts": [from], "hit": {from.get_instance_id(): true}, "jumps": SHARD_JUMPS,
-		"size": size, "power": power, "dmg": dmg, "col": col, "splinter": splinter, "ghost": ghost_fx})
-
-
-## Sends the shards on from where they are now to the closest enemies not hit yet.
-func _shard_jump(s: Dictionary) -> void:
-	if int(s["jumps"]) <= 0:
-		return
-	var next: Array = []
-	for current in s["fronts"]:
-		if not is_instance_valid(current):
+	var dir := aim_dir
+	var start := global_position + aim_dir * 14.0
+	var cut := {}
+	if from != self:
+		var back: Vector2 = from.global_position - global_position
+		if back.length() > 0.5:
+			dir = back.normalized()
+		start = from.global_position + dir * float(from.radius)
+		cut[from.get_instance_id()] = true
+	var n := maxi(SHARD_COUNT, 1) * (2 if splinter else 1)
+	var reach := SHARD_RANGE * size
+	var space := get_world_2d().direct_space_state
+	# The middle shards first: the ones that fly straightest get first pick.
+	var mid := float(n - 1) * 0.5
+	var order: Array = range(n)
+	order.sort_custom(func(a, b):
+		var ka := absf(float(a) - mid)
+		var kb := absf(float(b) - mid)
+		return ka < kb or (ka == kb and a < b))
+	for k in order:
+		var d := dir if n == 1 else dir.rotated(deg_to_rad(SHARD_CONE) * (float(k) / float(n - 1) - 0.5))
+		var far := reach
+		# (The wall is looked for from the middle of whoever was hit: the edge the
+		# shard leaves from can already be against it.)
+		var wall := space.intersect_ray(PhysicsRayQueryParameters2D.create(from.global_position, start + d * reach, Arrow.WALLS))
+		if not wall.is_empty():
+			far = clampf((wall["position"] - start).dot(d), 0.0, reach)
+		var best = null
+		var best_at := INF
+		for e in get_tree().get_nodes_in_group("enemies"):
+			if not is_instance_valid(e) or e.dead or e.immune or cut.has(e.get_instance_id()):
+				continue
+			var rel: Vector2 = e.global_position - start
+			var r := float(e.radius) + SHARD_WIDTH
+			var off := absf(rel.cross(d))
+			var along := rel.dot(d)
+			if off > r or (along < 0.0 and rel.length() > r):
+				continue
+			var meet := maxf(along - sqrt(r * r - off * off), 0.0)   # where the shard reaches its edge
+			if meet <= far and meet < best_at:
+				best_at = meet
+				best = e
+		if best == null:
+			_shard_fly(start, start + d * far, col)
 			continue
-		# Every Hit on Shards: each shard splinters in two as it jumps.
-		for k in (2 if s["splinter"] else 1):
-			var best = _closest_enemy(current.global_position, SHARD_RANGE * float(s["size"]), s["hit"])
-			if best == null:
-				break
-			s["hit"][best.get_instance_id()] = true
-			_shard_fly(current.global_position, best.global_position, s["col"])
-			next.append(best)
-	if next.is_empty():
-		return
-	s["next"] = next
-	s["jumps"] = int(s["jumps"]) - 1
-	s["at"] = game_time + SHARD_FLIGHT
-	shard_queue.append(s)
+		cut[best.get_instance_id()] = true
+		_shard_fly(start, start + d * best_at, col)
+		shard_queue.append({"at": game_time + best_at / SHARD_SPEED, "enemy": best, "dir": d, "dmg": dmg * SHARD_DAMAGE * power,
+			"size": size, "col": col, "ghost": ghost_fx})
 
 
-## Lands the shards that have arrived, and sends them on.
+## Lands the shards that have arrived.
 func _run_shards() -> void:
 	var due: Array = []
 	for s in shard_queue:
@@ -3508,41 +3639,23 @@ func _run_shards() -> void:
 			due.append(s)
 	for s in due:
 		shard_queue.erase(s)
-		ghost_fx = s.get("ghost", false)
-		for e in s["next"]:
-			if not is_instance_valid(e) or e.dead:
-				continue
-			var dir: Vector2 = (e.global_position - global_position).normalized()
-			e.take_hit(float(s["dmg"]) * SHARD_DAMAGE * float(s["power"]), dir, 140.0, false, s["col"])
-			if _strip("shards_hit", e.global_position, 0.0, float(s["size"])) == null:
-				_strip("cleave_echo", e.global_position, 0.0, float(s["size"]))
-		s["fronts"] = s["next"]
-		_shard_jump(s)
-	ghost_fx = false
-
-
-const SHARD_FLIGHT := 0.09
-
-
-func _closest_enemy(from: Vector2, range_px: float, skip: Dictionary):
-	var best = null
-	var best_d := range_px
-	for e in get_tree().get_nodes_in_group("enemies"):
-		if not is_instance_valid(e) or e.dead or skip.has(e.get_instance_id()):
+		var e = s["enemy"]
+		if not is_instance_valid(e) or e.dead:
 			continue
-		var d: float = e.global_position.distance_to(from)
-		if d < best_d:
-			best_d = d
-			best = e
-	return best
+		ghost_fx = s.get("ghost", false)
+		e.take_hit(float(s["dmg"]), s["dir"], 140.0, false, s["col"])
+		if _strip("shards_hit", e.global_position, 0.0, float(s["size"])) == null:
+			_strip("cleave_echo", e.global_position, 0.0, float(s["size"]))
+	ghost_fx = false
 
 
 ## A spinning shard sprite flying from a to b (a plain streak if the art is missing).
 func _shard_fly(a: Vector2, b: Vector2, col: Color) -> void:
+	var time := maxf(a.distance_to(b) / SHARD_SPEED, 0.03)
 	var shard := _strip("shards_shard", a)
 	if shard != null:
-		shard.life = SHARD_FLIGHT
-		shard.velocity = (b - a) / SHARD_FLIGHT
+		shard.life = time
+		shard.velocity = (b - a) / time
 		return
 	var line := Fx.new()
 	line.kind = "chain"
@@ -3867,7 +3980,7 @@ func _steam(target, dmg: float) -> void:
 func take_damage(amount: float, from: Vector2 = Vector2.INF) -> void:
 	if invuln > 0.0 or is_down:
 		return
-	# Bulwark stops a hit that comes from somewhere, and stuns whoever dealt it.
+	# Bulwark stops a hit that comes from somewhere. Enough of them break it.
 	# (Also with the arena's Invincible switch on, so the rune can be tried there.)
 	if bulwark_left > 0.0 and from != Vector2.INF:
 		_bulwark_block(from)

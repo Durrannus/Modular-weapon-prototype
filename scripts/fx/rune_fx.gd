@@ -1,8 +1,9 @@
 extends Node2D
 ## Big, loud rune visuals. Kinds:
 ##   "wave"   Shockwave: a bright arc that rolls forward and hits everything it passes
-##   "ring"   Hook's reach: a ring that snaps inwards
-##   "chain"  Hook: a chain from the player to an enemy, following the enemy
+##   "ring"   a ring that snaps inwards
+##   "chain"  Hook: a chain from the player to an enemy, following the enemy (or,
+##            with nobody on it, out to to_at and back)
 ##   "spin"   Whirlwind: a blade arc that sweeps a full circle round from_node, hitting as it passes
 ##   "slash"  Cleave: a cross-slash on the enemy behind
 ##   "pulse"  Second Wind: a green ring bursting out from the player
@@ -28,6 +29,7 @@ var _hit := {}
 var from_node: Node2D
 var from_offset := Vector2.ZERO
 var to_node: Node2D
+var to_at := Vector2.INF   # chain: where it flies to and comes back from, with no to_node
 var spin_side := 1.0
 var drawn := true     # false when a sprite strip draws the effect instead  # Whirlwind: +1 clockwise, -1 the other way
 
@@ -102,12 +104,16 @@ func _draw() -> void:
 			var o: Array = info.get("origin", [50, 44])
 			Art.draw_strip(self, tex, n, mini(int(k * n), n - 1), Vector2.ZERO, Vector2(o[0], o[1]), false, Color.WHITE, Art.PIXEL * size)
 		"chain" when Art.texture("swing/fx/chain_link.png") != null:
-			if not is_instance_valid(from_node) or not is_instance_valid(to_node):
+			var empty := to_node == null and to_at != Vector2.INF
+			if not is_instance_valid(from_node) or (not empty and not is_instance_valid(to_node)):
 				return
 			var a := from_node.global_position + from_offset - global_position
-			var b := to_node.global_position - global_position
+			var b := (to_at if empty else to_node.global_position) - global_position
 			# The chain shoots out over the first 0.08 s, then holds as the enemy is yanked in.
+			# (With nobody on it, it comes straight back.)
 			var reach := clampf(t / 0.08, 0.0, 1.0)
+			if empty:
+				reach = minf(reach, clampf((life - t) / maxf(life - 0.12, 0.01), 0.0, 1.0))
 			var end := a.lerp(b, reach)
 			var link := Art.texture("swing/fx/chain_link.png")
 			var step := 5.0 * Art.PIXEL
@@ -116,7 +122,7 @@ func _draw() -> void:
 			for i in n + 1:
 				var p := a + (end - a).normalized() * step * i
 				Art.draw_strip(self, link, 2, i % 2, p, Vector2(3, 2), false, Color(1, 1, 1, fade * 1.5), Art.PIXEL, ang)
-			var head := Art.texture("swing/fx/hook_head_bite.png" if reach >= 1.0 else "swing/fx/hook_head.png")
+			var head := Art.texture("swing/fx/hook_head_bite.png" if reach >= 1.0 and not empty else "swing/fx/hook_head.png")
 			if head != null:
 				Art.draw_strip(self, head, 1, 0, end, Vector2(2, 1), false, Color(1, 1, 1, fade * 1.5), Art.PIXEL, ang)
 		"wave":
@@ -150,10 +156,13 @@ func _draw() -> void:
 			c.a = fade * 0.06
 			draw_circle(Vector2.ZERO, r, c)
 		"chain":
-			if not is_instance_valid(from_node) or not is_instance_valid(to_node):
+			var empty := to_node == null and to_at != Vector2.INF
+			if not is_instance_valid(from_node) or (not empty and not is_instance_valid(to_node)):
 				return
 			var a := from_node.global_position - global_position
-			var b := to_node.global_position - global_position
+			var b := (to_at if empty else to_node.global_position) - global_position
+			if empty:
+				b = a.lerp(b, minf(clampf(t / 0.08, 0.0, 1.0), clampf((life - t) / maxf(life - 0.12, 0.01), 0.0, 1.0)))
 			var n := int(a.distance_to(b) / 12.0) + 1
 			var c := color
 			c.a = fade

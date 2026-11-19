@@ -176,9 +176,10 @@ func _run() -> void:
 	_check(list.size() == 3 and list[0]["id"] == "whirlwind" and list[1]["id"] == "leap" and list[2]["id"] == "ghostwield", "the arena's sword has Whirlwind, Leap and Ghostwield on buttons one, two and three")
 	_check(not ("hook" in p.weapon["line"]) and not SwingBuild.fits("hook", "sword") and SwingBuild.fits("hook", "hammer"), "Hook is off the sword: it is the hammer's (this test still swings it from a sword, put there by hand)")
 
-	# --- Hook: one press pulls enemies in, then it has to recharge ---
-	# (Hook left the sword for the hammer on 11 November. Until the hammer is built
-	# it is put on a sword by hand here, so its rules stay checked.)
+	# --- Hook: one press drags an enemy to you, then it has to recharge ---
+	# (Hook left the sword for the hammer on 11 November. It is put on a sword by
+	# hand here, so the rules every button rune shares stay checked. What Hook
+	# itself does, one enemy at a time since version 33, is in combat_rules.gd.)
 	_sword_exact(["whirlwind", "hook", "leap", ""])   # no lucky crits, so the numbers below are exact
 	await _rest()
 	var far = _slime(Vector2(200, 0), false)
@@ -295,22 +296,26 @@ func _run() -> void:
 	_check(edge.hp < 5000.0, "Wider makes the circle reach an enemy 110 away")
 	edge.queue_free()
 
-	# Twice on a press rune: it fires twice.
+	# Twice on a press rune: it fires twice. (Hook's second chain takes another enemy.)
 	_sword(["twice", "hook", "", ""])
 	await _rest()
-	far = _slime(Vector2(200, 0))
+	far = _slime(Vector2(200, 0), false)
+	var other = _slime(Vector2(200, 70), false)
 	await _frames(3)
 	await _press(0)
-	await _frames(30)
-	_check(absf((5000.0 - far.hp) - dmg * 0.3 * 2.0) < 0.01, "Twice makes one press of Hook pull twice (%.1f)" % (5000.0 - far.hp))
+	await _frames(40)
+	_check(absf(_lost(far) - dmg * 0.3) < 0.01 and absf(_lost(other) - dmg * 0.3) < 0.01, "Twice makes one press of Hook throw two chains, at two enemies (%.1f and %.1f)" % [_lost(far), _lost(other)])
+	other.queue_free()
+	await _frames(2)
 
-	# Saved Up: three times as strong, three times the recharge.
+	# Saved Up: three times the recharge. (Hook's pay for the wait is a stun, not
+	# a harder bite: combat_rules.gd.)
 	_sword(["saved_up", "hook", "", ""])
 	await _rest()
 	far.hp = 5000.0
 	await _press(0)
 	await _frames(30)
-	_check(absf((5000.0 - far.hp) - dmg * 0.3 * 3.0) < 0.01, "Saved Up makes Hook three times as strong (%.1f)" % (5000.0 - far.hp))
+	_check(absf(_lost(far) - dmg * 0.3) < 0.01 and far.stun_time > 1.8, "Saved Up makes Hook stun the enemy it drags in (bite %.1f, stunned %.1f s more)" % [_lost(far), far.stun_time])
 	await _frames(240 - 31)
 	_check(absf(float(p.ability_charge[0]) - 1.0 / 3.0) < 0.02, "and three times as slow to come back (a third full after 4 seconds: %.2f)" % p.ability_charge[0])
 
@@ -768,7 +773,11 @@ func _ghostwield_checks(dmg: float) -> void:
 	await _frames(24)
 	_check(absf(_lost(near) - dmg * 5.25) < 0.01, "and the fourth has none again (%.2f)" % _lost(near))
 
+	# (Back to the middle first: by now the fight has drifted against the east
+	# wall, and a wall stops shards.)
 	_sword_exact(["ghostwield", "shards", "", ""])
+	p.global_position = m.ARENA.get_center()
+	near.global_position = p.global_position + Vector2(50, 0)
 	await _rest()
 	var far = _slime(Vector2(160, 0))
 	await _frames(3)

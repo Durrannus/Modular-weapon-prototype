@@ -119,7 +119,7 @@ func test_ringed_grip() -> void:
 func test_sentences() -> void:
 	var r := SwingBuild.resolve(["twice", "shockwave", "wider", "hook"])
 	eq(SwingBuild.sentence(effect(r, "shockwave")), "Your finisher sends two shockwaves forward.", "Shockwave x2 sentence")
-	eq(SwingBuild.sentence(effect(r, "hook")), "Press right mouse: pulls enemies in from further away. Recharges in 4 seconds.", "wide Hook sentence")
+	eq(SwingBuild.sentence(effect(r, "hook")), "Press right mouse: a chain drags the enemy nearest your aim to you from further away. Recharges in 4 seconds.", "wide Hook sentence")
 	for id in SwingBuild.FITTING_ORDER:
 		if SwingBuild.FITTINGS[id]["kind"] != "rune":
 			continue
@@ -139,7 +139,7 @@ func test_every_hit() -> void:
 	check(effect(r, "shards").get("splinter", false), "Every Hit makes Shards splinter")
 	eq(effect(r, "shards")["power"], 0.5, "splintered Shards are half strength")
 	check(SwingBuild.resolve(["every_hit", "every_hit", "shards"])["slots"][1].get("unused", false), "a second Every Hit on Shards does nothing")
-	eq(SwingBuild.sentence(effect(r, "shards")), "Every hit sends shards jumping to the closest enemies, splitting in two at each jump, at half strength.", "Splinter sentence")
+	eq(SwingBuild.sentence(effect(r, "shards")), "Every hit sends twice as many shards out of the enemy's back, into whoever stands behind it, at half strength.", "Splinter sentence")
 
 
 func test_saved_up() -> void:
@@ -364,9 +364,11 @@ func test_active_runes() -> void:
 	eq(effect(SwingBuild.resolve(["twice", "hook"]), "hook")["count"], 2, "Twice makes a press of Hook fire twice")
 	eq(effect(SwingBuild.resolve(["wider", "whirlwind"]), "whirlwind")["size"], 1.6, "Wider makes Whirlwind bigger")
 	var saved := effect(SwingBuild.resolve(["saved_up", "hook"]), "hook")
-	eq(saved["power"], 3.0, "Saved Up makes Hook three times as strong")
-	eq(SwingBuild.abilities([saved])[0]["recharge"], 12.0, "and three times as slow to recharge")
-	eq(SwingBuild.sentence(saved), "Press right mouse: pulls enemies in, three times as strong. Recharges in 12 seconds.", "Saved Up Hook sentence")
+	eq([saved["power"], saved["every"]], [3.0, 3], "Saved Up is marked on Hook (in play it stuns what the chain drags in: see tests/combat_rules.gd)")
+	eq(SwingBuild.abilities([saved])[0]["recharge"], 12.0, "and makes it three times as slow to recharge")
+	eq(SwingBuild.sentence(saved), "Press right mouse: a chain drags the enemy nearest your aim to you, stunned for 2 seconds. Recharges in 12 seconds.", "Saved Up Hook sentence")
+	eq(SwingBuild.sentence(effect(SwingBuild.resolve(["twice", "hook"]), "hook")), "Press right mouse: a chain drags the enemy nearest your aim to you, then another. Recharges in 4 seconds.", "Twice Hook sentence")
+	eq(SwingBuild.sentence(effect(SwingBuild.resolve(["on_dodge", "hook"]), "hook")), "Press right mouse: a chain drags the enemy nearest your aim to you. Recharges in 4 seconds. Dodging throws a quick one at the nearest enemy.", "On Dodge Hook sentence")
 	var auto := effect(SwingBuild.resolve(["every_hit", "whirlwind"]), "whirlwind")
 	eq([auto["trigger"], auto.get("button", -1)], ["active", 0], "Every Hit leaves Whirlwind on its button")
 	eq(SwingBuild.sentence(auto), "Hold right mouse: spins for up to three turns, cutting everything around you. Recharges in 5 seconds. Each hit you land takes half a second off.", "Every Hit Whirlwind sentence")
@@ -379,8 +381,8 @@ func test_active_runes() -> void:
 	var ruby := effect(SwingBuild.resolve(["", "whirlwind"], 1), "whirlwind")
 	eq(SwingBuild.abilities([ruby])[0]["turns"], 6, "the ruby slot doubles Whirlwind's turns")
 	var second := effect(SwingBuild.resolve(["whirlwind", "hook"]), "hook")
-	eq(SwingBuild.sentence(second), "Press Q: pulls enemies in. Recharges in 4 seconds.", "the second active rune names the second button")
-	eq(SwingBuild.sentence(second, SwingBuild.ABILITY_KEYS["pad"]), "Press LB: pulls enemies in. Recharges in 4 seconds.", "and the controller's name for it")
+	eq(SwingBuild.sentence(second), "Press Q: a chain drags the enemy nearest your aim to you. Recharges in 4 seconds.", "the second active rune names the second button")
+	eq(SwingBuild.sentence(second, SwingBuild.ABILITY_KEYS["pad"]), "Press LB: a chain drags the enemy nearest your aim to you. Recharges in 4 seconds.", "and the controller's name for it")
 	# The whole sword.
 	var s = SwingBuild.new()
 	s.load_test("C")
@@ -393,7 +395,8 @@ func test_active_runes() -> void:
 func test_shards() -> void:
 	var e := effect(SwingBuild.resolve(["twice", "wider", "shards"]), "shards")
 	eq(e["trigger"], "hit", "Shards fire on every hit")
-	eq(SwingBuild.sentence(e), "Every hit sends shards jumping to the closest enemies twice, from further away.", "Shards x2 wide sentence")
+	eq(SwingBuild.sentence(e), "Every hit sends two bursts of shards out of the enemy's back, into whoever stands behind it, from further away.", "Shards x2 wide sentence")
+	eq(SwingBuild.sentence(effect(SwingBuild.resolve(["shards"]), "shards")), "Every hit sends shards out of the enemy's back, into whoever stands behind it.", "Shards sentence")
 	check(not SwingBuild.FITTINGS.has("cleave"), "Cleave is gone")
 
 
