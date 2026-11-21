@@ -23,6 +23,7 @@ extends RefCounted
 ## The numbers are first guesses to tune in play, not decisions.
 
 const LandMap := preload("res://scripts/highlands/land_map.gd")
+const Painter := preload("res://scripts/highlands/land_painter.gd")
 
 const MID := LandMap.MID
 const REACH := 104             # this version works within this many tiles of the cave
@@ -40,12 +41,14 @@ const ROCK := LandMap.ROCK
 const TIN := LandMap.TIN
 const COPPER := LandMap.COPPER
 const FLOOR := LandMap.FLOOR
+const SCREE := LandMap.SCREE
 
 var m: LandMap
 var rng := RandomNumberGenerator.new()
 var ns := 0                    # this map's own salt for the noise
 var gap_starts: Array = []     # where each gap leaves the clearing (tiles)
 var tunnels: Array = []        # the tiles down the middle of each old tunnel
+var ways := 0                  # how many ways have been cut so far (each sways and widens to its own pattern)
 var why := ""                  # why the last layout was thrown away
 
 
@@ -118,10 +121,12 @@ func _build(seed_value: int, attempt: int) -> LandMap:
 	_water()
 	t.append(Time.get_ticks_usec())
 	_tone_and_cover()
+	_scree()
 	t.append(Time.get_ticks_usec())
 	_ore()
 	t.append(Time.get_ticks_usec())
 	_dress()
+	_cover_plants()
 	t.append(Time.get_ticks_usec())
 	if not _check():
 		return null
@@ -157,10 +162,14 @@ func _blob(c: Vector2, rx: float, ry: float, wob: float, k := GRASS) -> void:
 				_open(x, y, k)
 
 
-## A way through the rock from a to b, `width` tiles wide, bending as it goes.
-## Returns the tiles down its middle, each one beside the last (never corner to
-## corner), for a footpath or a yard track to be laid on.
-func _corridor(a: Vector2, b: Vector2, width: int, wander: float, k := GRASS) -> Array:
+## A way through the rock from a to b, bending as it goes. `width` is how many
+## tiles wide it is at its narrowest. A natural gap (`spread` above 0) opens out
+## to as much as `width + spread` here and there and never keeps one width for
+## long, and it sways from side to side by up to `sway` tiles, so no two ways
+## look alike and none is a ruled line. Returns the tiles down its middle, each
+## one beside the last (never corner to corner), for a footpath or a yard track.
+func _corridor(a: Vector2, b: Vector2, width: int, wander: float, k := GRASS, spread := 0, sway := 0.0) -> Array:
+	ways += 1
 	var d := b - a
 	var length := maxf(d.length(), 1.0)
 	var side := Vector2(-d.y, d.x) / length
@@ -169,26 +178,42 @@ func _corridor(a: Vector2, b: Vector2, width: int, wander: float, k := GRASS) ->
 	var middle: Array = []
 	var last := Vector2i(-99999, 0)
 	var steps := int(ceil(length * 3.0))
+	var row := float(ways) * 13.7
+	sway = minf(sway, length * 0.16)
 	for s in steps + 1:
-		var p := a.bezier_interpolate(c1, c2, b, float(s) / float(steps))
+		var t := float(s) / float(steps)
+		var p := a.bezier_interpolate(c1, c2, b, t)
+		var u := t * length
+		if sway > 0.0:
+			# Long bends and short ones together; it comes back to its line at each end.
+			var ends := minf(1.0, minf(u, length - u) / 3.5)
+			p += side * ends * ((_noise(u, row, 6.5, 61) - 0.5) * 2.0 * sway + (_noise(u, row, 2.8, 62) - 0.5) * 1.5)
+		var w := width
+		if spread > 0:
+			w = clampi(width + int(round((_noise(u, row, 5.5, 63) - 0.38) * float(spread) * 1.9)), width, width + spread)
 		var at := Vector2i(floori(p.x), floori(p.y))
 		if at == last:
 			continue
 		if last.x != -99999 and at.x != last.x and at.y != last.y:
 			var corner := Vector2i(at.x, last.y)
-			_corridor_tile(corner, width, k)
+			_corridor_tile(corner, w, k)
 			middle.append(corner)
-		_corridor_tile(at, width, k)
+		_corridor_tile(at, w, k)
 		middle.append(at)
 		last = at
 	return middle
 
 
+## Opens a round patch `width` tiles across (a square for the narrow ones).
 func _corridor_tile(at: Vector2i, width: int, k: int) -> void:
 	var lo := -((width - 1) / 2)
-	for j in range(lo, lo + width):
-		for i in range(lo, lo + width):
-			_open(at.x + i, at.y + j, k)
+	var c := float(width - 1) * 0.5
+	var r2 := float(width * width) * 0.25 + 0.3
+	for j in width:
+		for i in width:
+			if width >= 4 and (float(i) - c) * (float(i) - c) + (float(j) - c) * (float(j) - c) > r2:
+				continue
+			_open(at.x + lo + i, at.y + lo + j, k)
 
 
 ## Lays a footpath (or a yard track) down the middle of a way, on grass only.
@@ -244,7 +269,7 @@ func _base() -> void:
 		_carve_pocket(p)
 		var inside := c + Vector2(u.x * (rx - 2.5), u.y * (ry - 2.5))
 		gap_starts.append(edge)
-		var middle := _corridor(inside, gate, 3 + rng.randi() % 2, 0.10)
+		var middle := _corridor(inside, gate, 3, 0.10, GRASS, 1 + rng.randi() % 2, 1.2)
 		if i == 0:
 			# The front door: a trodden track from the cave mouth out through the gap.
 			var track := _corridor(Vector2(MID + 0.5, MID + 1.5), inside, 1, 0.12)
@@ -318,12 +343,29 @@ func _scatter_pockets() -> void:
 		var glen := rng.randf() < 0.12
 		var rx := rng.randf_range(4.6, 7.0)
 		var ry := rng.randf_range(3.4, 5.2)
+		# Sizes differ a good deal: about a quarter are small nooks, and a few (never more than four) are big, 16 to 20 tiles across.
+		var size := rng.randf()
+		var u1 := rng.randf()
+		var u2 := rng.randf()
+		var big := 0
+		for p in m.pockets:
+			if float(p["rx"]) >= 8.0 or (bool(p["glen"]) and float(p["rx"]) > 3.4):
+				big += 1
+		if size < 0.26:
+			rx = lerpf(3.0, 4.2, u1)
+			ry = lerpf(2.5, 3.3, u2)
+		elif size > 0.86 and big < 4:
+			rx = lerpf(8.0, 10.0, u1)
+			ry = lerpf(5.4, 7.0, u2)
 		var lobes: Array = []
 		for i in rng.randi() % 3:
 			var la := rng.randf() * TAU
 			lobes.append([Vector2(cos(la) * rx * 0.75, sin(la) * ry * 0.75), rng.randf_range(2.2, 3.4), rng.randf_range(1.8, 2.6)])
 		var glen_a := rng.randf() * PI
-		var glen_len := rng.randf_range(8.0, 11.0)
+		var glen_len := rng.randf_range(8.0, 10.0)
+		var glen_bend := rng.randf_range(-3.5, 3.5)
+		var glen_wide := size > 0.6 and big < 4      # a few glens are broad: 16 to 20 tiles long and 8 or so across
+		var reach := maxf(rx, ry) if not glen else glen_len * 0.8 + 2.0
 		if r > _ring_limit(a) - 7.0:
 			continue
 		var at := centre + Vector2(cos(a), sin(a)) * r
@@ -331,28 +373,33 @@ func _scatter_pockets() -> void:
 			continue
 		var ok := true
 		for p in m.pockets:
-			if at.distance_to(p["at"]) < (SPACING + 5.0 if str(p["site"]) != "" else SPACING):
+			# Far enough apart that rock always stands between two places, however big they are.
+			if at.distance_to(p["at"]) < maxf(SPACING + 5.0 if str(p["site"]) != "" else SPACING, reach + float(p.get("reach", p["rx"])) + 4.5):
 				ok = false
 				break
 		if not ok:
 			continue
-		var p := {"at": at, "rx": rx, "ry": ry, "sealed": false, "gate": false, "site": "", "glen": glen, "lobes": lobes}
+		var p := {"at": at, "rx": rx, "ry": ry, "sealed": false, "gate": false, "site": "", "glen": glen, "lobes": lobes, "reach": reach}
 		if glen:
 			p["glen_dir"] = Vector2(cos(glen_a), sin(glen_a)) * glen_len
-			p["rx"] = 3.0
-			p["ry"] = 2.6
+			p["glen_bend"] = glen_bend
+			p["rx"] = 4.0 if glen_wide else 3.0
+			p["ry"] = 3.4 if glen_wide else 2.6
 		m.pockets.append(p)
 
 
 func _carve_pocket(p: Dictionary) -> void:
 	var at: Vector2 = p["at"]
 	if bool(p["glen"]):
-		# A glen: a long narrow place between two walls.
+		# A glen: a long place between two walls, bent a little, wider in some stretches than others.
 		var d: Vector2 = p["glen_dir"]
+		var across := Vector2(-d.y, d.x).normalized()
 		var steps := int(d.length() * 2.0)
 		for s in range(-steps, steps + 1):
-			var q := at + d * (float(s) / float(steps)) + Vector2(0, sin(float(s) * 0.21) * 1.2)
-			_blob(q, 2.9, 2.5, 0.25)
+			var t := float(s) / float(steps)
+			var q := at + d * t + across * (float(p["glen_bend"]) * (t * t - 0.35) + sin(float(s) * 0.21) * 1.0)
+			var fat := 0.75 + _noise(q.x, q.y, 6.0, 37) * 0.5
+			_blob(q, (float(p["rx"]) - 0.1) * fat, (float(p["ry"]) - 0.1) * fat, 0.25)
 		return
 	_blob(at, float(p["rx"]), float(p["ry"]), 0.5)
 	for lobe in p["lobes"]:
@@ -426,7 +473,7 @@ func _links() -> void:
 				continue
 			var a: Vector2 = m.pockets[i]["at"]
 			var b: Vector2 = m.pockets[j]["at"]
-			if a.distance_to(b) < SPACING * 1.45 and _clear_of_base(a, b) and rng.randf() < 0.30:
+			if a.distance_to(b) < SPACING * 1.45 and _clear_of_base(a, b) and rng.randf() < 0.30 and not _crosses(i, j, edges):
 				edges.append([i, j])
 	for e in edges:
 		var pa: Dictionary = m.pockets[int(e[0])]
@@ -437,18 +484,33 @@ func _links() -> void:
 		var tunnel := plain and a.distance_to(b) < 34.0 and rng.randf() < 0.15
 		var width := 2 if rng.randf() < 0.6 else 3
 		var footpath := rng.randf() < 0.65
+		var sway := rng.randf_range(2.0, 4.2)
 		if tunnel:
-			# An old dug tunnel: straight, two wide, with a floor of cut rock and lanterns along it.
-			tunnels.append(_corridor(a, b, 2, 0.03, FLOOR))
+			# An old dug tunnel: two wide and nearly straight (it was cut on purpose), with a floor of cut rock and lanterns along it.
+			tunnels.append(_corridor(a, b, 2, 0.05, FLOOR, 0, 0.8))
 		else:
-			var middle := _corridor(a, b, width, 0.20)
-			# A natural gap is never an even width: it bulges here and there.
+			# A natural gap: it sways, and is anything from two to six tiles wide along its length.
+			var middle := _corridor(a, b, width, 0.24, GRASS, 6 - width, sway)
 			for at in middle:
-				if rng.randf() < 0.14:
+				if rng.randf() < 0.06:
 					_blob(Vector2(at) + Vector2(rng.randf_range(-0.5, 1.5), rng.randf_range(-0.5, 1.5)), rng.randf_range(1.5, 2.5), rng.randf_range(1.3, 2.0), 0.4)
 			if footpath:
 				_lay(middle, PATH)
 		m.links.append({"a": int(e[0]), "b": int(e[1]), "tunnel": tunnel})
+
+
+## True if a straight line between places i and j would cut across a way that is already there.
+func _crosses(i: int, j: int, edges: Array) -> bool:
+	var a: Vector2 = m.pockets[i]["at"]
+	var b: Vector2 = m.pockets[j]["at"]
+	for e in edges:
+		var p: int = e[0]
+		var q: int = e[1]
+		if p == i or p == j or q == i or q == j:
+			continue
+		if Geometry2D.segment_intersects_segment(a, b, m.pockets[p]["at"], m.pockets[q]["at"]) != null:
+			return true
+	return false
 
 
 ## No wall of rock is left one tile thick, and no single tile of rock stands alone:
@@ -717,6 +779,81 @@ func _tone_and_cover() -> void:
 						m.set_kind(x, y, int(pair[0]))
 
 
+## Scree: small stones lying at the foot of the rock in some stretches, never out
+## in the open and never on a track. (Detail goes where there is a reason for it.)
+func _scree() -> void:
+	var keep_clear := m.base.grow(3.0)
+	for y in range(m.region.position.y + 1, m.region.end.y - 1):
+		for x in range(m.region.position.x + 1, m.region.end.x - 1):
+			if m.kind(x, y) != GRASS or keep_clear.has_point(Vector2(x, y)):
+				continue
+			var n := _noise(x, y, 6.0, 71) * 0.7 + _noise(x, y, 2.4, 72) * 0.3
+			var under := m.is_rock(x, y - 1)                                                # right under a face
+			var beside := m.is_rock(x - 1, y) or m.is_rock(x + 1, y) or m.is_rock(x, y - 2) or m.is_rock(x - 1, y - 1) or m.is_rock(x + 1, y - 1)
+			if (under and n > 0.60) or (beside and n > 0.68):
+				m.set_kind(x, y, SCREE)
+
+
+## Heather and scrub are plants, not paint: every bush stands on its own with
+## ground showing all round it, thick in the middle of a patch and thinning to
+## single plants at its edge. This is the art's own way of placing them (hl3.py,
+## "scatter"): try a spot, and keep the plant only if it touches no other.
+func _cover_plants() -> void:
+	Painter.load_kit()
+	var feet := {}                         # tile -> [feet of the things standing there]
+	for t in m.things:
+		var key := Vector2i(int(t["x"]) >> 4, int(t["y"]) >> 4)
+		if not feet.has(key):
+			feet[key] = []
+		feet[key].append(Vector2i(int(t["x"]), int(t["y"])))
+	var placed := {}                       # tile -> [Rect2i of each plant whose foot is there]
+	for y in range(m.region.position.y + 1, m.region.end.y - 1):
+		for x in range(m.region.position.x + 1, m.region.end.x - 1):
+			var k := m.kind(x, y)
+			if k != HEATH and k != SCRUB:
+				continue
+			var same := 0
+			for j in range(-1, 2):
+				for i in range(-1, 2):
+					if m.kind(x + i, y + j) == k:
+						same += 1
+			var chance := clampf((float(same) / 9.0 - 0.28) / 0.36, 0.04, 1.0)
+			for t in (26 if k == HEATH else 9):
+				var px := x * 16 + rng.randi() % 16
+				var py := y * 16 + rng.randi() % 16
+				var name := ("heath_%d" if k == HEATH else "scrub_%d") % (rng.randi() % 12)
+				if rng.randf() > chance:
+					continue
+				var box: Rect2i = Painter.boxes[name]
+				var r := Rect2i(px + box.position.x, py + box.position.y, box.size.x, box.size.y)
+				# All of it on grass, with room to spare: never against rock, water, a track or scree.
+				var wide := r.grow(4)
+				var ok := true
+				for c in [wide.position, Vector2i(wide.end.x, wide.position.y), Vector2i(wide.position.x, wide.end.y), wide.end, Vector2i(px, py)]:
+					if not _grassy(c.x >> 4, c.y >> 4):
+						ok = false
+				if not ok:
+					continue
+				# Never touching another plant (a pixel of ground between them at least), nor under a thing's feet.
+				var mine := r.grow(1)
+				for j in range(-2, 3):
+					for i in range(-2, 3):
+						var key := Vector2i(x + i, y + j)
+						for other in placed.get(key, []):
+							if mine.intersects(other):
+								ok = false
+						for f in feet.get(key, []):
+							if absi(f.x - px) < 14 and f.y - py > -12 and f.y - py < 10:
+								ok = false
+				if not ok:
+					continue
+				var home := Vector2i(x, y)
+				if not placed.has(home):
+					placed[home] = []
+				placed[home].append(r)
+				m.plants.append({"n": name, "x": px, "y": py})
+
+
 ## Ore: a vein starts in rock you can see from open ground and runs into the hill.
 func _vein(start: Vector2i, n: int, k: int) -> int:
 	if m.kind(start.x, start.y) != ROCK or _locked(start.x, start.y):
@@ -871,20 +1008,22 @@ func _dress() -> void:
 		# Life, in a few places only: cattle grazing, a hare, a pair of crows.
 		if site == "" and not bool(p["gate"]):
 			var life := rng.randf()
-			if life < 0.10 and float(p["rx"]) >= 5.2:
+			if life < 0.12 and float(p["rx"]) >= 5.2:
 				for i in 1 + rng.randi() % 3:
 					var at := _take(spots["roomy"], taken, 2.4)
 					if at.x >= 0:
 						_animal("cow", at.x * 16 + 8, at.y * 16 + 11, rng.randf() < 0.5)
-			elif life < 0.20:
+			elif life < 0.24:
 				var at := _take(spots["roomy"], taken, 3.0)
 				if at.x >= 0:
 					_animal("hare", at.x * 16 + 8, at.y * 16 + 10, rng.randf() < 0.5)
-			elif life < 0.32:
+			elif life < 0.40:
 				var at := _take(spots["roomy"], taken, 3.0)
 				if at.x >= 0:
 					_animal("crow", at.x * 16 + 5, at.y * 16 + 9, false)
 					_animal("crow", at.x * 16 + 19, at.y * 16 + 14, true)
+					if rng.randf() < 0.4 and _roomy(at.x + 2, at.y):
+						_animal("crow", at.x * 16 + 36, at.y * 16 + 8, false)
 
 
 ## The Watchpost's ground for now: a scrap of the keepers' road, two of their

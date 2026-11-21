@@ -160,7 +160,7 @@ class Kit:
 
     # ------------------------------------------------------------------ ground kinds laid on the grass
     def ground(s, cfg, v, ch):
-        """Yard, water, dug floor: whatever the kind changes in the picture, cut where it is not plain grass."""
+        """Yard, water, dug floor, scree: whatever the kind changes in the picture, cut where it is not plain grass."""
         hl3 = s.hl3
         rows = rows_for(cfg, ch, ".")
         W = hl3.World(rows, seed=v + 1, tone=False)
@@ -399,7 +399,7 @@ def main():
         info["sheets"]["rock"] = ["rock_nat.png", "rock_dug.png", "rock_nat_foot.png", "rock_dug_foot.png", "rock_shadow.png", "rock_core.png"]
         if a.ore_dots:
             info["sheets"]["rock"] += ["ore_tin_nat.png", "ore_tin_dug.png", "ore_copper_nat.png", "ore_copper_dug.png"]
-    for name, ch in (("yard", "y"), ("water", "w"), ("floor", "o"), ("path", "e")):
+    for name, ch in (("yard", "y"), ("water", "w"), ("floor", "o"), ("path", "e"), ("scree", ":")):
         if not want(name): continue
         L, D = [], []
         for v in range(V):

@@ -42,6 +42,7 @@ const ROCK := LandMap.ROCK
 const TIN := LandMap.TIN
 const COPPER := LandMap.COPPER
 const FLOOR := LandMap.FLOOR
+const SCREE := LandMap.SCREE
 
 ## Tufts, from the art's own patterns (hl3.py): L two steps lighter than the
 ## ground they stand on, l one, d one darker.
@@ -55,6 +56,7 @@ const LAMP_ADD := [Vector3(0, 0, 0), Vector3(10, 4, 0), Vector3(22, 9, 0), Vecto
 static var ready := false
 static var kit := {}
 static var things := {}            # name -> {rect, foot, shadow, shadow_at, solid, frames, ...}
+static var boxes := {}             # heather and scrub bushes: name -> Rect2i of the bush itself, from its foot
 static var sheets := {}            # file name without ".png" -> Image
 static var variants := 4
 static var grass: Array = []       # the grass ramp, dark to light
@@ -77,6 +79,14 @@ static func load_kit() -> void:
 		for file in group:
 			sheets[str(file).get_basename()] = _rgba(Art.image(KIT + str(file)))
 	sheets["things"] = _rgba(Art.image(KIT + "things.png"))
+	# How big each heather and scrub bush really is (its picture has room round it), for standing them apart.
+	for name in things:
+		if not (str(name).begins_with("heath_") or str(name).begins_with("scrub_")) or str(name).ends_with("~"):
+			continue
+		var r: Array = things[name]["rect"]
+		var foot: Array = things[name]["foot"]
+		var used: Rect2i = (sheets["things"] as Image).get_region(Rect2i(r[0], r[1], r[2], r[3])).get_used_rect()
+		boxes[name] = Rect2i(used.position.x - int(foot[0]), used.position.y - int(foot[1]), used.size.x, used.size.y)
 	var pal: Dictionary = kit.get("palette", {})
 	for h in pal.get("grass", []):
 		grass.append(Color(str(h)))
@@ -112,6 +122,29 @@ static func _rgba(img: Image) -> Image:
 ## The same "random" number for the same tile, every time.
 static func hsh(x: int, y: int, salt: int) -> int:
 	return ((x * 73856093) ^ (y * 19349663) ^ (salt * 83492791)) & 0x7fffffff
+
+
+## Smooth noise from 0 to 1 over the tiles, `period` tiles from one bump to the
+## next: where the long grass grows and where each colour of flower drifts.
+static func _field(x: int, y: int, period: int, salt: int) -> float:
+	var ix := floori(float(x) / float(period))
+	var iy := floori(float(y) / float(period))
+	var tx := float(x - ix * period) / float(period)
+	var ty := float(y - iy * period) / float(period)
+	tx = tx * tx * (3.0 - 2.0 * tx)
+	ty = ty * ty * (3.0 - 2.0 * ty)
+	var a := float(_mix(ix, iy, salt) & 0xffff) / 65535.0
+	var b := float(_mix(ix + 1, iy, salt) & 0xffff) / 65535.0
+	var c := float(_mix(ix, iy + 1, salt) & 0xffff) / 65535.0
+	var d := float(_mix(ix + 1, iy + 1, salt) & 0xffff) / 65535.0
+	return lerpf(lerpf(a, b, tx), lerpf(c, d, tx), ty)
+
+
+static func _mix(x: int, y: int, s: int) -> int:
+	var n := (x * 73856093) ^ (y * 19349663) ^ (s * 83492791)
+	n = (n ^ (n >> 15)) * 2246822519
+	n = (n ^ (n >> 13)) * 3266489917
+	return (n ^ (n >> 16)) & 0x7fffffff
 
 
 ## Which of a tile's eight neighbours are of kind k: bits N NE E SE S SW W NW.
@@ -197,6 +230,7 @@ static func paint(m: LandMap, cx: int, cy: int) -> Image:
 	_lay(lit, shade, "rise", TN, 2, x0, y0)
 	_lay(lit, shade, "path", K, PATH, x0, y0)
 	_lay(lit, shade, "yard", K, YARD, x0, y0)
+	_lay(lit, shade, "scree", K, SCREE, x0, y0)
 	for dj in range(-1, 2):
 		for di in range(-1, 2):
 			for d in m.decals_in(cx + di, cy + dj):
@@ -250,7 +284,9 @@ static func paint(m: LandMap, cx: int, cy: int) -> Image:
 	_lay(lit, shade, "floor", K, FLOOR, x0, y0)
 	if floored != null:
 		_lay(floored, null, "floor", K, FLOOR, x0, y0)
-	# 2. Tufts in the grass: long grass in clumps in the hollows and against the rock, the rises grazed short with a few flowers.
+	# 2. Tufts in the grass. Nearly every tile has one; long grass stands in clumps in the hollows, against the rock and
+	# in patches of its own; the rises are grazed short; and flowers grow in drifts, each drift one colour.
+	var world := int(m.seed_value & 0xffff) * 31
 	for lj in range(1, KW - 1):
 		for li in range(1, KW - 1):
 			var i := lj * KW + li
@@ -258,18 +294,21 @@ static func paint(m: LandMap, cx: int, cy: int) -> Image:
 				continue
 			var wx := x0 + li - PAD
 			var wy := y0 + lj - PAD
-			var h := hsh(wx, wy, 5)
+			var h := _mix(wx, wy, 5)
 			var tone := int(TN[i])
+			var cover := K[i] != GRASS                                       # heather or scrub stands here: tufts only, the bushes are the show
 			var hollow := tone == 0 or _near(R, i, 1)
+			var rank := not hollow and not cover and tone == 1 and _field(wx, wy, 5, 300 + world) > 0.70     # a patch of long grass out in the open
 			var rise := tone == 2 and not hollow
-			var n := 3 if hollow else (0 if rise and h % 100 < 60 else (1 if (h >> 7) % 100 < 55 else 0))
+			var n := 2 if cover else (3 if hollow or rank else ((1 if h % 100 < 55 else 0) + (1 if (h >> 7) % 100 < 15 else 0) if rise else (1 if h % 100 < 90 else 0) + (1 if (h >> 7) % 100 < 40 else 0)))
 			var mx := 3 + (h >> 14) % 7
 			var my := 3 + (h >> 17) % 8
 			for q in n:
-				var hq := hsh(wx * 4 + q, wy, 6)
-				var tx := (mx + hq % 9 - 4) if hollow else hq % 12
-				var ty := (my + (hq >> 4) % 7 - 3) if hollow else (hq >> 4) % 13
-				var p := (3 + (hq >> 8) % 2) if (hollow and q < 2) else (hq >> 8) % 3
+				var hq := _mix(wx * 4 + q, wy, 6)
+				var clump := (hollow or rank) and not cover
+				var tx := (mx + hq % 9 - 4) if clump else hq % 12
+				var ty := (my + (hq >> 4) % 7 - 3) if clump else (hq >> 4) % 13
+				var p := (3 + (hq >> 8) % 2) if (clump and q < 2) else (hq >> 8) % 3
 				var size: Vector2i = tuft_size[p]
 				var px := (li - PAD) * T + tx
 				var py := (lj - PAD) * T + ty
@@ -278,13 +317,27 @@ static func paint(m: LandMap, cx: int, cy: int) -> Image:
 				var src := Rect2i(p * 10, tone * 6, size.x, size.y)
 				lit.blend_rect(tuft_lit, src, Vector2i(px, py))
 				shade.blend_rect(tuft_shade, src, Vector2i(px, py))
-			var f := (h >> 21) % 100
-			if (rise and f < 30) or (not rise and not hollow and f < 5):
-				var kind: Array = flowers[0 if f % 10 < 3 else (1 if f % 10 < 6 else 2)]
-				var fx := (li - PAD) * T + 2 + (h >> 3) % 9
-				var fy := (lj - PAD) * T + 3 + (h >> 9) % 8
-				for q in 4 + h % 5:
-					var hq := hsh(wx * 8 + q, wy, 8)
+			if cover or tone == 0:
+				continue
+			# Flowers: three kinds, each in drifts of its own a few tiles across, and a stray clump here and there on the rises.
+			var kind := -1
+			var clumps := 1
+			for c in 3:
+				var f := _field(wx, wy, 6, 310 + c * 7 + world)
+				if f > 0.76:
+					kind = c
+					clumps = 2 if f > 0.86 else 1
+			var stray := (h >> 21) % 100
+			if kind < 0 and ((rise and stray < 10) or (not rise and stray < 2)):
+				kind = stray % 3
+			if kind < 0:
+				continue
+			for g2 in clumps:
+				var hc := _mix(wx * 2 + g2, wy, 9)
+				var fx := (li - PAD) * T + 2 + hc % 11
+				var fy := (lj - PAD) * T + 2 + (hc >> 5) % 10
+				for q in 4 + (hc >> 10) % 5:
+					var hq := _mix(wx * 16 + q + g2 * 8, wy, 8)
 					var px := fx + hq % 9 - 4
 					var py := fy + (hq >> 4) % 7 - 3
 					if px < 0 or py < 0 or px >= PX or py + 1 >= PX:
@@ -292,28 +345,17 @@ static func paint(m: LandMap, cx: int, cy: int) -> Image:
 					var g := grass32.find(lit.get_pixel(px, py).to_rgba32())
 					if g < 2 or g > 4 or lit.get_pixel(px, py + 1).to_rgba32() != grass32[g]:
 						continue
-					lit.set_pixel(px, py, kind[0])
-					shade.set_pixel(px, py, kind[1])
+					lit.set_pixel(px, py, flowers[kind][0])
+					shade.set_pixel(px, py, flowers[kind][1])
 					lit.set_pixel(px, py + 1, grass[g - 1])
 					shade.set_pixel(px, py + 1, grass[maxi(g - 3, 0)])
-	# 3. Heather and sage: separate bushes standing on the grass, thick in the middle of a patch and thin at its edge.
+	# 3. Heather and sage: separate bushes standing on the grass, each one a plant of the map's own (the map made
+	# sure no two touch). The ones further up the picture go down first, so a nearer bush stands in front.
 	var plants: Array = []
-	for lj in range(1, KW - 1):
-		for li in range(1, KW - 1):
-			var i := lj * KW + li
-			var k := K[i]
-			if k != HEATH and k != SCRUB:
-				continue
-			var wx := x0 + li - PAD
-			var wy := y0 + lj - PAD
-			var inside := K[i - 1] == k and K[i + 1] == k and K[i - KW] == k and K[i + KW] == k
-			for s in (4 if k == HEATH else 2):
-				var h := hsh(wx * 4 + s, wy, 7)
-				if h % 100 >= (86 if inside else 48) - (0 if k == HEATH else 20):
-					continue
-				var px := (li - PAD) * T + ((s % 2) * 8 + 2 + (h >> 8) % 5 if k == HEATH else 3 + (h >> 8) % 10)
-				var py := (lj - PAD) * T + ((s / 2) * 8 + 5 + (h >> 12) % 4 if k == HEATH else 6 + s * 5 + (h >> 12) % 4)
-				plants.append([py, px, ("heath_%d" if k == HEATH else "scrub_%d") % ((h >> 16) % 12)])
+	for dj in range(-1, 2):
+		for di in range(-1, 2):
+			for pl in m.plants_in(cx + di, cy + dj):
+				plants.append([int(pl["y"]) - oy, int(pl["x"]) - ox, str(pl["n"])])
 	plants.sort()
 	for p in plants:
 		var info: Dictionary = things[p[2]]
@@ -321,14 +363,6 @@ static func paint(m: LandMap, cx: int, cy: int) -> Image:
 		var foot: Array = info["foot"]
 		var px := int(p[1])
 		var py := int(p[0])
-		# Never against rock or water, and never on a path: only where the ground round it is grass.
-		var ok := true
-		for c in [Vector2i(px - int(foot[0]) + 5, py - int(r[3]) + 12), Vector2i(px + int(r[2]) - int(foot[0]) - 5, py - int(r[3]) + 12), Vector2i(px - int(foot[0]) + 5, py + 3), Vector2i(px + int(r[2]) - int(foot[0]) - 5, py + 3)]:
-			var ci := (floori(float(c.y) / T) + PAD) * KW + floori(float(c.x) / T) + PAD
-			if ci < 0 or ci >= KW * KW or not _grassy(K[ci]):
-				ok = false
-		if not ok:
-			continue
 		var dst := Vector2i(px - int(foot[0]), py - int(foot[1]))
 		lit.blend_rect(th, Rect2i(r[0], r[1], r[2], r[3]), dst)
 		var r2: Array = things[str(p[2]) + "~"]["rect"]

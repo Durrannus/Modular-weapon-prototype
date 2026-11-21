@@ -18,6 +18,7 @@ const WorldGen := preload("res://scripts/highlands/world_gen.gd")
 const LandMap := preload("res://scripts/highlands/land_map.gd")
 const LandView := preload("res://scripts/highlands/land_view.gd")
 const CaveUi := preload("res://scripts/cave/cave_ui.gd")
+const Music := preload("res://scripts/music.gd")
 
 var world_seed := 0             # 0 = a new one every time
 var carry := {}                 # from the cave: {builds: [a weapon each], owned: [part ids each], spirit: [bool each]}
@@ -28,6 +29,7 @@ var owned: Array = []           # per player: the part ids they can use at the f
 var interactables: Array = []   # [{at, radius, text, lift, can: Callable(i), use: Callable(i)}]
 var was_busy := false
 var welcome := true             # show the arrival card (tests switch it off)
+var music                       # the calm cave tune, standing in until the Highlands have one of their own
 
 
 func _ready() -> void:
@@ -64,6 +66,9 @@ func _ready() -> void:
 		"can": func(_i): return true, "use": func(i): _use_forge(i)})
 	_make_ui()
 	hud.mode = "highlands"
+	music = Music.new()
+	add_child(music)
+	music.play("cave_calm", 4.0)
 	hud.show_weapon = can_swap
 	build_menu.hotkey = false
 	build_menu.sandbox = false

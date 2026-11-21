@@ -49,7 +49,7 @@ static func picture(m: LandMap, scale: int) -> Image:
 	var r := m.region
 	var img := Image.create(r.size.x, r.size.y, false, Image.FORMAT_RGB8)
 	var cols := {LandMap.GRASS: Color("a68e52"), LandMap.SCRUB: Color("6f8f84"), LandMap.HEATH: Color("8a5272"), LandMap.PATH: Color("dcc888"),
-		LandMap.YARD: Color("6a5642"), LandMap.WATER: Color("2f7d86"), LandMap.TIN: Color("f6f0d4"), LandMap.COPPER: Color("e0803c"), LandMap.FLOOR: Color("3c5262")}
+		LandMap.YARD: Color("6a5642"), LandMap.WATER: Color("2f7d86"), LandMap.TIN: Color("f6f0d4"), LandMap.COPPER: Color("e0803c"), LandMap.FLOOR: Color("3c5262"), LandMap.SCREE: Color("8f8a6a")}
 	for y in r.size.y:
 		for x in r.size.x:
 			var wx := x + r.position.x

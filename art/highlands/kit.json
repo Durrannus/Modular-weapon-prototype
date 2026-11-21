@@ -177,6 +177,10 @@
    "rock_shadow.png",
    "rock_core.png"
   ],
+  "scree": [
+   "scree.png",
+   "scree_shade.png"
+  ],
   "water": [
    "water.png",
    "water_shade.png"

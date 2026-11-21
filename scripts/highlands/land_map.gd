@@ -3,8 +3,8 @@ extends RefCounted
 ## things that stand on it. scripts/highlands/world_gen.gd makes one from a seed;
 ## land_painter.gd draws it; land_view.gd shows the part near the camera.
 ##
-## Nothing in here is random. The same seed always gives the same map, and from
-## version 36 the whole of this is what a world save holds.
+## Nothing in here is random. The same seed always gives the same map, and once
+## saving is built the whole of this is what a world save holds.
 ##
 ## Places are in tiles (16 art pixels, 32 world units) from the map's top left
 ## corner, or in art pixels where it says so. The cave mouth stands at the middle.
@@ -15,14 +15,15 @@ const CHUNK := 16            # tiles a side of one painted piece of land
 const TILE_PX := 16
 
 ## What a tile is made of.
-enum { GRASS, SCRUB, HEATH, PATH, YARD, WATER, ROCK, TIN, COPPER, FLOOR }
-const NAMES := ["grass", "scrub", "heather", "footpath", "yard", "water", "rock", "tin", "copper", "dug floor"]
+enum { GRASS, SCRUB, HEATH, PATH, YARD, WATER, ROCK, TIN, COPPER, FLOOR, SCREE }
+const NAMES := ["grass", "scrub", "heather", "footpath", "yard", "water", "rock", "tin", "copper", "dug floor", "scree"]
 
 var seed_value := 0
 var tries := 1                   # how many layouts the generator went through before one passed its checks
 var kinds := PackedByteArray()   # SIZE x SIZE
 var tones := PackedByteArray()   # 0 = a hollow (darker, long grass), 1 = plain, 2 = a rise (lighter, grazed short)
 var things: Array = []           # what stands on the land: [{n: name in the kit, x, y: its foot in art pixels, f: flipped}]
+var plants: Array = []           # the heather and scrub bushes, each one its own plant that never overlaps another: [{n, x, y}] (foot, art pixels)
 var decals: Array = []           # flat pieces painted into the ground (scraps of the keepers' road): [{n, x, y}]
 var lamps: Array = []            # lantern light on dug floor: [{x, y, r}] in art pixels
 var animals: Array = []          # [{kind, x, y, f}]
@@ -39,6 +40,7 @@ var region := Rect2i()           # the part of the map that has anything but sol
 
 var _things_by_chunk := {}
 var _decals_by_chunk := {}
+var _plants_by_chunk := {}
 var _lamps_by_chunk := {}
 
 
@@ -99,8 +101,9 @@ static func chunk_key(cx: int, cy: int) -> int:
 func index() -> void:
 	_things_by_chunk.clear()
 	_decals_by_chunk.clear()
+	_plants_by_chunk.clear()
 	_lamps_by_chunk.clear()
-	for pair in [[things, _things_by_chunk], [decals, _decals_by_chunk], [lamps, _lamps_by_chunk]]:
+	for pair in [[things, _things_by_chunk], [decals, _decals_by_chunk], [lamps, _lamps_by_chunk], [plants, _plants_by_chunk]]:
 		for it in pair[0]:
 			var key := chunk_key(int(it["x"]) / (CHUNK * TILE_PX), int(it["y"]) / (CHUNK * TILE_PX))
 			if not pair[1].has(key):
@@ -110,6 +113,10 @@ func index() -> void:
 
 func things_in(cx: int, cy: int) -> Array:
 	return _things_by_chunk.get(chunk_key(cx, cy), [])
+
+
+func plants_in(cx: int, cy: int) -> Array:
+	return _plants_by_chunk.get(chunk_key(cx, cy), [])
 
 
 func decals_in(cx: int, cy: int) -> Array:

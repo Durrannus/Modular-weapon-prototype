@@ -47,7 +47,7 @@ func _frames(n: int) -> void:
 
 
 func _same(a: LandMap, b: LandMap) -> bool:
-	return a.kinds == b.kinds and a.tones == b.tones and str(a.things) == str(b.things) and str(a.decals) == str(b.decals) and str(a.lamps) == str(b.lamps) and a.spawn == b.spawn
+	return a.kinds == b.kinds and a.tones == b.tones and str(a.things) == str(b.things) and str(a.decals) == str(b.decals) and str(a.lamps) == str(b.lamps) and str(a.plants) == str(b.plants) and a.spawn == b.spawn
 
 
 func _run() -> void:
@@ -76,6 +76,9 @@ func _rules() -> void:
 	_check(not _same(a, c), "another seed makes another map")
 	var slowest := 0
 	var total_tries := 0
+	var places := 0
+	var lively := 0
+	var scree_worlds := 0
 	for s in n_seeds:
 		var seed_value := 1000 + s * 7919
 		var t0 := Time.get_ticks_msec()
@@ -164,6 +167,75 @@ func _rules() -> void:
 			if not Painter.things.has(str(t["n"])):
 				_check(false, "%s: the kit has no '%s'" % [who, str(t["n"])])
 				break
+		# Heather and scrub are separate bushes: no two touch, and each stands on its own patch.
+		var by_tile := {}
+		var touching := 0
+		var astray := 0
+		for pl in m.plants:
+			var box: Rect2i = Painter.boxes[str(pl["n"])]
+			var r := Rect2i(int(pl["x"]) + box.position.x, int(pl["y"]) + box.position.y, box.size.x, box.size.y)
+			var key := Vector2i(int(pl["x"]) >> 4, int(pl["y"]) >> 4)
+			var k := m.kind(key.x, key.y)
+			if k != LandMap.HEATH and k != LandMap.SCRUB:
+				astray += 1
+			for j in range(-2, 3):
+				for i in range(-2, 3):
+					for other in by_tile.get(key + Vector2i(i, j), []):
+						if r.intersects(other):
+							touching += 1
+			if not by_tile.has(key):
+				by_tile[key] = []
+			by_tile[key].append(r)
+		_check(touching == 0 and astray == 0, "%s: %d heather and scrub bushes, none touching another (%d do) and all on their own patch (%d are not)" % [who, m.plants.size(), touching, astray])
+		# Scree lies against the rock, never out in the open.
+		var scree := 0
+		var loose := 0
+		for y in range(m.region.position.y + 3, m.region.end.y - 3):
+			for x in range(m.region.position.x + 3, m.region.end.x - 3):
+				if m.kind(x, y) != LandMap.SCREE:
+					continue
+				scree += 1
+				var by_rock := false
+				for j in range(-2, 3):
+					for i in range(-2, 3):
+						if m.is_rock(x + i, y + j):
+							by_rock = true
+				if not by_rock:
+					loose += 1
+		_check(loose == 0, "%s: scree lies at the foot of the rock (%d tiles, %d of them out in the open)" % [who, scree, loose])
+		if scree > 0:
+			scree_worlds += 1
+		# The map is not ruled: no way cuts straight across another, and the open places differ in size.
+		var crossing := 0
+		for i in m.links.size():
+			for j in range(i + 1, m.links.size()):
+				var la: Dictionary = m.links[i]
+				var lb: Dictionary = m.links[j]
+				if la["a"] == lb["a"] or la["a"] == lb["b"] or la["b"] == lb["a"] or la["b"] == lb["b"]:
+					continue
+				if Geometry2D.segment_intersects_segment(m.pockets[int(la["a"])]["at"], m.pockets[int(la["b"])]["at"], m.pockets[int(lb["a"])]["at"], m.pockets[int(lb["b"])]["at"]) != null:
+					crossing += 1
+		_check(crossing == 0, "%s: no two ways cross (%d do)" % [who, crossing])
+		var small := 0
+		var big := 0
+		for p in m.pockets:
+			if float(p["rx"]) >= 8.0 or (bool(p["glen"]) and float(p["rx"]) > 3.4):
+				big += 1
+			elif not bool(p["glen"]) and float(p["rx"]) < 4.3:
+				small += 1
+		_check(small >= 3 and big <= 4, "%s: the open places differ in size (%d small, %d big)" % [who, small, big])
+		# Life: how many places have an animal in them (counted over every world, below).
+		for p in m.pockets:
+			if bool(p["gate"]) or str(p["site"]) != "":
+				continue
+			places += 1
+			for an in m.animals:
+				if (Vector2(float(an["x"]), float(an["y"])) / 16.0).distance_to(p["at"]) < float(p.get("reach", p["rx"])) + 3.0:
+					lively += 1
+					break
+	var life := float(lively) / float(maxi(places, 1))
+	_check(life >= 0.22 and life <= 0.50, "an animal or two in about one open place in three (%d of %d, %d%%)" % [lively, places, int(life * 100.0)])
+	_check(scree_worlds >= n_seeds * 3 / 4, "most worlds have some scree (%d of %d)" % [scree_worlds, n_seeds])
 	print("      %d worlds made, the slowest in %d ms, %.2f layouts tried a world" % [n_seeds, slowest, float(total_tries) / float(n_seeds)])
 
 
