@@ -1,15 +1,17 @@
 extends Node
 ## The game's front door: shows the title screen, then runs the mode you pick
-## (the tutorial cave or the test arena) and comes back here when it ends.
+## (the tutorial cave, the Highlands or the test arena) and comes back here when it
+## ends. The cave's stairs lead out onto the Highlands.
 ## "Play online" goes to the host / join screen first; the online session
 ## (scripts/net/session.gd) then tells both computers when to start the game.
 ##
 ## To skip the title while testing, add a mode after "--":
-##   godot --path . -- cave        (or: arena)
+##   godot --path . -- cave        (or: arena, or: highlands seed=123456)
 
 const Title := preload("res://scripts/ui/title.gd")
 const Cave := preload("res://scripts/cave/cave.gd")
 const Arena := preload("res://scripts/main.gd")
+const Highlands := preload("res://scripts/highlands/highlands.gd")
 const OnlineMenu := preload("res://scripts/ui/online_menu.gd")
 const Session := preload("res://scripts/net/session.gd")
 const Net := preload("res://scripts/net/net.gd")
@@ -31,6 +33,8 @@ func _ready() -> void:
 		_start("cave", [])
 	elif "arena" in args:
 		_start("arena", [])
+	elif "highlands" in args:
+		_start("highlands", [])
 	else:
 		_show_title()
 
@@ -56,14 +60,20 @@ func _show_title() -> void:
 	title.start.connect(_start)
 
 
-func _start(mode: String, inputs: Array) -> void:
+func _start(mode: String, inputs: Array, carry := {}) -> void:
 	if mode == "online":
 		_show_online()
 		return
 	last_inputs = inputs
 	_clear()
-	game = (Cave if mode == "cave" else Arena).new()
+	game = {"cave": Cave, "highlands": Highlands}.get(mode, Arena).new()
 	game.inputs = inputs
+	if mode == "cave":
+		# The stairs at the end of the cave lead out onto the Highlands, with what you built.
+		game.leads_outside = true
+		game.go_outside.connect(func(what: Dictionary): _start("highlands", last_inputs, what), CONNECT_DEFERRED)
+	elif mode == "highlands":
+		game.carry = carry
 	game.exit_to_title.connect(_show_title, CONNECT_DEFERRED)
 	game.quit_to_title.connect(_show_title, CONNECT_DEFERRED)
 	add_child(game)

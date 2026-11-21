@@ -10,7 +10,8 @@ extends CanvasLayer
 ## screen" in the README for every key.
 ##
 ## THE BUTTONS are a column of rows at `menu.at`. Today they are the tutorial,
-## the arena, online play and quit; the column keeps room for MENU_ROOM rows so
+## the arena, the Highlands (since version 35), online play and quit; the column
+## keeps room for MENU_ROOM rows so
 ## "New game" and "Continue" can go on top later.
 ##
 ## WHO IS PLAYING: each device joins by pressing its own button (Enter or a click
@@ -38,12 +39,13 @@ const PLAYER_COLORS := Art.PLAYER_COLORS
 const ITEMS := [
 	["cave", "Tutorial", "The four-room cave: pick a weapon, fit a rune, beat the guardian."],
 	["arena", "Arena", "The sandbox: every part unlocked, endless enemies, the forge on Tab or Y."],
+	["highlands", "Highlands", "The land outside the cave: a new map every time. The land only so far."],
 	["online", "Play online", "Two players over the internet, one on each computer. One hosts, the other joins."],
 	["quit", "Quit", ""],
 ]
 const MAX_PLAYERS := 2
-const MENU_ROOM := 6          # rows the column keeps space for (New game and Continue come later)
-const ROW_STEP := 24.0
+const MENU_ROOM := 7          # rows the column keeps space for (New game and Continue come later)
+const ROW_STEP := 23.0           # (24 until version 35 added the Highlands row)
 const ROW_HEIGHT := 20.0
 const STRIP := 28.0           # the band along the bottom edge: hints, who is playing, the version number
 const FADE_IN := 0.6          # seconds the screen takes to come up out of black

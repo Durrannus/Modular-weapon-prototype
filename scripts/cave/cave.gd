@@ -120,6 +120,9 @@ const DAY := Color(0.50, 0.78, 0.95)
 const TEAL := Color(0.20, 0.85, 0.66)
 const AMBIENT_LIFT := 1.15       # a touch brighter than the art's ambient, so the dark rooms stay readable
 
+signal go_outside(carry: Dictionary)   # the stairs were climbed: on to the Highlands, with what everyone built
+
+var leads_outside := false      # true when the game goes on to the Highlands after the cave (false: back to the title)
 var cells := PackedByteArray()  # 1 = floor
 var cave_data: Dictionary = {}
 var floor_node: Node2D
@@ -1407,7 +1410,12 @@ func _finish() -> void:
 	_after(1.9, func():
 		ui.card_picture = "cave/ui/card_daylight.png"
 		ui.card("Daylight", "You climb out into a land you have never seen.\n\nEnd of the tutorial cave.\nTime %d:%02d      Knock-outs %d" % [secs / 60, secs % 60, knockouts], 0.0, func():
-			exit_to_title.emit()))
+			if leads_outside and not Net.online():
+				# Out onto the Highlands, with the weapon each player built down here.
+				go_outside.emit({"builds": builds.map(func(b): return b.get_data()), "owned": owned.duplicate(true),
+					"spirit": players.map(func(p): return p.with_spirit)})
+			else:
+				exit_to_title.emit()))
 
 
 # --- Knock-outs -----------------------------------------------------------------
