@@ -194,6 +194,8 @@ func _painting() -> void:
 			if deep.get_pixel(x, y).get_luminance() < 0.12:
 				dark += 1
 	_check(dark > 1000, "the heart of a hill is the dark rock top (%d of 1024 samples)" % dark)
+	# Ore is in the map but not drawn until its veins are agreed (Darren turned down ore as dots on the rock, 21 November).
+	_check(not Painter.sheets.has("ore_tin_nat") and not Painter.sheets.has("ore_copper_nat"), "no ore dots are drawn on the rock")
 	print("      one chunk painted in %d ms" % ms)
 
 

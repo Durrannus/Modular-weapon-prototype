@@ -175,11 +175,7 @@
    "rock_nat_foot.png",
    "rock_dug_foot.png",
    "rock_shadow.png",
-   "rock_core.png",
-   "ore_tin_nat.png",
-   "ore_tin_dug.png",
-   "ore_copper_nat.png",
-   "ore_copper_dug.png"
+   "rock_core.png"
   ],
   "water": [
    "water.png",

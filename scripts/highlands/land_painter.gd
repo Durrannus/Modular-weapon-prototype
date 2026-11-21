@@ -361,7 +361,10 @@ static func paint(m: LandMap, cx: int, cy: int) -> Image:
 			rocks.append([i, n, _near(K, i, FLOOR)])
 			mask.blend_rect(rock_shadow, Rect2i((n % COLS) * RW, (n / COLS) * RH, RW, RH), Vector2i((li - PAD) * T - RM_L, (lj - PAD) * T - RM_T))
 	lit.blit_rect_mask(shade, mask, Rect2i(0, 0, PX, PX), Vector2i.ZERO)
-	# 5. The rock: the stones at its foot, then the rock itself from the top row down, with any ore showing in it.
+	# 5. The rock: the stones at its foot, then the rock itself from the top row down. Ore is in the map but is not
+	# drawn yet: Darren turned down ore as dots on the rock (21 November: "I want it like veins through the rock"),
+	# and the art thread's veins come in when he has accepted them. The kit holds no ore sheets until then.
+	var ore: bool = sheets.has("ore_tin_nat")
 	for r in rocks:
 		if int(r[1]) < 0:
 			continue
@@ -380,9 +383,9 @@ static func paint(m: LandMap, cx: int, cy: int) -> Image:
 		var src := Rect2i((n % COLS) * RW, (n / COLS) * RH, RW, RH)
 		var dst := Vector2i(px - RM_L, py - RM_T)
 		lit.blend_rect(sheets["rock_dug" if r[2] else "rock_nat"], src, dst)
-		if K[i] == TIN:
+		if ore and K[i] == TIN:
 			lit.blend_rect(sheets["ore_tin_dug" if r[2] else "ore_tin_nat"], src, dst)
-		elif K[i] == COPPER:
+		elif ore and K[i] == COPPER:
 			lit.blend_rect(sheets["ore_copper_dug" if r[2] else "ore_copper_nat"], src, dst)
 	# 6. Lamplight on dug floor and the cut rock beside it.
 	if floored != null:

@@ -367,6 +367,9 @@ def main():
     ap.add_argument("--out", default=os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "art", "highlands"))
     ap.add_argument("--variants", type=int, default=4)
     ap.add_argument("--only", default="")
+    # Ore as crystals dotted on the rock is the look Darren turned down on 21 November ("I want it like veins through
+    # the rock"). The sheets are only written when asked for, and the game draws no ore without them.
+    ap.add_argument("--ore-dots", action="store_true")
     a = ap.parse_args()
     sys.dont_write_bytecode = True
     sys.path.insert(0, a.art)
@@ -389,11 +392,13 @@ def main():
                 print("rock", "dug" if dug else "nat", v, round(time.time() - t0, 1), flush=True)
             tag = "dug" if dug else "nat"
             sheet(P).save(os.path.join(a.out, "rock_%s.png" % tag)); sheet(U).save(os.path.join(a.out, "rock_%s_foot.png" % tag))
-            sheet(OT).save(os.path.join(a.out, "ore_tin_%s.png" % tag)); sheet(OC).save(os.path.join(a.out, "ore_copper_%s.png" % tag))
+            if a.ore_dots:
+                sheet(OT).save(os.path.join(a.out, "ore_tin_%s.png" % tag)); sheet(OC).save(os.path.join(a.out, "ore_copper_%s.png" % tag))
             if not dug: sheet(S).save(os.path.join(a.out, "rock_shadow.png"))
         sheet(K.rock_core(32), 8).save(os.path.join(a.out, "rock_core.png"))
-        info["sheets"]["rock"] = ["rock_nat.png", "rock_dug.png", "rock_nat_foot.png", "rock_dug_foot.png", "rock_shadow.png", "rock_core.png",
-                                  "ore_tin_nat.png", "ore_tin_dug.png", "ore_copper_nat.png", "ore_copper_dug.png"]
+        info["sheets"]["rock"] = ["rock_nat.png", "rock_dug.png", "rock_nat_foot.png", "rock_dug_foot.png", "rock_shadow.png", "rock_core.png"]
+        if a.ore_dots:
+            info["sheets"]["rock"] += ["ore_tin_nat.png", "ore_tin_dug.png", "ore_copper_nat.png", "ore_copper_dug.png"]
     for name, ch in (("yard", "y"), ("water", "w"), ("floor", "o"), ("path", "e")):
         if not want(name): continue
         L, D = [], []
