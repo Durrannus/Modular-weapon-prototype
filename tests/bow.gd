@@ -64,7 +64,7 @@ func _still() -> void:
 	p.input.attack_pressed = false
 	p.input.stick_aim = Vector2.RIGHT
 	p._reset_combo()
-	await _frames(70)      # long enough for every arrow to land and fade
+	await _frames(100)     # long enough for every arrow to land and fade (they fly slower since version 34)
 	p._reset_combo()
 	p.weapon["crit"] = 0.0   # no luck in the sums
 
@@ -178,12 +178,12 @@ func _run() -> void:
 	_check(p.weapon.get("weapon") == "bow" and p._is_bow(), "and the player knows it is a bow")
 	_check(m.build.stowed.get("sword") == sword and not m.build.stowed.has("bow"), "the sword waits, exactly as it was")
 	_check(m.hud.swap_button.text == "SWAP TO HAMMER (B)", "the button now offers the next weapon, the hammer")
-	_check(is_equal_approx(float(p.weapon["damage"]), 11.0 * SwingBuild.BOW_DAMAGE) and is_equal_approx(float(p.weapon["damage"]), 8.8), "an iron arrow does 8.8: four fifths of an iron sword's 11")
-	_check(is_equal_approx(float(p.weapon["range"]), 520.0) and is_equal_approx(float(p.weapon["flight"]), 1300.0), "it flies 520 px at 1300 a second")
+	_check(is_equal_approx(float(p.weapon["damage"]), 11.0 * SwingBuild.BOW_DAMAGE) and is_equal_approx(float(p.weapon["damage"]), 7.7), "an iron arrow does 7.7: seven tenths of an iron sword's 11")
+	_check(is_equal_approx(float(p.weapon["range"]), 520.0) and is_equal_approx(float(p.weapon["flight"]), 800.0), "it flies 520 px at 800 a second")
 	var chain: Array = []
 	for st in p.weapon["steps"]:
 		chain.append(st["move"])
-	_check(chain == ["quick_shot", "quick_shot", "heavy_shot"], "shortbow: quick shot, quick shot, heavy shot")
+	_check(chain == ["quick_shot", "quick_shot", "quick_shot"], "shortbow: three quick shots (no heavy last arrow until a later bow part)")
 	_check(p.weapon.get("arrows") == "iron_arrows", "with iron arrows")
 	m.swap_weapon(0, "sword")
 	await _frames(2)
@@ -203,7 +203,7 @@ func _run() -> void:
 	fresh.set_data(SwingBuild.STARTERS["sword"])
 	fresh.take("bow")
 	_check(fresh.get_data() == SwingBuild.STARTERS["bow"] and fresh.compute()["weapon"] == "bow", "someone who never had a bow gets the wooden shortbow")
-	_check(is_equal_approx(float(fresh.compute()["damage"]), 4.0), "whose wooden arrows do 4: a chain of 4 + 4 + 6 is one crawler's 14")
+	_check(is_equal_approx(float(fresh.compute()["damage"]), 3.5), "whose wooden arrows do 3.5: four of them are one crawler's 14")
 	fresh.take("spear")
 	_check(fresh.weapon() == "bow", "(asking for a weapon that doesn't exist changes nothing)")
 
@@ -229,9 +229,9 @@ func _run() -> void:
 	# The numbers plate: range where a sword has reach, and what a part would change.
 	var now: Dictionary = Forge.stat_values(forge.build.compute())
 	_check(now.has("range") and now.has("shoot_move") and not now.has("reach"), "a bow's numbers show range and walking while shooting")
-	_check(Forge.stat_text("damage", now["damage"]) == "Damage 8.8" and Forge.stat_text("range", now["range"]) == "Range 100%", "an iron shortbow reads Damage 8.8, Range 100%")
+	_check(Forge.stat_text("damage", now["damage"]) == "Damage 7.7" and Forge.stat_text("range", now["range"]) == "Range 100%", "an iron shortbow reads Damage 7.7, Range 100%")
 	var change: Dictionary = Forge.stat_changes(now, Forge.stat_values(forge.stats_with("iron_longbow")))
-	_check(str(change.get("range", "")) == "+35%" and str(change.get("damage", "")).begins_with("-") and str(change.get("shoot_move", "")) == "-10%", "pointing at the longbow shows more range, lighter arrows, slower feet: %s" % [change])
+	_check(str(change.get("range", "")) == "+35%" and not change.has("damage") and str(change.get("shoot_move", "")) == "-10%", "pointing at the longbow shows more range and slower feet, the same arrows: %s" % [change])
 	change = Forge.stat_changes(now, Forge.stat_values(forge.stats_with("tin_arrows")))
 	_check(change.size() == 1 and str(change.get("damage", "")).begins_with("-"), "tin arrows only change the damage: %s" % [change])
 	change = Forge.stat_changes(now, Forge.stat_values(forge.stats_with("horn_bow_grip")))
@@ -245,7 +245,7 @@ func _run() -> void:
 		if tray[i]["id"] in ["iron_longbow", "horn_bow_grip", "keen_string", "tin_arrows"]:
 			forge._use_card(i)
 	_check(m.build.get_data() == ["iron_longbow", "horn_bow_grip", "keen_string", ["volley", "snipe", "", "arrow_rain", "ricochet"], "tin_arrows"], "clicking limbs, a grip, a string and arrows fits them: %s" % [m.build.get_data()])
-	_check(is_equal_approx(float(p.weapon["damage"]), 8.0 * 0.8 * 0.9) and is_equal_approx(float(p.weapon["range"]), 702.0), "a longbow with tin arrows: 5.76 damage, 702 px")
+	_check(is_equal_approx(float(p.weapon["damage"]), 8.0 * 0.7) and is_equal_approx(float(p.weapon["range"]), 702.0), "a longbow with tin arrows: 5.6 damage, 702 px")
 	forge._load_test("A")
 	_check(m.build.weapon() == "bow", "the test-sword keys do nothing while a bow is on the anvil")
 	# Presets: a bow has three of its own.
@@ -269,15 +269,15 @@ func _run() -> void:
 	m.build.changed.emit()
 	await _frames(2)
 
-	# --- A chain at one enemy: 8.8, 8.8, 13.2 --------------------------------------------
+	# --- A chain at one enemy: 7.7, 7.7, 7.7 ---------------------------------------------
 	await _still()
 	var post = _slime(Vector2(200, 0))
 	await _frames(2)
 	await _shots(1)
-	_check(is_equal_approx(_lost(post), 8.8), "a quick shot hits an enemy 200 px away for 8.8 (%.3f)" % _lost(post))
+	_check(is_equal_approx(_lost(post), 7.7), "a quick shot hits an enemy 200 px away for 7.7 (%.3f)" % _lost(post))
 	post.hp = post.max_hp
 	await _shots(3)
-	_check(absf(_lost(post) - (8.8 + 8.8 + 13.2)) < 0.001, "the whole chain: 8.8 + 8.8 + a heavy 13.2 = 30.8 (%.3f)" % _lost(post))
+	_check(absf(_lost(post) - 7.7 * 3.0) < 0.001, "the whole chain: three arrows of 7.7 = 23.1 (%.3f)" % _lost(post))
 	_check(_arrows().is_empty(), "an arrow that hits is gone")
 	_check(is_equal_approx(p.global_position.x, home.x) and is_equal_approx(p.global_position.y, home.y), "shooting doesn't move you")
 	post.queue_free()
@@ -394,8 +394,8 @@ func _run() -> void:
 	m.swap_weapon(0, "sword")
 	await _frames(1)
 	_check(m.build.weapon() == "sword", "swapping to the sword while it flies")
-	await _frames(40)
-	_check(is_equal_approx(_lost(target), 8.8), "it still lands for its 8.8")
+	await _frames(70)
+	_check(is_equal_approx(_lost(target), 7.7), "it still lands for its 7.7 (%.3f)" % _lost(target))
 	_check(m.net_state().size() == before - 3, "(online, both computers compare where every arrow is while it flies)")
 	target.queue_free()
 	await _still()
@@ -413,7 +413,7 @@ func _run() -> void:
 	p.is_down = false
 	await _still()
 
-	# --- The longbow: three slow heavy shots, further, within a tenth of the shortbow ----
+	# --- The longbow: shot, shot, a charged heavy shot; further; within a tenth of the shortbow ----
 	m.swap_weapon(0, "bow")
 	await _frames(2)
 	m.build.set_blade("iron_longbow")
@@ -421,11 +421,15 @@ func _run() -> void:
 	var long_steps: Array = []
 	for st in p.weapon["steps"]:
 		long_steps.append(st["move"])
-	_check(long_steps == ["long_shot", "long_shot", "long_shot"], "longbow: three long shots")
+	_check(long_steps == ["quick_shot", "quick_shot", "charged_shot"], "longbow: shot, shot, charged shot (the later part with the heavy last arrow)")
 	var far_post = _slime(Vector2(650, 0))
 	await _frames(2)
 	await _shots(1)
-	_check(is_equal_approx(_lost(far_post), 8.8 * 0.9 * 1.5), "a long shot reaches an enemy 650 px away for 11.9 (%.3f)" % _lost(far_post))
+	_check(is_equal_approx(_lost(far_post), 7.7), "a longbow's arrow reaches an enemy 650 px away for 7.7 (%.3f)" % _lost(far_post))
+	far_post.hp = far_post.max_hp
+	await _shots(3)
+	_check(absf(_lost(far_post) - 7.7 * (2.0 + float(Player.MOVES["charged_shot"]["power"]))) < 0.001, "its whole chain: 7.7 + 7.7 + a charged 13.5 (%.3f)" % _lost(far_post))
+	_check(float(Player.MOVES["charged_shot"]["windup"]) > float(Player.MOVES["quick_shot"]["windup"]) * 2.0, "the last arrow takes a moment to charge")
 	far_post.queue_free()
 	p.input.move = Vector2.LEFT
 	p.input.attack_held = true

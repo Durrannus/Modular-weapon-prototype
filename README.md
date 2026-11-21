@@ -6,7 +6,7 @@ A Godot prototype for a co-op top-down game about building weapons from parts.
 
 This branch has four things to try:
 
-- **The tutorial cave** (Game Plan milestone 4): four rooms, from a shipwreck crate to a forge guardian, for one or two players. You choose your weapon at the crate: a sword or a bow since version 21, a hammer or a staff too since version 27.
+- **The tutorial cave** (Game Plan milestone 4): four rooms, from a shipwreck crate to a forge guardian, for one or two players. You choose your weapon at the crate: a sword or a bow since version 21, a hammer or a staff too since version 27. Since version 34 you can click the one you want, and each weapon goes to one player.
 - **Two players on one screen.**
 - **Two players online**, one on each computer (see "Playing online" below).
 - **The test arena**: the sandbox for trying weapons out, with every sword part unlocked. You can't be hurt there unless you switch that off, and you can stop the enemies where they stand (see "Controls").
@@ -16,6 +16,7 @@ This branch has four things to try:
 - **Slim runes and bands** (version 30). The bronze boxes round the sockets are gone: runes are small gems in their own colour, bands are thin rings, and the weapon runs unbroken underneath. See "Slim runes and bands" below.
 - **The forge spirit** (version 31). Runes are no longer drawn on the weapon at all. A small ember, the forge spirit, floats at each player's shoulder and holds them: a mark over it for each rune on a button, and the rune's sign leaps from the spirit to the weapon when you use it. The forge screen is now the spirit with a ring of seats round it, one seat for each socket your parts give. Bands are called **threads** and slots **seats**. See "The forge spirit" below.
 - **The cave's first runes** (version 32). In the tutorial cave the sword's first rune is now **Whirlwind** (it was Shockwave) and the bow's is **Volley** (it was Steady Aim), as the Game Bible decided on 17 November; the hammer keeps Quake and the staff Lance. All four are active runes, abilities on a button, so every weapon now gets the card that says which button before the guardian wakes. Shockwave and Steady Aim are still in the game, at the forge in the test arena.
+- **Darren's 21 November playtest list** (version 34). Darren played version 33 and sent a list; this is all of it. The bow is slower and lighter, the hammer is a slow two-handed weapon that hits very hard, the staff's bolts are free and its runes run on mana, Quake is a crack along your aim, abilities only start on a full meter, the crate's weapons can be clicked and each goes to one player, the forge lists what each thread adds to a rune, the game has a new font, and the ability effects are redrawn in the game's own metals. **This list changes many numbers in the older sections below: where they disagree, "Version 34" is right.** See "Version 34: the 21 November playtest list" below.
 - **The 19 November combat rules** (version 33). **Hook** throws one chain at one enemy, the one you aim at, and drags it to you; a boss is too heavy, so the chain pulls you a little way to it instead. **Bulwark** only blocks: it takes three hits, and when enemies break it, it bursts and stuns everyone near you (it no longer stuns whoever hits it). **Shards** burst out of the back of the enemy you hit, in a cone, and fly straight into whoever stands behind it (they used to jump to the closest enemy). The **"toughest enemy" rule** (most health left, an elite always first) is in the game too, ready for the runes that will use it. See "The 19 November combat rules" below.
 
 ## How to run it
@@ -147,10 +148,10 @@ Game code must follow these rules, or the two games drift apart:
 | Attack | Left click (swings, or shoots, toward the mouse) | X or right trigger (swings or shoots the way you face, or aim with the right stick) |
 | Keep attacking | Hold left click | Hold X |
 | Dodge | Space or Shift | A or left trigger |
-| First active rune (hold for Whirlwind; hold and let go for Snipe, on whichever button it is) | Right click | RB |
+| First active rune (hold for Whirlwind or Lance; hold and let go for Snipe, on whichever button it is). An ability only starts when its button is full (version 34) | Right click | RB |
 | Second active rune | Q | LB |
 | Third active rune | R | B |
-| Use (crate, rune, forge, talk) | E or F | A or Y, when the prompt shows |
+| Use (crate, rune, forge, talk) | E or F (at the open crate you can also click the weapon you want) | A or Y, when the prompt shows |
 | Pause menu | Esc | Start (in the cave) |
 | Fullscreen on or off | F11 | |
 | Test arena only: open the forge anywhere | Tab | Y |
@@ -164,7 +165,7 @@ Game code must follow these rules, or the two games drift apart:
 - **Invincible** is on when the arena starts: nothing can hurt you, because the room is for trying swords and runes out. Switch it off for a real fight; switching it back on refills your health.
 - **Pause enemies** really pauses them: nobody new arrives, and the ones in the room stand still, go dull, show a small pause mark and hurt nobody. You can still hit them, push them about and kill them, so they make good targets for a rune. (Before version 17 it only stopped new ones arriving.)
 
-**At the forge** (the game pauses): drag a part onto a slot, or click a slot and then a part. Right-click or drag off to remove. Keys or controller: up and down pick a slot, left and right pick a part, Q/E or the shoulder buttons change tab, Enter or A fits it. **To leave, click BACK at the top left, or press Esc (B on a controller); Tab or Y works too.** Point at a rune and hold Alt (the left trigger on a controller) to see a picture of it firing. Point at a blade, grip or pommel you could fit and the numbers show what it would change: gains in green with a plus, losses in red with a minus. **Presets:** A, B and C at the top right are three saved swords. Click one (or press C, or Select on a controller) and the whole sword changes to it; click the name beside them to type a name of your own.
+**At the forge** (the game pauses): drag a part onto a slot, or click a slot and then a part. Right-click or drag off to remove. Keys or controller: up and down pick a slot, left and right pick a part, Q/E or the shoulder buttons change tab, Enter or A fits it. **To leave, click BACK at the top left, or press Esc (B on a controller); Tab or Y works too.** Point at a rune and hold Alt (the left trigger on a controller) to see a picture of it firing. Since version 34 pointing at a rune on the ring also lists the threads that reach it, one line each with what it adds. Point at a blade, grip or pommel you could fit and the numbers show what it would change: gains in green with a plus, losses in red with a minus. **Presets:** A, B and C at the top right are three saved swords. Click one (or press C, or Select on a controller) and the whole sword changes to it; click the name beside them to type a name of your own.
 
 ## The tutorial cave
 
@@ -174,7 +175,7 @@ It opens with a 23 second cutscene: the ship in the storm, the wreck on the rock
 
 The cave has music (version 11). A calm loop starts when the cutscene ends, fight music takes over when the forge guardian wakes (and stays through a knock-out and restart), and the calm loop comes back when the guardian falls. `scripts/music.gd` plays the tracks and fades one into the other; the two Ogg files and the scripts that made them are in `art/music/`, and how loud each sits is `VOLUME` in `scripts/music.gd`. Music is each screen's own, so it never touches the game state and is safe online.
 
-1. **The wreck.** Search the ship's crate, choose a wooden staff, sword, bow or hammer from the four plates that rise over it (stand under one and press Use), then fight a few crawlers. They rear up before they bite, and a hit while they rear up stops the bite. Once the room is clear you can go back to the crate and swap, until the next fight starts.
+1. **The wreck.** Search the ship's crate, choose a wooden staff, sword, bow or hammer from the four plates that rise over it (click one, or stand under it and press Use; since version 34 each weapon goes to one player), then fight a few crawlers. They rear up before they bite, and a hit while they rear up stops the bite. Once the room is clear you can go back to the crate and swap, until the next fight starts.
 2. **The burrows.** Burrowers travel underground, come up, flash red and lunge in a straight line. Dodge aside and hit them while they lie stunned.
 3. **The nest.** A mixed fight. Clearing it lets you take your first rune (Whirlwind for a sword, Volley for a bow, Quake for a hammer, Lance for a staff; until version 32 the sword's was Shockwave and the bow's Steady Aim), which your weapon can't use yet.
 4. **The forge.** The forge is a colossal sword set in the north wall, with a knight kneeling asleep in front of it. Fit the rune to your weapon there and the forge lights, molten metal runs down the floor channels, and the guardian wakes. (Every weapon's first rune is an active rune, an ability on a button, so a card first says which button, right mouse or RB, and whether to press it or hold it. Until version 32 only the hammer and the staff had one.) It has four attacks, each marked on the floor in red before it lands, and a line under its health bar names the attack and says what to do. **Slam**: a circle fills, then the hammer comes down. **Charge**: a lane shows the path, and a charge that hits a wall stuns it. **Quake**: cracks run out from it like the spokes of a wheel, so stand between them. **Rockfall**: rocks drop one after another where you stand, so keep moving, and hit it while it stands still. The first four attacks are one of each, and it never does the same one twice running. Below half health it slams three times in a row, a second ring of cracks fills the gaps of the first, and more rocks fall. The timings are at the top of `scripts/cave/guardian.gd` (`SLAM_WINDUP`, `REST` and so on). Beat it and the old smith is freed: he explains runes (round ones work by themselves, square ones are active and give you an ability on a button once slotted into the weapon) and bands, and hands over your weapon's tin parts (a blade and a grip; limbs, a grip and arrows; a head and a haft; a head, a shaft and a crystal). Forge the tin weapon and the stairs to the surface open.
@@ -184,7 +185,7 @@ Rules:
 - After each room everyone is healed and anyone knocked out gets back up. There are no revives mid-fight.
 - If everyone is knocked out, that room (or the boss) starts over.
 - With two players there are more enemies, the guardian has more health, its rockfall is longer, and it also brings rocks down after each charge.
-- The crate offers all four wooden starters (Game Bible): the sword and the bow since version 21, the staff and the hammer since version 27. Two players can take different weapons: each then gets their own weapon's rune and tin parts, and the smith's words and the hints fit whoever is there.
+- The crate offers all four wooden starters (Game Bible): the sword and the bow since version 21, the staff and the hammer since version 27. **Since version 34 every player takes a different weapon** (Darren, 21 November): a weapon somebody holds can't be taken by anyone else until they swap it back. Each player gets their own weapon's rune and tin parts, and the smith's words and the hints fit whoever is there.
 
 ## How the movement and sword feel (9 November pass)
 
@@ -207,7 +208,7 @@ Run these after changes (they need no window):
 ```
 godot --headless --path . -s tests/test_swing_build.gd                         # the sword rules
 godot --headless --path . --fixed-fps 60 -s tests/feel_check.gd                # movement and swing feel
-godot --headless --path . --fixed-fps 60 -s tests/active_runes.gd              # Whirlwind, Leap and Ghostwield on their buttons (and Hook, the hammer's now, put on a sword by hand), the bands on them, and Weak Point
+godot --headless --path . --fixed-fps 60 -s tests/active_runes.gd              # Whirlwind, Leap and Ghostwield on their buttons (and Hook, the hammer's now, put on a sword by hand), the bands on them, that a held rune only starts on a full meter, and Weak Point
 godot --headless --path . --fixed-fps 60 -s tests/blade_shapes.gd              # the six blade shapes: reach, what each move hits, each lean, damage a second
 godot --headless --path . --fixed-fps 60 -s tests/cave_playthrough.gd          # plays the whole cave with a sword
 godot --headless --path . --fixed-fps 60 -s tests/cave_playthrough.gd -- bow   # with a bow ("swap": takes the sword, swaps it for the bow after room 1)
@@ -220,9 +221,9 @@ godot --headless --path . --fixed-fps 60 -s tests/title_screen.gd              #
 godot --headless --path . --fixed-fps 60 -s tests/arena_switches.gd            # the arena's two switches: Invincible, and Pause enemies
 godot --headless --path . --fixed-fps 60 -s tests/bow.gd                       # the bow: swapping, its numbers, the forge and presets, what an arrow hits and where it stops, the longbow, damage a second against the sword's
 godot --headless --path . --fixed-fps 60 -s tests/bow_runes.gd                 # the bow's six runes: their rules, pictures and sentences, and each one with every band in the arena (takes about two minutes)
-godot --headless --path . --fixed-fps 60 -s tests/hammer.gd                    # the hammer: its parts, swing, swing, slam and what each hits, that it pins and slows you, the warhammer, damage a second against the sword's
+godot --headless --path . --fixed-fps 60 -s tests/hammer.gd                    # the hammer: its parts, swing, swing, slam and what each hits, that it pins and slows you, held in both hands, the warhammer, damage a second against the sword's
 godot --headless --path . --fixed-fps 60 -s tests/hammer_runes.gd              # the hammer's six runes: their rules, pictures and sentences, and each one with every band in the arena
-godot --headless --path . --fixed-fps 60 -s tests/staff.gd                     # the staff: its parts, bolt, bolt, burst, range and walls, mana and the weak sparks without it, the storm head, damage a second against the sword's and the bow's
+godot --headless --path . --fixed-fps 60 -s tests/staff.gd                     # the staff: its parts, three bolts and their small splash, range and walls, free casts and slow mana, the storm head, damage a second against the sword's and the bow's
 godot --headless --path . --fixed-fps 60 -s tests/staff_runes.gd               # the staff's six runes: their rules, pictures and sentences, each one with every band in the arena, and a Spectre given to a teammate with a sword and with a bow
 godot --headless --path . --fixed-fps 60 -s tests/lab.gd                       # the lab: every number it shows is really in the game and inside its limits, a change reaches the game and a reset takes it out, the file, online uses the game's own numbers, the screen in the arena and the cave, the spawner, the search ("-- show" prints every number)
 godot --headless --path . --fixed-fps 60 -s tests/spirit.gd                    # the forge spirit: its pictures, where it floats, its marks, one sign for each rune used, that it changes nothing in the game, and that it joins you at the forge in the cave
@@ -252,6 +253,8 @@ To skip the title screen while testing: `godot --path . -- cave` or `godot --pat
 
 ## The bow (versions 18 to 21, 14 November)
 
+> **Version 34 changed this** (Darren's 21 November playtest). An arrow now flies at 800 px a second and does 70% of a sword hit (iron: 7.7); the shortbow shoots three plain arrows, and the heavy last arrow is the longbow's, after a short charge; the iron shortbow does 0.68 of the iron broadsword's damage a second. The rest of this section is as it was first built; see "Version 34: the 21 November playtest list".
+
 Game Bible milestone 6 ("the bow is as fun as the sword, and you can finish the tutorial cave with it"), built a stage a version: a bow you can shoot in the test arena (18), the bow at the forge (19), its six runes (20), the tutorial cave with a bow (21). All four stages are built; whether it is as fun as the sword is for Darren to say.
 
 - **Swap** with **B** or a click of the right stick (one player also has a SWAP button at the top right). Everyone in the arena carries test sword D and an **iron shortbow** with iron arrows on a two-slot grip, fitted since version 20 with Volley, Snipe and Arrow Rain on the three buttons and Ricochet. Whatever you change on the sword is still there when you swap back.
@@ -265,7 +268,7 @@ Game Bible milestone 6 ("the bow is as fun as the sword, and you can finish the 
 
 ### The bow in the tutorial cave (version 21)
 
-- **The crate.** "Search the crate" opens it, and a row of plates rises over it: staff (locked), sword, bow, hammer (locked). The plate you stand under lights in your colour and the prompt names it; Use takes it. There are enough training weapons for everyone, so two players can both take the bow. While the room's fight is on the row is hidden (on a controller the dodge button is also Use, and a dodge beside the crate must not swap your weapon); once the room is clear it is back, and you can swap until room 2's fight starts.
+- **The crate.** (Since version 34 the plates can be clicked and each weapon goes to one player: see "Version 34".) "Search the crate" opens it, and a row of plates rises over it: staff (locked), sword, bow, hammer (locked). The plate you stand under lights in your colour and the prompt names it; Use takes it. There are enough training weapons for everyone, so two players can both take the bow. While the room's fight is on the row is hidden (on a controller the dodge button is also Use, and a dodge beside the crate must not swap your weapon); once the room is clear it is back, and you can swap until room 2's fight starts.
 - **The first rune** is each weapon's own. **Since version 32 it is Whirlwind for the sword and Volley for the bow** (Darren, 17 November, in the Game Bible: all four starter runes are active ones). Versions 21 to 31 gave the sword Shockwave and the bow Steady Aim; Steady Aim had been Claude's choice while the Bible left the bow's starter open.
 - **The smith** hands a bow player tin limbs, a tin grip and tin arrows. A tin bow counts as forged when the limbs and the arrows are tin and the rune is in a slot (the arrows are a bow's damage).
 - **Words.** The cards, hints, objectives and the smith's lines fit the weapons in play: one text for swords, one for bows, one when the players differ. Online they go by every player, not by your own weapon, because a line of speech must be the same length on both computers.
@@ -303,6 +306,8 @@ Game Bible milestone 7 ("both weapons, and the cave crate offers all four wooden
 
 ### The hammer
 
+> **Version 34 changed this** (Darren's 21 November playtest). The hammer is now very slow and very heavy and is held in both hands: an iron maul's swing does 30.8 and its slam 46.2, at 0.45 of a sword's speed, and it does 1.28 times the iron broadsword's damage a second. The rest of this section is as it was first built; see "Version 34: the 21 November playtest list".
+
 - "The close-range heavy hitter: big damage in a small area, so you must get in close" (Game Bible). An iron maul's swing does **18.7** (an iron sword's 11 and seven tenths more), it swings at seven tenths of a sword's speed, reaches three quarters as far (68 px, a broadsword 91) and you walk at 80% speed while swinging. Against one enemy it does **1.19 times** the iron broadsword's damage a second (`tests/hammer.gd` measures it).
 - The maul's chain is **swing, swing, slam** (Game Bible). A swing is a short blunt arc. The **slam** lands on a **patch of floor** in front of you (38 px round, a little further out than the swings reach) and hits everything on it for one and a half swings.
 - **A hammer pins, a sword shoves.** A swing stuns for 0.3 s and a slam for 0.6 s (a slash 0.16 s, an overhead 0.3 s) and shoves about half as far, so what you hit is still in reach for the next blow.
@@ -310,6 +315,8 @@ Game Bible milestone 7 ("both weapons, and the cave crate offers all four wooden
 - Parts: head (`HEADS`: wooden, tin and iron maul, iron warhammer), haft (`HAFTS`: 1 to 3 slots) and counterweight (`WEIGHTS`: the pommels' four).
 
 ### The staff
+
+> **Version 34 changed this** (Darren's 21 November playtest). A bolt now does 60% of a sword hit (iron: 6.6), flies at 520 px a second and also hurts whatever stands right beside the enemy it hits; the apprentice head casts three plain bolts; **basic casts cost no mana, and the staff's runes do**; mana comes back at 5 a second and no faster for resting. The rest of this section is as it was first built; see "Version 34: the 21 November playtest list".
 
 - A bolt does what an arrow does: **80% of a sword hit** with the same tier of crystal (iron: 8.8), for the same reason (ranged must not beat melee). It flies **400 px** (an arrow 520) at 760 a second (an arrow 1300), so it is easier to see and to walk out of. You walk at 80% speed while casting, and the bolt leaves towards wherever you are aiming at that moment. A bolt is gone where it stops: nothing is left lying on the floor.
 - The apprentice head's chain is **bolt, bolt, burst** (Game Bible). The **burst** is a bigger ball that hurts everything within 56 px of where it lands, or of where it stops if it hits nothing. Against one enemy the iron staff does 0.85 of the iron broadsword's damage a second, the same as the iron shortbow (`tests/staff.gd` measures it).
@@ -335,6 +342,8 @@ How it is built:
 
 ### The hammer's runes (version 24)
 
+> **Version 34 changed this** (Darren's 21 November playtest). **Quake is a crack along your aim**, and with the heavier hammer every number below that is "a swing's worth" is bigger. Hook's hook is a forged bronze claw. The rest of this section is as it was first built; see "Version 34: the 21 November playtest list".
+
 Three passive and three active, like the sword and the bow. The Game Bible gives each a line and Darren set Aftershock's bands on 11 November; **what the other bands do, and every number below, is Claude's design**, for Darren to overturn. In the test arena the iron maul carries Quake, Bulwark and Hook on its three buttons and Aftershock as its passive; the others are in the forge's rune tab.
 
 - **Momentum** (passive): each swing that lands lights one of five chevrons round your feet, and each lit one makes your swings hit 8% harder, so +40% at five ("MOMENTUM +40%!"). Two seconds after your last hit they start to go out, one every half second. One swing is one step however many enemies it catches, and the bonus is for swings, not for what runes do. Twice: two steps a swing. Wider: bigger steps (+13%, up to +64%). Every Hit: every enemy a swing catches is a step. Saved Up: a step only on every third swing that lands, but +20% each, up to +100%. On Dodge: a dodge counts as a hit. A step is never worth more than +20% whatever the bands, so Momentum at its most doubles a swing.
@@ -356,6 +365,8 @@ Three passive and three active, like the sword and the bow. The Game Bible gives
 - **How long the fights take** with the test's scripted players (three runs each, seconds; measured in version 27, when the sword and the bow still had their passive first runes): crawlers 11.8 with the hammer and 12.5 with the staff, burrowers 9.0 and 10.5, the nest 16.2 and 20.5, the guardian **19.6** and 23.0 (the same day's sword run: 12.8, 10.4, 17.8 and 23.9; the bow's: 13.4, 12.0, 17.5 and 23.5). So the guardian falls about a fifth sooner to the hammer than to anything else: its swings do 1.19 times the sword's damage a second and Quake comes on top. The scripted players are never afraid to stand next to it, which a person with a slow weapon will be, so this is a number to watch and not yet a reason to change one.
 
 ### The staff's runes (versions 25 and 26)
+
+> **Version 34 changed this** (Darren's 21 November playtest). **The staff's runes now cost mana**: Nova 25, Spectre 40, Lance 8 a pulse until the bar is empty, and Orbit, Chain and Overflow 5 each time they go off. A bolt is 6.6, not 8.8, so every number below that is "a bolt's worth" is smaller. The rest of this section is as it was first built; see "Version 34: the 21 November playtest list".
 
 Three passive and three active. Overflow, Nova, Lance and Spectre are Darren's (11 November afternoon, in the Game Bible), and so are **Overflow's and Spectre's bands** ("Overflow bands" and "Spectre bands" there; version 25 had Claude's own for those two by mistake, version 26 put Darren's in). Orbit and Chain were only names. **What Orbit and Chain do, the bands of Orbit, Chain, Nova and Lance, and every number below is Claude's design**, for Darren to overturn. In the test arena the iron staff carries Nova, Lance and Spectre on its three buttons and Chain as its passive; Orbit and Overflow are in the forge's rune tab. The active three use their own recharge, not mana. Damage is a share of one bolt from the same staff (8.8 from the iron apprentice staff).
 
@@ -401,6 +412,116 @@ Darren, 15 November: "can we make a lab so I can adjust numbers myself without h
 **How it is built.** `scripts/lab.gd` is the list: each row says which page and group a number is on, what it is called, where it lives in the code, and its step and limits. The numbers themselves are still in the code where they always were (`scripts/weapon/swing_build.gd`, `scripts/player.gd`, `scripts/enemy.gd`, the cave's enemies), now as `static var` in place of `const` so they can be written to while the game runs. To put another number in the lab: make it a `static var`, add one `_add(...)` line, and `tests/lab.gd` checks it. Only the game's front door (`scripts/boot.gd`) reads the lab file, so the tests, which load a scene directly, always run on the game's own numbers. The screen is `scripts/ui/lab_screen.gd`; the spawner is `spawn_enemies` in `scripts/main.gd`. The search is `Lab.find(text)`: a number is found by its page, group and name and by its place in the code (`SLAM_DAMAGE` counts as "slam damage"), and the everyday words it also understands are the short list `Lab.ALSO`.
 
 Which keys open it, which numbers are in it, their steps and limits, the spawner's details, and how the search works (its keys, the everyday words it understands) are Claude's choices, for Darren to change.
+
+## Version 34: the 21 November playtest list
+
+Darren played version 33 on 21 November, sent a list while he played, and then said "put these into action now". Version 34 is that whole list, built in one go. **Where this section and an older one below disagree, this one is right**: the older sections say how each thing was first built. His words are quoted. How much slower, how much weaker and so on he left open, so **every number here is Claude's choice**, and so is anything marked that way. All of it is for him to overturn, and all of the numbers are in the lab.
+
+If you changed numbers in the lab before this version, your own numbers still win on your computer. Open the lab and reset the ones you want back, or you will not see the new ones.
+
+### The bow
+
+"the arrows fly too fast, its too easy to land shots. too much damage also as its ranged so too easy to stay safe with that much dmg. also dont add a heavy shot on the last arrow untill later bow parts and have it charge the last shot slightly"
+
+- An arrow flies at **800 px a second** (it was 1300), so an enemy that moves can be missed.
+- An arrow does **70% of a sword hit** in the same metal (it was 80%): 3.5 from the wooden bow, 5.6 from tin, 7.7 from iron. A crawler now takes four wooden arrows. Against one enemy the iron shortbow does **0.68** of the iron broadsword's damage a second (it was 0.85).
+- **The shortbow shoots three plain arrows.** The heavy last arrow is gone from it and from the wooden bow.
+- **The longbow is the "later bow part"**: shot, shot, then a **charged shot**. The last arrow takes a moment longer to draw (0.42 seconds against 0.13), then hits one and three quarter times as hard with a hard shove. The longbow's arrows still fly a third further and you walk slower while shooting it. The two bows do the same damage a second (19.7 and 19.3).
+- An arrow hits one enemy "slightly harder" than a staff's bolt (7.7 against 6.6 in iron), as he asked when he talked about the staff.
+- **At the forge the arrow is slim** ("the bow arrow is huge in the forge screen"): the art thread redrew the forge arrows at 45 by 5 pixels.
+- Where it lives: `BOW_DAMAGE`, `BOW_FLIGHT`, `BOW_SHAPES` in `scripts/weapon/swing_build.gd`; the move `charged_shot` in `scripts/player.gd`. `tests/bow.gd` and `tests/bow_runes.gd` check it.
+
+### The crate
+
+"make items in chest clickable so you can click which one you want. and when one is taken remove it from being selected so each playe gets different weapon"
+
+- With the crate open, **click a weapon's plate to take it**, from wherever you stand. Pointing at a plate lights it in your colour. Standing under a plate and pressing Use still works, and that is what a controller player does (Claude's choice).
+- **Each weapon goes to one player.** A weapon somebody holds shows dim with "P1" or "P2" on its plate and nobody else can take it. If you swap, your old weapon goes back into the crate (Claude's choice), so a swap is still possible until room 2's fight starts.
+- Online the click goes by the mouse as the game's simulation knows it, so both computers agree who took what.
+- Where it lives: `_mouse_pick`, `_holder` and `_can_take` in `scripts/cave/cave.gd`; the plates in `scripts/cave/cave_ui.gd`.
+
+### The hammer
+
+"the hammer needs alot slower attack speed, and better animations as it just loks like sword, need to be two handed look and slow but good damage"
+
+- **A lot slower, a lot heavier.** A maul swings at **0.45** of a sword's speed (it was 0.7) and a swing does **2.8** sword hits (it was 1.7): 30.8 from the iron maul, and 46.2 for the slam. A wooden maul's swing does 14, which is one crawler. Against one enemy the iron maul does **1.28 times** the iron broadsword's damage a second (it was 1.19): slow, short reach and standing still next to the enemy is what you pay for it. The warhammer is slowed the same way and the two heads still do the same a second.
+- **Held in both hands, with swings of its own.** The hammer is carried across the chest with both fists on the haft. A swing is hauled right back behind the shoulder and swung through past your aim. A slam is raised straight up over the head and brought down along your aim. After a blow the head stays down where it landed for a moment before it is lifted. It is still key poses and a smear, and swinging still never moves you.
+- **Quake is a crack along your aim** ("quake is too similar to aftershock"; he picked "Quake: a crack along your aim" on the card). It runs **240 px** from you the way you aim and hits **every enemy on that line** (within 16 px of it) for a swing and a half (46.2 from the iron maul) with a 0.6 second stun. Aftershock stays a rumble where your slam lands. The threads (Claude's choices): Twice sends a second crack 0.3 seconds later, Wider makes it longer and wider, Saved Up is three times as strong and three times as slow, On Dodge sets one off at half strength. The art thread drew the crack: dark split stone with ember light in it and pale stone spikes.
+- **Hook's hook** ("looks like a fishing hook. make it look more in line with the game") is now a **forged bronze claw** with three steel-tipped talons, open as it flies and shut as it bites. Its rune stone, its button and its spirit sign show the same claw. The claw rather than a grapnel was the art thread's pick.
+- Where it lives: `HAMMER_SHAPES`, `QUAKE_*` in `scripts/weapon/swing_build.gd`; "The hammer in both hands" and Quake in `scripts/player.gd`; the crack in `scripts/fx/rune_fx.gd` ("crack"). `tests/hammer.gd` and `tests/hammer_runes.gd` check it.
+
+### The staff
+
+"the staff progectiles are also too fast, lets have the auto attack from staff hit a small aoe when it hits but very small as where the bow only hits one target but slightly harder. the basic attack shouldnt use mana either but the abilities should. ... lance should be ale to build up damage until mana runs out then go on cooldown ... mana recharges too fast also, we want accessories to give that later ... passives should use mana also but not as much as actives." and "also remove the heavy like the bow until later parts"
+
+- A bolt flies at **520 px a second** (it was 760) and does **60% of a sword hit** (it was 80%): 3 from the wooden staff, 4.8 from tin, 6.6 from iron.
+- **A very small splash.** A bolt also hurts every enemy whose edge is within **18 px** of where it lands: only what stands right against the one it hit. A bolt that hits nothing pops with the same small splash where it stops (Claude's choice).
+- **The apprentice head casts three plain bolts.** The burst is gone from it and from the wooden staff. The **storm head** is the later part that keeps a heavy last cast: spray, spray, orb.
+- **Basic casts cost no mana.** The staff's runes do.
+- **Mana comes back slowly**: 5 a second, always, and no faster for resting (it was 10 a second, and 45 more after a rest). A full bar of 100 takes 20 seconds. Accessories are to give recharge later.
+- **Active runes cost mana and still have their recharge**: **Nova 25**, **Spectre 40**, **Lance 8 a pulse**. Without the mana the button is not ready. The forge says both: "Costs 25 mana and recharges in 6 seconds."
+- **Lance runs on mana.** Hold it and it pulses four times a second, 8 mana a pulse, growing to twice and three times as strong as the bar goes down, **until the mana is gone**: a full bar is twelve pulses, three seconds, 118.8 damage from the iron staff. When the beam stops, by running dry or by letting go, it goes on its 8 second recharge. It needs at least one pulse of mana to start. Twice halves the cost of a pulse, so a full bar lasts about six seconds.
+- **Passive runes cost 5 mana each time they go off** (Orbit, Chain, Overflow), and without the mana they do not go off. His line "once passives are in thern the basic should use mana" was read as this: the basic attack stays free, and it is the passive rune's own effect that costs a little (Claude's reading, told to him on the day). An active rune's On Dodge and the copies a Spectre makes are free.
+- **Overflow** now reads: "On full mana your next bolt is bigger and hits 30% harder." It costs its 5 mana, so the bolt after it is a plain one until the bar is full again, a second later (Every Hit gives 3 back for each bolt that lands).
+- **At the forge** the staff's numbers plate shows its bar ("Mana 100, +5 a second") where it showed what a chain cost.
+- A cast that costs mana you do not have is still a weak spark, but since no basic cast costs anything now that only happens if you give casts a cost in the lab.
+- Against one enemy the iron staff does **0.59** of the iron broadsword's damage a second from its bolts alone (it was 0.85), and a little less than the bow, because a bolt also hurts what stands beside its target and the staff's runes come on top.
+- Where it lives: `STAFF_DAMAGE`, `STAFF_FLIGHT`, `BOLT_SPLASH`, `STAFF_SHAPES`, `MANA_REGEN`, `CAST_MANA`, `RUNE_MANA`, `PASSIVE_MANA` in `scripts/weapon/swing_build.gd`; "The staff" in `scripts/player.gd` (`ability_mana`, `_spend_passive`). `tests/staff.gd` and `tests/staff_runes.gd` check it.
+
+### The sword
+
+"sword, whirlwind doest last long enough and ghost blade ability last too long and is quite strong"
+
+- **Whirlwind** spins for up to **six turns** on a full meter, about 1.7 seconds (it was three turns, under a second), and its meter refills in 6 seconds (it was 5). Twice makes it twelve turns.
+- **Ghostwield** lasts **8 seconds** (it was 15) and its ghost copies each swing at **35%** (it was half). Wider is about 11 seconds. It still takes 45 seconds to recharge.
+- **The dagger and the rapier** ("dagger blade has a weird block were slots used to sit covering half the blade") are whole blades now. The art thread redrew both without the old bronze socket block: at the forge, in the hand and on the tray. The rapier had the same block, so it was done too.
+
+### Abilities start only on a full meter
+
+"make active abilities not be usable until they are fully off cooldown, as getting half a second of use feels bad"
+
+- Press runes already needed a full meter. **Held runes (Whirlwind, Lance) now do too**: you can't start one on a part-filled meter. Letting go early still keeps what is left, so the wait is shorter after a short spin, but the button is not ready again until it is completely full. A press before that shakes the button, as a press on a recharging rune always did, and when it is the mana that is missing the mana bar blinks.
+
+### The forge screen
+
+"i want on the forge screen when u hover a rune, any threads affecting it to show then and what they increase. rather than just a big decription", "if there is a empty seat between threads and runes but the threads still affect it then mkae the ring line light up to the rune they affect still", "if theres two runes of same type being used make a little red X on it to show its not usuable"
+
+- **"What it does" is a list now.** Each rune has one short sentence for what the bare rune does, and under it **one line for each thread that reaches it, saying what that thread adds** ("Twice: then a second crack", "Wider: a longer, wider crack"), with the thread's name lit as it is on the ring. Point at a rune on the ring, or choose its seat with the keys or a controller, and that rune is the one written out. On a full ring only that rune is written out and the others keep to their names. Where even that can't fit (three or four threads on one long rune, on a full ring) it falls back to one joined sentence with the threads' names under it (Claude's choice).
+- **The ring's line stays lit across an empty seat** when the threads before it still reach the rune after it. The rules always let threads carry over an empty seat; now the picture shows it.
+- **A little red X on a second copy of a rune.** Only one of each rune works now: the first copy on the ring does its job and a second copy does nothing, shows a small red X at its top right, and "What it does" says so ("A second Hook does nothing: only one of each rune works."). Until version 33 a second copy counted like an extra Twice. **This rule is Claude's reading of his sentence**, told to him on the day. Colour is kept for elements everywhere else in the game; this red is his own ask, and the X is a shape too.
+- Where it lives: `does_lines`, `thread_names`, `_plan_does`, `_draw_does`, `DOES_PLANS` and the ring's drawing in `scripts/ui/swing_forge.gd`; a thread's own line is `_thread_text()` and the duplicate rule is in `resolve()` (`"dup": true`) in `scripts/weapon/swing_build.gd`. `tests/test_swing_build.gd` freezes the lines and `tests/smoke_forge.gd` checks that they fit their plate for every combination of parts.
+
+### The font
+
+"the games font for text is hard to read on certian numbers etc pick a more readable one"
+
+- The game's text is now **Galmuri** (Lee Minseo; SIL Open Font License, free to ship): Galmuri9 at 10 for text, Galmuri11 Bold at 12 for names, Galmuri7 at 8 for small print. It is a pixel font drawn for these exact sizes, so its digits come out clean (a 3, a 5, a 6 and an 8 are easy to tell apart), where Pixelify Sans at 11 was being squeezed onto a grid it was not drawn for. Damage numbers are Galmuri7 at twice its size and crits the bold at twice its size. The small capital headings and buttons stay in Silkscreen. Which font is Claude's choice.
+- The files in `art/fonts/` hold only the Latin letters, digits and signs. `Art.TEXT`, `Art.TEXT_BOLD` and `Art.TEXT_SMALL` in `scripts/art.gd` name them, and each is only ever drawn at its own size or a whole multiple of it. Every "fits its plate" check was rerun with it (the forge, the cave's cards, the lab, the title).
+
+### How the abilities look
+
+"the abilities looks dont really fit the game they are all like neon. can we make them look and fit the game better? still clearly visible ... like for example arrow rain is like purple arrows which isnt realistic"
+
+- The art thread redrew every rune's effect in the game's own materials: steel, bone, linen, stone dust, ember, forge gold and pale verdigris, in place of a loud colour for each rune. Arrow Rain's arrows are real arrows. Quake is pale stone with ember at its foot. Aftershock is dark cracks in the floor with fire in them. Bulwark is a cage of bronze hoops. Nova is a thin ring of forge light. The ghosts (Ghostwield, Spectre) keep their pale verdigris. Twelve button pictures and twenty-five rune gems were recoloured to match, with their shapes kept.
+- Eight strips are solid things now (rock, bronze, cracks) and are drawn with normal blending where everything used to be added light; `art/blend.json` lists them and `scripts/art.gd` reads it. Adding bright colours on top of each other was most of what read as neon.
+- A staff's crystal matches its bolts: sea glass stays verdigris, the tin-set one is clear rock crystal and the iron-set one is forge gold (it was purple).
+- **The forge's Alt pictures** of all 24 runes were taken again from the game with the new art. `tools/take_previews.gd` is the tool that takes them: it uses each rune once in the arena with a scripted player and crops the screen round it.
+
+```
+xvfb-run -a -s "-screen 0 1280x720x24" godot --path . --rendering-driver opengl3 --fixed-fps 60 -s tools/take_previews.gd            # all 24
+xvfb-run -a -s "-screen 0 1280x720x24" godot --path . --rendering-driver opengl3 --fixed-fps 60 -s tools/take_previews.gd -- only=quake,hook out=/tmp/stills
+```
+
+### The tutorial cave's words
+
+- The cards and hints say the new rules: the staff's card ("Its bolts cost nothing. Runes use mana, the blue bar under your health, which fills slowly."), Whirlwind's ("It starts on a full meter, which fills again when you let go."), Quake's ("Press the button to crack the ground along your aim and hit every enemy on it."), Lance's ("It burns mana until the bar is empty."), and the bow's and staff's first-fight hints no longer speak of a heavy third shot or a burst. The wording is Claude's.
+- The title screen's line for the tutorial says "pick a weapon" where it said "pick a sword or a bow".
+
+### Not changed
+
+- The forge guardian, the enemies, the arena's switches and online play's rules. Both online tests pass with the new rules.
+- How several threads stack on one rune.
+- The single Windows file for testers is still version 17.
 
 ## The 19 November combat rules (version 33)
 
@@ -474,13 +595,13 @@ This branch began as a test of the **swing path** (design notes, 3 November), wh
   - Passive runes fire by themselves: **Shockwave** (finisher: a rolling wave, a light hit that shoves enemies back), **Shards** (every hit sends a cone of metal shards out of the back of the enemy, into whoever stands behind it; until version 33 they jumped to the closest enemy, then the next), **Weak Point** (the finisher marks the enemy it hit, and the next sword hit on the mark is a big crit).
   - Active runes wait for a button: **Whirlwind** (hold: you spin, cutting everything around you once a turn, walking at three quarters speed) and **Leap** (press: you jump to an enemy and land at your blade's reach from it, with a strike).
   - **Hook left the sword for the hammer** (Darren, 11 November afternoon). Since version 24 it is one of the hammer's three active runes (`"weapon": "hammer"` in `FITTINGS`), so the forge offers it to a hammer and to no sword; `tests/active_runes.gd` still puts it on a sword by hand, because its band rules were first checked there.
-  - **Ghostwield** (Darren, 11 November afternoon; version 13) is the third active rune: press its button (R, or B on a controller) and a see-through copy of your own sword appears in your other hand for 15 seconds. Every swing you make is copied 0.15 seconds later from the other side at half strength, and the copy's hits set your passive runes off again as ghosted effects: the same effect at half strength, drawn in the ghost's blue-violet (a second Shockwave, more Shards). It recharges in 45 seconds, counted from the press; the button shows a bar running down while the ghost is out, and the ghost sword blinks through its last two seconds.
+  - **Ghostwield** (Darren, 11 November afternoon; version 13) is the third active rune: press its button (R, or B on a controller) and a see-through copy of your own sword appears in your other hand for 15 seconds (**8 seconds since version 34, and the copies are at 35%, not half**: Darren, 21 November). Every swing you make is copied 0.15 seconds later from the other side at half strength, and the copy's hits set your passive runes off again as ghosted effects: the same effect at half strength, drawn in the ghost's blue-violet (a second Shockwave, more Shards). It recharges in 45 seconds, counted from the press; the button shows a bar running down while the ghost is out, and the ghost sword blinks through its last two seconds.
     - Bands, as the Game Bible lists them: **Twice** is two copies of each swing; **Wider** keeps it for 20 seconds; **Every Hit** is the recharge rule below; **Saved Up** makes the copies full strength and the recharge three times as long (135 seconds); **On Dodge** makes the ghost cut along every dodge, through whatever you pass, for half a hit (it doesn't have to be out).
-    - My own choices, to change if they feel wrong: only your ordinary swings are copied (not Whirlwind's turns or Leap's strike); a copy shoves and stuns half as hard, can crit, and never spends a Weak Point mark (the mark waits for your own sword); the copies don't count as your hits for Every Hit, and Every Hit gives nothing back to Ghostwield while its ghost is still out; a ghosted Weak Point only marks when you have a mark to spare; a Saved Up passive is copied only on the swing that set it off; two Ghostwield runes are one ghost, the second counting like a Twice.
+    - My own choices, to change if they feel wrong: only your ordinary swings are copied (not Whirlwind's turns or Leap's strike); a copy shoves and stuns half as hard, can crit, and never spends a Weak Point mark (the mark waits for your own sword); the copies don't count as your hits for Every Hit, and Every Hit gives nothing back to Ghostwield while its ghost is still out; a ghosted Weak Point only marks when you have a mark to spare; a Saved Up passive is copied only on the swing that set it off; two Ghostwield runes are one ghost, the second counting like a Twice (since version 34 a second copy of any rune does nothing: see "Version 34").
     - Where it lives: `ghostwield` in `FITTINGS` and `GHOST_POWER`, `ghost_time()` in `scripts/weapon/swing_build.gd`; the "Ghostwield" section of `scripts/player.gd` (`GHOST_DELAY`, `GHOST_GAP`, `GHOST_SHOVE`, `_summon_ghost`, `_ghost_swing`, `_ghost_dodge_cut`). The ghost sword is your sword's own picture run through `shaders/ghost.gdshader`; its smears, sparks and ghosted rune effects are the real pictures recoloured by `shaders/ghost_glow.gdshader`, so nothing new had to be drawn for them.
 - Bands: **Twice** (the rune happens twice, a beat apart), **Wider** (bigger), **Every Hit** (a passive rune fires on every hit instead, at half strength; an active rune comes back sooner with every swing you land), **Saved Up** (every third time, three times as strong) and **On Dodge** (also when you dodge).
-- **Active runes, in full.** There are three ability buttons: right click, Q and R, or RB, LB and B (the third button's keys are a first guess, to settle in testing). The first active rune on the sword, reading from the bottom of the grip, takes the first button, the next takes the second and the next the third, so the order on the sword picks the buttons. Two of the same rune share a button and go off together. Each button has a meter, drawn under the health bar with the rune's picture and its button: it fills from the bottom as the rune recharges and gets a bright edge when it can be used.
-  - Whirlwind's full meter is three turns. Each turn spends a third; a tap is one turn, holding keeps turning until the meter is empty or you let go. It refills in 5 seconds, starting a moment after you stop. A dodge cuts a spin short, and the sword can't swing during one.
+- **Active runes, in full.** There are three ability buttons: right click, Q and R, or RB, LB and B (the third button's keys are a first guess, to settle in testing). The first active rune on the sword, reading from the bottom of the grip, takes the first button, the next takes the second and the next the third, so the order on the sword picks the buttons. Two of the same rune share a button and go off together (until version 33; since version 34 only the first copy of a rune works). Each button has a meter, drawn under the health bar with the rune's picture and its button: it fills from the bottom as the rune recharges and gets a bright edge when it can be used.
+  - Whirlwind's full meter is three turns (**six since version 34, and it only starts on a full meter**: Darren, 21 November). Each turn spends a third (now a sixth); a tap is one turn, holding keeps turning until the meter is empty or you let go. It refills in 5 seconds (now 6), starting a moment after you stop. A dodge cuts a spin short, and the sword can't swing during one.
   - Leap needs a full meter and is back in 3 seconds. It goes for the nearest enemy near where you aim (or else the nearest one) within about 260 pixels, and lands you so that enemy sits just inside your blade's reach: a long blade lands further out than a short one. If you are already closer than that, it hops you back out. As you land the sword cuts once in front of you (one blade hit and a short stun). With nobody in range it jumps a short way where you aim. You can't be hit during the jump. Before 11 November Leap was passive (an attack straight after a dodge) and landed on top of the enemy, which got you hit every time.
   - Bands on an active rune: **Twice** gives Whirlwind twice the turns and makes Leap go on to a second enemy; **Wider** is a bigger reach or circle; **Saved Up** makes it three times as strong and three times as slow to recharge; **On Dodge** makes a dodge do it too (one turn or one leap) without touching the meter; **Every Hit** leaves it on its button, and every swing of yours that lands takes half a second off its recharge (Darren, 11 November afternoon; before that it turned the rune passive at half strength). A swing counts once however many enemies it catches, which is my reading of "each basic hit you land"; only your own swings count, not runes; a second Every Hit adds nothing; the button's meter blinks green when it happens. The half second is `EVERY_HIT_REFUND` in `scripts/weapon/swing_build.gd`.
   - The numbers are at the top of the rune's entry in `FITTINGS` (`scripts/weapon/swing_build.gd`: `recharge`, `turns`, `turn`) and in `scripts/player.gd` (`HOLD_MOVE`, `HOOK_STUN`, `SHOCKWAVE_DAMAGE`, `LEAP_RANGE`, `LEAP_DAMAGE` and their neighbours). To make another rune active, give it `"trigger": "active"` and a `"use"`; a fourth kind of active rune on one sword does nothing, because there are three buttons (Every Hit used to be the way round that; it no longer is).

@@ -48,7 +48,7 @@ const MOVE_NAMES := {"slash": "slash", "overhead": "overhead",
 	"thrust": "thrust", "long_thrust": "lunge",
 	"chop": "chop", "cleave": "cleave",
 	"great_sweep": "sweep", "great_back": "backswing", "slam": "slam",
-	"quick_shot": "quick shot", "heavy_shot": "heavy shot", "long_shot": "long shot",
+	"quick_shot": "quick shot", "heavy_shot": "heavy shot", "long_shot": "long shot", "charged_shot": "charged shot",
 	"maul_swing": "swing", "maul_slam": "slam", "crush": "crushing blow",
 	"bolt": "bolt", "burst": "burst", "spray": "spray", "orb": "orb"}
 
@@ -109,34 +109,38 @@ static func blade_info(id: String) -> Dictionary:
 ## and damage x speed stays within a tenth of it, as for blade shapes.
 ##   range  how far an arrow flies, as a multiple of BOW_RANGE
 static var BOW_SHAPES := {
-	"shortbow": {"name": "Shortbow", "chain": ["quick_shot", "quick_shot", "heavy_shot"],
+	# Three plain shots (Darren, 21 November: no heavy last arrow until later bow
+	# parts). The longbow is the later part: its last arrow is a heavy one that
+	# takes a moment to charge.
+	"shortbow": {"name": "Shortbow", "chain": ["quick_shot", "quick_shot", "quick_shot"],
 		"damage": 1.0, "speed": 1.0, "range": 1.0,
-		"desc": "Quick shot, quick shot, heavy shot: the balanced bow."},
-	# Three heavy shots are 4.5 hits in the time a shortbow makes 3.5 (1.35 s
-	# against 1.17), so each arrow is a tenth lighter and the two bows do the same
-	# a second. What the longbow buys is reach and a shove on every shot; what it
-	# costs is fewer arrows and slower feet.
-	"longbow": {"name": "Longbow", "chain": ["long_shot", "long_shot", "long_shot"],
-		"damage": 0.9, "speed": 1.0, "range": 1.35, "swing_move": 0.7,
-		"desc": "Three slow, heavy shots that fly a third further. You walk slower while shooting."},
+		"desc": "Three quick shots: the balanced bow."},
+	# Shot, shot, charged shot: 3.75 hits in 1.44 s against a shortbow's 3 in
+	# 1.18, so the two bows do the same a second. What the longbow buys is reach
+	# and the heavy last arrow; what it costs is the charge and slower feet.
+	"longbow": {"name": "Longbow", "chain": ["quick_shot", "quick_shot", "charged_shot"],
+		"damage": 1.0, "speed": 1.0, "range": 1.35, "swing_move": 0.7,
+		"desc": "Shot, shot, then a heavy shot that takes a moment to charge. Its arrows fly a third further. You walk slower while shooting."},
 }
 ## An arrow is worth this much of a broadsword's hit in the same metal. Shooting
 ## from range is safer than standing in reach, and Darren doesn't want everyone
 ## fighting from range (10 November, about Shockwave), so the bow does less a
 ## second than the sword, to one enemy at a time.
-## Four fifths (it was three quarters until the bow reached the tutorial cave):
-## a wooden bow's chain is then 4 + 4 + 6 = 14, exactly one crawler, the way one
-## wooden sword's chain is, and a burrower takes four arrows where it took five.
-static var BOW_DAMAGE := 0.8
+## Seven tenths (it was four fifths until Darren played the bow, 21 November:
+## "too much damage also as its ranged so too easy to stay safe"): a wooden arrow
+## is 3.5, so a crawler takes four. It hits one enemy, a little harder than a
+## staff's bolt (STAFF_DAMAGE), which hurts a very small area.
+static var BOW_DAMAGE := 0.7
 static var BOW_RANGE := 520.0       # how far a shortbow's arrow flies (a sword reaches 91)
-static var BOW_FLIGHT := 1300.0     # how fast an arrow flies, a second
+## (1300 until 21 November: "the arrows fly too fast, its too easy to land shots".)
+static var BOW_FLIGHT := 800.0      # how fast an arrow flies, a second
 static var BOW_MOVE := 0.8          # walking speed while shooting ("slightly slowed")
 
 const LIMBS := {
 	"wooden_shortbow": {"name": "Wooden Shortbow", "shape": "shortbow", "slots": 0,
-		"desc": "Quick shot, quick shot, heavy shot: a training bow."},
+		"desc": "Three quick shots: a training bow."},
 	"tin_shortbow": {"name": "Tin Shortbow", "shape": "shortbow", "slots": 1,
-		"desc": "Quick shot, quick shot, heavy shot: wood, shod with tin."},
+		"desc": "Three quick shots: wood, shod with tin."},
 	"iron_shortbow": {"name": "Iron Shortbow", "shape": "shortbow", "slots": 2},
 	"iron_longbow": {"name": "Iron Longbow", "shape": "longbow", "slots": 2},
 }
@@ -177,19 +181,21 @@ const ARROW_ORDER := ["wooden_arrows", "tin_arrows", "iron_arrows"]
 #   counterweight  (`pommel`)  numbers only
 
 ## Head shapes. The numbers are multiples of the broadsword of the same metal.
-## A hammer does about a fifth more a second than a sword to what it can reach
-## (it reaches three quarters as far, swings slowly and slows your feet), and it
-## pins what it hits where a sword shoves it away.
+## A hammer does about a quarter more a second than a sword to what it can reach
+## (it reaches three quarters as far, swings very slowly and slows your feet), and
+## it pins what it hits where a sword shoves it away.
+## (Darren, 21 November: "the hammer needs alot slower attack speed ... slow but
+## good damage". It was 1.7 hits at 0.7 of the sword's speed.)
 ##   impact  how big the patch of floor is that a slam hits (1.0 = HAMMER_IMPACT)
 static var HAMMER_SHAPES := {
 	"maul": {"name": "Maul", "chain": ["maul_swing", "maul_swing", "maul_slam"],
-		"damage": 1.7, "speed": 0.7, "reach": 0.75, "impact": 1.0, "swing_move": 0.8,
-		"desc": "Swing, swing, slam: short, slow and very heavy. The slam hits everything on a patch of floor."},
+		"damage": 2.8, "speed": 0.45, "reach": 0.75, "impact": 1.0, "swing_move": 0.8,
+		"desc": "Swing, swing, slam: short, very slow and very heavy, swung in both hands. The slam hits everything on a patch of floor."},
 	# Three slams are 4.5 hits in the time a maul makes 3.5, so each is lighter and
 	# the two heads do the same a second. Every blow lands on a patch of floor and
 	# stuns for longer; you walk slower still.
 	"warhammer": {"name": "Warhammer", "chain": ["crush", "crush", "crush"],
-		"damage": 1.5, "speed": 0.7, "reach": 0.75, "impact": 0.85, "swing_move": 0.7,
+		"damage": 2.45, "speed": 0.45, "reach": 0.75, "impact": 0.85, "swing_move": 0.7,
 		"desc": "Three slow crushing blows. Each one lands on a patch of floor and leaves enemies reeling."},
 }
 static var HAMMER_IMPACT := 38.0    # the radius of a maul's slam on the floor
@@ -249,28 +255,36 @@ static func hammer_info(id: String) -> Dictionary:
 #   shaft    (`grip`)    slots
 #   cap      (`pommel`)  numbers only
 #   crystal  (`arrows`)  the damage (its tier)
-# Mana is its resource: each cast costs a little and it refills quickly; with none
-# left you still cast, but weak, slow bolts.
+# Mana is its resource (Darren, 21 November): the basic attack costs none, the
+# runes do (an active rune a lot, a passive one a little each time it goes off),
+# and it comes back slowly.
 
 ## Head shapes. Multiples of the apprentice head with the same crystal.
 ##   range  how far a bolt flies, as a multiple of STAFF_RANGE
 ##   size   spell size: how wide a bolt is and how far a burst reaches
 static var STAFF_SHAPES := {
-	"apprentice": {"name": "Apprentice", "chain": ["bolt", "bolt", "burst"],
+	# Three plain bolts (Darren, 21 November: "remove the heavy like the bow until
+	# later parts"). The storm head is the later part: its last cast is the orb.
+	"apprentice": {"name": "Apprentice", "chain": ["bolt", "bolt", "bolt"],
 		"damage": 1.0, "speed": 1.0, "range": 1.0, "size": 1.0,
-		"desc": "Bolt, bolt, burst: the balanced staff. The burst hurts everything near where it lands."},
+		"desc": "Three bolts: the balanced staff. A bolt also hurts whatever is right beside the enemy it hits."},
 	# A spray is three sparks: all three only hit from close by. The orb is slow
-	# and bursts wide. Up close it does what the apprentice does a second.
+	# and bursts wide.
 	"storm": {"name": "Storm", "chain": ["spray", "spray", "orb"],
 		"damage": 0.9, "speed": 1.0, "range": 0.7, "size": 1.25,
 		"desc": "Spray, spray, orb: three sparks at a time for close work, then a big slow orb that bursts wide."},
 }
-## A bolt is worth this much of a broadsword's hit in the same tier: what an
-## arrow is, for the same reason (BOW_DAMAGE). A wooden staff's chain is then
-## 4 + 4 + 6 = 14, one crawler.
-static var STAFF_DAMAGE := 0.8
+## A bolt is worth this much of a broadsword's hit in the same tier: a little
+## less than an arrow (BOW_DAMAGE), because it hurts a very small area where it
+## lands and an arrow hits one enemy (Darren, 21 November). A wooden bolt is 3,
+## so a crawler takes five.
+static var STAFF_DAMAGE := 0.6
 static var STAFF_RANGE := 400.0     # how far an apprentice's bolt flies (an arrow: 520)
-static var STAFF_FLIGHT := 760.0    # how fast, a second (an arrow: 1300)
+## (760 until 21 November: "the staff progectiles are also too fast".)
+static var STAFF_FLIGHT := 520.0    # how fast, a second (an arrow: 800)
+## A bolt hurts every enemy whose edge is this near where it lands: only what
+## stands right against the one it hit ("a small aoe ... but very small").
+static var BOLT_SPLASH := 18.0
 static var STAFF_MOVE := 0.8        # walking speed while casting
 const BOLT_WIDTH := 7.0        # how close a bolt's line must pass to an enemy's edge (an arrow: 4)
 static var BURST_RADIUS := 56.0     # how far from where it lands a burst hurts
@@ -278,22 +292,28 @@ const SPRAY_SPREAD := 0.17     # radians between one spark of a spray and the ne
 static var SPRAY_DAMAGE := 0.4      # each spark, in bolts
 const ORB_FLIGHT := 0.4        # the orb's speed, as a share of a bolt's
 static var ORB_RADIUS := 70.0        # how far from where it stops an orb hurts (a storm head's is a quarter wider)
-## Mana. Casting without a rest drains it in about a quarter of a minute; a
-## moment's rest fills it again.
+## Mana. It comes back slowly (20 seconds from empty; it was 10 a second, and 45
+## more after a moment's rest): accessories are to give recharge later, and the
+## basic attack no longer costs any (Darren, 21 November).
 static var MANA := 100.0
-static var MANA_REGEN := 10.0       # a second, always
-static var MANA_REST := 0.7         # this long without a cast...
-static var MANA_REST_REGEN := 45.0  # ...and it comes back this fast
-## What each cast costs (the moves are in player.gd).
-static var CAST_MANA := {"bolt": 6.0, "burst": 10.0, "spray": 6.0, "orb": 12.0}
+static var MANA_REGEN := 5.0        # a second, always (not while a Lance is held)
+static var MANA_REST := 0.7         # this long without spending any...
+static var MANA_REST_REGEN := 0.0   # ...and this much more comes back a second (nothing now)
+## What each basic cast costs: nothing (the moves are in player.gd).
+static var CAST_MANA := {"bolt": 0.0, "burst": 0.0, "spray": 0.0, "orb": 0.0}
+## What the staff's runes cost. An active rune: each press (Lance: each pulse of
+## the beam, four a second, so a full bar is about three seconds of it). A
+## passive rune: each time it goes off, and without the mana it doesn't.
+static var RUNE_MANA := {"nova": 25.0, "spectre": 40.0, "lance": 8.0}
+static var PASSIVE_MANA := 5.0
 static var MANA_WEAK := 0.5         # a cast with too little mana: its damage...
 static var MANA_SLOW := 0.75        # ...and how fast you cast it
 
 const STAFF_HEADS := {
 	"wooden_apprentice": {"name": "Wooden Apprentice Head", "shape": "apprentice", "slots": 0,
-		"desc": "Bolt, bolt, burst: a training staff."},
+		"desc": "Three bolts: a training staff."},
 	"tin_apprentice": {"name": "Tin Apprentice Head", "shape": "apprentice", "slots": 1,
-		"desc": "Bolt, bolt, burst: wood, shod with tin."},
+		"desc": "Three bolts: wood, shod with tin."},
 	"iron_apprentice": {"name": "Iron Apprentice Head", "shape": "apprentice", "slots": 2},
 	"iron_storm": {"name": "Iron Storm Head", "shape": "storm", "slots": 2},
 }
@@ -317,13 +337,15 @@ const CAPS := {
 const CAP_ORDER := ["plain_cap", "keen_cap", "heavy_cap", "light_cap"]
 
 ## Crystals: the staff's damage. Three tiers that match wood, tin and iron, and
-## each tints the staff's bolts its own colour.
+## each tints the staff's bolts: verdigris, pale sea light and forge light, out
+## of the game's own palette (they were mint, electric blue and purple until
+## Darren found the effects neon, 21 November).
 const CRYSTALS := {
-	"sea_glass": {"name": "Sea Glass", "metal": "wood", "color": Color("#7fe6b4"),
+	"sea_glass": {"name": "Sea Glass", "metal": "wood", "color": Color("#86d4a4"),
 		"desc": "A shard off the beach: the lightest hit."},
-	"tin_crystal": {"name": "Tin-bound Crystal", "metal": "tin", "color": Color("#6ab8ff"),
+	"tin_crystal": {"name": "Tin-bound Crystal", "metal": "tin", "color": Color("#d0dcd8"),
 		"desc": "A crystal in a tin setting: a harder hit."},
-	"iron_crystal": {"name": "Iron-bound Crystal", "metal": "iron", "color": Color("#c090ff"),
+	"iron_crystal": {"name": "Iron-bound Crystal", "metal": "iron", "color": Color("#ffec98"),
 		"desc": "A crystal in an iron setting: the hardest hit so far."},
 }
 const CRYSTAL_ORDER := ["sea_glass", "tin_crystal", "iron_crystal"]
@@ -484,6 +506,10 @@ const POMMELS := {
 const POMMEL_ORDER := ["plain_pommel", "keen_pommel", "heavy_pommel", "light_pommel"]
 
 ## Runes do something on their own; bands change the next rune above them.
+## (A rune's "color" is what its label and its small flashes are written in. Each
+## is out of the game's own ramps (ember, bronze, steel, stone, bone, verdigris):
+## no rune has a loud colour of its own since 21 November, when Darren found the
+## abilities "all like neon".)
 ## Rule-benders bend the reading rule itself. Only one per sword.
 ##
 ## Runes are passive or active (Darren, 10 November). A passive rune fires by
@@ -509,51 +535,52 @@ static var FITTINGS := {
 	# Weak Point (Darren, 11 November): the sword's single-target passive. The finisher
 	# marks the enemy it hit; the next sword hit on the mark is a big crit. Small
 	# enemies glow all over. Big ones get a spot on one side that you have to reach.
-	"weak_point": {"kind": "rune", "weapon": "sword", "name": "Weak Point", "trigger": "finisher", "color": Color("#b8f4ff"),
+	"weak_point": {"kind": "rune", "weapon": "sword", "name": "Weak Point", "trigger": "finisher", "color": Color("#ffec98"),
 		"desc": "Your finisher marks an enemy, and your next hit on the mark is a big crit."},
-	"whirlwind": {"kind": "rune", "weapon": "sword", "name": "Whirlwind", "trigger": "active", "use": "hold", "recharge": 5.0, "turns": 3, "turn": 0.28, "color": Color("#f078b4"),
+	"whirlwind": {"kind": "rune", "weapon": "sword", "name": "Whirlwind", "trigger": "active", "use": "hold", "recharge": 6.0, "turns": 6, "turn": 0.28, "color": Color("#d0dcd8"),
 		"desc": "Hold its button to spin and cut everything around you."},
 	# Leap is active since 11 November (it was "attack straight after a dodge").
 	"leap": {"kind": "rune", "weapon": "sword", "name": "Leap", "trigger": "active", "use": "press", "recharge": 3.0, "color": Color("#f0c070"),
 		"desc": "Press its button to leap at the nearest enemy and strike it."},
 	# Ghostwield (Darren, 11 November afternoon): the sword's third active rune. A
 	# see-through copy of your sword appears in your other hand and copies every
-	# swing a moment later from the other side, at half strength, for `time`
-	# seconds. Its hits set your passive runes off again as ghosted effects.
-	"ghostwield": {"kind": "rune", "weapon": "sword", "name": "Ghostwield", "trigger": "active", "use": "press", "recharge": 45.0, "time": 15.0, "color": Color("#a8b4ff"),
-		"desc": "Press its button: a ghost of your sword copies every swing for a while, at half strength."},
+	# swing a moment later from the other side, at a third of its strength, for
+	# `time` seconds. Its hits set your passive runes off again as ghosted effects.
+	# (15 seconds at half strength until 21 November: "last too long and is quite strong".)
+	"ghostwield": {"kind": "rune", "weapon": "sword", "name": "Ghostwield", "trigger": "active", "use": "press", "recharge": 45.0, "time": 8.0, "color": Color("#c8f0c4"),
+		"desc": "Press its button: a ghost of your sword copies every swing for a while, at a third of its strength."},
 	# The bow's own runes (14 November). Steady Aim, Volley, Snipe and Arrow Rain are
 	# Darren's (11 November); Pierce and Ricochet were only names, so what they do
 	# is a first design. Pierce and Steady Aim don't "fire": Pierce changes the
 	# arrow as it leaves the bow, and Steady Aim (trigger "still") builds while you
 	# stand and shoot. See player.gd, "The bow's runes".
-	"pierce": {"kind": "rune", "weapon": "bow", "name": "Pierce", "trigger": "finisher", "color": Color("#f4f0a8"),
+	"pierce": {"kind": "rune", "weapon": "bow", "name": "Pierce", "trigger": "finisher", "color": Color("#ffec98"),
 		"desc": "Your finisher's arrow goes on through the enemy it hits."},
-	"ricochet": {"kind": "rune", "weapon": "bow", "name": "Ricochet", "trigger": "hit", "color": Color("#40d8c8"),
+	"ricochet": {"kind": "rune", "weapon": "bow", "name": "Ricochet", "trigger": "hit", "color": Color("#94a8b8"),
 		"desc": "An arrow that hits jumps on to the nearest other enemy, for half its damage."},
-	"steady_aim": {"kind": "rune", "weapon": "bow", "name": "Steady Aim", "trigger": "still", "color": Color("#b8e068"),
+	"steady_aim": {"kind": "rune", "weapon": "bow", "name": "Steady Aim", "trigger": "still", "color": Color("#c2c8a0"),
 		"desc": "Stand still while you shoot and you shoot faster and faster. Moving resets it."},
-	"volley": {"kind": "rune", "weapon": "bow", "name": "Volley", "trigger": "active", "use": "press", "recharge": 4.0, "color": Color("#ff8c5a"),
+	"volley": {"kind": "rune", "weapon": "bow", "name": "Volley", "trigger": "active", "use": "press", "recharge": 4.0, "color": Color("#ff9c32"),
 		"desc": "Press its button to loose three arrows in a spread. Up close all three hit."},
 	# "charge": hold the button to draw, let go to shoot.
-	"snipe": {"kind": "rune", "weapon": "bow", "name": "Snipe", "trigger": "active", "use": "charge", "recharge": 6.0, "color": Color("#6aa0ff"),
+	"snipe": {"kind": "rune", "weapon": "bow", "name": "Snipe", "trigger": "active", "use": "charge", "recharge": 6.0, "color": Color("#d0dcd8"),
 		"desc": "Hold its button and let go as the ring closes: a heavy shot that does more the farther it flies."},
-	"arrow_rain": {"kind": "rune", "weapon": "bow", "name": "Arrow Rain", "trigger": "active", "use": "press", "recharge": 8.0, "time": 3.0, "color": Color("#c090ff"),
+	"arrow_rain": {"kind": "rune", "weapon": "bow", "name": "Arrow Rain", "trigger": "active", "use": "press", "recharge": 8.0, "time": 3.0, "color": Color("#dcd6b0"),
 		"desc": "Press its button to mark the ground where you aim. Arrows pour down on it."},
 	# The hammer's own runes (15 November). The Game Bible names them with a line
 	# each, and gives Aftershock its bands' rules (Darren, 11 November afternoon);
 	# the numbers and the other bands' rules are a first design. Momentum and
 	# Stagger don't "fire": Momentum builds on you and Stagger on the enemy, hit by
 	# hit. See player.gd, "The hammer's runes". (Colours: the art thread's.)
-	"momentum": {"kind": "rune", "weapon": "hammer", "name": "Momentum", "trigger": "hit", "color": Color("#ffe040"),
+	"momentum": {"kind": "rune", "weapon": "hammer", "name": "Momentum", "trigger": "hit", "color": Color("#ffc850"),
 		"desc": "Each hit you land makes the next one stronger, in five steps. Stop hitting and it drains away."},
-	"stagger": {"kind": "rune", "weapon": "hammer", "name": "Stagger", "trigger": "hit", "color": Color("#a8b8ff"),
+	"stagger": {"kind": "rune", "weapon": "hammer", "name": "Stagger", "trigger": "hit", "color": Color("#e0e2d0"),
 		"desc": "Your hits fill a meter on the enemy. When it is full the enemy is stunned."},
-	"aftershock": {"kind": "rune", "weapon": "hammer", "name": "Aftershock", "trigger": "finisher", "color": Color("#d070e0"),
+	"aftershock": {"kind": "rune", "weapon": "hammer", "name": "Aftershock", "trigger": "finisher", "color": Color("#f06a2a"),
 		"desc": "After your finisher the ground rumbles a moment later and hurts whatever is still near."},
-	"quake": {"kind": "rune", "weapon": "hammer", "name": "Quake", "trigger": "active", "use": "press", "recharge": 5.0, "color": Color("#6ad86a"),
-		"desc": "Press its button: the ground erupts under the enemy nearest your aim."},
-	"bulwark": {"kind": "rune", "weapon": "hammer", "name": "Bulwark", "trigger": "active", "use": "press", "recharge": 10.0, "time": 3.0, "color": Color("#7fe0f0"),
+	"quake": {"kind": "rune", "weapon": "hammer", "name": "Quake", "trigger": "active", "use": "press", "recharge": 5.0, "color": Color("#cf8a48"),
+		"desc": "Press its button: a crack runs along the ground the way you aim and hits every enemy on it."},
+	"bulwark": {"kind": "rune", "weapon": "hammer", "name": "Bulwark", "trigger": "active", "use": "press", "recharge": 10.0, "time": 3.0, "color": Color("#f0c070"),
 		"desc": "Press its button: a shield blocks hits. Broken by enemies, it bursts and stuns them."},
 	# The staff's own runes (15 November). Overflow, Nova, Lance and Spectre are
 	# Darren's (11 November afternoon), and so are Overflow's and Spectre's bands;
@@ -561,17 +588,17 @@ static var FITTINGS := {
 	# are all the numbers and the bands of Orbit, Chain, Nova and Lance.
 	# Overflow doesn't "fire": it changes the bolts you cast on full mana. See
 	# player.gd, "The staff's runes". (Colours and words: the art thread's.)
-	"orbit": {"kind": "rune", "weapon": "staff", "name": "Orbit", "trigger": "finisher", "color": Color("#ffb84a"),
+	"orbit": {"kind": "rune", "weapon": "staff", "name": "Orbit", "trigger": "finisher", "color": Color("#ffc850"),
 		"desc": "Your finisher leaves an orb circling you. It strikes the first enemy that comes near."},
-	"chain": {"kind": "rune", "weapon": "staff", "name": "Chain", "trigger": "finisher", "color": Color("#60e0ff"),
-		"desc": "Your finisher's burst forks into lightning that jumps from enemy to enemy."},
-	"overflow": {"kind": "rune", "weapon": "staff", "name": "Overflow", "trigger": "hit", "color": Color("#6ab8ff"),
-		"desc": "While your mana is full, your bolts are bigger and hit harder."},
-	"nova": {"kind": "rune", "weapon": "staff", "name": "Nova", "trigger": "active", "use": "press", "recharge": 6.0, "color": Color("#ff70c8"),
+	"chain": {"kind": "rune", "weapon": "staff", "name": "Chain", "trigger": "finisher", "color": Color("#f6faf0"),
+		"desc": "Your finisher's bolt forks into lightning that jumps from enemy to enemy."},
+	"overflow": {"kind": "rune", "weapon": "staff", "name": "Overflow", "trigger": "hit", "color": Color("#ffec98"),
+		"desc": "On full mana your next bolt is bigger and hits harder."},
+	"nova": {"kind": "rune", "weapon": "staff", "name": "Nova", "trigger": "active", "use": "press", "recharge": 6.0, "color": Color("#ffec98"),
 		"desc": "Press its button: a ring bursts out from you and shoves the crowd back."},
-	"lance": {"kind": "rune", "weapon": "staff", "name": "Lance", "trigger": "active", "use": "hold", "recharge": 8.0, "turns": 12, "turn": 0.25, "color": Color("#fff078"),
-		"desc": "Hold its button: a beam into the first enemy on your aim that builds the longer you hold."},
-	"spectre": {"kind": "rune", "weapon": "staff", "name": "Spectre", "trigger": "active", "use": "press", "recharge": 30.0, "time": 6.0, "color": Color("#a8b4ff"),
+	"lance": {"kind": "rune", "weapon": "staff", "name": "Lance", "trigger": "active", "use": "hold", "recharge": 8.0, "turns": 12, "turn": 0.25, "mana": true, "color": Color("#fff0b4"),
+		"desc": "Hold its button: a beam into the first enemy on your aim that builds for as long as your mana lasts."},
+	"spectre": {"kind": "rune", "weapon": "staff", "name": "Spectre", "trigger": "active", "use": "press", "recharge": 30.0, "time": 6.0, "color": Color("#c8f0c4"),
 		"desc": "Press its button: a ghost of you, or of the teammate you aim at, copies basic attacks."},
 	"twice": {"kind": "band", "name": "Twice", "color": Color("#86d4a4"),
 		"desc": "The next rune happens twice."},
@@ -613,7 +640,7 @@ const SAVED_UP_EVERY := 3
 const SAVED_UP_POWER := 3.0
 ## Ghostwield: what a ghost swing does, as a share of the swing it copies. Saved Up
 ## brings it to a full copy (and makes the recharge three times as long).
-static var GHOST_POWER := 0.5
+static var GHOST_POWER := 0.35
 
 
 ## How strong the ghost's copies are for a Ghostwield rune of this power.
@@ -622,7 +649,7 @@ static func ghost_power(power: float) -> float:
 
 
 ## How long the ghost sword stays. Wider is the band for it: one Wider is a third
-## longer (20 seconds for 15).
+## longer (about 11 seconds for 8).
 static func ghost_time(size: float) -> float:
 	return float(FITTINGS["ghostwield"]["time"]) * (1.0 + (size - 1.0) / 1.8)
 
@@ -699,12 +726,13 @@ static var AFTERSHOCK_STUN := 0.25
 const AFTERSHOCK_SMALL := 0.7    # Every Hit: the small rumble's size
 const AFTERSHOCK_HUGE := 1.5     # Saved Up: the huge one's
 const AFTERSHOCK_GAP := 0.35     # Twice: the second rumble comes this long after the first
-static var QUAKE_RANGE := 240.0       # how far away the enemy can be
+# Quake is a crack along your aim since 21 November (Darren's pick: it was an
+# eruption under one enemy, "too similar to aftershock").
+static var QUAKE_RANGE := 240.0       # how long the crack is, from you (Wider: longer)
 static var QUAKE_DAMAGE := 1.5
-static var QUAKE_RADIUS := 44.0       # everything this near the eruption is caught
+static var QUAKE_WIDTH := 16.0        # an enemy whose edge is this near the crack's line is caught (Wider: wider)
 static var QUAKE_STUN := 0.6
-const QUAKE_EMPTY := 120.0       # with nobody in range it erupts this far the way you aim
-const QUAKE_GAP := 0.3           # Twice: the next eruption comes this long after
+const QUAKE_GAP := 0.3           # Twice: the next crack comes this long after
 static var BULWARK_STUN := 1.5        # when enemies break the shield, its burst stuns for this long (Twice: twice as long)
 static var BULWARK_HITS := 3          # hits a shield of the usual length takes: the last one breaks it
 static var BULWARK_BURST := 90.0      # the burst reaches enemies whose edge is this near you
@@ -752,7 +780,7 @@ static var OVERFLOW_SIZE := 0.25      # and how much bigger it is
 # Its bands are Darren's (11 November, "Overflow bands" in the Game Bible); the numbers are a first pass.
 const OVERFLOW_ECHO := 0.12      # Twice: every other Overflow bolt is cast again this long after
 const OVERFLOW_SPLASH := 36.0    # Wider: an Overflow bolt bursts this wide where it lands, so it hits more enemies
-static var OVERFLOW_REFUND := 3.0     # Every Hit: mana back for each bolt that lands (half a bolt's cost: from full, a whole chain that lands stays full)
+static var OVERFLOW_REFUND := 3.0     # Every Hit: mana back for each bolt that lands (so the bar is full again, and the next Overflow bolt ready, sooner)
 static var OVERFLOW_CHARGE := 3.0     # Saved Up: seconds your mana must stay full...
 static var OVERFLOW_BLAST := 3.0      # ...for the next bolt to be a blast this many times as strong...
 const OVERFLOW_BLAST_SIZE := 0.9 # ...and this much bigger, bursting OVERFLOW_BLAST_SPLASH wide
@@ -792,16 +820,18 @@ static func spectre_time(size: float) -> float:
 
 
 ## The beam's strength (1 to LANCE_STAGES) on its nth pulse of one hold. `turns`
-## is how many pulses a full meter holds (twelve; Twice: twenty-four): it grows
-## a step for each third of that, so a hold twice as long does twice as much.
+## is how many pulses a full bar of mana pays for (twelve; Twice: twenty-five):
+## it grows a step for each third of that, so it builds until the mana is gone.
 static func lance_stage(pulse: int, turns: int) -> int:
 	@warning_ignore("integer_division")
 	return clampi(1 + (maxi(pulse, 1) - 1) * LANCE_STAGES / maxi(turns, 1), 1, LANCE_STAGES)
 
 
-## How long a Lance can be held on a full meter, in seconds.
+## How long a Lance can be held on a full bar of mana, in seconds (Twice: each
+## pulse costs half as much, so twice as long).
 static func lance_time(count: int) -> float:
-	return float(FITTINGS["lance"]["turns"]) * float(FITTINGS["lance"]["turn"]) * float(maxi(count, 1))
+	var pulse := float(RUNE_MANA.get("lance", 0.0)) / float(maxi(count, 1))
+	return floorf(MANA / maxf(pulse, 0.01)) * float(FITTINGS["lance"]["turn"])
 
 
 ## Active runes take the ability buttons in the order they sit on the sword, grip
@@ -1075,7 +1105,8 @@ static func wider_size(n: int) -> float:
 ##            power (strength multiplier), every (fires on every Nth trigger), also (extra triggers),
 ##            mirror (true if it's a Mirror's copy), button (active runes: 0, 1 or 2)}
 ##   slots:   for each slot index: {"rune": effect index} / {"band": effect index} /
-##            {"unused": true, "why": text} / plus "mirror": true or "relay": true on rule-benders
+##            {"unused": true, "why": text} / plus "mirror": true or "relay": true on rule-benders,
+##            and "dup": true on a second copy of a rune (the forge marks it with a red X)
 ## ruby: the Gilded grip's ruby slot index (-1 if none). A rune there fires one more
 ## time, and a band there counts as two bands, both within the caps.
 static func resolve(slots: Array, ruby := -1) -> Dictionary:
@@ -1086,6 +1117,7 @@ static func resolve(slots: Array, ruby := -1) -> Dictionary:
 	var relay_bands: Array = []  # band slots handed on by a Relay
 	var relay_slot := -1
 	var buttons: Array = []   # the active runes' ids, in button order
+	var seen: Array = []      # the runes that are working already
 	for i in line.size():
 		var id: String = line[i]
 		if id == "" or info.get(i, {}).has("unused"):
@@ -1101,6 +1133,21 @@ static func resolve(slots: Array, ruby := -1) -> Dictionary:
 			continue
 		if f["kind"] == "band":
 			pending.append(i)
+			continue
+		# Only one of each rune works (Darren, 21 November: "if theres two runes of
+		# same type being used make a little red X on it to show its not usuable").
+		# The first copy works; a later one does nothing, and nor do the threads in
+		# front of it. (Until then a second copy counted like a Twice on the first.
+		# A Mirror's copy still does: copying is what a Mirror is for.)
+		if id in seen and slots[i] != "mirror":
+			info[i] = {"unused": true, "dup": true, "why": "A second %s does nothing: only one of each rune works." % f["name"]}
+			for s in pending:
+				info[s] = {"unused": true, "why": "The rune after it is a second copy, which does nothing."}
+			if relay_slot >= 0:
+				info[relay_slot] = {"unused": true, "relay": true, "why": "The rune after it is a second copy, which does nothing."}
+				relay_slot = -1
+				relay_bands = []
+			pending = []
 			continue
 		if f["trigger"] == "active" and not (id in buttons) and buttons.size() >= ACTIVE_BUTTONS:
 			# A fourth kind of active rune has no button left.
@@ -1136,6 +1183,7 @@ static func resolve(slots: Array, ruby := -1) -> Dictionary:
 			relay_bands = []
 		info[i] = {"rune": idx}
 		effects.append(e)
+		seen.append(id)
 		pending = []
 	for s in pending:
 		info[s] = {"unused": true, "why": "No rune after it, so it does nothing."}
@@ -1412,30 +1460,35 @@ static func _staff_sentence(e: Dictionary) -> String:
 				"It strikes" if n == 1 else "They strike", ", from further off" if big else ""]
 			if dodge:
 				s += " %s leaves one too." % ("Every third dodge" if third else "A dodge")
-			return s
+			return s + _passive_cost()
 		"chain":
-			var who := ("Every third bolt that hits" if third else "Every bolt that hits") if every_hit else ("Every third finisher's burst" if third else "Your finisher's burst")
+			var who := ("Every third bolt that hits" if third else "Every bolt that hits") if every_hit else ("Every third finisher's bolt" if third else "Your finisher's bolt")
 			var s := "%s sends lightning jumping to %s more enemies%s%s." % [who, _num(mini(CHAIN_JUMPS * n, 9)), ", from further away" if big else "", strength]
 			if dodge:
 				s += " %s sends it out from you too." % ("Every third dodge" if third else "A dodge")
-			return s
+			return s + _passive_cost()
 		"overflow":
 			# (Saved Up: no steady bonus, but a blast after staying full for a while.)
 			var s := ""
 			if third:
 				s = "After %s seconds on full mana, your next bolt is a huge%s blast, three times as strong." % [_num(roundi(OVERFLOW_CHARGE)), ", wider" if big else ""]
 			elif big:
-				s = "While your mana is full, your bolts hit %d%% harder and burst wide where they land." % roundi(OVERFLOW_DAMAGE * 100.0)
+				s = "On full mana your next bolt hits %d%% harder and bursts wide where it lands." % roundi(OVERFLOW_DAMAGE * 100.0)
 			else:
-				s = "While your mana is full, your bolts are bigger and hit %d%% harder." % roundi(OVERFLOW_DAMAGE * 100.0)
+				s = "On full mana your next bolt is bigger and hits %d%% harder." % roundi(OVERFLOW_DAMAGE * 100.0)
 			if n > 1:
 				s += " Every other one is cast %s." % ("twice" if n == 2 else "%s times" % _num(n))
 			if e.get("per_hit", false):
 				s += " Each bolt that lands gives back %d mana." % roundi(OVERFLOW_REFUND)
 			if dodge:
 				s += " A dodge gives back %d mana." % roundi(OVERFLOW_DODGE_MANA)
-			return s
+			return s + _passive_cost()
 	return ""
+
+
+## What a staff's passive rune costs, as the end of its sentence.
+static func _passive_cost() -> String:
+	return " Costs %d mana each time." % roundi(PASSIVE_MANA) if PASSIVE_MANA > 0.0 else ""
 
 
 ## The sentence for a rune on an ability button: what to press, what it does, and
@@ -1458,8 +1511,8 @@ static func _active_sentence(e: Dictionary, keys: Array) -> String:
 				"" if n == 1 else (", then the next one" if n == 2 else ", then %s more" % _num(n - 1))]
 		"ghostwield":
 			# Its strength is how much of your swing the ghost copies, so say that.
-			what = "a ghost of your sword copies every swing%s for %d seconds, at %s strength" % ["" if n == 1 else (" twice" if n == 2 else " %d times" % n),
-				roundi(ghost_time(float(e["size"]))), "full" if ghost_power(float(e.get("power", 1.0))) >= 1.0 else "half"]
+			what = "a ghost of your sword copies every swing%s for %d seconds, at %s" % ["" if n == 1 else (" twice" if n == 2 else " %d times" % n),
+				roundi(ghost_time(float(e["size"]))), _strength(ghost_power(float(e.get("power", 1.0))))]
 		"volley":
 			what = "looses %s arrows in a spread%s" % [_num(volley_arrows(float(e["size"]))), "" if n == 1 else (", twice" if n == 2 else ", %s times" % _num(n))]
 		"snipe":
@@ -1469,8 +1522,8 @@ static func _active_sentence(e: Dictionary, keys: Array) -> String:
 			what = "marks the ground where you aim, and arrows pour down on it for %d seconds%s%s" % [roundi(float(f["time"])),
 				" over a bigger area" if big else "", "" if n == 1 else (", then again" if n == 2 else ", then %s more times" % _num(n - 1))]
 		"quake":
-			what = "the ground erupts under the enemy nearest your aim%s%s" % [", over a bigger patch" if big else "",
-				"" if n == 1 else (", then under the next one" if n == 2 else ", then under %s more" % _num(n - 1))]
+			what = "a %scrack runs along the ground the way you aim and hits every enemy on it%s" % ["longer, wider " if big else "",
+				"" if n == 1 else (", then a second one" if n == 2 else ", then %s more" % _num(n - 1))]
 		"bulwark":
 			# Its strength is how long it lasts and how many hits it takes, so say that.
 			var secs := bulwark_time(float(e["size"]), float(e.get("power", 1.0)))
@@ -1483,11 +1536,12 @@ static func _active_sentence(e: Dictionary, keys: Array) -> String:
 			what = "%s out from you and shove%s the crowd back" % [("a big ring bursts" if big else "a ring bursts") if n == 1 else "%s %srings burst" % [_num(n), "big " if big else ""], "s" if n == 1 else ""]
 		"lance":
 			# Twice is twice as long a hold (see abilities()).
-			what = "a %sbeam into the first enemy on your aim that builds the longer you hold, for up to %s seconds" % ["thick " if big else "", _num(roundi(lance_time(n)))]
+			# It runs on mana: say what a full bar pays for.
+			what = "a %sbeam into the first enemy on your aim that builds until your mana runs out, about %s seconds on a full bar" % ["thick " if big else "", _num(roundi(lance_time(n)))]
 		"spectre":
 			# Its strength is how much of an attack the ghost copies, so say that.
-			what = "%s of you, or of the teammate you aim at, %s their basic attacks for %d seconds, at %s strength" % ["a ghost" if n == 1 else "%s ghosts" % _num(n), "copies" if n == 1 else "copy",
-				roundi(spectre_time(float(e["size"]))), "full" if spectre_power(float(e.get("power", 1.0))) >= 1.0 else "half"]
+			what = "%s of you, or of the teammate you aim at, %s their basic attacks for %d seconds, at %s" % ["a ghost" if n == 1 else "%s ghosts" % _num(n), "copies" if n == 1 else "copy",
+				roundi(spectre_time(float(e["size"]))), _strength(spectre_power(float(e.get("power", 1.0))))]
 		_:
 			return ""
 	var slow := int(e.get("every", 1))
@@ -1496,7 +1550,14 @@ static func _active_sentence(e: Dictionary, keys: Array) -> String:
 		if e["id"] == "arrow_rain":
 			what += " and pinning enemies"
 	var how: String = {"hold": "Hold %s", "charge": "Hold %s, then let go"}.get(f["use"], "Press %s") % key
-	var s := "%s: %s. Recharges in %d seconds." % [how, what, roundi(float(f["recharge"]) * slow)]
+	# (A staff's runes cost mana: said with the recharge, so that what comes after
+	# it, like Every Hit's half a second off, still reads as about the recharge.)
+	var back := "Recharges in %d seconds." % roundi(float(f["recharge"]) * slow)
+	var mana := float(RUNE_MANA.get(e["id"], 0.0))
+	if mana > 0.0:
+		back = "Costs %d mana%s and recharges in %d seconds." % [roundi(mana / (float(n) if f.get("mana", false) else 1.0)), " a pulse" if f.get("mana", false) else "",
+			roundi(float(f["recharge"]) * slow)]
+	var s := "%s: %s. %s" % [how, what, back]
 	if float(e.get("refund", 0.0)) > 0.0:
 		s += " Each hit you land takes half a second off."
 	if "dodge" in e.get("also", []):
@@ -1526,12 +1587,205 @@ static func _active_sentence(e: Dictionary, keys: Array) -> String:
 	return s
 
 
+## A rune's sentence with no thread on it: what the bare rune does. The forge
+## writes this under the rune's name, and each thread's own line under that.
+static func base_sentence(e: Dictionary, keys: Array = ABILITY_KEYS["kbm"]) -> String:
+	var bare := {"id": e["id"], "slot": e.get("slot", 0), "bands": [], "band_slots": [], "trigger": FITTINGS[e["id"]]["trigger"],
+		"count": 1, "size": 1.0, "power": 1.0, "every": 1, "also": [], "mirror": false}
+	if e.has("button"):
+		bare["button"] = e["button"]
+	return sentence(bare, keys)
+
+
+## What each thread on a rune adds, a short line for each kind of thread, in the
+## order they sit on the ring: [{band, name, text}]. (Darren, 21 November: "when u
+## hover a rune, any threads affecting it to show then and what they increase.
+## rather than just a big decription".) A thread that does nothing to this rune
+## has no line: the forge says why under "what it does".
+static func thread_lines(e: Dictionary) -> Array:
+	var out: Array = []
+	var seen: Array = []
+	var bands: Array = e.get("bands", [])
+	for b in bands:
+		if b in seen:
+			continue
+		seen.append(b)
+		var text := _thread_text(e, str(b))
+		if text == "":
+			continue
+		var copies := bands.count(b)
+		var name := str(FITTINGS[b]["name"])
+		if copies > 1 and str(b) in ["twice", "wider"]:
+			name += " x%d" % copies
+		out.append({"band": b, "name": name, "text": text})
+	if e.get("ruby", false):
+		out.append({"band": "ruby", "name": "Ruby seat", "text": "it happens one more time"})
+	return out
+
+
+## One thread's line for one rune, from the rune as the ring has made it (so two
+## Twice threads read "three waves").
+static func _thread_text(e: Dictionary, band: String) -> String:
+	var id := str(e["id"])
+	var f: Dictionary = FITTINGS[id]
+	var n: int = e["count"]
+	var size := float(e["size"])
+	var power := float(e.get("power", 1.0))
+	var third := int(e.get("every", 1)) > 1
+	var active: bool = f["trigger"] == "active"
+	var times := "twice" if n == 2 else "%s times" % _num(n)
+	var more := "a second one" if n == 2 else "%s more" % _num(n - 1)
+	match band:
+		"twice":
+			if n < 2:
+				return ""
+			match id:
+				"shockwave": return "%s waves" % _num(n)
+				"shards": return "%s bursts of shards" % _num(n)
+				"weak_point": return "marks up to %s enemies" % _num(n)
+				"whirlwind": return "up to %s turns, not %s" % [_num(int(f["turns"]) * n), _num(int(f["turns"]))]
+				"leap": return "then leaps to the next enemy" if n == 2 else "then %s more leaps" % _num(n - 1)
+				"ghostwield": return "the ghost copies each swing %s" % times
+				"hook": return "then a second chain, at another enemy" if n == 2 else "then %s more chains" % _num(n - 1)
+				"pierce": return "the arrow goes through %s enemies" % _num(pierce_count(e))
+				"ricochet": return "it jumps on %s" % times
+				"steady_aim": return "builds %s as quickly" % times
+				"volley": return "looses the spread %s" % times
+				"snipe": return "%s heavy shots" % _num(n)
+				"arrow_rain": return "then a second shower" if n == 2 else "then %s more showers" % _num(n - 1)
+				"momentum": return "%s steps for each swing that lands" % _num(n)
+				"stagger": return "the meter fills %s as fast" % times
+				"aftershock": return "%s rumbles" % _num(n)
+				"quake": return "then a second crack" if n == 2 else "then %s more cracks" % _num(n - 1)
+				"bulwark": return "its burst stuns for %s as long" % times
+				"orbit": return "%s orbs" % _num(n)
+				"chain": return "jumps to %s enemies, not %s" % [_num(mini(CHAIN_JUMPS * n, 9)), _num(CHAIN_JUMPS)]
+				"overflow": return "every other big bolt is cast %s" % times
+				"nova": return "%s rings" % _num(n)
+				"lance": return "%d mana a pulse, so about %s seconds" % [roundi(float(RUNE_MANA.get("lance", 0.0)) / float(n)), _num(roundi(lance_time(n)))]
+				"spectre": return "%s ghosts" % _num(n)
+			return "it happens %s" % times
+		"wider":
+			if size <= 1.0:
+				return ""
+			match id:
+				"shockwave": return "a bigger wave"
+				"shards": return "the shards fly further"
+				"weak_point": return "a bigger spot to hit"
+				"whirlwind": return "a bigger circle"
+				"leap": return "leaps from further away"
+				"ghostwield": return "the ghost stays %d seconds, not %d" % [roundi(ghost_time(size)), roundi(ghost_time(1.0))]
+				"hook": return "the chain reaches further"
+				"pierce": return "the arrow cuts a wider path"
+				"ricochet": return "it jumps from further away"
+				"steady_aim": return "builds up to +%d%%, not +%d%%" % [roundi(steady_cap(e) * 100.0), roundi(STEADY_CAP * 100.0)]
+				"volley": return "%s arrows, not %s" % [_num(volley_arrows(size)), _num(volley_arrows(1.0))]
+				"snipe": return "a longer moment for the perfect shot"
+				"arrow_rain": return "a bigger area"
+				"momentum": return "each step adds +%d%%" % roundi(momentum_step(e) * 100.0)
+				"stagger": return "the stun catches everything near it too"
+				"aftershock": return "a bigger patch of ground"
+				"quake": return "a longer, wider crack"
+				"bulwark":
+					if third:
+						return "lasts a third longer"
+					var secs := bulwark_time(size, power)
+					return "lasts %d seconds and takes %d hits" % [roundi(secs), bulwark_hits(secs)]
+				"orbit": return "the orb strikes from further off"
+				"chain": return "it jumps from further away"
+				"overflow": return "the big bolt bursts wide where it lands"
+				"nova": return "a bigger ring"
+				"lance": return "a thicker beam"
+				"spectre": return "the ghost stays %d seconds, not %d" % [roundi(spectre_time(size)), roundi(spectre_time(1.0))]
+			return "it is bigger"
+		"every_hit":
+			if active:
+				if float(e.get("refund", 0.0)) <= 0.0:
+					return ""
+				var off := "half a second" if absf(float(e["refund"]) - 0.5) < 0.01 else "%s seconds" % str(snappedf(float(e["refund"]), 0.1)).trim_suffix(".0")
+				return "each hit takes %s off" % off
+			match id:
+				"steady_aim": return "each arrow that lands adds to it" if e.get("per_hit", false) else ""
+				"overflow": return "each bolt that lands gives back %d mana" % roundi(OVERFLOW_REFUND) if e.get("per_hit", false) else ""
+				"momentum": return "counts every enemy a swing hits" if e.get("per_hit", false) else ""
+				"shards": return "twice as many shards, at half strength" if e.get("splinter", false) else ""
+				"ricochet": return "it splits in two as it jumps, at half strength" if e.get("splinter", false) else ""
+				"pierce": return "every arrow does it; those behind take half" if e["trigger"] == "hit" else ""
+			if f["trigger"] == "hit" or e["trigger"] != "hit":
+				return ""
+			return "on every hit, at half strength"
+		"saved_up":
+			if not third:
+				return ""
+			if active:
+				var back := "recharges in %d seconds" % roundi(float(f["recharge"]) * float(e["every"]))
+				match id:
+					"ghostwield": return "copies at %s, but %s" % [_strength(ghost_power(power)), back]
+					"spectre": return "copies at %s, but %s" % [_strength(spectre_power(power)), back]
+					"bulwark":
+						var secs := bulwark_time(size, power)
+						return "lasts %d seconds and takes %d hits, but %s" % [roundi(secs), bulwark_hits(secs), back]
+					"hook": return "stuns the enemy for %s seconds, but %s" % [str(snappedf(HOOK_SAVED_STUN, 0.1)).trim_suffix(".0"), back]
+					"arrow_rain": return "three times as strong and pins enemies, but %s" % back
+				return "three times as strong, but %s" % back
+			match id:
+				"weak_point": return "only every third finisher, but a huge crit"
+				"pierce": return "only every third finisher, but through three times as many"
+				"steady_aim": return "builds slowly; once full, every third arrow hits three times as hard"
+				"momentum": return "a step only every third hit, but each adds +%d%%" % roundi(momentum_step(e) * 100.0)
+				"stagger": return "the meter fills slowly, but a huge blow and a %s second stun" % str(snappedf(STAGGER_STUN * maxf(power, 1.0), 0.1)).trim_suffix(".0")
+				"overflow": return "after %s seconds on full mana, one huge blast, three times as strong" % _num(roundi(OVERFLOW_CHARGE))
+			return "only every third time, but three times as strong"
+		"on_dodge":
+			if not ("dodge" in e.get("also", [])):
+				return ""
+			var dodge := "every third dodge" if third else "a dodge"
+			match id:
+				"ghostwield": return "the ghost also cuts along %s" % ("every third dodge" if third else "every dodge")
+				"volley": return "%s looses one too, at half strength" % dodge
+				"snipe": return "%s looses a quick, weak one too" % dodge
+				"arrow_rain": return "%s leaves a small shower" % dodge
+				"quake", "nova": return "%s does it too, at half strength" % dodge
+				"lance": return "%s fires one flash of it" % dodge
+				"spectre": return "the ghost bursts when its player dodges"
+				"hook": return "%s hooks the nearest enemy" % dodge
+				"bulwark": return "%s puts it up for %s" % [dodge, "a second" if not third else "%s seconds" % _num(roundi(bulwark_time(1.0, power, BULWARK_DODGE)))]
+				"pierce": return "the first arrow after %s does it too" % dodge
+				"ricochet": return "%s sends one from you too" % dodge
+				"steady_aim": return "dodging no longer resets it"
+				"momentum": return "a dodge counts as a hit"
+				"stagger": return "dodging past an enemy counts as a hit"
+				"aftershock": return "%s leaves one where you were" % dodge
+				"orbit": return "%s leaves one too" % dodge
+				"chain": return "%s sends it out from you too" % dodge
+				"overflow": return "a dodge gives back %d mana" % roundi(OVERFLOW_DODGE_MANA)
+			return "%s does it too" % dodge
+	return ""
+
+
+## A share of a hit in words: "full strength", "half strength", "a third of its
+## strength", or the number.
+static func _strength(share: float) -> String:
+	if share >= 0.995:
+		return "full strength"
+	if absf(share - 0.5) < 0.03:
+		return "half strength"
+	if absf(share - 1.0 / 3.0) < 0.03:
+		return "a third of its strength"
+	if absf(share - 0.25) < 0.03:
+		return "a quarter of its strength"
+	return "%d%% strength" % roundi(share * 100.0)
+
+
 static func _num(n: int) -> String:
-	return ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine"][clampi(n, 0, 9)]
+	const WORDS := ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve",
+		"thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen", "twenty"]
+	return WORDS[n] if n >= 0 and n < WORDS.size() else str(n)
 
 
 ## The sword's active runes, one entry per ability button, in button order:
-##   {id, use, effects (indexes into `effects`), recharge (seconds), turns, turn, slot, refund}
+##   {id, use, effects (indexes into `effects`), recharge (seconds), turns, turn, slot, refund,
+##    mana (what a press, or one pulse of a Lance, costs), drain (Lance: it runs on mana)}
 ## (Two Ghostwield runes are one ghost: see _summon_ghost in player.gd.)
 ## Twice gives a hold rune that many times the turns; a press rune fires that
 ## many times. Saved Up makes the recharge three times as long. Every Hit gives
@@ -1546,12 +1800,20 @@ static func abilities(effects: Array) -> Array:
 		var b := int(e["button"])
 		var recharge := float(f["recharge"]) * float(e.get("every", 1))
 		var turns := int(f.get("turns", 1)) * int(e["count"])
+		# A staff's active runes cost mana. Lance runs on mana and not on a meter
+		# ("drain"): each pulse costs some (Twice: half as much, so it lasts twice
+		# as long), and its "turns" are the pulses a full bar pays for.
+		var mana := float(RUNE_MANA.get(e["id"], 0.0))
+		var drain: bool = f.get("mana", false)
+		if drain:
+			mana /= float(maxi(int(e["count"]), 1))
+			turns = maxi(int(MANA / maxf(mana, 0.01)), 1)
 		while out.size() <= b:
 			out.append({})
 		if out[b].is_empty():
 			out[b] = {"id": e["id"], "use": f["use"], "effects": [i], "recharge": recharge,
 				"turns": turns, "turn": float(f.get("turn", 0.0)), "slot": int(e["slot"]),
-				"refund": float(e.get("refund", 0.0))}
+				"refund": float(e.get("refund", 0.0)), "mana": mana, "drain": drain}
 		else:
 			out[b]["effects"].append(i)
 			out[b]["recharge"] = maxf(float(out[b]["recharge"]), recharge)

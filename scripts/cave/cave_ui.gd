@@ -298,7 +298,7 @@ func _head(text: String, pos: Vector2, col := INK, size := 8, width := -1.0, ali
 
 
 func _body(text: String, pos: Vector2, col := INK, width := -1.0, align := HORIZONTAL_ALIGNMENT_LEFT) -> void:
-	root.draw_string(Art.font("PixelifySans-Regular"), pos, text, align, width, 11, col)
+	root.draw_string(Art.font(Art.TEXT), pos, text, align, width, Art.TEXT_SIZE, col)
 
 
 ## Body text can show a key or button as a picture: write it as a word in square
@@ -317,15 +317,15 @@ func _key_in(word: String) -> Array:
 
 
 func _word_w(word: String) -> float:
-	var f := Art.font("PixelifySans-Regular")
+	var f := Art.font(Art.TEXT)
 	var key := _key_in(word)
 	if key.is_empty():
-		return f.get_string_size(word, HORIZONTAL_ALIGNMENT_LEFT, -1, 11).x
-	return float((key[0] as Texture2D).get_width()) + 1.0 + f.get_string_size(str(key[1]), HORIZONTAL_ALIGNMENT_LEFT, -1, 11).x
+		return f.get_string_size(word, HORIZONTAL_ALIGNMENT_LEFT, -1, Art.TEXT_SIZE).x
+	return float((key[0] as Texture2D).get_width()) + 1.0 + f.get_string_size(str(key[1]), HORIZONTAL_ALIGNMENT_LEFT, -1, Art.TEXT_SIZE).x
 
 
 func _line_w(line: String) -> float:
-	var space := Art.font("PixelifySans-Regular").get_string_size(" ", HORIZONTAL_ALIGNMENT_LEFT, -1, 11).x
+	var space := Art.font(Art.TEXT).get_string_size(" ", HORIZONTAL_ALIGNMENT_LEFT, -1, Art.TEXT_SIZE).x
 	var w := 0.0
 	var words := line.split(" ")
 	for i in words.size():
@@ -335,18 +335,18 @@ func _line_w(line: String) -> float:
 
 ## One line of body text with its key pictures, starting at pos (the text baseline).
 func _rich(line: String, pos: Vector2, col := INK) -> void:
-	var f := Art.font("PixelifySans-Regular")
-	var space := f.get_string_size(" ", HORIZONTAL_ALIGNMENT_LEFT, -1, 11).x
+	var f := Art.font(Art.TEXT)
+	var space := f.get_string_size(" ", HORIZONTAL_ALIGNMENT_LEFT, -1, Art.TEXT_SIZE).x
 	var x := pos.x
 	for word in line.split(" "):
 		var key := _key_in(word)
 		if key.is_empty():
-			root.draw_string(f, Vector2(x, pos.y), word, HORIZONTAL_ALIGNMENT_LEFT, -1, 11, col)
+			root.draw_string(f, Vector2(x, pos.y), word, HORIZONTAL_ALIGNMENT_LEFT, -1, Art.TEXT_SIZE, col)
 		else:
 			var tex: Texture2D = key[0]
 			root.draw_texture(tex, Vector2(x, pos.y - 12.0).round())
 			if str(key[1]) != "":
-				root.draw_string(f, Vector2(x + tex.get_width() + 1.0, pos.y), str(key[1]), HORIZONTAL_ALIGNMENT_LEFT, -1, 11, col)
+				root.draw_string(f, Vector2(x + tex.get_width() + 1.0, pos.y), str(key[1]), HORIZONTAL_ALIGNMENT_LEFT, -1, Art.TEXT_SIZE, col)
 		x += _word_w(word) + space
 
 
@@ -409,9 +409,18 @@ func _draw_ui() -> void:
 		var icon := Art.texture("cave/ui/pick_%s.png" % pk["kind"])
 		if icon == null:
 			icon = Art.texture("hud/weapon_%s.png" % pk["kind"])
+		var taken := int(pk.get("taken", -1))
 		if icon != null:
 			var tint := Color(0.42, 0.40, 0.52, fade_in.a) if pk["locked"] else fade_in
+			if taken >= 0:
+				tint = Color(0.34, 0.33, 0.44, fade_in.a * 0.8)   # somebody has it: dim, and not to be taken
 			root.draw_texture(icon, (at - icon.get_size() * 0.5).round(), tint)
+		if taken >= 0:
+			# Whose it is, on a small dark tag at the foot of the plate.
+			var tag := "P%d" % (taken + 1)
+			var tw := ceilf(silk.get_string_size(tag, HORIZONTAL_ALIGNMENT_LEFT, -1, 8).x)
+			root.draw_rect(Rect2(at.x - tw * 0.5 - 2.0, at.y + 5.0, tw + 3.0, 9.0), Color(PLATE, 0.9 * fade_in.a))
+			root.draw_string(silk, Vector2(at.x - tw * 0.5, at.y + 12.0), tag, HORIZONTAL_ALIGNMENT_LEFT, -1, 8, Color(pk.get("taken_color", INK), fade_in.a))
 		if pk["locked"]:
 			var lock := Art.texture("swing/ui/padlock.png")
 			if lock != null:

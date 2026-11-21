@@ -41,7 +41,7 @@ const AMBER := Color("#ffc850")
 const TEAL := Color("#86d4a4")
 const VIOLET := Color("#a878d0")
 const EMBER := Color("#f06a40")
-const GHOST := Color("#a8b4ff")   # Ghostwield's blue-violet
+const GHOST := Color("#c8f0c4")   # Ghostwield's pale verdigris
 const PLATE := Color("#19142a")
 const SHADE := Color(0.098, 0.078, 0.165, 0.5)   # PLATE, half see-through
 const SIZE := Vector2(640, 360)
@@ -272,7 +272,7 @@ func _draw_hud() -> void:
 		if not many:
 			_draw_chain(player)
 			var hint := "Tab / Y: forge    %sClick / X: attack    Space / A: dodge" % ("L: lab    " if has_lab else "")
-			panel.draw_string(Art.font("PixelifySans-Regular"), Vector2(0, SIZE.y - 16), hint, HORIZONTAL_ALIGNMENT_RIGHT, SIZE.x - MARGIN, 11, DIM)
+			panel.draw_string(Art.font(Art.TEXT), Vector2(0, SIZE.y - 16), hint, HORIZONTAL_ALIGNMENT_RIGHT, SIZE.x - MARGIN, Art.TEXT_SIZE, DIM)
 
 
 ## The arena's switches in words, under the kills, as [words, colour]. Two players
@@ -320,7 +320,9 @@ func _draw_abilities(p, right: bool, x: float, y: float, block_w: float) -> void
 	for b in list.size():
 		var a: Dictionary = list[b]
 		var charge := clampf(float(p.ability_charge[b]), 0.0, 1.0)
-		var ready: bool = p.ability_ready(b)
+		# (Ready: completely recharged, and with the mana for it. A hold rune that
+		# is going stays lit while it runs down.)
+		var ready: bool = p.ability_ready(b) or p.hold_button == b
 		var going: bool = p.hold_button == b or p.snipe_button == b or p.game_time - float(p.ability_used[b]) < 0.12
 		var since_no: float = p.game_time - float(p.ability_denied[b])
 		var sx := at + (roundf(sin(since_no * 70.0) * 1.5) if since_no < 0.2 else 0.0)

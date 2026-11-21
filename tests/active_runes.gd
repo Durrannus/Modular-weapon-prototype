@@ -212,15 +212,15 @@ func _run() -> void:
 	_check(p.hold_button == 0, "holding Whirlwind's button starts the spin")
 	await _frames(20)   # into the second turn
 	_check(p.hold_turns == 2, "still held, a second turn follows the first (%d)" % p.hold_turns)
-	await _frames(100)
-	_check(most_turns == 3, "a full meter is three turns (%d)" % most_turns)
+	await _frames(110)
+	_check(most_turns == 6, "a full meter is six turns (%d)" % most_turns)
 	_check(p.hold_button < 0, "then the spin stops, even with the button still down")
 	var worst := 0.0
 	var best := 9999.0
 	for e in ring:
 		worst = maxf(worst, 5000.0 - e.hp)
 		best = minf(best, 5000.0 - e.hp)
-	_check(absf(best - dmg * 0.9 * 3.0) < 0.01 and absf(worst - best) < 0.01, "every enemy around was cut once a turn (%.1f each, blade %.0f)" % [best, dmg])
+	_check(absf(best - dmg * 0.9 * 6.0) < 0.01 and absf(worst - best) < 0.01, "every enemy around was cut once a turn (%.1f each, blade %.0f)" % [best, dmg])
 	_check(lowest < 0.01, "the meter was emptied (%.2f)" % lowest)
 	_release()
 	await _frames(5)
@@ -228,15 +228,24 @@ func _run() -> void:
 	await _frames(5)
 	_check(p.hold_button < 0, "an empty meter won't start a spin")
 	_release()
-	await _frames(330)
-	_check(float(p.ability_charge[0]) >= 1.0, "the meter is full again 5 seconds after stopping (%.2f)" % p.ability_charge[0])
+	await _frames(300)
+	_check(not p.ability_ready(0), "five seconds on it is not full yet (%.2f)" % p.ability_charge[0])
+	await _press(0, true)
+	await _frames(5)
+	_check(p.hold_button < 0, "and a meter that is only part full won't start a spin either (21 November)")
+	_release()
+	await _frames(90)
+	_check(float(p.ability_charge[0]) >= 1.0, "the meter is full again 6 seconds after stopping (%.2f)" % p.ability_charge[0])
 
 	# A tap is one turn.
 	await _rest()
 	await _press(0)
 	await _frames(40)
 	_check(most_turns == 1 and p.hold_button < 0, "a tap is exactly one turn")
-	_check(absf(float(p.ability_charge[0]) - 2.0 / 3.0) < 0.12, "and costs a third of the meter (%.2f left)" % p.ability_charge[0])
+	_check(absf(float(p.ability_charge[0]) - 5.0 / 6.0) < 0.06, "and costs a sixth of the meter (%.2f left)" % p.ability_charge[0])
+	await _press(0)
+	await _frames(3)
+	_check(p.hold_button < 0 and most_turns == 1, "but the rest can't be used until the meter is full again")
 
 	# No swinging mid-spin; the swing comes as the spin ends.
 	await _rest()
@@ -280,10 +289,10 @@ func _run() -> void:
 	# Twice: a hold rune gets twice the turns.
 	_sword(["twice", "whirlwind", "", ""])
 	await _rest()
-	_check(int(p.weapon["abilities"][0]["turns"]) == 6, "Twice gives Whirlwind six turns")
+	_check(int(p.weapon["abilities"][0]["turns"]) == 12, "Twice gives Whirlwind twelve turns")
 	await _press(0, true)
-	await _frames(150)
-	_check(most_turns == 6, "and holding spins all six (%d)" % most_turns)
+	await _frames(215)
+	_check(most_turns == 12, "and holding spins all twelve (%d)" % most_turns)
 	_release()
 
 	# Wider: a bigger circle.
@@ -358,7 +367,7 @@ func _run() -> void:
 	p.ability_charge[0] = 1.0
 	await _swing()
 	_check(float(p.ability_charge[0]) == 1.0, "a full meter stays full")
-	# On a hold rune it is half a second of its refill: a tenth of Whirlwind's meter.
+	# On a hold rune it is half a second of its refill: a twelfth of Whirlwind's meter.
 	_sword_exact(["every_hit", "whirlwind", "", ""])
 	await _rest()
 	_check(p.weapon["abilities"].size() == 1 and p.weapon["abilities"][0]["id"] == "whirlwind", "Every Hit leaves Whirlwind on its button too")
@@ -367,7 +376,7 @@ func _run() -> void:
 	missed = p.ability_charge[0]
 	p.ability_charge[0] = 0.0
 	await _swing()
-	_check(absf((float(p.ability_charge[0]) - missed) - 0.5 / 5.0) < 0.005, "a swing that lands gives Whirlwind a tenth of its meter (%.3f)" % (float(p.ability_charge[0]) - missed))
+	_check(absf((float(p.ability_charge[0]) - missed) - 0.5 / 6.0) < 0.005, "a swing that lands gives Whirlwind a twelfth of its meter (%.3f)" % (float(p.ability_charge[0]) - missed))
 	# Saved Up makes the recharge three times as long, and the half second stays a half second.
 	_sword_exact(["every_hit", "saved_up", "leap", ""])
 	await _rest()
@@ -646,6 +655,7 @@ func _lost(e) -> float:
 
 
 func _ghostwield_checks(dmg: float) -> void:
+	var g := 0.35   # what the ghost's copy does, as a share of the swing (it was a half until 21 November)
 	_sword_exact(["ghostwield", "", "", ""])
 	await _rest()
 	_check(p.ghost_left == 0.0, "a new sword starts with no ghost out")
@@ -654,9 +664,9 @@ func _ghostwield_checks(dmg: float) -> void:
 	await _swing()
 	_check(absf(_lost(near) - dmg) < 0.01, "before it is called, a swing is just a swing (%.1f)" % _lost(near))
 	await _press(0)
-	_check(absf(float(p.ghost_left) - 15.0) < 0.1, "pressing its button calls the ghost sword for 15 seconds (%.2f)" % p.ghost_left)
+	_check(absf(float(p.ghost_left) - 8.0) < 0.1, "pressing its button calls the ghost sword for 8 seconds (%.2f)" % p.ghost_left)
 	_check(float(p.ability_charge[0]) < 0.05 and not p.ability_ready(0), "and empties its meter: the 45 seconds run from the press")
-	_check(absf(float(p.ghost_power) - 0.5) < 0.001 and p.ghost_count == 1, "one copy of each swing, at half strength")
+	_check(absf(float(p.ghost_power) - g) < 0.001 and p.ghost_count == 1, "one copy of each swing, at about a third of its strength")
 	near.hp = 5000.0
 	p._reset_combo()
 	p.input.stick_aim = Vector2.RIGHT
@@ -668,11 +678,11 @@ func _ghostwield_checks(dmg: float) -> void:
 	var first := _lost(near)
 	await _frames(22)
 	p._reset_combo()
-	_check(absf(first - dmg) < 0.01 and absf(_lost(near) - dmg * 1.5) < 0.01, "the ghost copies the swing a moment later, at half strength (%.1f, then %.1f)" % [first, _lost(near)])
+	_check(absf(first - dmg) < 0.01 and absf(_lost(near) - dmg * (1.0 + g)) < 0.01, "the ghost copies the swing a moment later, at a third of its strength (%.1f, then %.1f)" % [first, _lost(near)])
 	near.hp = 5000.0
 	await _chain()
 	await _frames(20)
-	_check(absf(_lost(near) - dmg * 5.25) < 0.01, "a whole chain: 3.5 hits and the ghost's 1.75 (%.1f, blade %.0f)" % [_lost(near), dmg])
+	_check(absf(_lost(near) - dmg * 3.5 * (1.0 + g)) < 0.01, "a whole chain: 3.5 hits and the ghost's 1.225 (%.1f, blade %.0f)" % [_lost(near), dmg])
 	_check(float(p.ability_charge[0]) < 0.2, "its meter is still filling while it is out (%.2f)" % p.ability_charge[0])
 	# Its time runs out.
 	p.ghost_left = 0.2
@@ -688,14 +698,14 @@ func _ghostwield_checks(dmg: float) -> void:
 	await _press(0)
 	near.hp = 5000.0
 	await _swing()
-	_check(p.ghost_count == 2 and absf(_lost(near) - dmg * 2.0) < 0.01, "Twice: the ghost copies each swing twice (%.1f)" % _lost(near))
+	_check(p.ghost_count == 2 and absf(_lost(near) - dmg * (1.0 + 2.0 * g)) < 0.01, "Twice: the ghost copies each swing twice (%.1f)" % _lost(near))
 
 	# Wider: it stays longer.
 	_sword_exact(["wider", "ghostwield", "", ""])
 	await _rest()
 	_check(p.ghost_left == 0.0, "changing the sword sends the ghost away")
 	await _press(0)
-	_check(absf(float(p.ghost_left) - 20.0) < 0.1, "Wider: 20 seconds instead of 15 (%.2f)" % p.ghost_left)
+	_check(absf(float(p.ghost_left) - 8.0 * 4.0 / 3.0) < 0.1, "Wider: a third longer, about 11 seconds instead of 8 (%.2f)" % p.ghost_left)
 
 	# Saved Up: a full copy, and three times the recharge.
 	_sword_exact(["saved_up", "ghostwield", "", ""])
@@ -740,7 +750,7 @@ func _ghostwield_checks(dmg: float) -> void:
 	p.input.dash_pressed = false
 	p.input.move = Vector2.ZERO
 	await _frames(20)
-	_check(p.ghost_left == 0.0 and absf(_lost(near) - dmg * 0.5) < 0.01, "On Dodge: the ghost cuts what you dodge through for half a hit (%.1f)" % _lost(near))
+	_check(p.ghost_left == 0.0 and absf(_lost(near) - dmg * g) < 0.01, "On Dodge: the ghost cuts what you dodge through for a third of a hit (%.1f)" % _lost(near))
 	near.queue_free()
 	await _frames(2)
 	near = _slime(Vector2(50, 0))
@@ -753,7 +763,7 @@ func _ghostwield_checks(dmg: float) -> void:
 	near.hp = 5000.0
 	await _chain()
 	await _frames(24)
-	_check(absf(_lost(near) - dmg * 5.85) < 0.01, "Shockwave: the ghost's finisher sends a second wave at half strength (%.2f, want %.2f)" % [_lost(near), dmg * 5.85])
+	_check(absf(_lost(near) - dmg * (3.5 + 0.4) * (1.0 + g)) < 0.01, "Shockwave: the ghost's finisher sends a second wave at a third of its strength (%.2f, want %.2f)" % [_lost(near), dmg * (3.5 + 0.4) * (1.0 + g)])
 
 	_sword_exact(["ghostwield", "saved_up", "shockwave", ""])
 	await _rest()
@@ -761,17 +771,17 @@ func _ghostwield_checks(dmg: float) -> void:
 	near.hp = 5000.0
 	await _chain()
 	await _frames(24)
-	_check(absf(_lost(near) - dmg * 5.25) < 0.01, "Saved Up Shockwave: no wave, and no ghost wave, on the first finisher (%.2f)" % _lost(near))
+	_check(absf(_lost(near) - dmg * 3.5 * (1.0 + g)) < 0.01, "Saved Up Shockwave: no wave, and no ghost wave, on the first finisher (%.2f)" % _lost(near))
 	await _chain()
 	await _frames(24)
 	near.hp = 5000.0
 	await _chain()
 	await _frames(24)
-	_check(absf(_lost(near) - dmg * 7.05) < 0.01, "the third finisher's big wave gets its ghost too, and the count isn't thrown (%.2f, want %.2f)" % [_lost(near), dmg * 7.05])
+	_check(absf(_lost(near) - dmg * (3.5 + 1.2) * (1.0 + g)) < 0.01, "the third finisher's big wave gets its ghost too, and the count isn't thrown (%.2f, want %.2f)" % [_lost(near), dmg * (3.5 + 1.2) * (1.0 + g)])
 	near.hp = 5000.0
 	await _chain()
 	await _frames(24)
-	_check(absf(_lost(near) - dmg * 5.25) < 0.01, "and the fourth has none again (%.2f)" % _lost(near))
+	_check(absf(_lost(near) - dmg * 3.5 * (1.0 + g)) < 0.01, "and the fourth has none again (%.2f)" % _lost(near))
 
 	# (Back to the middle first: by now the fight has drifted against the east
 	# wall, and a wall stops shards.)
@@ -785,7 +795,7 @@ func _ghostwield_checks(dmg: float) -> void:
 	near.hp = 5000.0
 	await _swing()
 	await _frames(20)
-	_check(absf(_lost(far) - dmg * 0.9) < 0.01, "Shards: the ghost's hit sends its own shards on, at half strength (%.2f, want %.2f)" % [_lost(far), dmg * 0.9])
+	_check(absf(_lost(far) - dmg * 0.6 * (1.0 + g)) < 0.01, "Shards: the ghost's hit sends its own shards on, at a third of their strength (%.2f, want %.2f)" % [_lost(far), dmg * 0.6 * (1.0 + g)])
 	far.queue_free()
 	await _frames(2)
 
@@ -796,10 +806,10 @@ func _ghostwield_checks(dmg: float) -> void:
 	near.hp = 5000.0
 	await _chain()
 	await _frames(20)
-	_check(near.weak_marks.size() == 1 and absf(_lost(near) - dmg * 5.25) < 0.01, "Weak Point: the ghost's copy of the finisher doesn't spend the mark (%.1f)" % _lost(near))
+	_check(near.weak_marks.size() == 1 and absf(_lost(near) - dmg * 3.5 * (1.0 + g)) < 0.01, "Weak Point: the ghost's copy of the finisher doesn't spend the mark (%.1f)" % _lost(near))
 	near.hp = 5000.0
 	await _swing()
-	_check(near.weak_marks.is_empty() and absf(_lost(near) - dmg * 3.0) < 0.01, "your next hit takes the big crit, and the ghost copies it as an ordinary hit (%.1f)" % _lost(near))
+	_check(near.weak_marks.is_empty() and absf(_lost(near) - dmg * (2.5 + g)) < 0.01, "your next hit takes the big crit, and the ghost copies it as an ordinary hit (%.1f)" % _lost(near))
 	near.queue_free()
 	await _frames(2)
 	_sword_exact(["whirlwind", "leap", "ghostwield", "weak_point"])

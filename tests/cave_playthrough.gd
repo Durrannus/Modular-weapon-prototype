@@ -5,7 +5,8 @@ extends SceneTree
 ##   godot --headless --path . --fixed-fps 60 -s tests/cave_playthrough.gd -- [players=2] [bow] [shots] [mortal] [limit=<seconds of game time>]
 ## "bow", "hammer", "staff", "sword": what the players take from the crate, in
 ## order ("hammer staff": player one the hammer, player two the staff; whoever
-## isn't named takes the sword). "bows", "hammers", "staffs": everyone takes that.
+## isn't named takes the first weapon nobody else has: each goes to one player
+## since version 34). "bows", "hammers", "staffs": the same as naming it once.
 ## "swap": player one takes the sword, then goes back to the crate after room 1
 ## and swaps it for the bow ("swap=staff": for the staff).
 ## Every weapon's first rune is an ability on a button (the sword's and the bow's
@@ -70,7 +71,7 @@ func _init() -> void:
 		elif a in ["bow", "hammer", "staff", "sword"]:
 			weapons.append(a)          # in order: "hammer staff" = player one a hammer, player two a staff
 		elif a in ["bows", "hammers", "staffs"]:
-			weapons = [a.trim_suffix("s"), a.trim_suffix("s"), a.trim_suffix("s"), a.trim_suffix("s")]
+			weapons = [a.trim_suffix("s")]     # (it was "everyone takes that": now a weapon goes to one player)
 		elif a == "swap" or a.begins_with("swap="):
 			test_swap = true
 			if a.begins_with("swap="):
@@ -78,9 +79,20 @@ func _init() -> void:
 	_begin()
 
 
-## What bot i takes from the crate.
+## What bot i takes from the crate. Each weapon goes to one player (since
+## version 34), so whoever isn't named takes the first one nobody else is taking
+## (in the crate's order: sword, bow, hammer, staff).
 func _wants(i: int) -> String:
-	return weapons[i] if i < weapons.size() else "sword"
+	if i < weapons.size():
+		return weapons[i]
+	if test_swap and i == 0:
+		return "sword"
+	var spoken: Array = weapons.duplicate()
+	if test_swap:
+		spoken.append_array(["sword", swap_to])    # (player one's: the sword, then the one they come back for)
+	var free: Array = ["sword", "bow", "hammer", "staff"].filter(func(k): return not (k in spoken))
+	var mine := i - weapons.size() - (1 if test_swap and weapons.is_empty() else 0)
+	return free[maxi(mine, 0) % free.size()]
 
 
 ## What bot i should walk out with.
@@ -253,8 +265,8 @@ func _fight(i: int) -> void:
 			if p.current_step < 0:
 				inp.attack_pressed = true
 		return
-	# Every weapon's first rune is an ability on button one. Quake is a press (it
-	# erupts under the enemy aimed at, up to 240 away) and so is Volley (three
+	# Every weapon's first rune is an ability on button one. Quake is a press (a
+	# crack along the aim, 240 long) and so is Volley (three
 	# arrows, from where a bow stands to shoot). Lance is a beam for as long as the
 	# button is held, and Whirlwind a spin for as long as it is, so the sword must
 	# be close enough for the spin to cut. The bots keep them for the guardian.

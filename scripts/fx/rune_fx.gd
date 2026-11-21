@@ -8,6 +8,7 @@ extends Node2D
 ##   "slash"  Cleave: a cross-slash on the enemy behind
 ##   "pulse"  Second Wind: a green ring bursting out from the player
 ##   "text"   floating label, like "+DODGE"
+##   "crack"  Quake: a crack in the floor that runs out along dir for `reach` px
 
 const Art := preload("res://scripts/art.gd")
 const SwordArt := preload("res://scripts/weapon/sword_art.gd")
@@ -32,6 +33,9 @@ var to_node: Node2D
 var to_at := Vector2.INF   # chain: where it flies to and comes back from, with no to_node
 var spin_side := 1.0
 var drawn := true     # false when a sprite strip draws the effect instead  # Whirlwind: +1 clockwise, -1 the other way
+var reach := 240.0    # crack: how long it is
+const CRACK_RUN := 0.1     # a crack runs out to its full length over this long
+const CRACK_TAIL := 26.0   # the end piece runs out to a point about this far along (art pixels)
 
 
 func _ready() -> void:
@@ -124,7 +128,8 @@ func _draw() -> void:
 				Art.draw_strip(self, link, 2, i % 2, p, Vector2(3, 2), false, Color(1, 1, 1, fade * 1.5), Art.PIXEL, ang)
 			var head := Art.texture("swing/fx/hook_head_bite.png" if reach >= 1.0 and not empty else "swing/fx/hook_head.png")
 			if head != null:
-				Art.draw_strip(self, head, 1, 0, end, Vector2(2, 1), false, Color(1, 1, 1, fade * 1.5), Art.PIXEL, ang)
+				# (The claw is drawn about the chain's line, its eye at the left middle.)
+				Art.draw_strip(self, head, 1, 0, end, Vector2(2, 8), false, Color(1, 1, 1, fade * 1.5), Art.PIXEL, ang)
 		"wave":
 			# A thick glowing crescent, white-hot at the front edge, with a trail.
 			var w := half_width * size
@@ -171,6 +176,31 @@ func _draw() -> void:
 				var p := a.lerp(b, float(i) / n)
 				draw_arc(p, 5.0, 0.0, TAU, 8, c, 2.5)
 			draw_circle(b, 9.0 * fade + 3.0, c)
+		"crack" when Art.texture("fx/quake_crack.png") != null:
+			# The art's pieces laid end to end along the aim, then the piece that runs
+			# out to a point. Whole pieces only (their ends join on the middle row),
+			# stretched a little so the crack is exactly as long as what it hits.
+			var tex := Art.texture("fx/quake_crack.png")
+			var tip := Art.texture("fx/quake_crack_end.png")
+			var n := 6
+			var frame := mini(int(k * n), n - 1)
+			var fw := float(tex.get_width()) / n
+			var fh := float(tex.get_height())
+			var art_len := reach * clampf(t / CRACK_RUN, 0.05, 1.0) / Art.PIXEL
+			var tail := CRACK_TAIL if tip != null else 0.0
+			var pieces := maxi(roundi((art_len - tail) / fw), 0)
+			var stretch := art_len / maxf(float(pieces) * fw + tail, 1.0)
+			draw_set_transform(Vector2.ZERO, dir.angle(), Vector2(Art.PIXEL * stretch, Art.PIXEL * maxf(size, 1.0)))
+			for i in pieces:
+				draw_texture_rect_region(tex, Rect2(float(i) * fw, -fh * 0.5, fw, fh), Rect2(frame * fw, 0, fw, fh))
+			if tip != null:
+				draw_texture_rect_region(tip, Rect2(float(pieces) * fw, -fh * 0.5, fw, fh), Rect2(frame * fw, 0, fw, fh))
+			draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+		"crack":
+			# (No picture: a dark split with ember light in it.)
+			var far := dir * reach * clampf(t / CRACK_RUN, 0.05, 1.0)
+			draw_line(Vector2.ZERO, far, Color(0.1, 0.08, 0.16, fade), 7.0 * size)
+			draw_line(Vector2.ZERO, far, Color(color.r, color.g, color.b, fade * fade), 2.5 * size)
 		"slash":
 			var c := color
 			c.a = fade
@@ -185,11 +215,11 @@ func _draw() -> void:
 			c.a = fade * 0.25
 			draw_circle(Vector2.ZERO, lerpf(20.0, 140.0 * size, k), c)
 		"text":
-			var font := Art.font("PixelifySans-Bold")
+			var font := Art.font(Art.TEXT_BOLD)
 			var c := color
 			c.a = fade
-			draw_string_outline(font, Vector2(-120, 0), text, HORIZONTAL_ALIGNMENT_CENTER, 240, 26, 8, Color(0.06, 0.04, 0.09, fade))
-			draw_string(font, Vector2(-120, 0), text, HORIZONTAL_ALIGNMENT_CENTER, 240, 26, c)
+			draw_string_outline(font, Vector2(-140, 0), text, HORIZONTAL_ALIGNMENT_CENTER, 280, Art.TEXT_BOLD_SIZE * 2, 8, Color(0.06, 0.04, 0.09, fade))
+			draw_string(font, Vector2(-140, 0), text, HORIZONTAL_ALIGNMENT_CENTER, 280, Art.TEXT_BOLD_SIZE * 2, c)
 
 
 ## A curved band facing +x (the node is rotated to the wave's direction).

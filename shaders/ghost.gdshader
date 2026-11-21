@@ -12,10 +12,12 @@ uniform float strength = 1.0;
 uniform sampler2D screen_texture : hint_screen_texture, filter_nearest;
 
 vec3 ramp(float l) {
-	vec3 c0 = vec3(0.102, 0.141, 0.314);
-	vec3 c1 = vec3(0.227, 0.235, 0.549);
-	vec3 c2 = vec3(0.416, 0.439, 0.816);
-	vec3 c3 = vec3(0.659, 0.706, 1.0);
+	// (Verdigris, the game's colour for what is old or asleep: 12383e, 2a7f70,
+	// 86d4a4, c8f0c4. It was a blue-violet ramp until 21 November.)
+	vec3 c0 = vec3(0.071, 0.220, 0.243);
+	vec3 c1 = vec3(0.165, 0.498, 0.439);
+	vec3 c2 = vec3(0.525, 0.831, 0.643);
+	vec3 c3 = vec3(0.784, 0.941, 0.769);
 	if (l < 0.3) {
 		return mix(c0, c1, l / 0.3);
 	}
@@ -34,7 +36,7 @@ void fragment() {
 			+ textureLod(screen_texture, SCREEN_UV + vec2(0.0, p.y), 0.0).a
 			+ textureLod(screen_texture, SCREEN_UV - vec2(0.0, p.y), 0.0).a;
 		// The edge: the ramp's lightest colour, nearly solid.
-		COLOR = n > 0.5 ? vec4(0.82, 0.86, 1.0, 0.95 * strength) : vec4(0.0);
+		COLOR = n > 0.5 ? vec4(0.89, 0.98, 0.88, 0.95 * strength) : vec4(0.0);
 	} else {
 		// The sword's own light and dark, a step down the ramp so the edge stands out.
 		float l = dot(c.rgb, vec3(0.299, 0.587, 0.114));

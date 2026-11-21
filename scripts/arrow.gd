@@ -50,6 +50,7 @@ var bounce := {}               # Ricochet: what its next jump is like ({jumps, r
 ## crystal's), and never sticks: it is gone where it stops.
 var bolt := ""
 var splash := 0.0              # a burst or an orb: it hurts everything this near where it stops
+var small := false             # a plain bolt's very small splash: no burst is shown for it
 var quiet := false             # one of a spray's side sparks: it sets no rune off
 var halo := ""                 # Overflow: a strip drawn round the bolt as it flies ("overflow_glow")
 var big := 1.0                 # Overflow: the bolt is drawn this much bigger

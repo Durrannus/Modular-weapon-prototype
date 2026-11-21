@@ -35,7 +35,7 @@ var pix: Font
 func _ready() -> void:
 	layer = 20
 	silk = Art.font("Silkscreen-Regular")
-	pix = Art.font("PixelifySans-Regular")
+	pix = Art.font(Art.TEXT)
 	Input.set_custom_mouse_cursor(null)
 	root = Control.new()
 	root.size = Vector2(640, 360)
@@ -137,7 +137,7 @@ func _text(text: String, col: Color) -> Label:
 	l.custom_minimum_size = Vector2(WIDTH, 0)
 	if pix != null:
 		l.add_theme_font_override("font", pix)
-	l.add_theme_font_size_override("font_size", 11)
+	l.add_theme_font_size_override("font_size", Art.TEXT_SIZE)
 	l.add_theme_constant_override("line_spacing", 0)
 	l.add_theme_color_override("font_color", col)
 	box.add_child(l)
@@ -175,7 +175,7 @@ func _button(text: String, pressed: Callable) -> Button:
 func _style_field(field: LineEdit) -> void:
 	if pix != null:
 		field.add_theme_font_override("font", pix)
-	field.add_theme_font_size_override("font_size", 11)
+	field.add_theme_font_size_override("font_size", Art.TEXT_SIZE)
 	field.add_theme_color_override("font_color", INK)
 	field.add_theme_color_override("font_placeholder_color", Color("#5f8072"))
 	field.add_theme_color_override("caret_color", AMBER)

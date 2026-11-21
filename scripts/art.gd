@@ -244,9 +244,29 @@ static func play_piece(from: Node, name: String, where: Vector2, angle := 0.0, s
 	return n
 
 
+## Most effect strips are light and are added to what is behind them. The ones
+## made of something (rock, cracks in the floor, bronze) are drawn for normal
+## blending: art/blend.json lists them, as "<folder>/<name>".
+static func blends_normal(folder: String, name: String) -> bool:
+	return ("%s/%s" % [folder, name]) in json("blend.json").get("normal", [])
+
+
 static var _fonts := {}
 
 ## Pixel fonts from art/fonts (loaded at runtime so no import is needed).
+## The game's text. Until 21 November it was Pixelify Sans at 11, which is not a
+## size that font is drawn for: its digits came out smudged (a 5 read as an 8),
+## and Darren found it "hard to read on certian numbers". Galmuri (SIL Open Font
+## License) is a pixel font drawn for exactly these sizes, with plain digits.
+## Each is only ever drawn at its own size or a whole multiple of it.
+const TEXT := "Galmuri9"              # sentences, and numbers on plates
+const TEXT_SIZE := 10
+const TEXT_BOLD := "Galmuri11-Bold"   # names; twice the size for words over heads and crits
+const TEXT_BOLD_SIZE := 12
+const TEXT_SMALL := "Galmuri7"        # twice the size for the damage numbers
+const TEXT_SMALL_SIZE := 8
+
+
 static func font(name: String) -> Font:
 	if _fonts.has(name):
 		return _fonts[name]

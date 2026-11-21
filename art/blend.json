@@ -1,0 +1,13 @@
+{
+ "normal": [
+  "fx/aftershock_crack",
+  "fx/aftershock_burst",
+  "fx/quake_erupt",
+  "fx/quake_rock",
+  "fx/quake_crack",
+  "fx/quake_crack_end",
+  "fx/bulwark_shield",
+  "fx/bulwark_end"
+ ],
+ "note": "strips drawn for normal blending; every other strip stays additive. See README.md"
+}

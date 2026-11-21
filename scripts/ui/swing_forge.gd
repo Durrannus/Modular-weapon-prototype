@@ -682,17 +682,17 @@ func _head(text: String, pos: Vector2, col := INK, size := 8, width := -1.0, ali
 
 
 func _body(text: String, pos: Vector2, col := INK, width := -1.0, align := HORIZONTAL_ALIGNMENT_LEFT) -> void:
-	root.draw_string(Art.font("PixelifySans-Regular"), pos, text, align, width, 11, col)
+	root.draw_string(Art.font(Art.TEXT), pos, text, align, width, Art.TEXT_SIZE, col)
 
 
 ## Word-wraps body text to a width; returns the lines.
 func _wrap(text: String, width: float) -> Array:
-	var f := Art.font("PixelifySans-Regular")
+	var f := Art.font(Art.TEXT)
 	var lines: Array = []
 	var cur := ""
 	for w in text.split(" "):
 		var tryline := w if cur == "" else cur + " " + w
-		if f.get_string_size(tryline, HORIZONTAL_ALIGNMENT_LEFT, -1, 11).x > width and cur != "":
+		if f.get_string_size(tryline, HORIZONTAL_ALIGNMENT_LEFT, -1, Art.TEXT_SIZE).x > width and cur != "":
 			lines.append(cur)
 			cur = w
 		else:
@@ -1029,7 +1029,7 @@ func _draw_info() -> void:
 	if id == "":
 		_head("Parts", at + Vector2(14, 14), DIM)
 		return
-	root.draw_string(Art.font("PixelifySans-Regular"), at + Vector2(14, 16), _name(id), HORIZONTAL_ALIGNMENT_LEFT, -1, info_name_size(id), AMBER)
+	root.draw_string(info_name_font(id), at + Vector2(14, 16), _name(id), HORIZONTAL_ALIGNMENT_LEFT, -1, info_name_size(id), AMBER)
 	var y := at.y + 33.0
 	for l in info_lines(id):
 		_body(l, Vector2(at.x + 9, y))
@@ -1047,13 +1047,17 @@ func info_lines(id: String) -> Array:
 	return _wrap(_desc(id), INFO.size.x - 18)
 
 
-## How big a part's name is written on the info plate: 13, or 11 for the few
-## names too long for that.
+## How a part's name is written on the info plate: in the bold font, or in the
+## text's own for the few names too long for that.
 const INFO_NAME_ROOM := 136.0
 
 func info_name_size(id: String) -> int:
-	var w := Art.font("PixelifySans-Regular").get_string_size(_name(id), HORIZONTAL_ALIGNMENT_LEFT, -1, 13).x
-	return 13 if w <= INFO_NAME_ROOM else 11
+	var w := Art.font(Art.TEXT_BOLD).get_string_size(_name(id), HORIZONTAL_ALIGNMENT_LEFT, -1, Art.TEXT_BOLD_SIZE).x
+	return Art.TEXT_BOLD_SIZE if w <= INFO_NAME_ROOM else Art.TEXT_SIZE
+
+
+func info_name_font(id: String) -> Font:
+	return Art.font(Art.TEXT_BOLD if info_name_size(id) == Art.TEXT_BOLD_SIZE else Art.TEXT)
 
 
 func _draw_help() -> void:
@@ -1139,7 +1143,7 @@ func _cut_head(text: String, width: float) -> String:
 ## the player no longer owns is greyed out under a padlock.
 func _draw_preset_info(i: int) -> void:
 	var at := INFO.position
-	root.draw_string(Art.font("PixelifySans-Regular"), at + Vector2(14, 16), build.preset_title(i), HORIZONTAL_ALIGNMENT_LEFT, -1, 13, AMBER)
+	root.draw_string(Art.font(Art.TEXT_BOLD), at + Vector2(14, 16), build.preset_title(i), HORIZONTAL_ALIGNMENT_LEFT, -1, Art.TEXT_BOLD_SIZE, AMBER)
 	var data = build.preset_sword(i)
 	if data == null:
 		var y := at.y + 35.0
@@ -1205,7 +1209,7 @@ func _draw_preview() -> void:
 		preview.draw_texture_rect(tex, frame, false)
 	else:
 		preview.draw_rect(frame, WELL)
-		preview.draw_string(Art.font("PixelifySans-Regular"), frame.position + Vector2(0, 64), "No picture yet", HORIZONTAL_ALIGNMENT_CENTER, frame.size.x, 11, DIM)
+		preview.draw_string(Art.font(Art.TEXT), frame.position + Vector2(0, 64), "No picture yet", HORIZONTAL_ALIGNMENT_CENTER, frame.size.x, Art.TEXT_SIZE, DIM)
 
 
 var preview_always := false   # for screenshots: show the picture without Alt
@@ -1394,6 +1398,16 @@ func _ring_picture(live: Array) -> Texture2D:
 		arcs.append([0, mini(gs, n) - 1])
 	if n > gs:
 		arcs.append([gs, n - 1])
+	# A lit thread reaches its rune across empty seats (an empty seat does not
+	# break the link), so the line stays lit over them too. (Darren, 21 November:
+	# "mkae the ring line light up to the rune they affect still".)
+	var carry: Array = []
+	var lit_thread := false
+	for i in n:
+		var here: String = build.line[i]
+		if here != "":
+			lit_thread = SwingBuild.FITTINGS[here]["kind"] == "band" and bool(live[i])
+		carry.append(here == "" and lit_thread)
 	var ring_in := (RING_R - 5.5) * (RING_R - 5.5)
 	var ring_out := (RING_R + 5.5) * (RING_R + 5.5)
 	var arc_in := (ARC_R - 0.5) * (ARC_R - 0.5)
@@ -1421,6 +1435,16 @@ func _ring_picture(live: Array) -> Texture2D:
 					if thread_pixel(id, along, d, along / length):
 						var hot := absf(d) < 0.6
 						img.set_pixel(x, y, (THREAD_HOT if hot else THREAD_WARM) if live[i] else (THREAD_IDLE_HOT if hot else THREAD_IDLE))
+					continue
+			elif i < n - 1 and carry[i]:
+				# From an empty seat on to the next: the thread's plain lit line, with a
+				# warm edge so it is as easy to follow as the thread's own stretch.
+				var along := deg_to_rad(turn - float(i) * step) * RING_R
+				if along >= 0.0 and along <= deg_to_rad(step) * RING_R - THREAD_SHORT:
+					if absf(d) < 0.6:
+						img.set_pixel(x, y, THREAD_HOT)
+					elif absf(d) < 1.6 and int(along) % 4 < 2:
+						img.set_pixel(x, y, THREAD_WARM)
 					continue
 			# The plain ring: one pixel wide, open at the start mark on the left.
 			if absf(d) < 0.5 and absf(fposmod(deg, 360.0) - 180.0) > START_GAP * 0.5:
@@ -1496,6 +1520,7 @@ func _draw_ring(stats: Dictionary) -> void:
 	# Gilded Grip's ruby one) has its own picture.
 	var special := int(SwingBuild.grip_part(build.grip).get("ruby_slot", -1))
 	var row_seat := _does_seat(stats)
+	var info: Dictionary = stats["slot_info"]
 	for i in n:
 		var r := _slot_screen(i)
 		buttons["slot:%d" % i] = r
@@ -1511,10 +1536,53 @@ func _draw_ring(stats: Dictionary) -> void:
 			_icon(_fit_kind(id), id, r.get_center(), 2.0, Color.WHITE if live[i] else Color(0.55, 0.6, 0.62, 0.8))
 			if SwingBuild.FITTINGS[id].get("trigger", "") == "active":
 				_badge(r.get_center())
+		elif id == "" and _carries(i, live):
+			# An empty seat a lit thread passes through: the line shows in it.
+			_draw_carry(i, n)
+		if id != "" and (info.get(i, {}) as Dictionary).get("dup", false) and not (dragging and drag_from == i):
+			_red_x(r.get_center() + Vector2(8, -8))
 		if hover == "slot:%d" % i or row_seat == i:
 			root.draw_rect(r.grow(1), Color(1, 1, 1, 0.5), false, 1.0)
 		if i == selected:
 			_socket_focus(r.grow(2))
+
+
+## True for an empty seat that a working thread's line passes through on its way
+## to the rune it changes.
+func _carries(i: int, live: Array) -> bool:
+	if build.line[i] != "":
+		return false
+	for j in range(i - 1, -1, -1):
+		var id: String = build.line[j]
+		if id != "":
+			return SwingBuild.FITTINGS[id]["kind"] == "band" and bool(live[j])
+	return false
+
+
+## The lit line across an empty seat: a short arc of the ring through its middle.
+func _draw_carry(i: int, n: int) -> void:
+	var mid := deg_to_rad(seat_angle(i, n))
+	var half := THREAD_SHORT / RING_R     # (out to where the ring's own lit line stops)
+	var steps := 12
+	for k in steps:
+		var a0 := mid + half - 2.0 * half * float(k) / float(steps)
+		var a1 := mid + half - 2.0 * half * float(k + 1) / float(steps)
+		root.draw_line(RING_AT + Vector2(cos(a0), sin(a0)) * RING_R, RING_AT + Vector2(cos(a1), sin(a1)) * RING_R, THREAD_HOT, 1.0)
+
+
+## A little red X on a rune that is a second copy and so does nothing (Darren,
+## 21 November, in his words: "a little red X on it to show its not usuable").
+## Colour is kept for elements everywhere else; this red is his own ask, and the
+## X is a shape too, so it reads without the colour.
+const X_RED := Color("#e8402c")
+
+func _red_x(c: Vector2) -> void:
+	c = c.round()
+	var dark := Color("#19142a")
+	root.draw_rect(Rect2(c - Vector2(5, 5), Vector2(11, 11)), dark)
+	for k in range(-3, 4):
+		root.draw_rect(Rect2(c + Vector2(k, k) - Vector2(0.5, 0.5), Vector2(2, 2)), X_RED)
+		root.draw_rect(Rect2(c + Vector2(k, -k) - Vector2(0.5, 0.5), Vector2(2, 2)), X_RED)
 
 
 ## The corners round the chosen seat: amber with a dark edge, so they read on the
@@ -1679,19 +1747,23 @@ func _draw_banner() -> void:
 	var sub := "%s + %s" % [_name(build.blade), _name(build.grip)]
 	if not names.is_empty():
 		sub += ":  " + ", ".join(names)
-	banner.draw_string(Art.font("PixelifySans-Regular"), Vector2(0, y + 18), sub, HORIZONTAL_ALIGNMENT_CENTER, 640, 11, Color(0.9, 0.86, 0.8, a))
+	banner.draw_string(Art.font(Art.TEXT), Vector2(0, y + 18), sub, HORIZONTAL_ALIGNMENT_CENTER, 640, Art.TEXT_SIZE, Color(0.9, 0.86, 0.8, a))
 
 
 ## How "what it does" is set out, roomiest first. The first one that fits is used.
 ## icon: the rune's 26 px picture beside its words. full: every rune's whole
 ## sentence; without it only the rune you point at (or the chosen seat's) is
 ## written out and the others keep to their names, so a full ring still fits.
+## joined: the last resort for a rune under three or four threads on a full
+## ring, where a line for each thread can't fit: one sentence with the threads
+## worked into it, and their names under it.
 const DOES_HINT := "Point at a seat to read it."
 const DOES_PLANS := [
 	{"icon": true, "text_x": 33.0, "line": 13.0, "gap": 7.0, "full": true},
 	{"icon": false, "text_x": 8.0, "line": 12.0, "gap": 5.0, "full": true},
 	{"icon": false, "text_x": 8.0, "line": 12.0, "gap": 4.0, "full": false},
 	{"icon": false, "text_x": 8.0, "line": 11.0, "gap": 2.0, "full": false},
+	{"icon": false, "text_x": 8.0, "line": 11.0, "gap": 2.0, "full": false, "joined": true},
 ]
 
 
@@ -1736,6 +1808,29 @@ func _does_title(e: Dictionary, with_key: bool) -> String:
 	return name
 
 
+## A rune's words for "what it does": what the bare rune does, then one line for
+## each thread that changes it, saying what that thread adds (Darren, 21
+## November: "any threads affecting it to show then and what they increase.
+## rather than just a big decription"). Each line is [text, the thread's name
+## when the line starts one ("" otherwise), indent].
+const THREAD_INDENT := 7.0
+
+func does_lines(e: Dictionary, width: float, joined := false) -> Array:
+	var out: Array = []
+	if joined:
+		for l in _wrap(SwingBuild.sentence(e, keys), width):
+			out.append([l, "", 0.0])
+		return out
+	for l in _wrap(SwingBuild.base_sentence(e, keys), width):
+		out.append([l, "", 0.0])
+	for th in SwingBuild.thread_lines(e):
+		var name := "%s:" % th["name"]
+		var wrapped := _wrap("%s %s." % [name, th["text"]], width - THREAD_INDENT)
+		for i in wrapped.size():
+			out.append([wrapped[i], name if i == 0 else "", THREAD_INDENT])
+	return out
+
+
 ## Sets out "what it does" for one plan: {rows: [{title, lines, h}], notes, hint, height}.
 ## idle: the fittings doing nothing, as {seat, name, why}. seat: the seat pointed
 ## at. room: the height there is (the hint is only added when it still fits).
@@ -1743,11 +1838,17 @@ func _plan_does(effects: Array, idle: Array, plan: Dictionary, focus: int, seat:
 	var rows: Array = []
 	var height := 0.0
 	var line: float = plan["line"]
+	var joined: bool = plan.get("joined", false)
+	var named_threads := 0   # lines of thread names under a joined sentence
 	for ei in effects.size():
 		var e: Dictionary = effects[ei]
 		var lines: Array = []
 		if plan["full"] or ei == focus:
-			lines = _wrap(SwingBuild.sentence(e, keys), width - float(plan["text_x"]))
+			lines = does_lines(e, width - float(plan["text_x"]), joined)
+			if joined:
+				var names := thread_names(e, width - float(plan["text_x"]))
+				named_threads += names.size()
+				lines.append_array(names)
 		var h := line + lines.size() * line
 		if plan["icon"]:
 			h = maxf(h, 28.0)
@@ -1773,7 +1874,34 @@ func _plan_does(effects: Array, idle: Array, plan: Dictionary, focus: int, seat:
 		if height + words.size() * line <= room:
 			hint = words
 			height += hint.size() * line
+	# (Those names go first when there is no room for them: the sentence says it all.)
+	if named_threads > 0 and height > room:
+		for row in rows:
+			var kept: Array = []
+			for l in row["lines"]:
+				if not str(l[1]).begins_with(THREADS_WORD):
+					kept.append(l)
+			var cut := float((row["lines"] as Array).size() - kept.size()) * line
+			row["h"] = float(row["h"]) - cut
+			row["lines"] = kept
+			height -= cut
 	return {"rows": rows, "notes": note_lines, "hint": hint, "height": height}
+
+
+## The threads on a rune, named in a line or two for under its joined sentence:
+## [text, THREADS_WORD (marks the line as this one), 0].
+const THREADS_WORD := "Threads:"
+
+func thread_names(e: Dictionary, width: float) -> Array:
+	var names: PackedStringArray = []
+	for th in SwingBuild.thread_lines(e):
+		names.append(str(th["name"]))
+	if names.is_empty():
+		return []
+	var out: Array = []
+	for l in _wrap("%s %s." % [THREADS_WORD, ", ".join(names)], width):
+		out.append([l, THREADS_WORD, 0.0])
+	return out
 
 
 ## Right: a row per rune, its name and one sentence; then the fittings that do
@@ -1834,7 +1962,16 @@ func _draw_does(stats: Dictionary) -> void:
 		_body(row["title"], Vector2(x + float(plan["text_x"]), ly), AMBER if on or plan["full"] else INK)
 		for l in row["lines"]:
 			ly += line_h
-			_body(l, Vector2(x + float(plan["text_x"]), ly))
+			var lx := x + float(plan["text_x"]) + float(l[2])
+			if str(l[1]) == THREADS_WORD:
+				# (Under a joined sentence: the threads on it, named in their colour.)
+				_body(str(l[0]), Vector2(lx, ly), THREAD_HOT)
+				continue
+			_body(str(l[0]), Vector2(lx, ly))
+			if str(l[1]) != "":
+				# A thread's line: a tick in the margin and its name lit, as on the ring.
+				root.draw_rect(Rect2(lx - THREAD_INDENT + 1.0, ly - 5.0, 3, 1), THREAD_WARM)
+				_body(str(l[1]), Vector2(lx, ly), THREAD_HOT)
 		y += h + float(plan["gap"])
 	for lines in set_out["notes"]:
 		for l in lines:
@@ -1866,7 +2003,7 @@ const BOW_STAT_ROWS := [
 	["damage", 0, 0], ["speed", 0, 1], ["range", 0, 2], ["crit", 0, 3], ["crit_damage", 0, 4], ["slots", 0, 5], ["shoot_move", 0, 6],
 ]
 ## A hammer's and a staff's have more: how big the patch of floor a slam hits is;
-## a staff's spell size, written "Blast", and what a chain costs in mana.
+## a staff's spell size, written "Blast", and its bar of mana (what its runes spend).
 const HAMMER_STAT_ROWS := [
 	["damage", 0, 0], ["speed", 0, 1], ["reach", 0, 2], ["impact", 0, 3], ["crit", 0, 4], ["crit_damage", 0, 5], ["slots", 0, 6], ["move", 0, 7],
 ]
@@ -1905,7 +2042,8 @@ static func stat_values(s: Dictionary) -> Dictionary:
 			# (Range is a share of the shortbow's for a staff too, so the two can be compared.)
 			out["range"] = roundf(float(s.get("range", SwingBuild.STAFF_RANGE)) / SwingBuild.BOW_RANGE * 100.0)
 			out["size"] = roundf(float(s.get("size", 1.0)) * 100.0)
-			out["mana"] = float(s.get("mana", 0.0))
+			# (Its basic attack is free since version 34: the number is the bar its runes spend.)
+			out["mana"] = SwingBuild.MANA
 			out["cast_move"] = walk
 		"hammer":
 			out["reach"] = roundf(float(s["reach"]) * 100.0)
@@ -1931,7 +2069,7 @@ static func stat_text(key: String, v: float) -> String:
 		"cast_move": return "Walk, casting %d%%" % roundi(v)
 		"impact": return "Impact %d%%" % roundi(v)
 		"size": return "Blast %d%%" % roundi(v)     # ("Spell size" is too wide with a change beside it)
-		"mana": return "Mana a chain %s" % _plain(v)
+		"mana": return "Mana %s, +%s a second" % [_plain(v), _plain(SwingBuild.MANA_REGEN)]
 		"crit": return "Crit %d%%" % roundi(v)
 		"crit_damage": return "Crit hits x%s" % _plain(v)
 		"slots": return "Seats %d" % roundi(v)
@@ -2019,10 +2157,10 @@ static func stat_changes(now: Dictionary, then: Dictionary) -> Dictionary:
 
 ## How wide a number is on the plate with a change beside it (icon, words, change).
 func stat_width(text: String, change: String) -> float:
-	var f := Art.font("PixelifySans-Regular")
-	var w := 12.0 + f.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 11).x
+	var f := Art.font(Art.TEXT)
+	var w := 12.0 + f.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, Art.TEXT_SIZE).x
 	if change != "":
-		w += 4.0 + f.get_string_size(change, HORIZONTAL_ALIGNMENT_LEFT, -1, 11).x
+		w += 4.0 + f.get_string_size(change, HORIZONTAL_ALIGNMENT_LEFT, -1, Art.TEXT_SIZE).x
 	return w
 
 
@@ -2041,5 +2179,5 @@ func _stat(name: String, text: String, pos: Vector2, change := "", gain := true)
 	x += 12.0
 	_body(text, Vector2(x, pos.y), AMBER if lit else INK)
 	if change != "":
-		x += Art.font("PixelifySans-Regular").get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 11).x + 4.0
+		x += Art.font(Art.TEXT).get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, Art.TEXT_SIZE).x + 4.0
 		_body(change, Vector2(x, pos.y), GAIN if gain else LOSS)

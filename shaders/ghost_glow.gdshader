@@ -2,7 +2,7 @@
 // ghost's colours: Ghostwield's copies of your swings and of your passive runes.
 // Keeps the picture's light and dark and swaps its colours for the art's
 // Ghostwield ramp. It glows like the real effect, but also covers a little of
-// what is behind it, so it stays blue-violet on a bright floor instead of
+// what is behind it, so it stays pale green on a bright floor instead of
 // washing out to white.
 shader_type canvas_item;
 render_mode blend_premul_alpha, unshaded;
@@ -11,10 +11,12 @@ render_mode blend_premul_alpha, unshaded;
 uniform float cover = 0.6;
 
 vec3 ramp(float l) {
-	vec3 c0 = vec3(0.102, 0.141, 0.314);
-	vec3 c1 = vec3(0.227, 0.235, 0.549);
-	vec3 c2 = vec3(0.416, 0.439, 0.816);
-	vec3 c3 = vec3(0.659, 0.706, 1.0);
+	// (Verdigris, the game's colour for what is old or asleep: 12383e, 2a7f70,
+	// 86d4a4, c8f0c4. It was a blue-violet ramp until 21 November.)
+	vec3 c0 = vec3(0.071, 0.220, 0.243);
+	vec3 c1 = vec3(0.165, 0.498, 0.439);
+	vec3 c2 = vec3(0.525, 0.831, 0.643);
+	vec3 c3 = vec3(0.784, 0.941, 0.769);
 	if (l < 0.3) {
 		return mix(c0, c1, l / 0.3);
 	}

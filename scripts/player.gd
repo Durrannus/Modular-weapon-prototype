@@ -105,7 +105,11 @@ static var MOVES := {
 		"curve": [0.0, 0.0, 4.0, 22.0]},
 	"heavy_shot": {"windup": 0.22, "time": HEAVY, "shape": "shot", "power": 1.5, "knock": 300.0, "stun": 0.25, "freeze": 0.08, "shake": 6.0,
 		"curve": [0.0, 0.0, 4.0, 22.0], "big": true, "flight": 1.15},
-	# The longbow's only move: a long draw, a fast arrow and a hard shove.
+	# The longbow's last arrow (21 November): it charges for a moment before it
+	# goes, then flies fast and lands hard. ("charge": the bow glints when it is drawn.)
+	"charged_shot": {"windup": 0.42, "time": 0.62, "shape": "shot", "power": 1.75, "knock": 340.0, "stun": 0.3, "freeze": 0.08, "shake": 6.0,
+		"curve": [0.0, 0.0, 4.0, 22.0], "big": true, "flight": 1.25, "charge": true},
+	# (Not on any bow now: the longbow's old move.)
 	"long_shot": {"windup": 0.25, "time": HEAVY, "shape": "shot", "power": 1.5, "knock": 340.0, "stun": 0.3, "freeze": 0.08, "shake": 6.0,
 		"curve": [0.0, 0.0, 4.0, 22.0], "big": true, "flight": 1.25},
 	# Hammer (15 November). A maul's side swing is a short, blunt arc. Its slam, and
@@ -113,11 +117,14 @@ static var MOVES := {
 	# "impact": everything within the head's impact size of where it comes down).
 	# A hammer pins what it hits (a long stun and a small shove) where a sword
 	# shoves it away, because a hammer has to stay close.
-	"maul_swing": {"windup": 0.1, "time": LIGHT, "shape": "arc", "arc": 110.0, "power": 1.0, "knock": 130.0, "stun": 0.3, "freeze": 0.07, "shake": 4.0,
+	# Its wind-ups are long (21 November): at the hammer's speed a swing is hauled
+	# back for a third of a second and a slam raised for half a second, so you see
+	# the weight of it. It is held in both hands: see "The hammer in both hands".
+	"maul_swing": {"windup": 0.16, "time": LIGHT, "shape": "arc", "arc": 110.0, "power": 1.0, "knock": 130.0, "stun": 0.3, "freeze": 0.07, "shake": 4.0,
 		"curve": [-1.0, 0.9, 12.0, 16.0], "smear": "hammer_smear", "smear_else": "chop_smear", "alternate": true},
-	"maul_slam": {"windup": 0.17, "time": HEAVY, "shape": "impact", "power": 1.5, "knock": 180.0, "stun": 0.6, "freeze": 0.12, "shake": 15.0,
+	"maul_slam": {"windup": 0.22, "time": HEAVY, "shape": "impact", "power": 1.5, "knock": 180.0, "stun": 0.6, "freeze": 0.12, "shake": 15.0,
 		"curve": [-1.5, 0.3, 9.0, 19.0], "smear": "hammer_slam_smear", "smear_else": "overhead_smear", "big": true, "burst": "hammer_impact", "burst_else": "slam_burst"},
-	"crush": {"windup": 0.19, "time": HEAVY, "shape": "impact", "power": 1.5, "knock": 150.0, "stun": 0.7, "freeze": 0.12, "shake": 12.0,
+	"crush": {"windup": 0.22, "time": HEAVY, "shape": "impact", "power": 1.5, "knock": 150.0, "stun": 0.7, "freeze": 0.12, "shake": 12.0,
 		"curve": [-1.5, 0.3, 9.0, 19.0], "smear": "hammer_slam_smear", "smear_else": "overhead_smear", "big": true, "burst": "hammer_impact", "burst_else": "slam_burst"},
 	# Staff casts (15 November). Like a bow's shots: "windup" is the gathering, the
 	# bolt leaves as it ends, towards wherever you are aiming at that moment.
@@ -268,7 +275,7 @@ const GHOST_DELAY := 0.15        # a copy lands this long after your swing
 const GHOST_GAP := 0.1           # Twice: the next copy comes this long after the one before
 const GHOST_SHOVE := 0.5         # a copy knocks back and stuns this much as hard
 const GHOST_DODGE_WIDTH := 30.0  # On Dodge: how far to each side of the dodge the ghost cuts
-const GHOST_COLOR := Color("#a8b4ff")
+const GHOST_COLOR := Color("#c8f0c4")   # pale verdigris (it was a blue-violet until 21 November)
 var ghost_left := 0.0            # seconds the ghost sword has left (0: it isn't out)
 var ghost_total := 1.0           # how long this one was called for (the HUD's bar)
 var ghost_power := 0.5           # its copies, as a share of your swing
@@ -688,7 +695,18 @@ func _update_combat(delta: float) -> void:
 		hit_pause -= delta
 		return
 	if current_step >= 0:
+		var before := step_elapsed
 		step_elapsed += delta
+		# A charged shot: the bow glints when the string is all the way back.
+		if hit_time >= 0.0 and _move_info().get("charge", false):
+			var full := hit_time * 0.7
+			if before < full and step_elapsed >= full:
+				var glint := _strip("snipe_sweet", global_position + pose_hand + anim_dir * 14.0)
+				if glint != null:
+					glint.scale = Vector2(0.5, 0.5)
+					glint.follow = self
+					glint.follow_offset = pose_hand + anim_dir * 14.0
+				Sfx.play(self, "click", -9.0, 1.7)
 		if hit_time >= 0.0 and step_elapsed >= hit_time:
 			hit_time = -1.0
 			_do_move(_steps()[current_step]["move"])
@@ -821,8 +839,11 @@ func _do_move(move: String) -> void:
 	_fx_root().add_child(fx)
 	fx.global_position = global_position
 
-	Sfx.play(self, "swing", -14.0, 0.7 if _is_hammer() else 1.0)
+	Sfx.play(self, "swing", -14.0, 0.55 if _is_hammer() else 1.0)
 	var finisher := current_step == _steps().size() - 1 and _steps().size() > 1
+	if _is_hammer() and not finisher:
+		# Every blow of a hammer is felt, not only the last.
+		shake = maxf(shake, 5.0 if hits > 0 else 2.0)
 	var fired: Array = []   # the runes this swing set off
 	if finisher:
 		# A finisher that connects lands loud: you plant for a moment, the screen
@@ -944,8 +965,10 @@ func arrow_spent(a) -> void:
 # --- The staff --------------------------------------------------------------------
 # A cast is a move like a bow's shot: the gathering is its wind-up, and where a
 # swing would land a bolt leaves the crystal (scripts/arrow.gd flies it, as it
-# flies arrows). Mana: each cast costs a little and it refills quickly; a cast
-# with too little left is a weak, slow one that costs nothing.
+# flies arrows). Mana (Darren, 21 November): the basic casts cost none; the
+# staff's runes do (see ability_mana and _spend_passive), and it comes back
+# slowly. (A cast can still be given a cost in the lab: with too little mana
+# for it, it is a weak, slow one that costs nothing.)
 
 const IMPACT_AT := 0.6           # a hammer's head comes down this far along its reach
 var mana := SwingBuild.MANA
@@ -957,6 +980,9 @@ var cast_weak := false           # the cast being made is a weak one
 func _update_mana(delta: float) -> void:
 	mana_rest += delta
 	var rate := SwingBuild.MANA_REGEN + (SwingBuild.MANA_REST_REGEN if mana_rest >= SwingBuild.MANA_REST else 0.0)
+	# (None comes back while a Lance is burning it.)
+	if _beaming():
+		rate = 0.0
 	mana = minf(mana + rate * delta, SwingBuild.MANA)
 	# (Saved Up on Overflow counts how long it has stayed full.)
 	var was_ready := overflow_charged()
@@ -969,6 +995,20 @@ func _cast_cost(info: Dictionary) -> float:
 	return float(SwingBuild.CAST_MANA.get(str(info.get("bolt", "")), 0.0))
 
 
+## One of the staff's passive runes is about to go off: it costs a little mana,
+## and without it the rune doesn't happen (the mana bar blinks). Any other
+## weapon's runes cost nothing.
+func _spend_passive() -> bool:
+	if not _is_staff():
+		return true
+	if mana < SwingBuild.PASSIVE_MANA - 0.0001:
+		mana_denied = game_time
+		return false
+	mana = maxf(mana - SwingBuild.PASSIVE_MANA, 0.0)
+	mana_rest = 0.0
+	return true
+
+
 ## The cast leaves the staff, towards the aim.
 func _cast(info: Dictionary) -> void:
 	var dir := aim_dir
@@ -979,9 +1019,9 @@ func _cast(info: Dictionary) -> void:
 	var over := _overflow_cast(mana_full())
 	if weak:
 		mana_denied = game_time
-	else:
+	elif _cast_cost(info) > 0.0:
 		mana = maxf(mana - _cast_cost(info), 0.0)
-	mana_rest = 0.0
+		mana_rest = 0.0
 	var power := float(info["power"]) * (SwingBuild.MANA_WEAK if weak else 1.0) * float(over["damage"])
 	var kind := "spark" if weak else str(info["bolt"])
 	var made: Array = []
@@ -1038,8 +1078,13 @@ func _bolt(kind: String, dir: Vector2, power: float, info: Dictionary, finisher:
 		a.splash = SwingBuild.BURST_RADIUS * size
 	elif kind == "orb":
 		a.splash = SwingBuild.ORB_RADIUS * size
+	elif kind == "bolt":
+		# A plain bolt hurts whatever stands right against the enemy it hits: a
+		# very small area (Darren, 21 November), where an arrow hits one enemy.
+		a.splash = SwingBuild.BOLT_SPLASH * size
 	# (Overflow with Wider, or its blast: it bursts where it lands, at least this wide.)
 	a.splash = maxf(a.splash, float(over.get("splash", 0.0)))
+	a.small = kind == "bolt" and a.splash <= SwingBuild.BOLT_SPLASH * size + 0.01
 	a.big = float(over.get("size", 1.0))
 	if over.get("glow", false):
 		a.halo = "overflow_glow"
@@ -1098,6 +1143,12 @@ func _bolt_burst(a, at: Vector2, skip: Dictionary) -> Array:
 			continue
 		_hit_enemy(e, a.damage, rel.normalized() if rel.length() > 1.0 else a.dir, a.knock, a.stun, a.freeze, {}, float(a.copy) > 0.0, a)
 		caught.append(e)
+	if a.small:
+		# A plain bolt's small splash: a pop the size of it, and nothing louder.
+		var fizz := _strip("bolt_hit", at + Arrow.HEIGHT * 0.5, a.dir.angle(), maxf(float(a.splash) / 20.0, 0.7))
+		if fizz != null:
+			fizz.modulate = a.color
+		return caught
 	var orb: bool = a.bolt == "orb"
 	var name := "orb_hit" if orb else "burst_hit"
 	# (The pictures are drawn for a burst of 28 art pixels and an orb's of 44.)
@@ -1444,6 +1495,13 @@ func _loose_snipe() -> void:
 	_run_rune_queue()   # this tick: the arrow leaves as the button comes up
 
 
+## Where this player's mouse points, in the world. (Online it is the offset that
+## came with their controls, so both computers get the same place.)
+func mouse_point() -> Vector2:
+	var off: Vector2 = input.aim_offset if input.kind == "net" else get_global_mouse_position() - global_position
+	return global_position + off
+
+
 ## Where a rune that needs a place lands. With a mouse it is the pointer, no
 ## further than `reach`. Without one it is the enemy nearest your aim, or else a
 ## fixed way ahead.
@@ -1541,8 +1599,6 @@ var momentum_full := false    # it is at its most (said once, when it gets there
 var stagger_rune := {}        # the same for Stagger: see _stagger_rune
 var last_impact := Vector2.ZERO   # where the last swing landed
 var rumbles: Array = []       # Aftershock's rumbles on their way: [{at, where, scale, dmg, col}]
-var quake_targets: Array = [] # enemies a Quake has already erupted under in this burst
-var quake_burst := -9.0       # game_time the last eruption of a burst went off
 var hook_targets: Array = []  # enemies this press's chains already have hold of (Twice: the second takes another)
 var bulwark_left := 0.0       # seconds of Bulwark's shield left (0: it isn't up)
 var bulwark_total := 1.0      # how long this one was put up for (the HUD's bar)
@@ -1551,7 +1607,6 @@ var bulwark_hits := 0         # hits it can still take: the last one breaks it
 var bulwark_blocked := -9.0   # game_time it last stopped a hit
 var bulwark_fx: Node2D = null # the shield's picture
 const BULWARK_BLOCK_GAP := 0.3   # an enemy leaning on the shield counts as a hit this often at most
-const QUAKE_AIM := 300.0         # picking Quake's enemy: being a radian off the aim counts as this many px further away
 var stagger_said := -9.0         # game_time "STAGGER!" was last written (one swing can break several meters)
 
 
@@ -1760,53 +1815,51 @@ func _run_rumbles() -> void:
 		Sfx.play(self, "slam", -9.0 if struck > 0 else -15.0, 1.3 / sqrt(maxf(patch, 0.5)))
 
 
-## Quake: the ground erupts under the enemy nearest your aim, and catches whatever
-## stands close to it. With nobody in range it erupts a little way in front of you.
+## Quake: a crack runs along the ground from you, the way you aim (Darren, 21
+## November: it was an eruption under one enemy, "too similar to aftershock").
+## Every enemy on its line is hurt, stunned and thrown off it to the side. A
+## wall stops it. Wider: a longer and wider crack.
 func _quake(size: float, power: float, col: Color) -> void:
-	if game_time - quake_burst > 1.0:
-		quake_targets.clear()
-	quake_burst = game_time
-	var best = null
-	var best_score := INF
-	for e in get_tree().get_nodes_in_group("enemies"):
-		if not is_instance_valid(e) or e.dead or e.immune:
-			continue
-		var rel: Vector2 = e.global_position - global_position
-		var d := rel.length()
-		if d > SwingBuild.QUAKE_RANGE + float(e.radius):
-			continue
-		# Someone new beats someone it has already erupted under in this burst.
-		# Then it is the one you are pointing at: how far off your aim counts for
-		# more than how far away (a radian off is worth QUAKE_AIM px), and anyone
-		# behind you comes last.
-		var off := absf(aim_dir.angle_to(rel)) if d > 1.0 else 0.0
-		var score := d + off * QUAKE_AIM + (1000.0 if off > PI * 0.5 else 0.0) + (5000.0 if e in quake_targets else 0.0)
-		if score < best_score:
-			best_score = score
-			best = e
-	var spot := global_position + aim_dir * SwingBuild.QUAKE_EMPTY + FEET
-	if best != null:
-		quake_targets.append(best)
-		spot = best.global_position + best._feet()
-	if _strip("quake_erupt", spot, 0.0, size) == null:
-		var ring := RuneFx.new()
-		ring.kind = "ring"
-		ring.size = SwingBuild.QUAKE_RADIUS * size
-		ring.color = col
-		ring.life = 0.25
-		_fx_root().add_child(ring)
-		ring.global_position = spot
+	var dir := aim_dir
+	var from := global_position + FEET
+	var length := SwingBuild.QUAKE_RANGE * size
+	var q := PhysicsRayQueryParameters2D.create(global_position, global_position + dir * length, Arrow.WALLS)
+	var stop := get_world_2d().direct_space_state.intersect_ray(q)
+	if not stop.is_empty():
+		length = global_position.distance_to(stop["position"])
+	var half := SwingBuild.QUAKE_WIDTH * size
 	var dmg := float(weapon.get("damage", 8.0)) * SwingBuild.QUAKE_DAMAGE * power
+	var across := dir.orthogonal()
 	var struck := 0
 	for e in get_tree().get_nodes_in_group("enemies"):
 		if not is_instance_valid(e) or e.dead:
 			continue
-		var rel: Vector2 = e.global_position + e._feet() - spot
-		if rel.length() > SwingBuild.QUAKE_RADIUS * size + float(e.radius):
+		var rel: Vector2 = e.global_position + e._feet() - from
+		var along := rel.dot(dir)
+		var side := rel.dot(across)
+		var r := float(e.radius)
+		if along < -r or along > length + r or absf(side) > half + r:
 			continue
-		e.take_hit(dmg, rel.normalized() if rel.length() > 4.0 else Vector2.UP, 150.0, false, col, SwingBuild.QUAKE_STUN, 0.08)
+		e.take_hit(dmg, across * (1.0 if side >= 0.0 else -1.0), 150.0, false, col, SwingBuild.QUAKE_STUN, 0.08)
 		e.apply_stun(SwingBuild.QUAKE_STUN)
 		struck += 1
+	# The crack itself, on the floor, and rock thrown up along it.
+	var crack := RuneFx.new()
+	crack.kind = "crack"
+	crack.dir = dir
+	crack.size = size
+	crack.reach = length
+	crack.color = col
+	crack.life = 0.45
+	_fx_root().add_child(crack)
+	crack.z_index = 0
+	crack.global_position = from
+	var rocks := maxi(int(length / 70.0), 1)
+	for k in rocks:
+		var small := BowArt.fx_texture("quake_rock") != null
+		var rock := _strip("quake_rock" if small else "quake_erupt", from + dir * length * (float(k) + 0.6) / float(rocks), 0.0, size * (1.0 if small else 0.45))
+		if rock != null:
+			rock.wait = 0.05 * float(k)
 	shake = maxf(shake, (9.0 if struck > 0 else 4.0) * minf(size, 1.6))
 	Sfx.play(self, "slam", -5.0 if struck > 0 else -11.0, 1.1 / sqrt(size))
 
@@ -2104,6 +2157,10 @@ func _overflow_cast(full: bool) -> Dictionary:
 		out["splash"] = SwingBuild.OVERFLOW_BLAST_SPLASH * maxf(wide * SwingBuild.wider_size(1), 1.0)
 	elif wide > 0.0:
 		out["splash"] = SwingBuild.OVERFLOW_SPLASH * wide
+	# It costs a little mana, like every passive rune of the staff's: so the bolt
+	# after this one is a plain bolt, until the bar is full again.
+	mana = maxf(mana - SwingBuild.PASSIVE_MANA, 0.0)
+	mana_rest = 0.0
 	# Twice: the first Overflow bolt, the third, the fifth... is cast again.
 	overflow_count += 1
 	if int(overflow_rune["casts"]) > 1 and overflow_count % 2 == 1:
@@ -2295,6 +2352,9 @@ func _chain_bolt(a, at: Vector2, hits: Array) -> void:
 		return
 	# (A Spectre's copy of the bolt forks too, at its share, in the ghost's colour.)
 	var copied: bool = float(a.copy) > 0.0
+	# (It costs a little mana, like every passive rune of the staff's.)
+	if not copied and not _spend_passive():
+		return
 	var col: Color = GHOST_COLOR if copied else SwingBuild.FITTINGS["chain"]["color"]
 	var skip := {}
 	for h in hits:
@@ -2954,6 +3014,11 @@ func _trigger(trigger: String, hits: Array, ghost: Dictionary = {}) -> Array:
 				rune_counts[key] = int(rune_counts.get(key, 0)) + 1
 				if int(rune_counts[key]) % every != 0:
 					continue
+		# A staff's passive rune costs a little mana each time it goes off, and
+		# without the mana it doesn't (Darren, 21 November). An active rune's On
+		# Dodge and a Spectre's copy are free.
+		if ghost.is_empty() and str(FITTINGS_TRIGGER(e)) != "active" and not _spend_passive():
+			continue
 		fired.append(i)
 		var power := float(e.get("power", 1.0)) * (1.0 if ghost.is_empty() else float(ghost["power"]))
 		# (Twice on Weak Point is two marks from one firing, not two firings.)
@@ -2970,6 +3035,12 @@ func _trigger(trigger: String, hits: Array, ghost: Dictionary = {}) -> Array:
 ## why: what set it off ("finisher", "hit", "kill", "dodge", or "" for its button).
 ## ghost: Ghostwield's copy of the rune (kept apart from the real one).
 ## nth: which go of a Twice this is, from 0 (Hook's second chain takes another enemy).
+## What sets a rune off as it is made ("active" for one that sits on a button,
+## whatever a thread has added to it).
+static func FITTINGS_TRIGGER(e: Dictionary) -> String:
+	return str(SwingBuild.FITTINGS[str(e["id"])]["trigger"])
+
+
 func _queue_rune(effect: int, at: float, size: float, hits: Array, power := 1.0, held := false, why := "", ghost := false, nth := 0) -> void:
 	var id: String = weapon["effects"][effect]["id"]
 	# (where: the place the swing that set it off landed, for an Aftershock.)
@@ -3155,7 +3226,8 @@ func _fire_rune_now(q: Dictionary) -> void:
 			if q.get("why", "") == "dodge":
 				_lance_flash(size, power, col)
 			else:
-				# One pulse of the beam. It grows a step for each third of a full hold.
+				# One pulse of the beam. It grows a step for each third of what a full
+				# bar of mana pays for, so it builds for as long as the mana lasts.
 				var turns := int(_abilities()[hold_button]["turns"]) if _beaming() else int(SwingBuild.FITTINGS["lance"]["turns"])
 				var stage := SwingBuild.lance_stage(hold_turns, turns)
 				var grew := hold_turns > 1 and stage > lance_stage
@@ -3234,8 +3306,8 @@ func _abilities() -> Array:
 	return weapon.get("abilities", [])
 
 
-## How full a button's meter must be to use its rune: all of it for a press rune,
-## one turn's worth for a hold rune.
+## How much of a button's meter one use takes: all of it for a press rune, one
+## turn's worth for a hold rune.
 func ability_cost(b: int) -> float:
 	var list := _abilities()
 	if b >= list.size():
@@ -3243,8 +3315,34 @@ func ability_cost(b: int) -> float:
 	return 1.0 / maxf(float(list[b]["turns"]), 1.0) if list[b]["use"] == "hold" else 1.0
 
 
+## What using this button costs in mana: a staff's active runes (Lance: each
+## pulse of the beam). Nothing for any other weapon.
+func ability_mana(b: int) -> float:
+	var list := _abilities()
+	return float(list[b].get("mana", 0.0)) if b < list.size() else 0.0
+
+
+## Completely recharged? (The meter must be full to START any rune: Darren, 21
+## November, "not be usable until they are fully off cooldown, as getting half a
+## second of use feels bad".)
+func ability_charged(b: int) -> bool:
+	return b < _abilities().size() and float(ability_charge[b]) >= 1.0 - 0.0001
+
+
+## Ready to use: completely recharged, and with the mana for it.
 func ability_ready(b: int) -> bool:
-	return b < _abilities().size() and float(ability_charge[b]) >= ability_cost(b) - 0.0001
+	return ability_charged(b) and mana >= ability_mana(b) - 0.0001
+
+
+## A hold rune that is going can go on for another turn: there is meter left for
+## it (Whirlwind) or mana (Lance, which runs on mana and not on a meter).
+func _hold_more(b: int) -> bool:
+	var list := _abilities()
+	if b >= list.size():
+		return false
+	if list[b].get("drain", false):
+		return mana >= ability_mana(b) - 0.0001
+	return float(ability_charge[b]) >= ability_cost(b) - 0.0001
 
 
 ## Bulwark's button while its shield is up: like a spin that's going it is in use,
@@ -3278,7 +3376,7 @@ func _update_abilities(delta: float) -> void:
 		else:
 			hold_left -= delta
 			if hold_left <= 0.0:
-				if input.ability_held[hold_button] and ability_ready(hold_button):
+				if input.ability_held[hold_button] and _hold_more(hold_button):
 					_start_turn(hold_button)
 				else:
 					_stop_hold(false)
@@ -3306,6 +3404,8 @@ func _update_abilities(delta: float) -> void:
 			continue
 		if not ability_ready(b):
 			ability_denied[b] = game_time
+			if ability_charged(b):
+				mana_denied = game_time   # recharged, but not the mana for it: the mana bar blinks
 			Sfx.play(self, "dodge", -20.0, 0.6)
 			continue
 		var a: Dictionary = list[b]
@@ -3332,6 +3432,9 @@ func _update_abilities(delta: float) -> void:
 		else:
 			ability_charge[b] = 0.0
 			ability_used[b] = game_time
+			if ability_mana(b) > 0.0:
+				mana = maxf(mana - ability_mana(b), 0.0)
+				mana_rest = 0.0
 			if a["id"] == "ghostwield":
 				_summon_ghost(b, a["effects"])
 				continue
@@ -3367,7 +3470,12 @@ func _hit_refund() -> void:
 ## One more turn of a hold rune: spends a turn's worth of meter and fires its runes once.
 func _start_turn(b: int) -> void:
 	var a: Dictionary = _abilities()[b]
-	ability_charge[b] = maxf(float(ability_charge[b]) - ability_cost(b), 0.0)
+	if a.get("drain", false):
+		# Lance: each pulse burns mana, and its meter stays full until it stops.
+		mana = maxf(mana - ability_mana(b), 0.0)
+		mana_rest = 0.0
+	else:
+		ability_charge[b] = maxf(float(ability_charge[b]) - ability_cost(b), 0.0)
 	ability_used[b] = game_time
 	hold_button = b
 	hold_turn = maxf(float(a["turn"]), 0.05)
@@ -3387,6 +3495,9 @@ func _stop_hold(cut: bool) -> void:
 		return
 	_end_lance()
 	ability_wait[hold_button] = ABILITY_WAIT
+	if hold_button < _abilities().size() and _abilities()[hold_button].get("drain", false):
+		# Lance: once the beam stops it needs its whole recharge again.
+		ability_charge[hold_button] = 0.0
 	hold_button = -1
 	hold_left = 0.0
 	hold_turns = 0
@@ -3879,7 +3990,7 @@ func _strip(name: String, where: Vector2, angle := 0.0, size := 1.0) -> Node2D:
 	n.origin = Vector2(o[0], o[1])
 	n.angle = angle
 	n.size = size
-	n.additive = true
+	n.additive = not Art.blends_normal(str(info.get("folder", "swing/fx")), name)
 	_fx_root().add_child(n)
 	if ghost_fx:
 		n.material = _ghost_glow()
@@ -4369,6 +4480,8 @@ func _swing_times() -> Array:
 
 
 func _attack_pose() -> Array:
+	if _is_hammer():
+		return _hammer_pose()
 	var curve: Array = _move_info()["curve"]
 	var side := swing_side
 	var times := _swing_times()
@@ -4406,6 +4519,96 @@ func _attack_pose() -> Array:
 	return [angle, hand, sweeping]
 
 
+# --- The hammer in both hands ------------------------------------------------------
+# (Darren, 21 November: "better animations as it just loks like sword, need to be
+# two handed look and slow but good damage".) A hammer is carried across the chest
+# with both fists on the haft. A swing is hauled right back behind the shoulder
+# and swung through past the aim; a slam is raised straight up over the head and
+# brought down along the aim. After a blow the head stays down where it landed
+# for a moment before it is lifted again. Still key poses and a smear: swinging
+# never moves you.
+
+## The hammer at rest, by facing: across the chest, its head up over one shoulder.
+const HAMMER_READY := {"right": -1.0, "down_right": -0.9, "down": -0.8, "down_left": -(PI - 0.9),
+	"left": -(PI - 1.0), "up_left": -(PI - 1.15), "up": -(PI - 0.8), "up_right": -1.15}
+const HAMMER_CHEST := Vector2(0, -11)   # where the lower fist holds it, from the player's centre
+const HAMMER_HANDS := 5.0              # art pixels from the lower fist to the upper one, along the haft
+const HAMMER_BACK := 2.2               # a swing is hauled this far round from the aim, in radians...
+const HAMMER_THROUGH := 1.1            # ...and swung through this far past it
+const HAMMER_LINGER := 0.22            # after a blow the head stays down this long before it is lifted
+
+
+func _hammer_rest() -> Array:
+	var a: float = HAMMER_READY.get(facing8, HAMMER_READY.get(facing, -1.0))
+	return [a, HAMMER_CHEST + Vector2(-4.0 * signf(cos(a)), 1.0)]
+
+
+## Where the hammer is during a blow: [angle, lower fist, sweeping].
+func _hammer_pose() -> Array:
+	var info := _move_info()
+	var times := _swing_times()
+	var sweep_start: float = times[0]
+	var sweep_end: float = times[1]
+	var aim := anim_dir.angle()
+	var te := step_elapsed
+	var from_a := aim + pose_from_angle
+	var from_hand: Vector2 = bow_from[1]
+	var angle := aim
+	var hand := HAMMER_CHEST
+	var sweeping := false
+	if str(info.get("shape", "")) == "impact":
+		# A slam. Up the screen is also up off the floor, so "over the head" is
+		# straight up, tipped back a little away from the aim.
+		var top_a := -PI * 0.5 - 0.3 * (1.0 if cos(aim) >= 0.0 else -1.0)
+		var top := HAMMER_CHEST + Vector2(0, -9)
+		var down := HAMMER_CHEST + anim_dir * 7.0 + Vector2(0, 3)
+		if te < sweep_start:
+			var k := clampf(te / maxf(sweep_start * 0.6, 0.001), 0.0, 1.0)
+			k = 1.0 - (1.0 - k) * (1.0 - k)
+			angle = lerp_angle(from_a, top_a, k)
+			hand = from_hand.lerp(top, k)
+			if k >= 1.0:
+				# Held at the top: it shakes a little with the weight.
+				hand += Vector2(roundf(sin(te * 60.0)), 0.0)
+		elif te < sweep_end:
+			var k := (te - sweep_start) / SWEEP_TIME
+			angle = lerp_angle(top_a, aim, k)
+			hand = top.lerp(down, k)
+			sweeping = true
+		else:
+			hand = down
+	else:
+		# A side swing: hauled right back, then all the way through.
+		var side := swing_side
+		var start_a := aim - HAMMER_BACK * side
+		var end_a := aim + HAMMER_THROUGH * side
+		var back := HAMMER_CHEST - anim_dir * 4.0
+		var out := HAMMER_CHEST + anim_dir * 6.0
+		if te < sweep_start:
+			var k := clampf(te / maxf(sweep_start * 0.6, 0.001), 0.0, 1.0)
+			k = 1.0 - (1.0 - k) * (1.0 - k)
+			# (The long way round, away from the aim: never through the enemy.)
+			angle = from_a + wrapf(start_a - from_a, -PI, PI) * k
+			hand = from_hand.lerp(back, k)
+			if k >= 1.0:
+				angle -= 0.12 * side * clampf((te - sweep_start * 0.6) / maxf(sweep_start * 0.4, 0.001), 0.0, 1.0)
+		elif te < sweep_end:
+			var k := (te - sweep_start) / SWEEP_TIME
+			angle = lerpf(start_a, end_a, k)
+			hand = back.lerp(out, k)
+			sweeping = true
+		else:
+			angle = end_a
+			hand = out
+	# Lifted back to rest once the blow is over and no next one is coming.
+	if settle > 0.0:
+		var r := _rest_pose()
+		var e := settle * settle * (3.0 - 2.0 * settle)
+		angle = lerp_angle(angle, r[0], e)
+		hand = hand.lerp(r[1], e)
+	return [angle, hand, sweeping]
+
+
 ## Ready stance: the sword held up just in front of him, always in his right hand
 ## (the body sprite's hand anchor), by facing (not the mouse). Angle: -PI/2 = up.
 ## Facing down his right hand is on screen-left; facing up it is on screen-right;
@@ -4419,6 +4622,8 @@ func _rest_pose() -> Array:
 		return [a, _hand_point() + Vector2(BOW_OUT * signf(cos(a)), 0.0)]
 	if _is_staff():
 		return [STAFF_READY.get(facing8, STAFF_READY.get(facing, -1.5)), _hand_point()]
+	if _is_hammer():
+		return _hammer_rest()
 	return [READY_ANGLE.get(facing8, READY_ANGLE.get(facing, -1.85)), _hand_point()]
 
 
@@ -4500,13 +4705,23 @@ func _update_pose(delta: float) -> void:
 	elif current_step >= 0:
 		# Settle only when nothing is queued and the button is up.
 		var chaining := queued or (input.attack_held and not need_release)
-		if step_elapsed > float(_swing_times()[1]) + 0.065 and not chaining and hit_pause <= 0.0:
-			settle = minf(settle + delta / 0.13, 1.0)
+		var heavy := _is_hammer()   # its head stays down for a moment, and is lifted slowly
+		if step_elapsed > float(_swing_times()[1]) + (HAMMER_LINGER if heavy else 0.065) and not chaining and hit_pause <= 0.0:
+			settle = minf(settle + delta / (0.2 if heavy else 0.13), 1.0)
 		elif chaining:
 			settle = maxf(settle - delta / 0.05, 0.0)
 		var p := _attack_pose()
 		pose_angle = p[0]
 		pose_hand = p[1]
+		if heavy:
+			# The body goes with it: back into the wind-up, then over the blow.
+			var fwd := signf(anim_dir.x) if absf(anim_dir.x) > 0.3 else 0.0
+			var want := 0.0
+			if step_elapsed < float(_swing_times()[0]):
+				want = -0.13 * fwd
+			elif step_elapsed < float(_swing_times()[1]) + HAMMER_LINGER:
+				want = 0.16 * fwd
+			lean = lerpf(lean, want, 1.0 - exp(-18.0 * delta))
 		if p[2] or (smear_t0 < 0.0 and step_elapsed >= float(_swing_times()[1]) and not stepped):
 			if smear_t0 < 0.0 or not stepped:
 				_start_smear()
@@ -4551,7 +4766,7 @@ func _start_smear() -> void:
 	smear_t0 = game_time
 	smear_a0 = anim_dir.angle() + float(curve[0]) * side
 	smear_a1 = anim_dir.angle() + float(curve[1]) * side
-	smear_center = _hand_point()
+	smear_center = HAMMER_CHEST if _is_hammer() else _hand_point()
 	smear_dir = anim_dir.angle()
 	smear_side = side
 	smear_move = anim_move
@@ -4696,6 +4911,10 @@ func _draw_weapon_on(layer: Node2D, off: Vector2, glow: Dictionary) -> void:
 	if fist != null:
 		layer.draw_set_transform(hand, 0.0, Vector2(Art.PIXEL, Art.PIXEL))
 		layer.draw_texture(fist, -fist.get_size() * 0.5)
+		if _is_hammer():
+			# A hammer is held in both hands: the other fist, further up the haft.
+			layer.draw_set_transform(hand + Vector2.RIGHT.rotated(angle) * HAMMER_HANDS * Art.PIXEL, 0.0, Vector2(Art.PIXEL, Art.PIXEL))
+			layer.draw_texture(fist, -fist.get_size() * 0.5)
 	layer.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 

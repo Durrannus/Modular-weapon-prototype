@@ -10,9 +10,9 @@ const Player := preload("res://scripts/player.gd")
 const Art := preload("res://scripts/art.gd")
 const BowArt := preload("res://scripts/weapon/bow_art.gd")
 
-const SWING := 18.7          # one swing of the iron maul
-const SLAM := 28.05          # the chain's third move
-const CHAIN := 65.45         # swing, swing, slam
+const SWING := 30.8          # one swing of the iron maul (slow and heavy since version 34)
+const SLAM := 46.2           # the chain's third move
+const CHAIN := 107.8         # swing, swing, slam
 const RUNES := ["momentum", "stagger", "aftershock", "quake", "bulwark", "hook"]
 
 var m
@@ -225,12 +225,12 @@ func _run() -> void:
 		["every_hit", "aftershock"]: "Every hit sets off a small rumble in the ground a moment later that hurts whatever is still near, at half strength.",
 		["saved_up", "aftershock"]: "Every third finisher sets off a huge rumble in the ground a moment later that hurts whatever is still near, three times as strong.",
 		["on_dodge", "aftershock"]: "Your finisher sets off a rumble in the ground a moment later that hurts whatever is still near. A dodge leaves one where you were.",
-		["quake"]: "Press right mouse: the ground erupts under the enemy nearest your aim. Recharges in 5 seconds.",
-		["twice", "quake"]: "Press right mouse: the ground erupts under the enemy nearest your aim, then under the next one. Recharges in 5 seconds.",
-		["wider", "quake"]: "Press right mouse: the ground erupts under the enemy nearest your aim, over a bigger patch. Recharges in 5 seconds.",
-		["every_hit", "quake"]: "Press right mouse: the ground erupts under the enemy nearest your aim. Recharges in 5 seconds. Each hit you land takes half a second off.",
-		["saved_up", "quake"]: "Press right mouse: the ground erupts under the enemy nearest your aim, three times as strong. Recharges in 15 seconds.",
-		["on_dodge", "quake"]: "Press right mouse: the ground erupts under the enemy nearest your aim. Recharges in 5 seconds. Dodging sets one off too, at half strength.",
+		["quake"]: "Press right mouse: a crack runs along the ground the way you aim and hits every enemy on it. Recharges in 5 seconds.",
+		["twice", "quake"]: "Press right mouse: a crack runs along the ground the way you aim and hits every enemy on it, then a second one. Recharges in 5 seconds.",
+		["wider", "quake"]: "Press right mouse: a longer, wider crack runs along the ground the way you aim and hits every enemy on it. Recharges in 5 seconds.",
+		["every_hit", "quake"]: "Press right mouse: a crack runs along the ground the way you aim and hits every enemy on it. Recharges in 5 seconds. Each hit you land takes half a second off.",
+		["saved_up", "quake"]: "Press right mouse: a crack runs along the ground the way you aim and hits every enemy on it, three times as strong. Recharges in 15 seconds.",
+		["on_dodge", "quake"]: "Press right mouse: a crack runs along the ground the way you aim and hits every enemy on it. Recharges in 5 seconds. Dodging sets one off too, at half strength.",
 		["bulwark"]: "Press right mouse: for 3 seconds a shield blocks three hits; the third bursts it, stunning enemies near you. Recharges in 10 seconds.",
 		["twice", "bulwark"]: "Press right mouse: for 3 seconds a shield blocks three hits; the third bursts it, stunning enemies near you for twice as long. Recharges in 10 seconds.",
 		["wider", "bulwark"]: "Press right mouse: for 4 seconds a shield blocks four hits; the fourth bursts it, stunning enemies near you. Recharges in 10 seconds.",
@@ -260,11 +260,11 @@ func _run() -> void:
 	var post = _slime(Vector2(40, 0))
 	await _frames(2)
 	await _swings(3)
-	_check(_near(_lost(post), SWING + SWING * 1.08 + SLAM * 1.16), "Momentum: each swing that lands makes the next 8%% harder: 18.7, 20.196, then a slam of 32.538 (%.3f)" % _lost(post))
+	_check(_near(_lost(post), SWING + SWING * 1.08 + SLAM * 1.16), "Momentum: each swing that lands makes the next 8%% harder: 30.8, 33.264, then a slam of 53.592 (%.3f)" % _lost(post))
 	_check(p.momentum == 3 and _near(p.momentum_bonus(), 0.24), "three steps after a chain")
 	await _swings(3)
 	_check(p.momentum == 5 and _near(p.momentum_bonus(), 0.4) and p.momentum_full, "five steps at the most: +40%")
-	_check(_near(_lost(post), SWING * (1.0 + 1.08 + 1.24 + 1.32) + SLAM * (1.16 + 1.4)), "the second chain: 23.188, 24.684 and a slam of 39.27 (%.3f)" % _lost(post))
+	_check(_near(_lost(post), SWING * (1.0 + 1.08 + 1.24 + 1.32) + SLAM * (1.16 + 1.4)), "the second chain: 38.192, 40.656 and a slam of 64.68 (%.3f)" % _lost(post))
 	post.hp = post.max_hp
 	await _swings(3)
 	_check(_near(_lost(post), CHAIN * 1.4), "and there it stays while you keep hitting: a whole chain at +40%% (%.3f)" % _lost(post))
@@ -336,7 +336,7 @@ func _run() -> void:
 	_check(p.momentum == 5, "(five steps built)")
 	await _press(0)
 	await _frames(10)
-	_check(_near(_lost(post) - before, SLAM), "Momentum makes swings hit harder, not runes: a Quake is still 28.05 (%.3f)" % (_lost(post) - before))
+	_check(_near(_lost(post) - before, SLAM), "Momentum makes swings hit harder, not runes: a Quake is still 46.2 (%.3f)" % (_lost(post) - before))
 
 	# --- Stagger ------------------------------------------------------------------------
 	await _hammer(["stagger"], home)
@@ -357,7 +357,7 @@ func _run() -> void:
 			broke = post.staggered
 			stunned = post.stun_time
 	await _still()
-	_check(_near(_lost(post), CHAIN + SWING * 2.0, 0.02), "the next swing fills it: the enemy takes the swing and a heavy blow of another 18.7 (%.3f)" % _lost(post))
+	_check(_near(_lost(post), CHAIN + SWING * 2.0, 0.02), "the next swing fills it: the enemy takes the swing and a heavy blow of another 30.8 (%.3f)" % _lost(post))
 	_check(broke > 1.4 and broke <= 1.5 and stunned > 1.4 and stunned <= 1.5, "and is stunned for 1.5 seconds (%.2f, %.2f)" % [broke, stunned])
 	_check(post.stagger == 0.0, "the meter is empty again")
 	post.staggered = 1.0
@@ -413,7 +413,7 @@ func _run() -> void:
 		if post.staggered > 0.0 and broke == 0.0:
 			broke = post.staggered
 	await _still()
-	_check(_near(_lost(post), SWING * 2.0 + SWING * 3.0, 0.03), "the twelfth breaks it with a huge blow: three swings' worth, 56.1 (%.3f)" % (_lost(post) - SWING * 2.0))
+	_check(_near(_lost(post), SWING * 2.0 + SWING * 3.0, 0.03), "the twelfth breaks it with a huge blow: three swings' worth, 92.4 (%.3f)" % (_lost(post) - SWING * 2.0))
 	_check(broke > 4.4 and broke <= 4.5, "and a stun of 4.5 seconds (%.2f)" % broke)
 
 	# Wider: the break stuns what stands near it too (80 px round it).
@@ -471,7 +471,7 @@ func _run() -> void:
 	await _still()
 	_check(at_slam == 0.0, "Aftershock: when the slam lands the ground only cracks")
 	_check(waited >= 34 and waited <= 38, "0.6 seconds later it rumbles (%d ticks)" % waited)
-	_check(_near(_lost(post), CHAIN + SWING * 0.7), "the enemy the chain hit takes 13.09 more (%.3f)" % (_lost(post) - CHAIN))
+	_check(_near(_lost(post), CHAIN + SWING * 0.7), "the enemy the chain hit takes 21.56 more (%.3f)" % (_lost(post) - CHAIN))
 	_check(_near(_lost(near_by), SWING * 0.7), "and so does one the slam missed, 54 px from where it landed (%.3f)" % _lost(near_by))
 	_check(_lost(far_off) == 0.0, "but not one 80 px from it")
 	post.queue_free()
@@ -509,7 +509,7 @@ func _run() -> void:
 	await _frames(2)
 	await _swings(3)
 	await _rumbled()
-	_check(_near(_lost(post), CHAIN + SWING * 0.35 * 3.0), "Every Hit: every swing that lands sets off a small one at half strength: three of 6.545 (%.3f)" % (_lost(post) - CHAIN))
+	_check(_near(_lost(post), CHAIN + SWING * 0.35 * 3.0), "Every Hit: every swing that lands sets off a small one at half strength: three of 10.78 (%.3f)" % (_lost(post) - CHAIN))
 	_check(_near(_lost(near_by), SWING * 0.35 * 3.0) and _lost(far_off) == 0.0, "which reach less far")
 	post.queue_free()
 	near_by.hp = near_by.max_hp
@@ -529,7 +529,7 @@ func _run() -> void:
 	_check(_lost(near_by) == 0.0, "Saved Up: the first two finishers set off nothing")
 	await _swings(3)
 	await _rumbled()
-	_check(_near(_lost(near_by), SWING * 0.7 * 3.0) and _near(_lost(far_off), SWING * 0.7 * 3.0), "the third a huge one, three times as strong: 39.27 (%.3f)" % _lost(near_by))
+	_check(_near(_lost(near_by), SWING * 0.7 * 3.0) and _near(_lost(far_off), SWING * 0.7 * 3.0), "the third a huge one, three times as strong: 64.68 (%.3f)" % _lost(near_by))
 	_check(_lost(way_off) == 0.0, "90 px round: it doesn't reach one 109 px away")
 
 	await _hammer(["on_dodge", "aftershock"], home)
@@ -541,15 +541,18 @@ func _run() -> void:
 	_check(_near(_lost(near_by), SWING * 0.7) and p.global_position.distance_to(home) > 60.0, "where you were, not where you are now (%.3f)" % _lost(near_by))
 	await _still()
 
-	# --- Quake --------------------------------------------------------------------------
+	# --- Quake: a crack along your aim (version 34; it was an eruption under one enemy) ----
 	await _hammer(["quake"], home)
 	var target = _slime(Vector2(150, 0), true)
-	var close_by = _slime(Vector2(150, 50))
-	var outside = _slime(Vector2(150, 110))
+	var further = _slime(Vector2(225, 8))
+	var outside = _slime(Vector2(150, 70))
+	var behind = _slime(Vector2(-60, 0))
+	var too_far = _slime(Vector2(300, 0))
 	await _frames(2)
 	await _press(0)
-	_check(_near(_lost(target), SLAM) and _near(_lost(close_by), SLAM), "Quake: the ground erupts under the enemy in front for a swing and a half, 28.05, and catches one 50 px from it (%.3f, %.3f)" % [_lost(target), _lost(close_by)])
-	_check(_lost(outside) == 0.0, "44 px round: not one 110 px away")
+	_check(_near(_lost(target), SLAM) and _near(_lost(further), SLAM), "Quake: a crack runs along your aim and hits every enemy on it for a swing and a half, 46.2 (%.3f, %.3f)" % [_lost(target), _lost(further)])
+	_check(_lost(outside) == 0.0 and _lost(behind) == 0.0, "not one 70 px to the side of the line, nor one behind you")
+	_check(_lost(too_far) == 0.0, "it is 240 px long: not one 300 px away")
 	_check(target.stun_time > 0.5 and target.stun_time <= 0.6, "it stuns for 0.6 seconds (%.2f)" % target.stun_time)
 	_check(p.ability_charge[0] < 0.05, "and its button is spent")
 	await _press(0)
@@ -558,68 +561,58 @@ func _run() -> void:
 	await _frames(300)
 	_check(p.ability_ready(0), "five seconds later it is back")
 
-	# The enemy you are pointing at, not just the nearest.
+	# It goes the way you aim, wherever the enemies are.
 	await _hammer(["quake"], home)
-	var beside_you = _slime(Vector2(20, -100))
-	var aimed = _slime(Vector2(200, 0))
-	var behind = _slime(Vector2(-60, 0))
+	var up_there = _slime(Vector2(0, -150))
+	var to_the_right = _slime(Vector2(150, 0))
+	p.input.stick_aim = Vector2.UP
+	await _frames(4)
+	await _press(0)
+	_check(_near(_lost(up_there), SLAM) and _lost(to_the_right) == 0.0, "aim up and the crack runs up: the enemy to the right is missed (%.3f, %.3f)" % [_lost(up_there), _lost(to_the_right)])
+	p.input.stick_aim = Vector2.RIGHT
+	await _hammer(["quake"], home)
 	await _frames(2)
 	await _press(0)
-	_check(_near(_lost(aimed), SLAM) and _lost(beside_you) == 0.0 and _lost(behind) == 0.0, "it picks the enemy you aim at over a nearer one to the side or behind")
-	await _hammer(["quake"], home)
-	behind = _slime(Vector2(-60, 0))
-	await _frames(2)
-	await _press(0)
-	_check(_near(_lost(behind), SLAM), "with nobody in front it takes the one behind")
-	await _hammer(["quake"], home)
-	var too_far = _slime(Vector2(280, 0))
-	var ahead = _slime(Vector2(120, 30))
-	ahead.immune = true
-	await _frames(2)
-	await _press(0)
-	_check(_lost(too_far) == 0.0 and p.ability_charge[0] < 0.05, "with nobody within 240 px it erupts a little way in front of you")
+	_check(p.ability_charge[0] < 0.05, "with nobody on the line it still cracks the floor, and the button is spent")
 
 	await _hammer(["twice", "quake"], home)
 	target = _slime(Vector2(150, 0))
 	var second = _slime(Vector2(150, 150))
 	await _frames(2)
 	await _press(0)
-	_check(_near(_lost(target), SLAM) and _lost(second) == 0.0, "Twice: first under the one you aim at")
+	_check(_near(_lost(target), SLAM) and _lost(second) == 0.0, "Twice: the first crack")
 	await _frames(30)
-	_check(_near(_lost(target), SLAM) and _near(_lost(second), SLAM), "then under the next one (%.3f, %.3f)" % [_lost(target), _lost(second)])
-	second.queue_free()
-	target.hp = target.max_hp
-	p.ability_charge[0] = 1.0
-	await _frames(70)
-	await _press(0)
-	await _frames(30)
-	_check(_near(_lost(target), SLAM * 2.0), "with only one enemy about, twice under that one (%.3f)" % _lost(target))
+	_check(_near(_lost(target), SLAM * 2.0) and _lost(second) == 0.0, "then a second one along your aim, a moment later (%.3f)" % _lost(target))
 
 	await _hammer(["wider", "quake"], home)
-	target = _slime(Vector2(150, 0))
-	outside = _slime(Vector2(150, 80))
+	target = _slime(Vector2(340, 0))
+	outside = _slime(Vector2(150, SwingBuild.QUAKE_WIDTH + 22.0))
 	await _frames(2)
+	outside.global_position.y = home.y + SwingBuild.QUAKE_WIDTH + float(outside.radius) + 6.0
+	await _frames(1)
 	await _press(0)
-	_check(_near(_lost(outside), SLAM), "Wider: a bigger patch (70 px round) catches one 80 px from the middle")
+	_check(_near(_lost(target), SLAM) and _near(_lost(outside), SLAM), "Wider: a longer, wider crack catches one 340 px away and one just off a plain crack's edge (%.3f, %.3f)" % [_lost(target), _lost(outside)])
 	await _hammer(["quake"], home)
-	target = _slime(Vector2(150, 0))
-	outside = _slime(Vector2(150, 80))
+	target = _slime(Vector2(340, 0))
+	outside = _slime(Vector2(150, SwingBuild.QUAKE_WIDTH + 22.0))
 	await _frames(2)
+	outside.global_position.y = home.y + SwingBuild.QUAKE_WIDTH + float(outside.radius) + 6.0
+	await _frames(1)
 	await _press(0)
-	_check(_lost(outside) == 0.0, "which a plain one misses")
+	_check(_lost(target) == 0.0 and _lost(outside) == 0.0, "which a plain one misses")
 
 	await _hammer(["saved_up", "quake"], home)
 	target = _slime(Vector2(150, 0))
 	await _frames(2)
 	await _press(0)
-	_check(_near(_lost(target), SLAM * 3.0) and _near(float(p.weapon["abilities"][0]["recharge"]), 15.0), "Saved Up: three times as strong, 84.15, and three times the recharge (%.3f)" % _lost(target))
+	_check(_near(_lost(target), SLAM * 3.0) and _near(float(p.weapon["abilities"][0]["recharge"]), 15.0), "Saved Up: three times as strong, 138.6, and three times the recharge (%.3f)" % _lost(target))
 
 	await _hammer(["on_dodge", "quake"], home)
-	target = _slime(Vector2(150, 0))
+	target = _slime(Vector2(80, 0))
 	await _frames(2)
-	await _dodge(Vector2.UP)
+	await _dodge(Vector2.LEFT)
 	await _frames(5)
-	_check(_near(_lost(target), SLAM * 0.5) and float(p.ability_charge[0]) >= 1.0, "On Dodge: a dodge sets one off at half strength, 14.025, and leaves the button full (%.3f)" % _lost(target))
+	_check(_near(_lost(target), SLAM * 0.5) and float(p.ability_charge[0]) >= 1.0, "On Dodge: a dodge sets one off at half strength, 23.1, and leaves the button full (%.3f)" % _lost(target))
 	await _still()
 
 	await _hammer(["every_hit", "quake"], home)

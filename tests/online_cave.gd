@@ -352,8 +352,13 @@ func _arena_tick() -> void:
 	if beat == 120:
 		second_held = 44 if me == 0 else 170
 	second_held -= 1
-	session.local.ability_pressed = [beat == 40, beat == 120, beat == 160]
-	session.local.ability_held = [beat >= 40 and beat < 85, second_held >= 0, beat == 160]
+	# Player 2's staff (ticks 1700 to 2100) keeps its mana: the two passive runes it
+	# is given at the forge need it (Orbit 5 each time, Overflow a full bar), and
+	# since version 34 the buttons would spend it all. Player 1's staff has used
+	# Nova, Lance and Spectre by then.
+	var saving: bool = me == 1 and frame >= 1700 and frame < 2100
+	session.local.ability_pressed = [beat == 40 and not saving, beat == 120 and not saving, beat == 160 and not saving]
+	session.local.ability_held = [beat >= 40 and beat < 85 and not saving, second_held >= 0 and not saving, beat == 160 and not saving]
 
 
 func _done(ok: bool) -> void:

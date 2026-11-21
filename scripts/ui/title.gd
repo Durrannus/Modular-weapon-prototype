@@ -36,7 +36,7 @@ const PLATE := Color("#19142a")
 const SHADOW := Color(0.06, 0.04, 0.11, 0.9)
 const PLAYER_COLORS := Art.PLAYER_COLORS
 const ITEMS := [
-	["cave", "Tutorial", "The four-room cave: pick a sword or a bow, fit a rune, beat the guardian."],
+	["cave", "Tutorial", "The four-room cave: pick a weapon, fit a rune, beat the guardian."],
 	["arena", "Arena", "The sandbox: every part unlocked, endless enemies, the forge on Tab or Y."],
 	["online", "Play online", "Two players over the internet, one on each computer. One hosts, the other joins."],
 	["quit", "Quit", ""],
@@ -356,7 +356,7 @@ func _words(f: Font, at: Vector2, text: String, size: int, col: Color) -> void:
 
 func _draw_title() -> void:
 	var silk := Art.font("Silkscreen-Regular")
-	var pix := Art.font("PixelifySans-Regular")
+	var pix := Art.font(Art.TEXT)
 	if scene.get("layers", []).is_empty():
 		root.draw_rect(Rect2(Vector2.ZERO, SCREEN), PLATE)
 
@@ -399,15 +399,15 @@ func _draw_title() -> void:
 		y += ROW_STEP
 	var ny := y + 10.0
 	for l in _wrap(str(ITEMS[cursor][2]), width - 8.0, pix):
-		_words(pix, Vector2(corner.x + 8, ny), l, 11, INK)
+		_words(pix, Vector2(corner.x + 8, ny), l, Art.TEXT_SIZE, INK)
 		ny += 13.0
 
 	# News from the last game, top middle.
 	if notice != "":
-		var nw := pix.get_string_size(notice, HORIZONTAL_ALIGNMENT_LEFT, -1, 11).x
+		var nw := pix.get_string_size(notice, HORIZONTAL_ALIGNMENT_LEFT, -1, Art.TEXT_SIZE).x
 		var nx := floorf((SCREEN.x - nw) * 0.5)
 		root.draw_rect(Rect2(nx - 8, 6, nw + 16, 18), Color(PLATE, 0.85))
-		root.draw_string(pix, Vector2(nx, 19), notice, HORIZONTAL_ALIGNMENT_LEFT, -1, 11, EMBER)
+		root.draw_string(pix, Vector2(nx, 19), notice, HORIZONTAL_ALIGNMENT_LEFT, -1, Art.TEXT_SIZE, EMBER)
 
 	# The bottom band: what the buttons do, and who is playing.
 	for step in 3:
@@ -416,7 +416,7 @@ func _draw_title() -> void:
 	var hint := "Press Enter or A to join"
 	if not joined.is_empty():
 		hint = "W / S or stick: choose     Enter or A: select     Backspace or B: leave"
-	root.draw_string(pix, Vector2(10, base), hint, HORIZONTAL_ALIGNMENT_LEFT, -1, 11, DIM)
+	root.draw_string(pix, Vector2(10, base), hint, HORIZONTAL_ALIGNMENT_LEFT, -1, Art.TEXT_SIZE, DIM)
 	var right := SCREEN.x - 10.0
 	for i in range(MAX_PLAYERS - 1, -1, -1):
 		var here := i < joined.size()
@@ -427,9 +427,9 @@ func _draw_title() -> void:
 			col = INK
 		elif i == joined.size():
 			col = DIM if fmod(t, 1.0) < 0.6 else FAINT
-		var tw := ceilf(pix.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 11).x)
+		var tw := ceilf(pix.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, Art.TEXT_SIZE).x)
 		right -= tw
-		root.draw_string(pix, Vector2(right, base), text, HORIZONTAL_ALIGNMENT_LEFT, -1, 11, col)
+		root.draw_string(pix, Vector2(right, base), text, HORIZONTAL_ALIGNMENT_LEFT, -1, Art.TEXT_SIZE, col)
 		right -= 22.0
 		root.draw_string(silk, Vector2(right, base), "P%d" % (i + 1), HORIZONTAL_ALIGNMENT_LEFT, -1, 8, PLAYER_COLORS[i] if here else FAINT)
 		var tag := Art.texture("hud/tag_%s.png" % ("a" if i == 0 else "b"))
@@ -466,7 +466,7 @@ func _wrap(text: String, width: float, f: Font) -> Array:
 	var line := ""
 	for word in text.split(" "):
 		var trial := word if line == "" else line + " " + word
-		if f.get_string_size(trial, HORIZONTAL_ALIGNMENT_LEFT, -1, 11).x > width and line != "":
+		if f.get_string_size(trial, HORIZONTAL_ALIGNMENT_LEFT, -1, Art.TEXT_SIZE).x > width and line != "":
 			out.append(line)
 			line = word
 		else:

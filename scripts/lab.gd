@@ -156,8 +156,8 @@ static func _build_rows() -> void:
 	_add(p, g, "How fast an arrow flies, a second", "build:BOW_FLIGHT", "d", 50.0, 300.0, 4000.0)
 	_add(p, g, "Walking speed while shooting", "build:BOW_MOVE", "%", 0.05, 0.1, 1.5)
 	_add(p, g, "Quick shot: time to draw", "player:MOVES/quick_shot/windup", "s", 0.01, 0.03, 0.25)
-	_add(p, g, "Heavy shot: time to draw", "player:MOVES/heavy_shot/windup", "s", 0.01, 0.03, 0.29)
-	_add(p, g, "Long shot: time to draw", "player:MOVES/long_shot/windup", "s", 0.01, 0.03, 0.29)
+	_add(p, g, "Charged shot: time to charge", "player:MOVES/charged_shot/windup", "s", 0.01, 0.05, 0.56)
+	_add(p, g, "Charged shot: how hard, in arrows", "player:MOVES/charged_shot/power", "%", 0.05, 0.5, 5.0)
 	for shape in ["shortbow", "longbow"]:
 		g = shape.capitalize()
 		_add(p, g, "Damage", "build:BOW_SHAPES/%s/damage" % shape, "%", 0.05, 0.05, 5.0)
@@ -181,14 +181,16 @@ static func _build_rows() -> void:
 	_add(p, g, "How far a bolt flies", "build:STAFF_RANGE", "d", 10.0, 100.0, 1500.0)
 	_add(p, g, "How fast a bolt flies, a second", "build:STAFF_FLIGHT", "d", 20.0, 200.0, 4000.0)
 	_add(p, g, "Walking speed while casting", "build:STAFF_MOVE", "%", 0.05, 0.1, 1.5)
+	_add(p, g, "A bolt's small splash reaches", "build:BOLT_SPLASH", "d", 1.0, 0.0, 100.0)
 	_add(p, g, "How far a burst reaches where it lands", "build:BURST_RADIUS", "d", 2.0, 10.0, 300.0)
 	_add(p, g, "Each spark of a spray, against a bolt", "build:SPRAY_DAMAGE", "%", 0.05, 0.05, 3.0)
 	_add(p, g, "How far an orb reaches where it stops", "build:ORB_RADIUS", "d", 2.0, 10.0, 300.0)
 	g = "Mana"
 	_add(p, g, "Mana", "build:MANA", "", 5.0, 10.0, 1000.0)
 	_add(p, g, "Mana back each second, always", "build:MANA_REGEN", "", 1.0, 0.0, 500.0)
-	_add(p, g, "Rest this long without casting...", "build:MANA_REST", "s", 0.05, 0.0, 10.0)
-	_add(p, g, "...and it comes back this fast, a second", "build:MANA_REST_REGEN", "", 1.0, 0.0, 1000.0)
+	_add(p, g, "Rest this long without spending any...", "build:MANA_REST", "s", 0.05, 0.0, 10.0)
+	_add(p, g, "...and this much more comes back a second", "build:MANA_REST_REGEN", "", 1.0, 0.0, 1000.0)
+	_add(p, g, "A passive rune costs, each time", "build:PASSIVE_MANA", "", 0.5, 0.0, 200.0)
 	_add(p, g, "A bolt costs", "build:CAST_MANA/bolt", "", 0.5, 0.0, 200.0)
 	_add(p, g, "A burst costs", "build:CAST_MANA/burst", "", 0.5, 0.0, 200.0)
 	_add(p, g, "A spray costs", "build:CAST_MANA/spray", "", 0.5, 0.0, 200.0)
@@ -270,9 +272,9 @@ static func _build_rows() -> void:
 	_add(p, g, "It comes this long after the finisher", "build:AFTERSHOCK_DELAY", "s", 0.05, 0.1, 3.0)
 	_add(p, g, "It stuns for", "build:AFTERSHOCK_STUN", "s", 0.05, 0.0, 5.0)
 	g = "Quake"
-	_add(p, g, "The eruption, against a swing", "build:QUAKE_DAMAGE", "%")
-	_add(p, g, "How far it reaches", "build:QUAKE_RADIUS", "d", 2.0, 10.0, 400.0)
-	_add(p, g, "How far away the enemy can be", "build:QUAKE_RANGE", "d", 10.0, 50.0, 1000.0)
+	_add(p, g, "The crack, against a swing", "build:QUAKE_DAMAGE", "%")
+	_add(p, g, "How long the crack is", "build:QUAKE_RANGE", "d", 10.0, 50.0, 1000.0)
+	_add(p, g, "How wide it is, to each side", "build:QUAKE_WIDTH", "d", 1.0, 2.0, 200.0)
 	_add(p, g, "It stuns for", "build:QUAKE_STUN", "s", 0.05, 0.0, 5.0)
 	_recharge(p, g, "quake")
 	g = "Bulwark"
@@ -310,16 +312,18 @@ static func _build_rows() -> void:
 	_add(p, g, "How far the ring reaches", "build:NOVA_RADIUS", "d", 5.0, 20.0, 600.0)
 	_add(p, g, "How hard it shoves", "build:NOVA_KNOCK", "", 10.0, 0.0, 2000.0)
 	_add(p, g, "It stuns for", "build:NOVA_STUN", "s", 0.05, 0.0, 5.0)
+	_add(p, g, "It costs, in mana", "build:RUNE_MANA/nova", "", 1.0, 0.0, 500.0)
 	_recharge(p, g, "nova")
 	g = "Lance"
 	_add(p, g, "A pulse at first strength, against a bolt", "build:LANCE_DAMAGE", "%")
-	_add(p, g, "Pulses on a full meter", "build:FITTINGS/lance/turns", "n", 1.0, 3.0, 60.0)
+	_add(p, g, "Each pulse costs, in mana", "build:RUNE_MANA/lance", "", 0.5, 0.5, 200.0)
 	_add(p, g, "One pulse takes", "build:FITTINGS/lance/turn", "s", 0.01, 0.05, 1.0)
 	_add(p, g, "Walking speed while you hold it", "build:LANCE_MOVE", "%", 0.05, 0.0, 1.5)
 	_recharge(p, g, "lance")
 	g = "Spectre"
 	_add(p, g, "The ghost's copy, against the real attack", "build:SPECTRE_POWER", "%", 0.05, 0.05, 1.0)
 	_add(p, g, "The ghost stays", "build:FITTINGS/spectre/time", "s", 0.5, 1.0, 120.0)
+	_add(p, g, "It costs, in mana", "build:RUNE_MANA/spectre", "", 1.0, 0.0, 500.0)
 	_recharge(p, g, "spectre")
 
 	p = "Threads"

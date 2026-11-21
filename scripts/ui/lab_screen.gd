@@ -348,7 +348,7 @@ func _make_row(row: Dictionary) -> Control:
 	more.button_down.connect(_hold.bind(_nudge.bind(id, 1)))
 	more.button_up.connect(_let_go)
 	box.add_child(more)
-	var was := _words("", DIM, 8, true)
+	var was := _words("", DIM)
 	was.custom_minimum_size = Vector2(WAS_W, 16)
 	was.clip_text = true
 	box.add_child(was)
@@ -367,7 +367,7 @@ func _refresh_row(id: String) -> void:
 	var changed := Lab.is_changed(id)
 	(r["edit"] as NumberBox).show_number(Lab.words(id, Lab.value(id)), AMBER if changed else INK)
 	(r["name"] as Label).add_theme_color_override("font_color", AMBER if changed else INK)
-	(r["was"] as Label).text = ("game: %s" % Lab.words(id, float(Lab.defaults[id]))).to_upper() if changed else ""
+	(r["was"] as Label).text = "game: %s" % Lab.words(id, float(Lab.defaults[id])) if changed else ""
 	(r["reset"] as Button).visible = changed
 
 
@@ -502,10 +502,10 @@ func _refresh_spawn() -> void:
 
 # --- The kit --------------------------------------------------------------------------------
 
-func _words(text: String, color: Color, size := 11, heading := false) -> Label:
+func _words(text: String, color: Color, size := Art.TEXT_SIZE, heading := false) -> Label:
 	var l := Label.new()
 	l.text = text
-	var f := Art.font("Silkscreen-Regular" if heading else "PixelifySans-Regular")
+	var f := Art.font("Silkscreen-Regular" if heading else Art.TEXT)
 	if f != null:
 		l.add_theme_font_override("font", f)
 	l.add_theme_font_size_override("font_size", size)
@@ -632,17 +632,17 @@ class NumberBox extends Control:
 	func _draw() -> void:
 		draw_rect(Rect2(Vector2.ZERO, size), Color("#0f0c1c"))
 		draw_rect(Rect2(Vector2(0.5, 0.5), size - Vector2.ONE), Color("#ffc850") if typing else Color("#5f8072"), false, 1.0)
-		var f := Art.font("Silkscreen-Regular")
+		var f := Art.font(Art.TEXT)
 		if f == null:
 			return
-		var text := shown.to_upper()
+		var text := shown
 		var tint := color
 		if typing and not fresh:
 			text = buffer + ("_" if fmod(blink, 0.8) < 0.5 else " ")
 			tint = Color("#ffc850")
 		elif typing:
 			tint = Color("#8ba688")
-		draw_string(f, Vector2(0, size.y * 0.5 + 3.0), text, HORIZONTAL_ALIGNMENT_CENTER, size.x, 8, tint)
+		draw_string(f, Vector2(0, size.y * 0.5 + 4.0), text, HORIZONTAL_ALIGNMENT_CENTER, size.x, Art.TEXT_SIZE, tint)
 
 
 ## The search box. Click it (or press "/") and type: every key changes what the

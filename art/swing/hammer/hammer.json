@@ -586,7 +586,7 @@
    "loop": true,
    "note": "Stagger: the dazed loop over a stunned enemy's head. Additive, loops"
   },
-  "aftershock_crack": {
+  "quake_rock": {"folder": "fx", "frames": 6, "frame": [48, 48], "fps": 16, "origin": [24, 40], "loop": false, "note": "Quake (21 November, a crack along the aim): a small burst of rock, played at a few places along the crack. Normal blending (art/blend.json), once, never turned"}, "quake_crack": {"folder": "fx", "frames": 6, "frame": [32, 16], "fps": 14, "origin": [0, 8], "loop": false, "note": "Quake: one piece of the crack, lying along +x; laid end to end by rune_fx.gd (kind crack). Normal blending"}, "quake_crack_end": {"folder": "fx", "frames": 6, "frame": [32, 16], "fps": 14, "origin": [0, 8], "loop": false, "note": "Quake: the far end of the crack, running out to a point about 26 px along. Normal blending"}, "aftershock_crack": {
    "folder": "fx",
    "frames": 4,
    "frame": [

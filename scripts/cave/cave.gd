@@ -70,7 +70,7 @@ const WORDS := {
 		"rune": "A rune gives your sword a new trick. This one hums in your hand, but your sword can't wake it.",
 		"trick": "A rune gives a weapon a new trick: yours is a spin that cuts everything around you.",
 		"each": "a cutting spin for the sword",
-		"use": "Hold [ability] to spin and cut everything around you.\nIts meter fills again when you let go.",
+		"use": "Hold [ability] to spin and cut everything around you.\nIt starts on a full meter, which fills again when you let go.",
 		"grip": "grip", "top": "tip", "slot": "the blade gives your spirit another seat",
 		"tin": "Tin blade and tin grip",
 		"tin_hint": "Sword tab: pick the tin blade and the tin grip. Keep the rune on a seat.",
@@ -78,7 +78,7 @@ const WORDS := {
 	},
 	"bow": {
 		"card": ["Wooden bow", "A training bow. Its arrows never run out.", "[mouse_left] shoots where you point.", "[pad_x] shoots the way you face, or aim with [stick_r]."],
-		"chain": "Hold [attack] to keep shooting. The third shot is the heavy one.",
+		"chain": "Hold [attack] to keep shooting. Arrows reach far, so keep your distance.",
 		"rune": "A rune gives your bow a new trick. This one hums in your hand, but your bow can't wake it.",
 		"trick": "A rune gives a weapon a new trick: yours looses three arrows at once, in a spread.",
 		"each": "three arrows at once from the bow",
@@ -92,21 +92,21 @@ const WORDS := {
 		"card": ["Wooden hammer", "A training maul. Slow, but every blow lands hard, and the third slams the floor.", "[mouse_left] swings where you point.", "[pad_x] swings the way you face, or aim with [stick_r]."],
 		"chain": "Hold [attack] to keep swinging. The third swing is the slam.",
 		"rune": "A rune gives your hammer a new trick. This one hums in your hand, but your hammer can't wake it.",
-		"trick": "A rune gives a weapon a new trick: yours makes the ground erupt under the enemy you aim at.",
-		"each": "an eruption under the hammer's enemy",
-		"use": "Press [ability] and the ground erupts under the enemy you aim at.\nIt is ready again after 5 seconds.",
+		"trick": "A rune gives a weapon a new trick: yours cracks the ground the way you aim, and hits every enemy on the crack.",
+		"each": "a crack along the ground from the hammer",
+		"use": "Press [ability] to crack the ground along your aim and hit every enemy on it.\nIt is ready again after 5 seconds.",
 		"grip": "haft", "top": "head", "slot": "the head gives your spirit another seat",
 		"tin": "Tin head and tin haft",
 		"tin_hint": "Hammer tab: pick the tin head and the tin haft. Keep the rune on a seat.",
 		"tin_say": "Head and haft first, on the Hammer tab. Then the rune, back on a seat by your spirit.",
 	},
 	"staff": {
-		"card": ["Wooden staff", "A training staff. Its bolts use mana, the blue bar under your health. Stop casting for a moment and it fills.", "[mouse_left] casts where you point.", "[pad_x] casts the way you face, or aim with [stick_r]."],
-		"chain": "Hold [attack] to keep casting. The third cast is the burst.",
+		"card": ["Wooden staff", "A training staff. Its bolts cost nothing. Runes use mana, the blue bar under your health, which fills slowly.", "[mouse_left] casts where you point.", "[pad_x] casts the way you face, or aim with [stick_r]."],
+		"chain": "Hold [attack] to keep casting. A bolt also hurts an enemy right beside the one it hits.",
 		"rune": "A rune gives your staff a new trick. This one hums in your hand, but your staff can't wake it.",
 		"trick": "A rune gives a weapon a new trick: yours is a beam that grows stronger the longer you hold it.",
 		"each": "a long beam from the staff",
-		"use": "Hold [ability] for a beam into the enemy you aim at, stronger the longer you hold.\nIts meter fills again when you let go.",
+		"use": "Hold [ability] for a beam into the enemy you aim at, stronger the longer you hold.\nIt burns mana until the bar is empty.",
 		"grip": "shaft", "top": "head", "slot": "the head gives your spirit another seat",
 		"tin": "Tin head, shaft and crystal",
 		"tin_hint": "Staff tab: pick the tin head, the tin shaft and the tin crystal. Keep the rune on a seat.",
@@ -671,6 +671,15 @@ func _update_interactions() -> void:
 		var p = players[i]
 		if p.is_down:
 			continue
+		# The crate's weapons can be clicked (Darren, 21 November: "make items in
+		# chest clickable so you can click which one you want"). Pointing at a
+		# plate lights it; a click takes that weapon, from wherever you stand.
+		var pointed := _mouse_pick(i)
+		if pointed != "" and _can_take(i, pointed):
+			picking[i] = pointed
+			if p.input.attack_pressed:
+				_take_weapon(i, pointed)
+				return
 		var best := -1
 		var best_d := INF
 		for k in interactables.size():
@@ -685,7 +694,7 @@ func _update_interactions() -> void:
 		p.interact_ready = true
 		var pad: bool = p.input.using_pad
 		# (Online the prompt is for this computer's player, with their own button.)
-		if it.has("pick"):
+		if it.has("pick") and not picking.has(i):
 			picking[i] = it["pick"]
 		if not shown.has(best) and (not Net.online() or i == Net.me()):
 			shown[best] = true
@@ -906,7 +915,37 @@ func _pick_at(kind: String) -> Vector2:
 func _can_take(i: int, kind: String) -> bool:
 	if not picks_ready or (armed[i] and builds[i].weapon() == kind):
 		return false
+	# Each weapon goes to one player (Darren, 21 November: "when one is taken
+	# remove it from being selected so each playe gets different weapon").
+	if _holder(kind) >= 0:
+		return false
 	return stage in ["crate", "walk2"] or (stage == "fight1" and not armed[i])
+
+
+## The player who took this weapon from the crate (-1: it is still in there). A
+## player who swaps puts their old one back.
+func _holder(kind: String) -> int:
+	for j in players.size():
+		if armed[j] and builds[j].weapon() == kind:
+			return j
+	return -1
+
+
+## Half a plate, in the world (it is 30 art pixels across), with a little slack.
+const PICK_HALF := Vector2(32, 32)
+
+## The weapon whose plate this player's mouse is on ("" for none, or on a
+## controller). It goes by the mouse as the simulation knows it, so a click
+## takes the same weapon on both computers online.
+func _mouse_pick(i: int) -> String:
+	var p = players[i]
+	if not crate_open or not picks_ready or not p.input.uses_mouse():
+		return ""
+	var at: Vector2 = p.mouse_point()
+	for kind in _crate_row():
+		if SwingBuild.STARTERS.has(kind) and Rect2(_pick_at(kind) - PICK_HALF, PICK_HALF * 2.0).has_point(at):
+			return kind
+	return ""
 
 
 var picking := {}   # player index -> the weapon whose plate they stand under, this tick
@@ -916,12 +955,15 @@ func _show_picks() -> void:
 	if not crate_open or stage not in ["crate", "walk2"]:
 		return
 	for kind in _crate_row():
-		var who: Array = []    # the colours of the players standing under it
+		var who: Array = []    # the colours of the players standing under it, or pointing at it
 		for i in players.size():
 			# (Online each player sees their own choice lit, like their own prompt.)
 			if picking.get(i, "") == kind and (not Net.online() or i == Net.me()):
 				who.append(Art.PLAYER_COLORS[i % Art.PLAYER_COLORS.size()])
-		ui.picks.append({"at": _pick_at(kind), "kind": kind, "locked": not SwingBuild.STARTERS.has(kind), "who": who})
+		# A weapon somebody has taken is shown dim, with whose it is.
+		var holder := _holder(kind)
+		ui.picks.append({"at": _pick_at(kind), "kind": kind, "locked": not SwingBuild.STARTERS.has(kind), "who": who,
+			"taken": holder, "taken_color": Art.PLAYER_COLORS[holder % Art.PLAYER_COLORS.size()] if holder >= 0 else Color.WHITE})
 
 
 func _open_crate(_i: int) -> void:
@@ -931,7 +973,7 @@ func _open_crate(_i: int) -> void:
 	_dust_at(CRATE_AT * TILE + Vector2(0, 6))
 	_after(0.45, func(): picks_ready = true)
 	ui.objective = "Choose your weapon"
-	ui.hint = _keys("Stand under a weapon and press [e].", "Stand under a weapon and press [pad_a].")
+	ui.hint = _keys("Click a weapon, or stand under it and press [e].", "Stand under a weapon and press [pad_a].")
 
 
 ## The weapons in the players' hands, in the crate's order. (It goes by every

@@ -823,10 +823,10 @@ func _label(text: String, col: Color, y: float) -> Label:
 	l.position = Vector2(0, y)
 	l.size = Vector2(640, 14)
 	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	var f := Art.font("PixelifySans-Regular")
+	var f := Art.font(Art.TEXT)
 	if f != null:
 		l.add_theme_font_override("font", f)
-	l.add_theme_font_size_override("font_size", 11)
+	l.add_theme_font_size_override("font_size", Art.TEXT_SIZE)
 	l.add_theme_color_override("font_color", col)
 	l.add_theme_color_override("font_outline_color", Color("#19142a"))
 	l.add_theme_constant_override("outline_size", 4)

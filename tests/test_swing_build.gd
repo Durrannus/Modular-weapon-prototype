@@ -36,6 +36,7 @@ func _init() -> void:
 	test_pommels()
 	test_blade_shapes()
 	test_presets()
+	test_thread_lines()
 	print("%d checks, %d failed" % [checks, failures])
 	quit(1 if failures > 0 else 0)
 
@@ -238,22 +239,22 @@ func test_three_buttons() -> void:
 # Ghostwield (11 November afternoon): the sword's third active rune.
 func test_ghostwield() -> void:
 	var f: Dictionary = SwingBuild.FITTINGS["ghostwield"]
-	eq([f["trigger"], f["use"], f["recharge"], f["time"]], ["active", "press", 45.0, 15.0], "Ghostwield: press, 15 seconds, back in 45")
+	eq([f["trigger"], f["use"], f["recharge"], f["time"]], ["active", "press", 45.0, 8.0], "Ghostwield: press, 8 seconds, back in 45")
 	check("ghostwield" in SwingBuild.FITTING_ORDER, "Ghostwield is in the forge")
-	eq(SwingBuild.ghost_power(1.0), 0.5, "the ghost copies a swing at half strength")
-	eq(snappedf(SwingBuild.ghost_time(1.0), 0.01), 15.0, "for 15 seconds")
+	eq(SwingBuild.ghost_power(1.0), 0.35, "the ghost copies a swing at about a third of its strength")
+	eq(snappedf(SwingBuild.ghost_time(1.0), 0.01), 8.0, "for 8 seconds")
 	var r := SwingBuild.resolve(["whirlwind", "leap", "ghostwield", ""])
 	var e := effect(r, "ghostwield")
 	eq(e.get("button", -1), 2, "third on the sword, third button")
-	eq(SwingBuild.sentence(e), "Press R: a ghost of your sword copies every swing for 15 seconds, at half strength. Recharges in 45 seconds.", "Ghostwield sentence")
+	eq(SwingBuild.sentence(e), "Press R: a ghost of your sword copies every swing for 8 seconds, at a third of its strength. Recharges in 45 seconds.", "Ghostwield sentence")
 	eq(SwingBuild.abilities(r["effects"])[2]["recharge"], 45.0, "its button recharges in 45 seconds")
 	# The bands, as the Game Bible lists them.
 	var twice := effect(SwingBuild.resolve(["twice", "ghostwield"]), "ghostwield")
 	eq(twice["count"], 2, "Twice: two copies of each swing")
-	eq(SwingBuild.sentence(twice), "Press right mouse: a ghost of your sword copies every swing twice for 15 seconds, at half strength. Recharges in 45 seconds.", "Twice Ghostwield sentence")
+	eq(SwingBuild.sentence(twice), "Press right mouse: a ghost of your sword copies every swing twice for 8 seconds, at a third of its strength. Recharges in 45 seconds.", "Twice Ghostwield sentence")
 	var wider := effect(SwingBuild.resolve(["wider", "ghostwield"]), "ghostwield")
-	eq(snappedf(SwingBuild.ghost_time(float(wider["size"])), 0.01), 20.0, "Wider: 20 seconds instead of 15")
-	eq(SwingBuild.sentence(wider), "Press right mouse: a ghost of your sword copies every swing for 20 seconds, at half strength. Recharges in 45 seconds.", "Wider Ghostwield sentence")
+	eq(snappedf(SwingBuild.ghost_time(float(wider["size"])), 0.01), 10.67, "Wider: a third longer, about 11 seconds instead of 8")
+	eq(SwingBuild.sentence(wider), "Press right mouse: a ghost of your sword copies every swing for 11 seconds, at a third of its strength. Recharges in 45 seconds.", "Wider Ghostwield sentence")
 	check(SwingBuild.ghost_time(SwingBuild.MAX_SIZE) < 24.0, "however many Wider bands, under 24 seconds")
 	var every := effect(SwingBuild.resolve(["every_hit", "ghostwield"]), "ghostwield")
 	eq([every["trigger"], every.get("refund", 0.0)], ["active", 0.5], "Every Hit: the recharge rule, half a second a hit")
@@ -261,10 +262,10 @@ func test_ghostwield() -> void:
 	var saved := effect(saved_r, "ghostwield")
 	eq(SwingBuild.ghost_power(float(saved["power"])), 1.0, "Saved Up: the ghost copies at full strength")
 	eq(SwingBuild.abilities(saved_r["effects"])[0]["recharge"], 135.0, "and takes three times as long to come back")
-	eq(SwingBuild.sentence(saved), "Press right mouse: a ghost of your sword copies every swing for 15 seconds, at full strength. Recharges in 135 seconds.", "Saved Up Ghostwield sentence")
+	eq(SwingBuild.sentence(saved), "Press right mouse: a ghost of your sword copies every swing for 8 seconds, at full strength. Recharges in 135 seconds.", "Saved Up Ghostwield sentence")
 	var dodge := effect(SwingBuild.resolve(["on_dodge", "ghostwield"]), "ghostwield")
 	eq(dodge["also"], ["dodge"], "On Dodge: the ghost cuts along the dodge")
-	eq(SwingBuild.sentence(dodge), "Press right mouse: a ghost of your sword copies every swing for 15 seconds, at half strength. Recharges in 45 seconds. The ghost also cuts along every dodge.", "On Dodge Ghostwield sentence")
+	eq(SwingBuild.sentence(dodge), "Press right mouse: a ghost of your sword copies every swing for 8 seconds, at a third of its strength. Recharges in 45 seconds. The ghost also cuts along every dodge.", "On Dodge Ghostwield sentence")
 	# Two Ghostwield runes share one button; a fourth kind of active rune has none.
 	var two := SwingBuild.resolve(["ghostwield", "ghostwield"])
 	eq(SwingBuild.abilities(two["effects"]).size(), 1, "two Ghostwield runes share a button")
@@ -333,8 +334,8 @@ func test_gilded_ruby() -> void:
 func test_whirlwind() -> void:
 	var e := effect(SwingBuild.resolve(["twice", "wider", "whirlwind"]), "whirlwind")
 	eq(e["trigger"], "active", "Whirlwind waits for its button")
-	eq(SwingBuild.sentence(e), "Hold right mouse: spins for up to six turns, cutting everything around you, in a bigger circle. Recharges in 5 seconds.", "Whirlwind x2 wide sentence")
-	eq(SwingBuild.sentence(effect(SwingBuild.resolve(["on_dodge", "whirlwind"]), "whirlwind")), "Hold right mouse: spins for up to three turns, cutting everything around you. Recharges in 5 seconds. Dodging does it too.", "Whirlwind on dodge")
+	eq(SwingBuild.sentence(e), "Hold right mouse: spins for up to twelve turns, cutting everything around you, in a bigger circle. Recharges in 6 seconds.", "Whirlwind x2 wide sentence")
+	eq(SwingBuild.sentence(effect(SwingBuild.resolve(["on_dodge", "whirlwind"]), "whirlwind")), "Hold right mouse: spins for up to six turns, cutting everything around you. Recharges in 6 seconds. Dodging does it too.", "Whirlwind on dodge")
 
 
 # --- Active and passive runes (Darren, 10 November) ----------------------------------
@@ -353,14 +354,18 @@ func test_active_runes() -> void:
 	var a: Array = SwingBuild.abilities(r["effects"])
 	eq(a.size(), 2, "two active runes, two abilities")
 	eq([a[0]["id"], a[0]["use"], a[0]["recharge"]], ["hook", "press", 4.0], "Hook: a press, 4 seconds")
-	eq([a[1]["id"], a[1]["use"], a[1]["recharge"], a[1]["turns"]], ["whirlwind", "hold", 5.0, 3], "Whirlwind: a hold, 5 seconds, three turns")
-	# Two of the same rune share a button and go off together.
+	eq([a[1]["id"], a[1]["use"], a[1]["recharge"], a[1]["turns"]], ["whirlwind", "hold", 6.0, 6], "Whirlwind: a hold, 6 seconds, six turns")
+	# Only one of each rune works (21 November): a second copy does nothing, and
+	# the forge marks it with a red X. The threads before it are left unused too.
 	var two := SwingBuild.resolve(["hook", "wider", "hook"])
-	eq([two["effects"][0]["button"], two["effects"][1]["button"]], [0, 0], "two Hooks share button one")
-	eq(SwingBuild.abilities(two["effects"])[0]["effects"], [0, 1], "and one press fires both")
+	eq(two["effects"].size(), 1, "a second Hook adds nothing")
+	eq(SwingBuild.abilities(two["effects"])[0]["effects"], [0], "one press fires the one Hook")
+	check(two["slots"][2].get("dup", false) and two["slots"][2].get("unused", false), "the second copy is marked as a duplicate that does nothing")
+	eq(two["slots"][2].get("why", ""), "A second Hook does nothing: only one of each rune works.", "and says why")
+	check(not two["slots"][0].get("dup", false), "the first copy is not marked")
 	# Bands still change them.
-	eq(SwingBuild.abilities(SwingBuild.resolve(["twice", "whirlwind"])["effects"])[0]["turns"], 6, "Twice doubles Whirlwind's turns")
-	eq(SwingBuild.abilities(SwingBuild.resolve(["twice", "twice", "twice", "whirlwind"])["effects"])[0]["turns"], 9, "capped at three times")
+	eq(SwingBuild.abilities(SwingBuild.resolve(["twice", "whirlwind"])["effects"])[0]["turns"], 12, "Twice doubles Whirlwind's turns")
+	eq(SwingBuild.abilities(SwingBuild.resolve(["twice", "twice", "twice", "whirlwind"])["effects"])[0]["turns"], 18, "capped at three times")
 	eq(effect(SwingBuild.resolve(["twice", "hook"]), "hook")["count"], 2, "Twice makes a press of Hook fire twice")
 	eq(effect(SwingBuild.resolve(["wider", "whirlwind"]), "whirlwind")["size"], 1.6, "Wider makes Whirlwind bigger")
 	var saved := effect(SwingBuild.resolve(["saved_up", "hook"]), "hook")
@@ -371,7 +376,7 @@ func test_active_runes() -> void:
 	eq(SwingBuild.sentence(effect(SwingBuild.resolve(["on_dodge", "hook"]), "hook")), "Press right mouse: a chain drags the enemy nearest your aim to you. Recharges in 4 seconds. Dodging throws a quick one at the nearest enemy.", "On Dodge Hook sentence")
 	var auto := effect(SwingBuild.resolve(["every_hit", "whirlwind"]), "whirlwind")
 	eq([auto["trigger"], auto.get("button", -1)], ["active", 0], "Every Hit leaves Whirlwind on its button")
-	eq(SwingBuild.sentence(auto), "Hold right mouse: spins for up to three turns, cutting everything around you. Recharges in 5 seconds. Each hit you land takes half a second off.", "Every Hit Whirlwind sentence")
+	eq(SwingBuild.sentence(auto), "Hold right mouse: spins for up to six turns, cutting everything around you. Recharges in 6 seconds. Each hit you land takes half a second off.", "Every Hit Whirlwind sentence")
 	eq(SwingBuild.abilities([auto])[0]["refund"], 0.5, "and its ability gets half a second back for each hit")
 	eq(SwingBuild.abilities([effect(SwingBuild.resolve(["whirlwind"]), "whirlwind")])[0]["refund"], 0.0, "without the band there is nothing back")
 	check(SwingBuild.resolve(["every_hit", "every_hit", "whirlwind"])["slots"][1].get("unused", false), "a second Every Hit on an active rune does nothing")
@@ -379,7 +384,7 @@ func test_active_runes() -> void:
 	eq([dodge["trigger"], dodge["also"]], ["active", ["dodge"]], "On Dodge keeps Hook on its button and adds the dodge")
 	# The Gilded grip's ruby slot and the sentences' button names.
 	var ruby := effect(SwingBuild.resolve(["", "whirlwind"], 1), "whirlwind")
-	eq(SwingBuild.abilities([ruby])[0]["turns"], 6, "the ruby slot doubles Whirlwind's turns")
+	eq(SwingBuild.abilities([ruby])[0]["turns"], 12, "the ruby slot doubles Whirlwind's turns")
 	var second := effect(SwingBuild.resolve(["whirlwind", "hook"]), "hook")
 	eq(SwingBuild.sentence(second), "Press Q: a chain drags the enemy nearest your aim to you. Recharges in 4 seconds.", "the second active rune names the second button")
 	eq(SwingBuild.sentence(second, SwingBuild.ABILITY_KEYS["pad"]), "Press LB: a chain drags the enemy nearest your aim to you. Recharges in 4 seconds.", "and the controller's name for it")
@@ -473,6 +478,36 @@ func test_blade_shapes() -> void:
 
 
 ## Loadout presets (Game Bible, 11 November): three saved swords, one click to switch.
+# --- What each thread adds, a line each (Darren, 21 November) --------------------------
+
+func _threads(line: Array, id: String) -> Array:
+	var out: Array = []
+	for th in SwingBuild.thread_lines(effect(SwingBuild.resolve(line), id)):
+		out.append("%s: %s" % [th["name"], th["text"]])
+	return out
+
+
+func test_thread_lines() -> void:
+	var e := effect(SwingBuild.resolve(["twice", "wider", "whirlwind"]), "whirlwind")
+	eq(SwingBuild.base_sentence(e), "Hold right mouse: spins for up to six turns, cutting everything around you. Recharges in 6 seconds.", "the bare rune's sentence leaves the threads out")
+	eq(SwingBuild.base_sentence(e), SwingBuild.sentence(effect(SwingBuild.resolve(["whirlwind"]), "whirlwind")), "it is the sentence of the rune alone")
+	eq(_threads(["twice", "wider", "whirlwind"], "whirlwind"), ["Twice: up to twelve turns, not six", "Wider: a bigger circle"], "each thread on Whirlwind has its own line, in ring order")
+	eq(_threads(["twice", "twice", "whirlwind"], "whirlwind"), ["Twice x2: up to eighteen turns, not six"], "two of a thread are one line")
+	eq(_threads(["whirlwind"], "whirlwind"), [], "a rune with no threads has none")
+	eq(_threads(["every_hit", "leap"], "leap"), ["Every Hit: each hit takes half a second off"], "Every Hit on an active rune")
+	eq(_threads(["every_hit", "shockwave"], "shockwave"), ["Every Hit: on every hit, at half strength"], "and on a passive one")
+	eq(_threads(["saved_up", "on_dodge", "leap"], "leap"), ["Saved Up: three times as strong, but recharges in 9 seconds", "On Dodge: every third dodge does it too"], "Saved Up and On Dodge on Leap")
+	eq(_threads(["wider", "ghostwield"], "ghostwield"), ["Wider: the ghost stays 11 seconds, not 8"], "Wider on Ghostwield says the seconds")
+	eq(_threads(["every_hit", "every_hit", "whirlwind"], "whirlwind"), ["Every Hit: each hit takes half a second off"], "a thread that does nothing more has no second line")
+	# A second seat's base sentence names its own button.
+	var second := effect(SwingBuild.resolve(["whirlwind", "twice", "leap"]), "leap")
+	check(SwingBuild.base_sentence(second).begins_with("Press Q: "), "the bare sentence keeps the rune's own button")
+	# The gilded grip's ruby seat is a line too.
+	var ruby := effect(SwingBuild.resolve(["", "shockwave"], 1), "shockwave")
+	eq(SwingBuild.thread_lines(ruby).size(), 1, "the ruby seat has a line")
+	eq(str(SwingBuild.thread_lines(ruby)[0]["name"]), "Ruby seat", "named for the seat")
+
+
 func test_presets() -> void:
 	check(SwingBuild.valid_data(SwingBuild.new().get_data()), "a new sword (wooden blade, wooden grip) is a valid one")
 	var b := SwingBuild.new()

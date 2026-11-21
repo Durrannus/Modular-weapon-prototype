@@ -759,7 +759,7 @@ func _check_other(forge, main, weapon: String, kits: Array, runes: Array = [], f
 
 
 func _fits_help(forge, text: String) -> void:
-	var w: float = preload("res://scripts/art.gd").font("PixelifySans-Regular").get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 11).x
+	var w: float = preload("res://scripts/art.gd").font(preload("res://scripts/art.gd").TEXT).get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, preload("res://scripts/art.gd").TEXT_SIZE).x
 	if w > forge.HELP.size.x - 14.0:
 		_fail("help line too wide (%d px): %s" % [w, text])
 
@@ -773,7 +773,7 @@ func _sentence_fits(forge, id: String) -> void:
 		_fail("%s has no sentence" % id)
 	if n > room:
 		_fail("%s: its sentence takes %d lines on the info plate (%d fit)" % [id, n, room])
-	var w: float = preload("res://scripts/art.gd").font("PixelifySans-Regular").get_string_size(str(forge._name(id)), HORIZONTAL_ALIGNMENT_LEFT, -1, forge.info_name_size(id)).x
+	var w: float = forge.info_name_font(id).get_string_size(str(forge._name(id)), HORIZONTAL_ALIGNMENT_LEFT, -1, forge.info_name_size(id)).x
 	if w > forge.INFO_NAME_ROOM:
 		_fail("%s: its name is too wide for the info plate (%d px)" % [id, w])
 

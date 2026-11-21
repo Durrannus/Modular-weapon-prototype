@@ -104,7 +104,7 @@ func _run() -> void:
 	_check(Title.MENU_ROOM >= Title.ITEMS.size() + 2, "the column keeps room for New game and Continue")
 	_check(title.rects.size() == Title.ITEMS.size(), "every row is drawn (%d of %d)" % [title.rects.size(), Title.ITEMS.size()])
 	var silk := Art.font("Silkscreen-Regular")
-	var pix := Art.font("PixelifySans-Regular")
+	var pix := Art.font(Art.TEXT)
 	if title.rects.size() == Title.ITEMS.size():
 		var first: Rect2 = title.rects[0]
 		var room_end := first.position.y + Title.MENU_ROOM * Title.ROW_STEP

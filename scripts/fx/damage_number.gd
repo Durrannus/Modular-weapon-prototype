@@ -6,7 +6,7 @@ const LIFE := 0.7
 
 var text := ""
 var color := Color.WHITE
-var font_size := 16
+var crit := false     # a crit is written bigger and bold
 var t := 0.0
 var drift := Vector2.ZERO
 
@@ -32,7 +32,8 @@ func _process(delta: float) -> void:
 func _draw() -> void:
 	var c := color
 	c.a = 1.0 - pow(t / LIFE, 2.0)
-	var font := Art.font("Silkscreen-Regular")
+	var font := Art.font(Art.TEXT_BOLD if crit else Art.TEXT_SMALL)
+	var font_size := (Art.TEXT_BOLD_SIZE if crit else Art.TEXT_SMALL_SIZE) * 2
 	var pos := Vector2(-40.0, 0.0)
 	draw_string_outline(font, pos, text, HORIZONTAL_ALIGNMENT_CENTER, 80.0, font_size, 8, Color(0.06, 0.04, 0.09, c.a))
 	draw_string(font, pos, text, HORIZONTAL_ALIGNMENT_CENTER, 80.0, font_size, c)

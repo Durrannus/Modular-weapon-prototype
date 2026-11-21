@@ -93,7 +93,7 @@ func _rows() -> void:
 	_check(not Lab.started, "a test never reads anybody's lab file")
 	Lab.setup()
 	_check(Lab.rows.size() >= 180, "the lab shows plenty of numbers (%d)" % Lab.rows.size())
-	var font := Art.font("PixelifySans-Regular")
+	var font := Art.font(Art.TEXT)
 	var seen := {}
 	var pages := {}
 	for row in Lab.rows:
@@ -112,7 +112,7 @@ func _rows() -> void:
 			_check(v is float or v is int, "%s: %s is a number in the game" % [who, place])
 			_check(is_equal_approx(float(v), d), "%s: %s holds the same number as the row's first place" % [who, place])
 		if font != null:
-			var w := font.get_string_size(str(row["label"]), HORIZONTAL_ALIGNMENT_LEFT, -1, 11).x
+			var w := font.get_string_size(str(row["label"]), HORIZONTAL_ALIGNMENT_LEFT, -1, Art.TEXT_SIZE).x
 			_check(w <= LabScreen.LABEL_W, "%s: its name fits its column (%d of %d)" % [who, w, LabScreen.LABEL_W])
 		# One step up and one back down is where it started: no number drifts.
 		Lab.nudge(id, 1)
@@ -125,7 +125,7 @@ func _rows() -> void:
 	for page in Lab.PAGES:
 		_check(int(pages.get(page, 0)) > 0, "the page %s has numbers" % page)
 		if font != null and Lab.PAGE_NOTES.has(page):
-			_check(font.get_string_size(str(Lab.PAGE_NOTES[page]), HORIZONTAL_ALIGNMENT_LEFT, -1, 11).x <= 492.0, "the page %s's note fits" % page)
+			_check(font.get_string_size(str(Lab.PAGE_NOTES[page]), HORIZONTAL_ALIGNMENT_LEFT, -1, Art.TEXT_SIZE).x <= 492.0, "the page %s's note fits" % page)
 	_check(Lab.changed_count() == 0, "nothing is left changed")
 
 
@@ -182,10 +182,10 @@ func _search() -> void:
 		in_order = in_order and i > at
 		at = i
 	_check(in_order and at > 0, "what a search finds comes in the lab's own order")
-	var font := Art.font("PixelifySans-Regular")
+	var font := Art.font(Art.TEXT)
 	if font != null:
 		for text in [LabScreen.FOUND_NOTE, LabScreen.NONE_NOTE]:
-			var w := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 11).x
+			var w := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, Art.TEXT_SIZE).x
 			_check(w <= 492.0, "the line above a search fits (%d of 492)" % w)
 
 
@@ -240,18 +240,18 @@ func _file() -> void:
 	Lab.set_value("guardian:HP", 400.0)
 	_check(FileAccess.file_exists(FILE), "a change is written to the file at once")
 	var text := Lab.summary()
-	_check(text.contains("Bow > Every bow > An arrow, against a sword hit in that metal: 80% -> 90%  [build:BOW_DAMAGE = 0.9]"), "the copied list says it in words and exactly: %s" % text)
+	_check(text.contains("Bow > Every bow > An arrow, against a sword hit in that metal: 70% -> 90%  [build:BOW_DAMAGE = 0.9]"), "the copied list says it in words and exactly: %s" % text)
 	_check(text.contains("[guardian:HP = 400]") and text.begins_with("Lab numbers changed (2)"), "...for both numbers")
 	# The game is started again: forget everything, then read the file.
 	Lab.changes = {}
 	Lab._apply_all()
-	_check(is_equal_approx(SwingBuild.BOW_DAMAGE, 0.8), "(forgotten: the game's own number)")
+	_check(is_equal_approx(SwingBuild.BOW_DAMAGE, 0.7), "(forgotten: the game's own number)")
 	Lab.started = false
 	Lab.start()
 	_check(is_equal_approx(SwingBuild.BOW_DAMAGE, 0.9) and is_equal_approx(Guardian.HP, 400.0) and Lab.changed_count() == 2, "started again: both changes are back in force")
 	# Online: the game's own numbers, and the lab remembers its own for afterwards.
 	Lab.set_in_force(false)
-	_check(is_equal_approx(SwingBuild.BOW_DAMAGE, 0.8) and is_equal_approx(Guardian.HP, 255.0), "an online game plays with the game's own numbers")
+	_check(is_equal_approx(SwingBuild.BOW_DAMAGE, 0.7) and is_equal_approx(Guardian.HP, 255.0), "an online game plays with the game's own numbers")
 	_check(Lab.changed_count() == 2, "...and the lab still remembers its own")
 	Lab.set_in_force(true)
 	_check(is_equal_approx(SwingBuild.BOW_DAMAGE, 0.9) and is_equal_approx(Guardian.HP, 400.0), "back offline: the lab's numbers again")
@@ -264,7 +264,7 @@ func _file() -> void:
 	_check(Lab.changed_count() == 1 and is_equal_approx(SwingBuild.BOW_DAMAGE, 5.0), "a bad file: numbers the game doesn't have are dropped, the rest kept inside their limits")
 	_check(is_equal_approx(Guardian.HP, 255.0), "...and the guardian's health is the game's own")
 	Lab.reset_all()
-	_check(Lab.changed_count() == 0 and is_equal_approx(SwingBuild.BOW_DAMAGE, 0.8), "reset everything: all the game's own")
+	_check(Lab.changed_count() == 0 and is_equal_approx(SwingBuild.BOW_DAMAGE, 0.7), "reset everything: all the game's own")
 
 
 ## The screen and the spawner, in the real arena with a scripted player.
@@ -295,7 +295,7 @@ func _arena() -> void:
 	s._show_page("All weapons")
 	s._nudge("build:METALS/iron", 1)
 	_check(is_equal_approx(SwingBuild.METALS["iron"], 11.5), "+ on iron: 11.5")
-	_check(s._rows["build:METALS/iron"]["was"].text == "GAME: 11" and s._rows["build:METALS/iron"]["reset"].visible, "the row says what the game's own number is and offers Reset")
+	_check(s._rows["build:METALS/iron"]["was"].text == "game: 11" and s._rows["build:METALS/iron"]["reset"].visible, "the row says what the game's own number is and offers Reset")
 	_check(s._status.text == "1 number changed." and str(s._page_buttons["All weapons"].text) == "ALL WEAPONS (1)", "the screen counts it: %s / %s" % [s._status.text, s._page_buttons["All weapons"].text])
 	# Typing a number.
 	var box = s._rows["build:METALS/iron"]["edit"]

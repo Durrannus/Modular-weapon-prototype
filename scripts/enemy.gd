@@ -70,7 +70,7 @@ const WEAK_BIG := 24.0          # this radius and up counts as big
 static var WEAK_LIFE := 8.0          # a mark fades after this many seconds
 const WEAK_SPOT := 9.0          # the spot's own radius, times the mark's size
 const WEAK_SIDE := 50.0         # how far round from the spot you may stand, in degrees
-const WEAK_COLOR := Color("#b8f4ff")
+const WEAK_COLOR := Color("#ffec98")
 var weak_marks: Array = []      # [{by, power, size, angle, left, age}]
 var weak_popped := 9.0          # seconds since a mark on it was last struck
 
@@ -511,7 +511,7 @@ func _apply_damage(dmg: float, crit: bool, num_color: Color) -> void:
 	var n := DamageNumber.new()
 	n.text = str(roundi(dmg)) + ("!" if crit else "")
 	n.color = num_color
-	n.font_size = 32 if crit else 16   # the pixel font is drawn for 8 screen pixels and its doubles
+	n.crit = crit
 	get_parent().add_child(n)
 	n.global_position = global_position + Vector2(randf_range(-8, 8), -radius - 6.0)
 	if kind == "dummy":
@@ -756,7 +756,7 @@ func _draw_stagger(ci: CanvasItem) -> void:
 	var at := Vector2(-13.0 * Art.PIXEL, _bar_y() + 5.0 * Art.PIXEL)
 	if frame == null or fill == null:
 		ci.draw_rect(Rect2(at, Vector2(26.0, 3.0) * Art.PIXEL), Color(0, 0, 0, 0.6))
-		ci.draw_rect(Rect2(at + Vector2(2, 1) * Art.PIXEL, Vector2(22.0 * frac, 1.0) * Art.PIXEL), Color("#a8b8ff"))
+		ci.draw_rect(Rect2(at + Vector2(2, 1) * Art.PIXEL, Vector2(22.0 * frac, 1.0) * Art.PIXEL), Color("#e0e2d0"))
 		return
 	ci.draw_set_transform(at, 0.0, Vector2(Art.PIXEL, Art.PIXEL))
 	ci.draw_texture(frame, Vector2.ZERO)
@@ -815,10 +815,10 @@ func _draw() -> void:
 	if kind == "dummy":
 		var dps := current_dps()
 		if dps > 0.0:
-			var font := Art.font("Silkscreen-Regular")
+			var font := Art.font(Art.TEXT_SMALL)
 			var label := "DPS %.1f" % dps
-			draw_string_outline(font, Vector2(-60, -radius - 14.0), label, HORIZONTAL_ALIGNMENT_CENTER, 120, 16, 8, Color(0.06, 0.04, 0.09))
-			draw_string(font, Vector2(-60, -radius - 14.0), label, HORIZONTAL_ALIGNMENT_CENTER, 120, 16, Color("#ffc850"))
+			draw_string_outline(font, Vector2(-60, -radius - 14.0), label, HORIZONTAL_ALIGNMENT_CENTER, 120, Art.TEXT_SMALL_SIZE * 2, 8, Color(0.06, 0.04, 0.09))
+			draw_string(font, Vector2(-60, -radius - 14.0), label, HORIZONTAL_ALIGNMENT_CENTER, 120, Art.TEXT_SMALL_SIZE * 2, Color("#ffc850"))
 
 
 ## Stand-in shapes until the enemy sprites land.
