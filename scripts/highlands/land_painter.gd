@@ -105,7 +105,9 @@ static func load_kit() -> void:
 		grass.append(Color(str(h)))
 		grass32.append(Color(str(h)).to_rgba32())
 	floor_lit = Color(str(pal["floor"][1]))
-	floor_shade = Color(str(pal["floor"][0]))
+	# Dug floor in shadow is one step darker and never the black of the undug rock's top (the art's rule of 22 November:
+	# a tunnel one tile wide must show its floor and whoever stands in it). Its plain fill is step 1 already.
+	floor_shade = Color(str(pal["floor"][1]))
 	flowers = [[Color(str(pal["flag"][5])), Color(str(pal["flag"][3]))], [Color(str(pal["heath"][3])), Color(str(pal["heath"][1]))], [Color(str(pal["gold"][2])), Color(str(pal["gold"][0]))]]
 	for name in kit.get("vein", {}):
 		var ramp: Array = []

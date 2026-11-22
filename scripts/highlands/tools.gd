@@ -15,8 +15,10 @@ extends Node2D
 ## Until there is a workbench to make them at, everyone starts with the basic three (Claude's choice).
 ##
 ## Rules for the code: everything that changes the game (which tool is picked, how worn a tile is, what breaks,
-## what goes in a bag) is worked out in tick(), once a physics tick, from the players' buttons alone. Chips, dust
-## and the pictures flying to you are only looks, and take their dice from `dice`, which nothing else uses.
+## what goes in a bag, the moment a landed blow holds the swing) is worked out in tick(), once a physics tick, from
+## the players' buttons alone. Chips, sparks, cracks, bursts, the pine that leans and falls, and the pictures flying
+## to you are only looks; they take their dice from `dice`, which nothing else uses. The drawn ones (cracks, bursts,
+## the pines' shake and fall) are the Art builder's, in art/dig_fx/, and its README says how each is to be used.
 
 const LandMap := preload("res://scripts/highlands/land_map.gd")
 const Painter := preload("res://scripts/highlands/land_painter.gd")
@@ -34,11 +36,21 @@ const NAMES := {"pickaxe": "Pickaxe", "axe": "Axe", "mallet": "Mallet"}
 const POWER := {"basic": 1}         # what one blow of a tool of that make is worth
 const SWING := 0.42                 # seconds one swing takes
 const STRIKE := 0.2                 # how far into it the blow lands
+const HIT_STOP := 0.05              # a blow that lands holds the tool there this long
 const REACH := 46.0                 # how far from your middle a tool reaches (world units; a tile is 32)
 const HAND_PIVOT := Vector2(0, -14) # the swing goes round this point of the body, as the sword's does
 const HAND_RADIUS := 9.0
+const STRUCK_AT := 0.3              # how far past your aim the tool has come round as the blow lands (radians)
+const RAISED := -1.9                # where it is held before a blow, back over the shoulder
 const WALK := 0.35                  # walking speed while a tool swings
 const FORGET := 4.0                 # a part-dug tile is whole again after this long without a blow
+## Looks only.
+const JOLT := 0.1                   # how long a struck tile jolts
+const FALL := 520.0                 # how fast chips fall (world units a second, each second)
+const HOP := 0.16                   # what you win hops out of the tile ...
+const LIE := 0.22                   # ... lies there a moment ...
+const FLY := 0.34                   # ... and flies to you
+const SWAY := [0.05, 0.06]          # a struck pine leans one way this long, then the other (the Art builder's times)
 ## How many blows of a basic tool it takes.
 const TILE_NEED := {LandMap.ROCK: 3, LandMap.TIN: 4, LandMap.COPPER: 4}
 const THING_NEED := {"pine": 5, "boulder": 4}
@@ -68,6 +80,7 @@ class Hand:
 	var bag := Bag.new()
 	var swing := -1.0             # seconds into the swing (-1: no tool is swinging)
 	var struck := false           # this swing's blow has landed
+	var pause := 0.0              # the tool stays where it struck for a moment (a blow that lands has weight)
 	var dir := Vector2.DOWN       # where this swing goes
 	var target := {}              # what it will strike, or struck ({}: nothing)
 	var picked_at := -9.0         # when the picked tool last changed (the belt lights up)
@@ -91,13 +104,19 @@ var hands: Array = []             # a Hand per player
 var wear := {}                    # what has taken blows: key -> {hits, at, need, tile or thing}
 var clock := 0.0
 var dice := RandomNumberGenerator.new()
-var chips: Array = []             # [{at, vel, life, col}] in world units
-var flies: Array = []             # [{from, i, t, item}] a pick-up on its way to player i
+var chips: Array = []             # [{at, vel, life, col, size}] in world units
+var flies: Array = []             # [{from, spot, i, t, wait, item}] something won, on its way to player i
+var jolts: Array = []             # [{tile, t, dir}] tiles that have just been struck
 var over: Over
 var layer: CanvasLayer
 var panel: Control
+var later: Array = []             # [{t, tile}] ground to paint again in a moment (a felled pine's shadow goes as it lands)
 var sheet: Texture2D              # the tool pictures (art/tools/tools.png) ...
 var boxes := {}                   # ... and where each one is on it: name -> {box: [x, y, w, h], pivot, strike, foot}
+var fx_sheet: Texture2D           # cracks, bursts, and the pines' shake and fall (art/dig_fx/dig_fx.png) ...
+var fx_rules := {}                # ... what the Art builder says about them (the times, which crack after which blow) ...
+var fx := {}                      # ... and where each one is: name -> {box, origin or foot, frames}
+var _fx_tex := {}                 # name -> AtlasTexture
 
 
 func _ready() -> void:
@@ -117,6 +136,9 @@ func _ready() -> void:
 	panel.draw.connect(_draw_hud)
 	sheet = Art.texture("tools/tools.png")
 	boxes = Art.json("tools/tools.json").get("sprites", {})
+	fx_sheet = Art.texture("dig_fx/dig_fx.png")
+	fx_rules = Art.json("dig_fx/dig_fx.json")
+	fx = fx_rules.get("sprites", {})
 	for i in players.size():
 		_add_hand(i)
 
@@ -162,6 +184,9 @@ func tick(delta: float, busy: bool) -> void:
 			_begin(p, h)
 		if h.swing < 0.0:
 			continue
+		if h.pause > 0.0:
+			h.pause -= delta
+			continue
 		h.swing += delta
 		if not h.struck and h.swing >= STRIKE:
 			h.struck = true
@@ -188,6 +213,7 @@ func _begin(p, h: Hand) -> void:
 
 func _stop(p, h: Hand) -> void:
 	h.swing = -1.0
+	h.pause = 0.0
 	h.target = {}
 	p.tool_dir = Vector2.ZERO
 	p.tool_move = 1.0
@@ -221,7 +247,7 @@ static func thing_box(t: Dictionary) -> Rect2:
 
 
 ## What the picked tool would strike, the way `dir` points: the nearest thing it works on within reach. A tile is
-## {tile, kind, fixed}; a thing is {thing, class}. {} when there is nothing.
+## {tile, kind, fixed, at}; a thing is {thing, class, at}; `at` is where the blow lands. {} when there is nothing.
 func find(p, h: Hand, dir: Vector2) -> Dictionary:
 	var tool: String = TOOLS[h.tool]
 	if dir == Vector2.ZERO or str(h.belt.get(tool, "")) == "":
@@ -235,7 +261,7 @@ func find(p, h: Hand, dir: Vector2) -> Dictionary:
 			var q := from + dir * d
 			var t := Vector2i(floori(q.x / TILE), floori(q.y / TILE))
 			if map.is_rock(t.x, t.y):
-				best = {"tile": t, "kind": map.kind(t.x, t.y), "fixed": map.fixed(t.x, t.y)}
+				best = {"tile": t, "kind": map.kind(t.x, t.y), "fixed": map.fixed(t.x, t.y), "at": q}
 				best_d = d
 				break
 			d += 4.0
@@ -252,7 +278,7 @@ func find(p, h: Hand, dir: Vector2) -> Dictionary:
 					var d := 6.0
 					while d < best_d:
 						if box.has_point(from + dir * d):
-							best = {"thing": t, "class": cls}
+							best = {"thing": t, "class": cls, "at": from + dir * (d + 4.0)}
 							best_d = d
 							break
 						d += 3.0
@@ -279,11 +305,15 @@ func _strike(i: int) -> void:
 	if t.is_empty():
 		Sfx.play(game, "swing", -14.0, 0.9)
 		return
-	var at := _middle(t)
+	var at := _tip(p, h, t)
+	var what := _stuff(t)
 	if t.get("fixed", false):
 		_tell(p, h, "Too hard to dig")
-		Sfx.play(game, "click", -8.0, 0.7)
-		_chip(at, p.global_position, 2, [Color("c2c8a0")])
+		Sfx.play(game, "click", -6.0, 0.5)
+		Sfx.play(game, "anvil", -20.0, 2.2)
+		_spark(at, 0.6)
+		_chip(at, p.global_position, 2, _cols("stone"))
+		h.pause = HIT_STOP
 		return
 	var gives: Array = TILE_GIVES[int(t["kind"])] if t.has("tile") else THING_GIVES[str(t["class"])]
 	# Ore and wood are never thrown away: with no room for them the tool stays its blow. Stone is only rubble,
@@ -300,20 +330,22 @@ func _strike(i: int) -> void:
 	w["need"] = need
 	w["target"] = t
 	wear[key] = w
-	var cols: Array = [Color("5f8072"), Color("446264"), Color("8ba688")]
-	if t.has("tile") and int(t["kind"]) != LandMap.ROCK:
-		cols.append(ITEM_COL[str(gives[0])])
-		cols.append(ITEM_COL[str(gives[0])])
-	elif t.has("thing") and str(t["class"]) == "pine":
-		cols = [Color("8f4f38"), Color("b87644"), Color("2a7f70")]
-	_chip(at, p.global_position, 4, cols)
-	if t.has("thing"):
-		_shake(t["thing"])
-		Sfx.play(game, "thud" if str(t["class"]) == "pine" else "hit", -9.0, 1.25 if str(t["class"]) == "pine" else 0.8)
+	# What a blow looks, sounds and feels like: chips in the stuff's own colours fly back at you, the tile jolts
+	# (a pine or a boulder shivers), a spark off stone, and a sound for stone, for ore and for wood.
+	var gives_way := int(w["hits"]) >= need
+	_chip(at, p.global_position, 5 if what == "wood" else 8, _cols(what))
+	_sound(what)
+	h.pause = HIT_STOP
+	p.squash = Vector2(1.06, 0.95)        # the body takes the blow too (it eases back by itself)
+	if what == "wood":
+		_play("burst_wood", at)
 	else:
-		Sfx.play(game, "hit", -8.0, 0.8)
-		Sfx.play(game, "click", -13.0, 0.55)
-	if int(w["hits"]) >= need:
+		_spark(at, 0.8 if what == "stone" else 1.0)
+	if t.has("tile"):
+		jolts.append({"tile": t["tile"], "t": 0.0, "dir": Vector2(roundf(h.dir.x), roundf(h.dir.y))})
+	elif not gives_way:
+		_shake(t["thing"], p.global_position)
+	if gives_way:
 		wear.erase(key)
 		_break(i, t, gives)
 
@@ -323,34 +355,87 @@ func _break(i: int, t: Dictionary, gives: Array) -> void:
 	var p = players[i]
 	var h: Hand = hands[i]
 	var at := _middle(t)
+	var what := _stuff(t)
+	var after := 0.0          # looks only: a pine's wood is seen to drop where its crown lands, a moment later
 	if t.has("tile"):
 		var tile: Vector2i = t["tile"]
 		if map.dig(tile.x, tile.y) < 0:
 			return
 		land.changed(tile)
+		Sfx.play(game, "slam", -13.0, 1.5)
 		Sfx.play(game, "thud", -8.0, 0.9)
-		_dust(at)
-		_chip(at, p.global_position, 6, [Color("5f8072"), Color("446264"), Color("344856")])
+		if not _play("burst_" + {"stone": "rock", "tin_ore": "tin", "copper_ore": "copper"}[what], at):
+			_dust(at)
+		_burst(at, 6, _cols(what))
+		p.shake = maxf(p.shake, 2.0)
 	else:
 		var thing: Dictionary = t["thing"]
 		var foot := Vector2(float(thing["x"]), float(thing["y"]))
+		var ground := Vector2i(int(foot.x) / LandMap.TILE_PX, int(foot.y) / LandMap.TILE_PX)      # its shadow is painted into the ground
 		if str(t["class"]) == "pine":
-			_fell(thing, p.global_position)
+			var lands := _fell(thing, p.global_position)
 			map.remove_thing(thing)
 			map.add_thing({"n": "pine_stump", "x": int(thing["x"]), "y": int(thing["y"]), "f": false})
-			Sfx.play(game, "slam", -12.0, 1.3)
+			Sfx.play(game, "slam", -14.0, 1.3)
+			Sfx.play(game, "swing", -10.0, 0.6)
+			at = lands[0]
+			after = lands[1]
+			later.append({"t": after, "tile": ground, "at": at, "i": i})
 		else:
 			map.remove_thing(thing)
+			Sfx.play(game, "slam", -13.0, 1.5)
 			Sfx.play(game, "thud", -8.0, 0.8)
-			_dust(at)
+			at = (foot + Vector2(0, -6)) * UNIT
+			if not _play("burst_rock", at):
+				_dust(at)
+			_burst(at, 6, _cols("stone"))
+			land.changed(ground)
+			p.shake = maxf(p.shake, 2.0)
 		land.things_changed(foot)
-		land.changed(Vector2i(int(foot.x) / LandMap.TILE_PX, int(foot.y) / LandMap.TILE_PX))   # its shadow is painted into the ground
 	var got: int = h.bag.add(str(gives[0]), int(gives[1]))
-	if got > 0:
-		h.gained[str(gives[0])] = clock
-		for n in got:
-			flies.append({"from": at + Vector2(dice.randf_range(-8.0, 8.0), dice.randf_range(-8.0, 8.0)), "i": i, "t": -0.07 * float(n), "item": str(gives[0])})
+	# What was won jumps out, lies a moment, and flies to whoever won it. It lies on the far side of where it came
+	# from: dug from right against the rock, the near side is behind your own head.
+	var away: Vector2 = (at - p.global_position).normalized()
+	for n in got:
+		var spot := at + away * dice.randf_range(5.0, 9.0) + away.rotated(PI * 0.5) * dice.randf_range(4.0, 10.0) * (1.0 if n % 2 == 0 else -1.0)
+		flies.append({"from": at, "spot": spot, "i": i, "t": -after, "wait": LIE + 0.08 * float(n), "item": str(gives[0])})
 	h.target = {}
+
+
+## Where the tool's head is on the screen as the blow lands (world units): chips and sparks come from there. The
+## ground a blow lands on is hidden behind your own head when you dig up the screen, so the looks follow the tool.
+func _tip(p, h: Hand, t: Dictionary) -> Vector2:
+	var info: Dictionary = boxes.get("hand_" + str(TOOLS[h.tool]), {})
+	var side := 1.0 if h.dir.x >= 0.0 else -1.0
+	var along := 11.0
+	var across := 0.0
+	var pivot: Array = info.get("pivot", [])
+	var strike: Array = info.get("strike", [])
+	if pivot.size() == 2 and not strike.is_empty():
+		var sum := Vector2.ZERO
+		for q in strike:
+			sum += Vector2(float(q[0]), float(q[1]))
+		sum /= float(strike.size())
+		along = float(pivot[1]) - sum.y
+		across = sum.x - float(pivot[0])
+	var axis := Vector2.RIGHT.rotated(h.dir.angle() + side * STRUCK_AT)
+	var tip: Vector2 = p.global_position + HAND_PIVOT + axis * (HAND_RADIUS + along * UNIT) + axis.rotated(PI * 0.5 * side) * across * UNIT
+	if t.has("tile"):
+		var r := Rect2(Vector2(t["tile"]) * TILE, Vector2(TILE, TILE)).grow(-4.0)
+		tip = tip.clamp(r.position, r.end)
+	return tip
+
+
+## What a thing is made of, for its chips and its sound: "stone", "tin_ore", "copper_ore" or "wood".
+func _stuff(t: Dictionary) -> String:
+	if t.has("thing"):
+		return "wood" if str(t["class"]) == "pine" else "stone"
+	match int(t["kind"]):
+		LandMap.TIN:
+			return "tin_ore"
+		LandMap.COPPER:
+			return "copper_ore"
+	return "stone"
 
 
 ## The middle of what is struck, in world units.
@@ -371,12 +456,57 @@ func _tell(p, h: Hand, words: String) -> void:
 
 # --- Looks only --------------------------------------------------------------------------
 
+## The colours a thing's chips fly off in: the art's own ramps (the rock face, the two seams, plank and needle).
+func _cols(what: String) -> Array:
+	var face: Array = Painter.vein_cols.get("face", [])
+	var rock: Array = [face[3], face[4], face[4], face[5], face[6]] if face.size() >= 7 else [DIM]
+	match what:
+		"tin_ore", "copper_ore":
+			var seam: Array = Painter.vein_cols.get("tin" if what == "tin_ore" else "copper", [])
+			if seam.size() >= 5:
+				return [rock[0], rock[1], rock[3], seam[2], seam[3], seam[3], seam[4]]
+		"wood":
+			return [Color("8f4f38"), Color("b87644"), Color("b87644"), Color("dca25c"), Color("dca25c"), Color("2a7f70")]
+	return rock
+
+
+## Chips off a blow: they fly back towards whoever struck, up a little, and fall.
 func _chip(at: Vector2, from: Vector2, n: int, cols: Array) -> void:
 	var away := (from - at).normalized()
 	for k in n:
-		var dir := (away * 0.7 + Vector2(dice.randf_range(-1.0, 1.0), dice.randf_range(-1.0, 0.4))).normalized()
-		chips.append({"at": at + away * 10.0 + Vector2(dice.randf_range(-5.0, 5.0), dice.randf_range(-5.0, 5.0)),
-			"vel": dir * dice.randf_range(60.0, 150.0), "life": dice.randf_range(0.22, 0.4), "col": cols[dice.randi() % cols.size()]})
+		# Out to either side of the blow, never straight back into your face.
+		var dir := away.rotated(dice.randf_range(0.5, 1.5) * (1.0 if dice.randf() < 0.5 else -1.0))
+		chips.append({"at": at + Vector2(dice.randf_range(-4.0, 4.0), dice.randf_range(-4.0, 4.0)), "vel": dir * dice.randf_range(70.0, 190.0) + Vector2(0, -50.0),
+			"life": dice.randf_range(0.3, 0.55), "col": cols[dice.randi() % cols.size()], "size": [Vector2(2, 2), Vector2(2, 2), Vector2(2, 1), Vector2(1, 2), Vector2(1, 1)][dice.randi() % 5]})
+
+
+## It breaks: pieces fly out all round.
+func _burst(at: Vector2, n: int, cols: Array) -> void:
+	for k in n:
+		var dir := Vector2.RIGHT.rotated(TAU * (float(k) + dice.randf()) / float(n))
+		chips.append({"at": at + dir * dice.randf_range(2.0, 10.0), "vel": dir * dice.randf_range(80.0, 210.0) + Vector2(0, -70.0),
+			"life": dice.randf_range(0.35, 0.65), "col": cols[dice.randi() % cols.size()], "size": [Vector2(3, 2), Vector2(2, 2), Vector2(2, 2), Vector2(2, 1), Vector2(1, 1)][dice.randi() % 5]})
+
+
+## A spark where iron meets stone (the weapons' own hit spark, small).
+func _spark(at: Vector2, size: float) -> void:
+	Art.play_piece(self, "hit_spark", at, dice.randf_range(0.0, TAU), size * 0.7)
+
+
+## The sound of a blow. Stand-ins made from the game's own sounds: a stone tick, a ring for ore, a thock for wood.
+func _sound(what: String) -> void:
+	var lift := dice.randf_range(-0.06, 0.06)      # no two blows quite the same
+	match what:
+		"wood":
+			Sfx.play(game, "thud", -6.0, 1.35 + lift)
+			Sfx.play(game, "click", -11.0, 0.5 + lift)
+		"tin_ore", "copper_ore":
+			Sfx.play(game, "click", -5.0, 0.7 + lift)
+			Sfx.play(game, "hit", -10.0, 0.8 + lift)
+			Sfx.play(game, "anvil", -17.0, 1.9 if what == "tin_ore" else 1.6)
+		_:
+			Sfx.play(game, "click", -5.0, 0.7 + lift)
+			Sfx.play(game, "hit", -9.0, 0.75 + lift)
 
 
 func _dust(at: Vector2) -> void:
@@ -393,59 +523,178 @@ func _dust(at: Vector2) -> void:
 	n.global_position = at
 
 
-## The struck thing shivers.
-func _shake(thing: Dictionary) -> void:
+## One picture, or one strip, off the Art builder's sheet of cracks, bursts and falling pines.
+func _fx_texture(name: String) -> AtlasTexture:
+	if not _fx_tex.has(name):
+		var box: Array = fx.get(name, {}).get("box", [])
+		if fx_sheet == null or box.size() != 4:
+			return null
+		var tex := AtlasTexture.new()
+		tex.atlas = fx_sheet
+		tex.region = Rect2(box[0], box[1], box[2], box[3])
+		_fx_tex[name] = tex
+	return _fx_tex[name]
+
+
+## Plays one of the drawn bursts once, its origin at `at` (world units), after `wait` seconds. False if there is none.
+## It is among the things that stand on the land, sorted by where it is: whoever stands in front of the tile that
+## breaks is in front of its rubble too.
+func _play(name: String, at: Vector2, wait := 0.0) -> bool:
+	var tex := _fx_texture(name)
+	if tex == null:
+		return false
+	var info: Dictionary = fx[name]
+	var n := SpriteOnce.new()
+	n.texture = tex
+	n.frames = int(info.get("frames", 1))
+	n.fps = 1000.0 / float(fx_rules.get("bursts", {}).get("ms_per_frame", 60))
+	var o: Array = info.get("origin", [0, 0])
+	n.origin = Vector2(float(o[0]), float(o[1]))
+	n.wait = wait
+	land.world.add_child(n)
+	n.z_index = 0
+	n.global_position = (at / UNIT).floor() * UNIT
+	return true
+
+
+## Shows one of the sheet's pine pictures on a sprite that stands on the land, its foot where the pine's foot is.
+func _pose(s: Sprite2D, name: String) -> void:
+	var tex := _fx_texture(name)
+	if tex == null or not is_instance_valid(s):
+		return
+	var f: Array = fx[name].get("foot", [0, 0])
+	var x := float(f[0])
+	if s.flip_h:
+		x = tex.region.size.x - 1.0 - x
+	s.texture = tex
+	s.offset = Vector2(-x, -float(f[1]) + land.SORT_BIAS / UNIT)
+
+
+## The thing's own picture again (as land_view.gd stands it).
+func _unpose(s: Sprite2D, name: String) -> void:
+	if not is_instance_valid(s) or not Painter.things.has(name):
+		return
+	var f: Array = Painter.things[name]["foot"]
+	s.texture = land.thing_texture(name)
+	var x := float(f[0])
+	if s.flip_h:
+		x = s.texture.region.size.x - 1.0 - x
+	s.offset = Vector2(-x, -float(f[1]) + land.SORT_BIAS / UNIT)
+
+
+## The struck thing shivers: a pine leans away from the blow and back (the Art builder's two pictures), a boulder
+## jumps a pixel each way.
+func _shake(thing: Dictionary, from: Vector2) -> void:
 	var s: Sprite2D = land.sprite_of(thing)
 	if s == null:
 		return
-	var home := float(thing["x"]) * UNIT
+	if s.has_meta("shake") and (s.get_meta("shake") as Tween).is_valid():
+		(s.get_meta("shake") as Tween).kill()
+	var name := str(thing["n"])
 	var tw := s.create_tween()
+	s.set_meta("shake", tw)
+	if fx.has(name + "_shake_r") and fx.has(name + "_shake_l"):
+		# A blow from the left sends it right first. A pine that stands mirrored uses the other picture, mirrored.
+		var right := from.x <= float(thing["x"]) * UNIT
+		var first := "r" if right != s.flip_h else "l"
+		_pose(s, "%s_shake_%s" % [name, first])
+		tw.tween_interval(SWAY[0])
+		tw.tween_callback(_pose.bind(s, "%s_shake_%s" % [name, "l" if first == "r" else "r"]))
+		tw.tween_interval(SWAY[1])
+		tw.tween_callback(_unpose.bind(s, name))
+		return
+	var home := float(thing["x"]) * UNIT
 	tw.tween_property(s, "position:x", home + 2.0, 0.04)
 	tw.tween_property(s, "position:x", home - 2.0, 0.05)
 	tw.tween_property(s, "position:x", home, 0.04)
 
 
-## The pine comes down: its picture tips over, away from whoever felled it, and is gone.
-func _fell(thing: Dictionary, from: Vector2) -> void:
+## The pine comes down off its stump, away from whoever felled it (the Art builder's six pictures: they hold the tree
+## above the cut, so the stump is put down at once). Returns [where its crown comes to lie, how long the fall takes].
+func _fell(thing: Dictionary, from: Vector2) -> Array:
+	var name := str(thing["n"])
+	var foot := Vector2(float(thing["x"]), float(thing["y"]))
+	var flip := bool(thing.get("f", false))
+	var right := float(thing["x"]) * UNIT >= from.x
+	var side := "r" if right != flip else "l"
+	var times: Array = fx_rules.get("pines", {}).get("fall_ms", [])
 	var s: Sprite2D = land.sprite_of(thing)
-	if s == null:
-		return
-	var copy := Sprite2D.new()
-	copy.texture = s.texture
-	copy.centered = false
-	# It turns about its foot (the land's own picture of it is hung a little above the foot, for sorting).
-	copy.offset = s.offset - Vector2(0, land.SORT_BIAS / UNIT)
-	copy.scale = s.scale
-	copy.position = s.position + Vector2(0, land.SORT_BIAS)
-	copy.flip_h = s.flip_h
-	land.world.add_child(copy)
-	var side := 1.0 if float(thing["x"]) * UNIT >= from.x else -1.0
-	var tw := copy.create_tween()
-	tw.tween_property(copy, "rotation", side * 1.35, 0.55).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
-	tw.parallel().tween_property(copy, "modulate:a", 0.0, 0.2).set_delay(0.4)
+	var copy: Sprite2D = null
+	var tw: Tween = null
+	var took := 0.0
+	var last := ""
+	for k in times.size():
+		var frame := "%s_fall_%s%d" % [name, side, k]
+		if _fx_texture(frame) == null:
+			break
+		if copy == null:
+			copy = Sprite2D.new()
+			copy.centered = false
+			copy.scale = Vector2(UNIT, UNIT)
+			copy.flip_h = flip
+			copy.position = foot * UNIT - Vector2(0, land.SORT_BIAS)
+			if s != null:
+				copy.modulate = s.modulate
+			land.world.add_child(copy)
+			tw = copy.create_tween()
+			_pose(copy, frame)
+		else:
+			tw.tween_callback(_pose.bind(copy, frame))
+		tw.tween_interval(float(times[k]) / 1000.0)
+		took += float(times[k]) / 1000.0
+		last = frame
+	if copy == null:
+		return [_middle({"thing": thing}), 0.0]
 	tw.tween_callback(copy.queue_free)
+	# The crown lies where the middle of the last picture is.
+	var box: Array = fx[last]["box"]
+	var f: Array = fx[last].get("foot", [0, 0])
+	var mid := Vector2(float(box[2]) * 0.5 - float(f[0]), float(box[3]) * 0.5 - float(f[1]))
+	if flip:
+		mid.x = -mid.x
+	return [(foot + mid) * UNIT, took]
 
 
 func _process(delta: float) -> void:
 	for c in chips:
 		c["at"] += c["vel"] * delta
-		c["vel"] *= maxf(1.0 - 5.0 * delta, 0.0)
+		c["vel"] = c["vel"] * maxf(1.0 - 3.0 * delta, 0.0) + Vector2(0, FALL * delta)
 		c["life"] -= delta
 	chips = chips.filter(func(c): return c["life"] > 0.0)
+	for j in jolts:
+		j["t"] += delta
+	jolts = jolts.filter(func(j): return j["t"] < JOLT)
+	for l in later:
+		l["t"] -= delta
+		if l["t"] <= 0.0:
+			# The pine is down: its crown breaks up where it lies, and its shadow goes from the ground.
+			_play("burst_wood", l["at"])
+			_burst(l["at"], 6, _cols("wood"))
+			Sfx.play(game, "thud", -7.0, 0.8)
+			Sfx.play(game, "click", -12.0, 0.45)
+			land.changed(l["tile"])
+			if int(l["i"]) < players.size():
+				players[int(l["i"])].shake = maxf(players[int(l["i"])].shake, 2.0)
+	later = later.filter(func(l): return l["t"] > 0.0)
 	for f in flies:
-		f["t"] += delta / 0.38
-		if f["t"] >= 1.0 and f["i"] < players.size():
-			Sfx.play(game, "click", -15.0, 1.6)
-	flies = flies.filter(func(f): return f["t"] < 1.0)
+		f["t"] += delta
+		if f["t"] >= HOP + float(f["wait"]) + FLY and int(f["i"]) < hands.size():
+			(hands[int(f["i"])] as Hand).gained[str(f["item"])] = clock      # its count lights as it arrives
+			Sfx.play(game, "click", -13.0, 1.5 + 0.12 * float(dice.randi() % 4))
+	flies = flies.filter(func(f): return f["t"] < HOP + float(f["wait"]) + FLY)
 	queue_redraw()
 	over.queue_redraw()
 	panel.queue_redraw()
 
 
-## On the land: four corners round what a swinging tool will strike, and round what has taken blows. The corners
-## grow with every blow, and would meet as it gives way: that is how you see how far along it is. (They stand
-## outside the tile, so the tool in your hand never hides them.)
+## On the land: the cracks in rock and ore that have taken blows, and four corners round what a swinging tool will
+## strike. Both show how far along the work is: the cracks spread with every blow, and the corners grow and would
+## meet as it gives way. (When you dig up the screen from right against the rock, your own head hides most of the
+## tile and its cracks; the corners stand outside the tile, so nothing ever hides them. A pine and a boulder have no
+## cracks, only the corners.)
 func _draw() -> void:
+	for j in jolts:
+		_draw_jolt(j)
 	var live := {}
 	for i in hands.size():
 		var h: Hand = hands[i]
@@ -453,16 +702,57 @@ func _draw() -> void:
 			continue
 		live[_wear_key(h.target)] = [h.target, Art.PLAYER_COLORS[i % Art.PLAYER_COLORS.size()] if players.size() > 1 else INK]
 	for key in wear:
-		if live.has(key):
-			continue
 		var w: Dictionary = wear[key]
-		var left := FORGET - (clock - float(w["at"]))
-		_draw_corners(_mark(w["target"]), DIM, float(w["hits"]) / float(maxi(int(w["need"]), 1)), 0.6 * clampf(left, 0.0, 1.0))
+		if (w["target"] as Dictionary).has("tile"):
+			_draw_crack(w)
+		elif not live.has(key):
+			_draw_corners(_mark(w["target"]), DIM, float(w["hits"]) / float(maxi(int(w["need"]), 1)), 0.6 * clampf(FORGET - (clock - float(w["at"])), 0.0, 1.0))
 	for key in live:
 		var share := 0.0
 		if wear.has(key):
 			share = float(wear[key]["hits"]) / float(maxi(int(wear[key]["need"]), 1))
 		_draw_corners(_mark(live[key][0]), live[key][1], share, 0.9)
+
+
+## Which crack a tile shows after so many blows: the Art builder's list for its stuff, the last one just before it
+## gives way. "" before the first blow.
+func crack_of(kind: int, hits: int, need: int) -> String:
+	var list: Array = fx_rules.get("cracks", {}).get({LandMap.TIN: "tin", LandMap.COPPER: "copper"}.get(kind, "rock"), [])
+	if list.is_empty() or hits <= 0 or need <= 0:
+		return ""
+	return str(list[clampi(hits * (list.size() + 1) / need - 1, 0, list.size() - 1)])
+
+
+## The crack over a struck tile's 16 by 16 (turned over on every other tile, so that no two side by side match). It
+## jolts with the tile, and fades as the tile is left alone and becomes whole again.
+func _draw_crack(w: Dictionary) -> void:
+	var t: Dictionary = w["target"]
+	var tile: Vector2i = t["tile"]
+	var tex := _fx_texture(crack_of(int(t["kind"]), int(w["hits"]), int(w["need"])))
+	if tex == null:
+		return
+	var at := Vector2(tile) * TILE
+	for j in jolts:
+		if j["tile"] == tile:
+			at += (j["dir"] as Vector2) * (1.0 if float(j["t"]) < JOLT * 0.5 else -1.0) * UNIT
+	var turned := posmod(tile.x + tile.y, 2) == 1
+	draw_set_transform(at + Vector2(TILE if turned else 0.0, 0.0), 0.0, Vector2(-UNIT if turned else UNIT, UNIT))
+	draw_texture(tex, Vector2.ZERO, Color(1, 1, 1, clampf(FORGET - (clock - float(w["at"])), 0.0, 1.0)))
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+
+
+## A struck tile jolts: for a moment its picture is drawn again a pixel along the blow, then a pixel back.
+func _draw_jolt(j: Dictionary) -> void:
+	var tile: Vector2i = j["tile"]
+	var cx := floori(float(tile.x) / LandMap.CHUNK)
+	var cy := floori(float(tile.y) / LandMap.CHUNK)
+	var c = land.chunks.get(LandMap.chunk_key(cx, cy))
+	if c == null or c["sprite"] == null or (c["sprite"] as Sprite2D).texture == null:
+		return
+	var px := LandMap.TILE_PX
+	var local := Rect2(float((tile.x - cx * LandMap.CHUNK) * px), float((tile.y - cy * LandMap.CHUNK) * px), float(px), float(px))
+	var push: Vector2 = (j["dir"] as Vector2) * (1.0 if float(j["t"]) < JOLT * 0.5 else -1.0)
+	draw_texture_rect_region((c["sprite"] as Sprite2D).texture, Rect2((Vector2(tile) * float(px) + push) * UNIT, Vector2(px, px) * UNIT), local)
 
 
 ## The box the corners go round: the tile, or the foot of the thing.
@@ -488,13 +778,24 @@ func _draw_corners(r: Rect2, col: Color, share: float, alpha: float) -> void:
 
 func _draw_over(ci: Node2D) -> void:
 	for c in chips:
-		ci.draw_rect(Rect2((c["at"] / UNIT).floor() * UNIT, Vector2(UNIT, UNIT)), c["col"])
+		ci.draw_rect(Rect2((c["at"] / UNIT).floor() * UNIT, (c["size"] as Vector2) * UNIT), c["col"])
 	for f in flies:
-		if f["t"] < 0.0 or int(f["i"]) >= players.size():
+		if int(f["i"]) >= players.size():
 			continue
-		var to: Vector2 = players[int(f["i"])].global_position + Vector2(0, -16)
+		# Out of the tile with a hop, a moment on the ground, then up in an arc to whoever won it.
 		var t: float = f["t"]
-		var at: Vector2 = (f["from"] as Vector2).lerp(to, t * t) + Vector2(0, -26.0 * sin(t * PI))
+		if t < 0.0:
+			continue
+		var at: Vector2
+		if t < HOP:
+			var k := t / HOP
+			at = (f["from"] as Vector2).lerp(f["spot"], k) + Vector2(0, -12.0 * sin(k * PI))
+		elif t < HOP + float(f["wait"]):
+			at = f["spot"]
+		else:
+			var k := clampf((t - HOP - float(f["wait"])) / FLY, 0.0, 1.0)
+			var to: Vector2 = players[int(f["i"])].global_position + Vector2(0, -10)
+			at = (f["spot"] as Vector2).lerp(to, k * k) + Vector2(0, -30.0 * sin(k * PI))
 		var name := "drop_" + str(f["item"])
 		_sprite(ci, name, ((at / UNIT).floor() - (_sprite_size(name) * 0.5).floor()) * UNIT, UNIT)
 
@@ -528,10 +829,12 @@ func _draw_hand(layer: Node2D, i: int) -> void:
 	var a: float
 	if h.swing < STRIKE:
 		var t := h.swing / STRIKE
-		a = aim + side * lerpf(-1.9, 0.3, t * t)
+		a = aim + side * lerpf(RAISED, STRUCK_AT, t * t)
 	else:
-		var t := clampf((h.swing - STRIKE) / (SWING - STRIKE), 0.0, 1.0)
-		a = aim + side * lerpf(0.3, -0.25, t * t)
+		# It springs back off the work and is carried up again for the next blow, so what it struck is seen at once
+		# (its new crack, the pine leaning): a tool that lay on the tile after the blow hid them.
+		var t := 1.0 - clampf((h.swing - STRIKE) / (SWING - STRIKE), 0.0, 1.0)
+		a = aim + side * lerpf(RAISED, STRUCK_AT, t * t)
 	var hand := HAND_PIVOT + Vector2.RIGHT.rotated(a) * HAND_RADIUS
 	var box: Array = info["box"]
 	var pivot: Array = info["pivot"]

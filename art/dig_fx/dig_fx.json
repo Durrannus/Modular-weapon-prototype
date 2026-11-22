@@ -1,0 +1,1238 @@
+{
+ "note": "Cracks, pine shake and fall, bursts. Sizes in px at 640x360, 1 art px = 1 screen px. See README.md.",
+ "cracks": {
+  "how": "Draw the picture over the tile's 16x16 (origin = the tile's top left), above the land and under the player. One set serves the dark top and the lit face. Mirror it left to right on every other tile for variety if you like.",
+  "rock": [
+   "crack_rock_1",
+   "crack_rock_3"
+  ],
+  "tin": [
+   "crack_tin_1",
+   "crack_tin_2",
+   "crack_tin_3"
+  ],
+  "copper": [
+   "crack_copper_1",
+   "crack_copper_2",
+   "crack_copper_3"
+  ],
+  "rule": "rock takes 3 blows: after blow 1 and 2 show rock[0], rock[1]. Ore takes 4: after blow 1, 2, 3 show its three pictures. The last blow breaks it: play the burst."
+ },
+ "bursts": {
+  "how": "A strip of frames side by side. Put the frame's origin on the middle of the tile (or on the point of the blow, for wood). Above the land and the things on it.",
+  "ms_per_frame": 60,
+  "rock": "burst_rock (a rock tile or a boulder breaks)",
+  "tin": "burst_tin",
+  "copper": "burst_copper",
+  "wood": "burst_wood (each axe blow, and where the crown lands)"
+ },
+ "pines": {
+  "how": "Every frame is drawn with its foot on the pine's foot. For a pine that stands mirrored, mirror the frame and its foot, and swap r and l.",
+  "shake": "On a blow from the left: shake_r 50 ms, shake_l 60 ms, then the pine itself. From the right: shake_l first.",
+  "fall": "On the last blow put the stump down at once, hide the pine, and play fall_r0..5 (it falls away from the player; _l to the left). The frames hold the tree above the cut only.",
+  "fall_ms": [
+   70,
+   70,
+   70,
+   60,
+   60,
+   110
+  ],
+  "fall_deg": [
+   5,
+   14,
+   28,
+   47,
+   68,
+   88
+  ],
+  "then": "After the last frame the tree is gone: play burst_wood at its middle and drop the wood.",
+  "shadow": "Fade the pine's shadow out over the fall."
+ },
+ "sprites": {
+  "crack_rock_1": {
+   "box": [
+    1,
+    1,
+    16,
+    16
+   ],
+   "origin": [
+    0,
+    0
+   ]
+  },
+  "crack_rock_2": {
+   "box": [
+    18,
+    1,
+    16,
+    16
+   ],
+   "origin": [
+    0,
+    0
+   ]
+  },
+  "crack_rock_3": {
+   "box": [
+    35,
+    1,
+    16,
+    16
+   ],
+   "origin": [
+    0,
+    0
+   ]
+  },
+  "crack_tin_1": {
+   "box": [
+    52,
+    1,
+    16,
+    16
+   ],
+   "origin": [
+    0,
+    0
+   ]
+  },
+  "crack_tin_2": {
+   "box": [
+    69,
+    1,
+    16,
+    16
+   ],
+   "origin": [
+    0,
+    0
+   ]
+  },
+  "crack_tin_3": {
+   "box": [
+    86,
+    1,
+    16,
+    16
+   ],
+   "origin": [
+    0,
+    0
+   ]
+  },
+  "crack_copper_1": {
+   "box": [
+    103,
+    1,
+    16,
+    16
+   ],
+   "origin": [
+    0,
+    0
+   ]
+  },
+  "crack_copper_2": {
+   "box": [
+    120,
+    1,
+    16,
+    16
+   ],
+   "origin": [
+    0,
+    0
+   ]
+  },
+  "crack_copper_3": {
+   "box": [
+    137,
+    1,
+    16,
+    16
+   ],
+   "origin": [
+    0,
+    0
+   ]
+  },
+  "burst_rock": {
+   "box": [
+    154,
+    1,
+    192,
+    28
+   ],
+   "frames": 6,
+   "frame": [
+    32,
+    28
+   ],
+   "origin": [
+    16,
+    17
+   ]
+  },
+  "burst_tin": {
+   "box": [
+    347,
+    1,
+    192,
+    28
+   ],
+   "frames": 6,
+   "frame": [
+    32,
+    28
+   ],
+   "origin": [
+    16,
+    17
+   ]
+  },
+  "burst_copper": {
+   "box": [
+    540,
+    1,
+    192,
+    28
+   ],
+   "frames": 6,
+   "frame": [
+    32,
+    28
+   ],
+   "origin": [
+    16,
+    17
+   ]
+  },
+  "burst_wood": {
+   "box": [
+    733,
+    1,
+    160,
+    28
+   ],
+   "frames": 5,
+   "frame": [
+    32,
+    28
+   ],
+   "origin": [
+    16,
+    17
+   ]
+  },
+  "pine_0_shake_r": {
+   "box": [
+    894,
+    1,
+    43,
+    62
+   ],
+   "foot": [
+    16,
+    62
+   ]
+  },
+  "pine_0_shake_l": {
+   "box": [
+    938,
+    1,
+    44,
+    62
+   ],
+   "foot": [
+    19,
+    62
+   ]
+  },
+  "pine_0_fall_r0": {
+   "box": [
+    1,
+    64,
+    43,
+    54
+   ],
+   "foot": [
+    15,
+    62
+   ]
+  },
+  "pine_0_fall_r1": {
+   "box": [
+    45,
+    64,
+    42,
+    52
+   ],
+   "foot": [
+    11,
+    60
+   ]
+  },
+  "pine_0_fall_r2": {
+   "box": [
+    88,
+    64,
+    42,
+    48
+   ],
+   "foot": [
+    3,
+    55
+   ]
+  },
+  "pine_0_fall_r3": {
+   "box": [
+    131,
+    64,
+    51,
+    44
+   ],
+   "foot": [
+    0,
+    48
+   ]
+  },
+  "pine_0_fall_r4": {
+   "box": [
+    183,
+    64,
+    56,
+    44
+   ],
+   "foot": [
+    -2,
+    36
+   ]
+  },
+  "pine_0_fall_r5": {
+   "box": [
+    240,
+    64,
+    54,
+    43
+   ],
+   "foot": [
+    -5,
+    24
+   ]
+  },
+  "pine_0_fall_l0": {
+   "box": [
+    295,
+    64,
+    43,
+    55
+   ],
+   "foot": [
+    19,
+    63
+   ]
+  },
+  "pine_0_fall_l1": {
+   "box": [
+    339,
+    64,
+    43,
+    56
+   ],
+   "foot": [
+    23,
+    64
+   ]
+  },
+  "pine_0_fall_l2": {
+   "box": [
+    383,
+    64,
+    44,
+    55
+   ],
+   "foot": [
+    32,
+    62
+   ]
+  },
+  "pine_0_fall_l3": {
+   "box": [
+    428,
+    64,
+    44,
+    49
+   ],
+   "foot": [
+    43,
+    55
+   ]
+  },
+  "pine_0_fall_l4": {
+   "box": [
+    473,
+    64,
+    50,
+    42
+   ],
+   "foot": [
+    51,
+    42
+   ]
+  },
+  "pine_0_fall_l5": {
+   "box": [
+    524,
+    64,
+    54,
+    43
+   ],
+   "foot": [
+    58,
+    32
+   ]
+  },
+  "pine_1_shake_r": {
+   "box": [
+    579,
+    64,
+    40,
+    64
+   ],
+   "foot": [
+    13,
+    64
+   ]
+  },
+  "pine_1_shake_l": {
+   "box": [
+    620,
+    64,
+    40,
+    64
+   ],
+   "foot": [
+    15,
+    64
+   ]
+  },
+  "pine_1_fall_r0": {
+   "box": [
+    661,
+    64,
+    40,
+    56
+   ],
+   "foot": [
+    12,
+    64
+   ]
+  },
+  "pine_1_fall_r1": {
+   "box": [
+    702,
+    64,
+    38,
+    54
+   ],
+   "foot": [
+    7,
+    62
+   ]
+  },
+  "pine_1_fall_r2": {
+   "box": [
+    741,
+    64,
+    43,
+    49
+   ],
+   "foot": [
+    2,
+    56
+   ]
+  },
+  "pine_1_fall_r3": {
+   "box": [
+    785,
+    64,
+    52,
+    43
+   ],
+   "foot": [
+    0,
+    47
+   ]
+  },
+  "pine_1_fall_r4": {
+   "box": [
+    838,
+    64,
+    58,
+    41
+   ],
+   "foot": [
+    -2,
+    33
+   ]
+  },
+  "pine_1_fall_r5": {
+   "box": [
+    897,
+    64,
+    56,
+    40
+   ],
+   "foot": [
+    -5,
+    21
+   ]
+  },
+  "pine_1_fall_l0": {
+   "box": [
+    954,
+    64,
+    40,
+    57
+   ],
+   "foot": [
+    16,
+    65
+   ]
+  },
+  "pine_1_fall_l1": {
+   "box": [
+    1,
+    129,
+    40,
+    58
+   ],
+   "foot": [
+    20,
+    66
+   ]
+  },
+  "pine_1_fall_l2": {
+   "box": [
+    42,
+    129,
+    43,
+    57
+   ],
+   "foot": [
+    31,
+    64
+   ]
+  },
+  "pine_1_fall_l3": {
+   "box": [
+    86,
+    129,
+    43,
+    50
+   ],
+   "foot": [
+    42,
+    56
+   ]
+  },
+  "pine_1_fall_l4": {
+   "box": [
+    130,
+    129,
+    52,
+    40
+   ],
+   "foot": [
+    53,
+    43
+   ]
+  },
+  "pine_1_fall_l5": {
+   "box": [
+    183,
+    129,
+    56,
+    40
+   ],
+   "foot": [
+    60,
+    32
+   ]
+  },
+  "pine_2_shake_r": {
+   "box": [
+    240,
+    129,
+    38,
+    66
+   ],
+   "foot": [
+    13,
+    66
+   ]
+  },
+  "pine_2_shake_l": {
+   "box": [
+    279,
+    129,
+    39,
+    66
+   ],
+   "foot": [
+    16,
+    66
+   ]
+  },
+  "pine_2_fall_r0": {
+   "box": [
+    319,
+    129,
+    38,
+    57
+   ],
+   "foot": [
+    12,
+    65
+   ]
+  },
+  "pine_2_fall_r1": {
+   "box": [
+    358,
+    129,
+    39,
+    55
+   ],
+   "foot": [
+    7,
+    63
+   ]
+  },
+  "pine_2_fall_r2": {
+   "box": [
+    398,
+    129,
+    44,
+    51
+   ],
+   "foot": [
+    2,
+    58
+   ]
+  },
+  "pine_2_fall_r3": {
+   "box": [
+    443,
+    129,
+    54,
+    44
+   ],
+   "foot": [
+    0,
+    49
+   ]
+  },
+  "pine_2_fall_r4": {
+   "box": [
+    498,
+    129,
+    60,
+    41
+   ],
+   "foot": [
+    -2,
+    34
+   ]
+  },
+  "pine_2_fall_r5": {
+   "box": [
+    559,
+    129,
+    58,
+    38
+   ],
+   "foot": [
+    -5,
+    21
+   ]
+  },
+  "pine_2_fall_l0": {
+   "box": [
+    618,
+    129,
+    38,
+    59
+   ],
+   "foot": [
+    16,
+    67
+   ]
+  },
+  "pine_2_fall_l1": {
+   "box": [
+    657,
+    129,
+    40,
+    60
+   ],
+   "foot": [
+    21,
+    68
+   ]
+  },
+  "pine_2_fall_l2": {
+   "box": [
+    698,
+    129,
+    43,
+    59
+   ],
+   "foot": [
+    32,
+    66
+   ]
+  },
+  "pine_2_fall_l3": {
+   "box": [
+    742,
+    129,
+    45,
+    52
+   ],
+   "foot": [
+    44,
+    58
+   ]
+  },
+  "pine_2_fall_l4": {
+   "box": [
+    788,
+    129,
+    54,
+    41
+   ],
+   "foot": [
+    55,
+    44
+   ]
+  },
+  "pine_2_fall_l5": {
+   "box": [
+    843,
+    129,
+    58,
+    38
+   ],
+   "foot": [
+    62,
+    30
+   ]
+  },
+  "pine_3_shake_r": {
+   "box": [
+    902,
+    129,
+    40,
+    68
+   ],
+   "foot": [
+    13,
+    68
+   ]
+  },
+  "pine_3_shake_l": {
+   "box": [
+    943,
+    129,
+    40,
+    68
+   ],
+   "foot": [
+    15,
+    68
+   ]
+  },
+  "pine_3_fall_r0": {
+   "box": [
+    1,
+    198,
+    40,
+    59
+   ],
+   "foot": [
+    12,
+    67
+   ]
+  },
+  "pine_3_fall_r1": {
+   "box": [
+    42,
+    198,
+    40,
+    57
+   ],
+   "foot": [
+    7,
+    65
+   ]
+  },
+  "pine_3_fall_r2": {
+   "box": [
+    83,
+    198,
+    47,
+    52
+   ],
+   "foot": [
+    2,
+    59
+   ]
+  },
+  "pine_3_fall_r3": {
+   "box": [
+    131,
+    198,
+    57,
+    42
+   ],
+   "foot": [
+    0,
+    48
+   ]
+  },
+  "pine_3_fall_r4": {
+   "box": [
+    189,
+    198,
+    63,
+    39
+   ],
+   "foot": [
+    -2,
+    32
+   ]
+  },
+  "pine_3_fall_r5": {
+   "box": [
+    253,
+    198,
+    60,
+    40
+   ],
+   "foot": [
+    -5,
+    21
+   ]
+  },
+  "pine_3_fall_l0": {
+   "box": [
+    314,
+    198,
+    40,
+    61
+   ],
+   "foot": [
+    16,
+    69
+   ]
+  },
+  "pine_3_fall_l1": {
+   "box": [
+    355,
+    198,
+    39,
+    63
+   ],
+   "foot": [
+    20,
+    71
+   ]
+  },
+  "pine_3_fall_l2": {
+   "box": [
+    395,
+    198,
+    41,
+    61
+   ],
+   "foot": [
+    30,
+    68
+   ]
+  },
+  "pine_3_fall_l3": {
+   "box": [
+    437,
+    198,
+    44,
+    55
+   ],
+   "foot": [
+    43,
+    61
+   ]
+  },
+  "pine_3_fall_l4": {
+   "box": [
+    482,
+    198,
+    55,
+    42
+   ],
+   "foot": [
+    56,
+    46
+   ]
+  },
+  "pine_3_fall_l5": {
+   "box": [
+    538,
+    198,
+    60,
+    40
+   ],
+   "foot": [
+    64,
+    32
+   ]
+  },
+  "pine_4_shake_r": {
+   "box": [
+    599,
+    198,
+    39,
+    46
+   ],
+   "foot": [
+    12,
+    46
+   ]
+  },
+  "pine_4_shake_l": {
+   "box": [
+    639,
+    198,
+    39,
+    46
+   ],
+   "foot": [
+    15,
+    46
+   ]
+  },
+  "pine_4_fall_r0": {
+   "box": [
+    679,
+    198,
+    39,
+    39
+   ],
+   "foot": [
+    12,
+    47
+   ]
+  },
+  "pine_4_fall_r1": {
+   "box": [
+    719,
+    198,
+    39,
+    39
+   ],
+   "foot": [
+    9,
+    47
+   ]
+  },
+  "pine_4_fall_r2": {
+   "box": [
+    759,
+    198,
+    38,
+    39
+   ],
+   "foot": [
+    3,
+    45
+   ]
+  },
+  "pine_4_fall_r3": {
+   "box": [
+    798,
+    198,
+    41,
+    41
+   ],
+   "foot": [
+    -2,
+    40
+   ]
+  },
+  "pine_4_fall_r4": {
+   "box": [
+    840,
+    198,
+    42,
+    39
+   ],
+   "foot": [
+    -5,
+    30
+   ]
+  },
+  "pine_4_fall_r5": {
+   "box": [
+    883,
+    198,
+    38,
+    39
+   ],
+   "foot": [
+    -8,
+    23
+   ]
+  },
+  "pine_4_fall_l0": {
+   "box": [
+    922,
+    198,
+    38,
+    39
+   ],
+   "foot": [
+    14,
+    47
+   ]
+  },
+  "pine_4_fall_l1": {
+   "box": [
+    961,
+    198,
+    39,
+    41
+   ],
+   "foot": [
+    17,
+    49
+   ]
+  },
+  "pine_4_fall_l2": {
+   "box": [
+    1,
+    262,
+    41,
+    42
+   ],
+   "foot": [
+    24,
+    49
+   ]
+  },
+  "pine_4_fall_l3": {
+   "box": [
+    43,
+    262,
+    41,
+    40
+   ],
+   "foot": [
+    32,
+    46
+   ]
+  },
+  "pine_4_fall_l4": {
+   "box": [
+    85,
+    262,
+    39,
+    39
+   ],
+   "foot": [
+    39,
+    38
+   ]
+  },
+  "pine_4_fall_l5": {
+   "box": [
+    125,
+    262,
+    38,
+    38
+   ],
+   "foot": [
+    41,
+    30
+   ]
+  },
+  "pine_5_shake_r": {
+   "box": [
+    164,
+    262,
+    40,
+    48
+   ],
+   "foot": [
+    11,
+    48
+   ]
+  },
+  "pine_5_shake_l": {
+   "box": [
+    205,
+    262,
+    40,
+    48
+   ],
+   "foot": [
+    14,
+    48
+   ]
+  },
+  "pine_5_fall_r0": {
+   "box": [
+    246,
+    262,
+    40,
+    40
+   ],
+   "foot": [
+    11,
+    48
+   ]
+  },
+  "pine_5_fall_r1": {
+   "box": [
+    287,
+    262,
+    41,
+    40
+   ],
+   "foot": [
+    8,
+    48
+   ]
+  },
+  "pine_5_fall_r2": {
+   "box": [
+    329,
+    262,
+    39,
+    39
+   ],
+   "foot": [
+    2,
+    46
+   ]
+  },
+  "pine_5_fall_r3": {
+   "box": [
+    369,
+    262,
+    42,
+    41
+   ],
+   "foot": [
+    -1,
+    39
+   ]
+  },
+  "pine_5_fall_r4": {
+   "box": [
+    412,
+    262,
+    43,
+    40
+   ],
+   "foot": [
+    -3,
+    28
+   ]
+  },
+  "pine_5_fall_r5": {
+   "box": [
+    456,
+    262,
+    40,
+    40
+   ],
+   "foot": [
+    -5,
+    19
+   ]
+  },
+  "pine_5_fall_l0": {
+   "box": [
+    497,
+    262,
+    39,
+    41
+   ],
+   "foot": [
+    13,
+    49
+   ]
+  },
+  "pine_5_fall_l1": {
+   "box": [
+    537,
+    262,
+    39,
+    42
+   ],
+   "foot": [
+    16,
+    50
+   ]
+  },
+  "pine_5_fall_l2": {
+   "box": [
+    577,
+    262,
+    41,
+    43
+   ],
+   "foot": [
+    24,
+    50
+   ]
+  },
+  "pine_5_fall_l3": {
+   "box": [
+    619,
+    262,
+    41,
+    41
+   ],
+   "foot": [
+    34,
+    47
+   ]
+  },
+  "pine_5_fall_l4": {
+   "box": [
+    661,
+    262,
+    40,
+    41
+   ],
+   "foot": [
+    41,
+    41
+   ]
+  },
+  "pine_5_fall_l5": {
+   "box": [
+    702,
+    262,
+    40,
+    39
+   ],
+   "foot": [
+    43,
+    32
+   ]
+  }
+ }
+}

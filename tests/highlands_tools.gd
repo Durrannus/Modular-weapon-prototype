@@ -14,12 +14,13 @@ const Highlands := preload("res://scripts/highlands/highlands.gd")
 const Tools := preload("res://scripts/highlands/tools.gd")
 const Bag := preload("res://scripts/highlands/bag.gd")
 const TILE := 32.0
-const SWING_TICKS := 26          # one swing of a tool, in physics ticks, and one to spare
+const SWING_TICKS := 29          # one swing of a tool that lands, in physics ticks (the swing, and the moment it holds where it struck)
 
 var fails := 0
 var checks := 0
 var shot_dir := ""
 var shot_seed := 1
+var dense := false            # dense=1: every one of the first frames of a dig is saved too, to look at a blow frame by frame
 
 
 func _init() -> void:
@@ -28,6 +29,8 @@ func _init() -> void:
 			shot_dir = a.substr(6)
 		elif a.begins_with("seed="):
 			shot_seed = int(a.substr(5))
+		elif a == "dense=1":
+			dense = true
 	_run()
 
 
@@ -53,6 +56,7 @@ func _run() -> void:
 	_bag()
 	_buttons()
 	await _belt()
+	await _drawn()
 	await _digging()
 	await _mining()
 	await _felling()
@@ -216,6 +220,42 @@ func _buttons() -> void:
 
 
 # --- The belt ------------------------------------------------------------------------------
+
+## The Art builder's cracks, bursts and falling pines (art/dig_fx): every picture the tools ask for is on the sheet.
+func _drawn() -> void:
+	var g = _game(77)
+	await _frames(5)
+	var tools = g.tools
+	_check(tools.fx_sheet != null and not tools.fx.is_empty(), "the sheet of cracks, bursts and falling pines is read")
+	_check(tools.crack_of(LandMap.ROCK, 0, 3) == "" and tools.crack_of(LandMap.ROCK, 1, 3) == "crack_rock_1" and tools.crack_of(LandMap.ROCK, 2, 3) == "crack_rock_3",
+		"rock shows its first crack after one blow and its last after two (%s, %s)" % [tools.crack_of(LandMap.ROCK, 1, 3), tools.crack_of(LandMap.ROCK, 2, 3)])
+	var ore: Array = []
+	for kind in [LandMap.TIN, LandMap.COPPER]:
+		for hits in [1, 2, 3]:
+			ore.append(tools.crack_of(kind, hits, 4))
+	_check(ore == ["crack_tin_1", "crack_tin_2", "crack_tin_3", "crack_copper_1", "crack_copper_2", "crack_copper_3"], "ore shows its three cracks after blows one, two and three (%s)" % str(ore))
+	_check(tools.crack_of(LandMap.ROCK, 2, 6) == "crack_rock_1" and tools.crack_of(LandMap.ROCK, 5, 6) == "crack_rock_3" and tools.crack_of(LandMap.TIN, 3, 4) == tools.crack_of(LandMap.TIN, 9, 4),
+		"harder rock or a stronger tool spreads the same cracks over the blows it takes")
+	var missing: Array = []
+	for name in ore + ["crack_rock_1", "crack_rock_3", "burst_rock", "burst_tin", "burst_copper", "burst_wood"]:
+		if tools._fx_texture(name) == null:
+			missing.append(name)
+	var pines := 0
+	for name in Painter.things:
+		if Tools.thing_class({"n": name}) != "pine":
+			continue
+		pines += 1
+		for part in ["shake_r", "shake_l"]:
+			if tools._fx_texture("%s_%s" % [name, part]) == null:
+				missing.append("%s_%s" % [name, part])
+		for side in ["r", "l"]:
+			for k in (tools.fx_rules["pines"]["fall_ms"] as Array).size():
+				if tools._fx_texture("%s_fall_%s%d" % [name, side, k]) == null:
+					missing.append("%s_fall_%s%d" % [name, side, k])
+	_check(pines >= 6 and missing.is_empty(), "every crack, every burst, and the shake and fall of all %d pines are on the sheet (missing: %s)" % [pines, str(missing)])
+	g.queue_free()
+	await _frames(2)
+
 
 func _belt() -> void:
 	var g = _game(77)
@@ -535,11 +575,14 @@ func _shots() -> void:
 		await _frames(30)
 		await _snap("%s_0_before" % pair[1])
 		p.input.work_held = true
-		var marks := {4: "1_raised", 13: "2_blow_1", 24: "2b_after_blow_1", 39: "3_blow_2", 50: "3b_after_blow_2", 65: "4_blow_3", 76: "4b_after_blow_3", 91: "5_blow_4", 97: "6_into_the_bag", 106: "7_bag"}
-		for f in 110:
+		var marks := {4: "1_raised", 13: "2_blow_1", 15: "2a_chips", 18: "2b_chips", 26: "2c_after_blow_1", 42: "3_blow_2", 44: "3a_chips", 54: "3c_after_blow_2", 71: "4_blow_3", 73: "4a_chips", 83: "4c_after_blow_3",
+			100: "5_blow_4", 102: "5a_burst", 105: "5b_burst", 110: "6_hop", 119: "6a_lying", 131: "6b_flying", 137: "6c_flying", 146: "7_bag"}
+		for f in 150:
 			await physics_frame
 			if marks.has(f):
 				await _snap("%s_%s" % [pair[1], marks[f]])
+			elif dense and f < 64:
+				await _snap("%s_f%03d" % [pair[1], f])
 		p.input.work_held = false
 		await _frames(40)
 		g.land.settle()
@@ -554,6 +597,20 @@ func _shots() -> void:
 		g.land.settle()
 		await _frames(10)
 		await _snap("%s_9_dug_in" % pair[1])
+		# And sideways, from inside the tunnel: the cracks on the rock's dark top, and the burst out in the open.
+		p.input.stick_aim = Vector2.RIGHT
+		await _frames(4)
+		p.input.work_held = true
+		var side := {20: "1_cracked", 50: "2_cracked", 72: "3_blow", 74: "3a_burst", 77: "3b_burst", 81: "3c_burst", 86: "3d_burst", 92: "4_lying", 101: "5_blow", 105: "5a_burst", 110: "5b_burst"}
+		for f in 112:
+			await physics_frame
+			if side.has(f):
+				await _snap("%s_side_%s" % [pair[1], side[f]])
+		p.input.work_held = false
+		await _frames(50)
+		g.land.settle()
+		await _frames(10)
+		await _snap("%s_side_6_out" % pair[1])
 	# Felling a pine.
 	var pine := _thing(m, "pine_", 2)
 	if not pine.is_empty():
@@ -566,9 +623,12 @@ func _shots() -> void:
 		await _frames(30)
 		await _snap("pine_0_before")
 		p.input.work_held = true
-		var marks := {4: "1_raised", 13: "2_blow_1", 65: "3_blow_3", 117: "4_blow_5", 126: "5_falling", 136: "6_falling", 146: "7_down"}
-		for f in 150:
+		var marks := {4: "1_raised", 13: "2_blow_1", 14: "2a_leans", 17: "2b_leans_back", 21: "2c_still", 71: "3_blow_3", 73: "3a_leans", 129: "4_blow_5", 131: "5_fall_0", 135: "5_fall_1", 139: "5_fall_2",
+			143: "5_fall_3", 147: "5_fall_4", 152: "5_fall_5", 157: "6_down", 161: "6a_down", 168: "7_wood_lying", 185: "7a_wood_flying", 196: "7b_wood_flying", 208: "7c_bag"}
+		for f in 212:
 			await physics_frame
+			if f == 131:
+				p.input.work_held = false
 			if marks.has(f):
 				await _snap("pine_%s" % marks[f])
 		p.input.work_held = false
@@ -583,3 +643,26 @@ func _shots() -> void:
 	await _snap("mallet")
 	p.input.work_held = false
 	await _frames(30)
+	# Breaking a boulder (the pickaxe again).
+	await _press(p, "tool_next_pressed")
+	var boulder := _thing(m, "boulder_", 1)
+	if not boulder.is_empty():
+		p.global_position = _beside(boulder)
+		p.input.stick_aim = Vector2.RIGHT
+		g.rig.snap()
+		await _frames(4)
+		g.land.settle()
+		await _frames(30)
+		await _snap("boulder_0_before")
+		p.input.work_held = true
+		var marks := {13: "1_blow_1", 15: "1a_chips", 22: "1b_after", 80: "2_after_blow_3", 100: "3_blow_4", 102: "3a_burst", 105: "3b_burst", 109: "3c_burst", 114: "3d_burst", 122: "4_lying", 138: "5_flying"}
+		for f in 150:
+			await physics_frame
+			if f == 102:
+				p.input.work_held = false
+			if marks.has(f):
+				await _snap("boulder_%s" % marks[f])
+		await _frames(40)
+		g.land.settle()
+		await _frames(10)
+		await _snap("boulder_6_gone")

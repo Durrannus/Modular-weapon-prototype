@@ -31,11 +31,11 @@ const FORK_LEAN := [12, 48, 92]
 ## before, and with glints.
 const FACE_STEP := {                                        # the step on the metal's ramp: [low on the face, high on the face]
 	TIN: {FORK: [1, 2], EDGE: [2, 2], BODY: [2, 3], POCKET: [3, 3]},
-	COPPER: {FORK: [1, 2], EDGE: [2, 2], BODY: [3, 3], POCKET: [4, 4]},
+	COPPER: {FORK: [2, 2], EDGE: [2, 3], BODY: [3, 4], POCKET: [4, 4]},
 }
 const TOP_STEP := {                                         # on the rock's top: [under 6 px from its edge, 6 to 9 px in]
 	TIN: {FORK: [1, 1], EDGE: [2, 1], BODY: [3, 2], POCKET: [3, 3]},
-	COPPER: {FORK: [1, 1], EDGE: [2, 1], BODY: [3, 2], POCKET: [4, 3]},
+	COPPER: {FORK: [2, 1], EDGE: [2, 2], BODY: [4, 3], POCKET: [4, 4]},
 }
 const GLINT := {TIN: 4, COPPER: 5}                          # the shine: single pixels of the ramp's last step
 const GLINT_ODDS := {POCKET: 25, BODY: 5}                   # the chance out of 100 that a pixel of that class is a glint

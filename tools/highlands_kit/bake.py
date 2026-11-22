@@ -51,11 +51,15 @@ class Kit:
 
     # ------------------------------------------------------------------ colour
     def rgb(s, W, drop=0):
-        """The picture's colours; drop = how many ramp steps darker (a shadow is two, on water one)."""
+        """The picture's colours; drop = how many ramp steps darker (a shadow is two, on water one; on dug floor one, and
+        never down to the black of the undug rock's top: the art's FLOOR_SOFT rule of 22 November, so that a tunnel one
+        tile wide shows its floor and whoever stands in it)."""
         hl3 = s.hl3
         st = W.step.astype(int)
         if drop:
             st = st - np.where(W.mat == hl3.MID["water"], 1, 2) * (drop // 2)
+            if getattr(hl3, "FLOOR_SOFT", False):
+                st = np.where(W.mat == hl3.MID["floor"], np.maximum(W.step.astype(int) - 1, 1), st)
         st = np.clip(st, 0, hl3.TOPS[W.mat])
         return hl3.LUT[W.mat, st]
 
