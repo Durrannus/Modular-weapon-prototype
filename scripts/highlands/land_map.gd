@@ -9,8 +9,8 @@ extends RefCounted
 ## Places are in tiles (16 art pixels, 32 world units) from the map's top left
 ## corner, or in art pixels where it says so. The cave mouth stands at the middle.
 
-const SIZE := 544            # tiles a side: room for the whole Highlands (about 250 tiles out, plus the edge)
-const MID := 272             # the tile of the cave mouth
+const SIZE := 768            # tiles a side: room for the whole Highlands (about 350 tiles out, plus the edge)
+const MID := 384             # the tile of the cave mouth
 const CHUNK := 16            # tiles a side of one painted piece of land
 const TILE_PX := 16
 const Veins := preload("res://scripts/highlands/veins.gd")

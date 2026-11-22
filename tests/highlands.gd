@@ -88,6 +88,10 @@ func _rules() -> void:
 	var c := WorldGen.make(4243)
 	_check(_same(a, b), "the same seed makes the same map")
 	_check(not _same(a, c), "another seed makes another map")
+	# The size Darren chose on 22 November: about 350 tiles from the cave to the edge, in rings.
+	_check(WorldGen.RINGS == [24.0, 125.0, 240.0, 350.0], "the rings end 24, 125, 240 and 350 tiles from the cave")
+	_check(LandMap.MID >= int(WorldGen.RINGS[3]) + 16 and LandMap.SIZE - LandMap.MID >= int(WorldGen.RINGS[3]) + 16, "the map has room for the whole Highlands, 350 tiles out and its edge")
+	_check(WorldGen.REACH >= int(WorldGen.RINGS[1]) + 12 and a.region.size == Vector2i(WorldGen.REACH * 2, WorldGen.REACH * 2), "this version lays out the base and the inner ring")
 	var slowest := 0
 	var total_tries := 0
 	var places := 0
@@ -138,10 +142,18 @@ func _rules() -> void:
 				lost += 1
 		_check(lost == 0, "%s: every open place that is not sealed can be walked to (%d cannot)" % [who, lost])
 		_check(leaked == 0, "%s: no sealed place can be walked into (%d can)" % [who, leaked])
-		_check(m.pockets.size() >= 28 and sealed >= 1 and sealed <= m.pockets.size() / 6, "%s: %d open places, %d of them sealed" % [who, m.pockets.size(), sealed])
+		_check(m.pockets.size() >= 60 and sealed >= 1 and sealed <= m.pockets.size() / 6, "%s: %d open places, %d of them sealed" % [who, m.pockets.size(), sealed])
 		# Mostly rock: about two thirds, with the open land in small places.
-		var share := m.open_share(28.0, 80.0)
+		var share := m.open_share(28.0, WorldGen.RING_INNER - 4.0)
 		_check(share >= 0.20 and share <= 0.42, "%s: open land is %d%% of the inner ring" % [who, int(share * 100.0)])
+		# The inner ring is the size Darren chose on 22 November (the Game Bible's "Highlands size": it ends about
+		# 125 tiles from the cave), and it is used right out to there. Beyond it everything is rock for now.
+		var furthest := 0.0
+		for y in range(m.region.position.y, m.region.end.y):
+			for x in range(m.region.position.x, m.region.end.x):
+				if not m.is_rock(x, y):
+					furthest = maxf(furthest, Vector2(x - LandMap.MID, y - LandMap.MID).length())
+		_check(furthest >= 105.0 and furthest <= 131.0, "%s: open land reaches about 125 tiles from the cave (%d)" % [who, int(furthest)])
 		# No wall one tile thick: rock is in lumps you can dig into.
 		var thin := 0
 		for y in range(m.region.position.y + 3, m.region.end.y - 3):
@@ -153,8 +165,9 @@ func _rules() -> void:
 		var mouth := Vector2(m.mouth) + Vector2(0.5, 0.5)
 		var q: Vector2 = m.sites["quarry"]["at"]
 		var w: Vector2 = m.sites["watchpost"]["at"]
-		_check(q.distance_to(mouth) >= 40.0 and q.distance_to(mouth) <= 85.0, "%s: the Old Quarry is 40 to 85 tiles out (%d)" % [who, int(q.distance_to(mouth))])
-		_check(w.distance_to(mouth) >= 55.0 and w.distance_to(mouth) <= 85.0, "%s: the Watchpost is 55 to 85 tiles out (%d)" % [who, int(w.distance_to(mouth))])
+		# The research's bands (40 to 85 and 55 to 85 of a ring 90 out), stretched to the ring Darren chose (125 out).
+		_check(q.distance_to(mouth) >= 56.0 and q.distance_to(mouth) <= 118.0, "%s: the Old Quarry is 56 to 118 tiles out (%d)" % [who, int(q.distance_to(mouth))])
+		_check(w.distance_to(mouth) >= 76.0 and w.distance_to(mouth) <= 118.0, "%s: the Watchpost is 76 to 118 tiles out (%d)" % [who, int(w.distance_to(mouth))])
 		_check(q.distance_to(w) >= 40.0, "%s: the two places are at least 40 tiles apart (%d)" % [who, int(q.distance_to(w))])
 		var west := (q - mouth).angle() - (m.turn + PI)
 		_check(absf(angle_difference(0.0, west)) < 0.6, "%s: the Quarry is in the sector the seed turned 'west' to" % who)
@@ -202,11 +215,11 @@ func _rules() -> void:
 				hidden += 1
 			if face and m.base.grow(6.0).has_point(Vector2(lo + hi) / 2.0):
 				base_face += 1
-		_check(m.veins.size() >= 20, "%s: %d clusters of ore" % [who, m.veins.size()])
+		_check(m.veins.size() >= 45, "%s: %d clusters of ore" % [who, m.veins.size()])
 		_check(too_big == 0, "%s: no ore cluster is more than 6 tiles wide or 4 tall (%d are)" % [who, too_big])
 		_check(run_together == 0, "%s: every ore cluster keeps clear of the next (%d do not)" % [who, run_together])
 		_check(base_face >= 2, "%s: ore shows in a rock face of the base's hills (%d clusters)" % [who, base_face])
-		_check(hidden >= 8, "%s: some ore lies hidden in the rock for the pickaxe (%d clusters)" % [who, hidden])
+		_check(hidden >= 16, "%s: some ore lies hidden in the rock for the pickaxe (%d clusters)" % [who, hidden])
 		# Not cluttered: a handful of things to an open place, and the clearing nearly empty.
 		var in_base := 0
 		for t in m.things:
@@ -276,7 +289,7 @@ func _rules() -> void:
 				big += 1
 			elif not bool(p["glen"]) and float(p["rx"]) < 4.3:
 				small += 1
-		_check(small >= 3 and big <= 4, "%s: the open places differ in size (%d small, %d big)" % [who, small, big])
+		_check(small >= 6 and big <= WorldGen.BIG_MOST, "%s: the open places differ in size (%d small, %d big)" % [who, small, big])
 		# Life: how many places have an animal in them (counted over every world, below).
 		for p in m.pockets:
 			if bool(p["gate"]) or str(p["site"]) != "":

@@ -40,7 +40,7 @@ func _init() -> void:
 			if bool(l["tunnel"]):
 				tunnels += 1
 		print("seed %d: %d ms, layout %d, %d open places (%d sealed), %d ways (%d tunnels), open land %d%%, %d things, %d animals, %d lamps" % [
-			int(s), ms, m.tries, m.pockets.size(), sealed, m.links.size(), tunnels, int(round(m.open_share(28.0, 80.0) * 100.0)), m.things.size(), m.animals.size(), m.lamps.size()])
+			int(s), ms, m.tries, m.pockets.size(), sealed, m.links.size(), tunnels, int(round(m.open_share(28.0, WorldGen.RING_INNER - 4.0) * 100.0)), m.things.size(), m.animals.size(), m.lamps.size()])
 		picture(m, scale).save_png("%s/map_%d.png" % [out, int(s)])
 	quit()
 

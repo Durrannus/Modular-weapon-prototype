@@ -11,8 +11,12 @@ extends RefCounted
 ##     and not big open areas"). About two thirds rock.
 ##   - The base: a clearing outside the cave mouth, ringed by hills 6 to 10 tiles
 ##     thick with two to four gaps through them, and tin and copper in the hills.
-##   - Rings round the cave: the base hills to about 24 tiles, the inner ring to
-##     about 90. This version builds those two; the rest is solid rock for now.
+##   - Rings round the cave (the Game Bible's "Highlands size", decided by Darren
+##     on 22 November after he played the land and found it "quite small": about
+##     350 tiles from the cave to the edge): the base hills to about 24 tiles, the
+##     inner ring to about 125, the middle ring to about 240, the outer ring to
+##     about 350. This version builds the first two; the rest is solid rock until
+##     its places are built.
 ##   - Named places sit in their band and sector, and the seed turns the compass.
 ##     The Old Quarry and the Keeper's Watchpost get their ground kept here; what
 ##     is in them comes in later versions.
@@ -26,10 +30,13 @@ const LandMap := preload("res://scripts/highlands/land_map.gd")
 const Painter := preload("res://scripts/highlands/land_painter.gd")
 
 const MID := LandMap.MID
-const REACH := 104             # this version works within this many tiles of the cave
-const RING_INNER := 84.0       # how far out the inner ring's open places go (it wobbles a little)
+const RINGS := [24.0, 125.0, 240.0, 350.0]   # where the base hills, the inner, the middle and the outer ring end (tiles from the cave)
+const REACH := 144             # this version works within this many tiles of the cave
+const RING_INNER := 116.0      # how far out the middles of the inner ring's open places go (it wobbles a little); their edges stop at about RINGS[1]
 const SPACING := 18.0          # tiles between the middles of two open places
 const HILL_KEEP := 9.0         # nothing but the gaps comes this close to the clearing's edge
+const BIG_MOST := 6            # never more big open places than this (Darren: "not big open areas")
+const DEEP_ORE := 28           # clusters of ore buried in the rock, away from every open place
 
 const GRASS := LandMap.GRASS
 const SCRUB := LandMap.SCRUB
@@ -288,15 +295,15 @@ func _base() -> void:
 
 func _sites() -> void:
 	var centre := Vector2(MID + 0.5, MID + 0.5)
-	# The Old Quarry is "west" in the plan, 40 to 85 tiles out. The seed turns the compass.
+	# The Old Quarry is "west" in the plan, in the middle of the inner ring. The seed turns the compass.
 	var qa := m.turn + PI + rng.randf_range(-0.3, 0.3)
-	var q := centre + Vector2(cos(qa), sin(qa)) * rng.randf_range(52.0, 72.0)
-	# The Keeper's Watchpost is 55 to 85 out, at the ring's edge if it can be, and never on a screen with the Quarry.
+	var q := centre + Vector2(cos(qa), sin(qa)) * rng.randf_range(72.0, 100.0)
+	# The Keeper's Watchpost is towards the ring's edge, and never near the Quarry (named places keep at least 40 tiles apart).
 	var w := q
 	for t in 60:
 		var wa := rng.randf() * TAU
-		w = centre + Vector2(cos(wa), sin(wa)) * rng.randf_range(64.0, 78.0)
-		if w.distance_to(q) >= 46.0 and w.distance_to(m.base_at) >= 40.0:
+		w = centre + Vector2(cos(wa), sin(wa)) * rng.randf_range(90.0, 108.0)
+		if w.distance_to(q) >= 60.0 and w.distance_to(m.base_at) >= 56.0:
 			break
 	for pair in [["quarry", q], ["watchpost", w]]:
 		var p := {"at": pair[1], "rx": rng.randf_range(6.4, 7.4), "ry": rng.randf_range(4.4, 5.2), "sealed": false, "gate": false, "site": pair[0], "glen": false, "lobes": []}
@@ -334,18 +341,18 @@ func _site_ground() -> void:
 # --- The open places of the inner ring --------------------------------------------
 
 func _ring_limit(a: float) -> float:
-	return RING_INNER + (_noise(cos(a) * 30.0 + 100.0, sin(a) * 30.0 + 100.0, 12.0, 31) - 0.5) * 10.0
+	return RING_INNER + (_noise(cos(a) * 30.0 + 100.0, sin(a) * 30.0 + 100.0, 12.0, 31) - 0.5) * 12.0
 
 
 func _scatter_pockets() -> void:
 	var centre := Vector2(MID + 0.5, MID + 0.5)
-	for t in 5000:
+	for t in 12000:
 		var a := rng.randf() * TAU
 		var r := sqrt(rng.randf() * (RING_INNER * RING_INNER - 32.0 * 32.0) + 32.0 * 32.0)
 		var glen := rng.randf() < 0.12
 		var rx := rng.randf_range(4.6, 7.0)
 		var ry := rng.randf_range(3.4, 5.2)
-		# Sizes differ a good deal: about a quarter are small nooks, and a few (never more than four) are big, 16 to 20 tiles across.
+		# Sizes differ a good deal: about a quarter are small nooks, and a few (never more than six) are big, 16 to 20 tiles across.
 		var size := rng.randf()
 		var u1 := rng.randf()
 		var u2 := rng.randf()
@@ -356,7 +363,7 @@ func _scatter_pockets() -> void:
 		if size < 0.26:
 			rx = lerpf(3.0, 4.2, u1)
 			ry = lerpf(2.5, 3.3, u2)
-		elif size > 0.86 and big < 4:
+		elif size > 0.86 and big < BIG_MOST:
 			rx = lerpf(8.0, 10.0, u1)
 			ry = lerpf(5.4, 7.0, u2)
 		var lobes: Array = []
@@ -366,7 +373,7 @@ func _scatter_pockets() -> void:
 		var glen_a := rng.randf() * PI
 		var glen_len := rng.randf_range(8.0, 10.0)
 		var glen_bend := rng.randf_range(-3.5, 3.5)
-		var glen_wide := size > 0.6 and big < 4      # a few glens are broad: 16 to 20 tiles long and 8 or so across
+		var glen_wide := size > 0.6 and big < BIG_MOST      # a few glens are broad: 16 to 20 tiles long and 8 or so across
 		var reach := maxf(rx, ry) if not glen else glen_len * 0.8 + 2.0
 		if r > _ring_limit(a) - 7.0:
 			continue
@@ -944,8 +951,8 @@ func _ore() -> void:
 			if at.x >= 0:
 				_vein(at, 4 + ore.randi() % 4, TIN if ore.randf() < 0.55 else COPPER)
 	var deep := 0
-	for t in 400:
-		if deep >= 14:
+	for t in 800:
+		if deep >= DEEP_ORE:
 			break
 		var a := ore.randf() * TAU
 		var r := ore.randf_range(30.0, RING_INNER)
