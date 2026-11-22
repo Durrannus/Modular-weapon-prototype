@@ -8,6 +8,8 @@ const Art := preload("res://scripts/art.gd")
 signal to_title
 signal resumed
 signal lab_pressed   # "Lab": the game's numbers (scripts/ui/lab_screen.gd)
+signal opened        # the menu has just come up (the Highlands save here)
+signal quitting      # "Quit game" was pressed: the game closes after this (the Highlands save here)
 
 var panel: Control
 var first_button: Button
@@ -112,6 +114,7 @@ func open() -> void:
 	if pauses:
 		get_tree().paused = true
 	first_button.grab_focus()
+	opened.emit()
 
 
 func resume() -> void:
@@ -136,4 +139,5 @@ func _title() -> void:
 
 
 func _quit() -> void:
+	quitting.emit()
 	get_tree().quit()

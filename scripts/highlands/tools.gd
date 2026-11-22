@@ -73,7 +73,7 @@ const SLOT := 18.0
 
 
 ## What one player carries and is doing with it. The belt, the tool that is picked and the bag belong to the
-## character (the character save will hold them); the rest is this moment's.
+## character and are in its save (hand_data(), set_hand_data()); the rest is this moment's.
 class Hand:
 	var tool := 0                                                         # which of TOOLS is picked
 	var belt := {"pickaxe": "basic", "axe": "basic", "mallet": "basic"}   # the make of each tool ("" = none)
@@ -157,6 +157,32 @@ func tool_of(i: int) -> String:
 
 func bag_of(i: int) -> Bag:
 	return (hands[i] as Hand).bag
+
+
+## What player i carries that belongs to their character, as plain values for the character save: the belt, the
+## tool that is picked and the materials bag.
+func hand_data(i: int) -> Dictionary:
+	var h: Hand = hands[i]
+	return {"belt": h.belt.duplicate(), "tool": h.tool, "bag": h.bag.data()}
+
+
+## And back. A make of tool this game does not have becomes the basic one; whatever is missing stays as it was.
+func set_hand_data(i: int, d: Dictionary) -> void:
+	var h: Hand = hands[i]
+	var belt = d.get("belt")
+	if belt is Dictionary:
+		for name in TOOLS:
+			if belt.get(name) is String:
+				h.belt[name] = str(belt[name]) if (belt[name] == "" or POWER.has(belt[name])) else "basic"
+	if d.get("tool") is int or d.get("tool") is float:
+		h.tool = clampi(int(d["tool"]), 0, TOOLS.size() - 1)
+	if str(h.belt.get(TOOLS[h.tool], "")) == "":
+		for n in TOOLS.size():
+			if str(h.belt.get(TOOLS[n], "")) != "":
+				h.tool = n
+				break
+	if d.has("bag"):
+		h.bag.set_data(d["bag"])
 
 
 # --- The rules: once a tick --------------------------------------------------------------

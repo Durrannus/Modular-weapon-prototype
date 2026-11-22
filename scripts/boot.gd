@@ -2,6 +2,10 @@ extends Node
 ## The game's front door: shows the title screen, then runs the mode you pick
 ## (the tutorial cave, the Highlands or the test arena) and comes back here when it
 ## ends. The cave's stairs lead out onto the Highlands.
+## The Highlands are played with a saved character in a saved world (scripts/save.gd):
+## the title's Highlands row goes to the screen where both are picked
+## (scripts/ui/save_pick.gd) first, and the cave's stairs make a new character
+## for each player, with what they built, and a new world.
 ## "Play online" goes to the host / join screen first; the online session
 ## (scripts/net/session.gd) then tells both computers when to start the game.
 ##
@@ -17,10 +21,13 @@ const Session := preload("res://scripts/net/session.gd")
 const Net := preload("res://scripts/net/net.gd")
 const PlayerInput := preload("res://scripts/player_input.gd")
 const Lab := preload("res://scripts/lab.gd")
+const SavePick := preload("res://scripts/ui/save_pick.gd")
+const Save := preload("res://scripts/save.gd")
 
 var title
 var game
 var online_menu
+var pick           # the screen where a character and a world are picked
 var last_inputs: Array = []
 var notice := ""   # shown once on the title screen ("Your friend left the game.")
 
@@ -40,12 +47,13 @@ func _ready() -> void:
 
 
 func _clear() -> void:
-	for n in [title, game, online_menu]:
+	for n in [title, game, online_menu, pick]:
 		if is_instance_valid(n):
 			n.queue_free()
 	title = null
 	game = null
 	online_menu = null
+	pick = null
 
 
 func _show_title() -> void:
@@ -57,10 +65,43 @@ func _show_title() -> void:
 	notice = ""
 	add_child(title)
 	title.set_joined(last_inputs)
-	title.start.connect(_start)
+	title.start.connect(_chosen)
 
 
-func _start(mode: String, inputs: Array, carry := {}) -> void:
+## A row of the title screen was picked.
+func _chosen(mode: String, inputs: Array) -> void:
+	if mode == "highlands":
+		_show_pick(inputs)
+	else:
+		_start(mode, inputs)
+
+
+## Before the Highlands: who plays which character, and in which world.
+func _show_pick(inputs: Array) -> void:
+	last_inputs = inputs
+	_clear()
+	pick = SavePick.new()
+	pick.inputs = inputs
+	pick.back.connect(_show_title, CONNECT_DEFERRED)
+	pick.chosen.connect(func(characters: Array, world: Dictionary):
+		_start("highlands", last_inputs, {}, {"characters": characters, "world": world}), CONNECT_DEFERRED)
+	add_child(pick)
+
+
+## Up the cave's stairs: each player becomes a new saved character, with what they built down there, in a new world.
+func _out_of_cave(what: Dictionary) -> void:
+	var characters: Array = []
+	var given: Array = []
+	for i in maxi((what.get("builds", []) as Array).size(), 1):
+		var c := Save.fresh(Save.CHARACTERS, given)
+		given.append(c["id"])
+		characters.append(c)
+	_start("highlands", last_inputs, what, {"characters": characters, "world": Save.fresh(Save.WORLDS)})
+
+
+## `saves` (the Highlands): {characters: [a saved character for each player], world: the saved world}. Without it
+## nothing is saved (`-- highlands` on the command line).
+func _start(mode: String, inputs: Array, carry := {}, saves := {}) -> void:
 	if mode == "online":
 		_show_online()
 		return
@@ -71,9 +112,11 @@ func _start(mode: String, inputs: Array, carry := {}) -> void:
 	if mode == "cave":
 		# The stairs at the end of the cave lead out onto the Highlands, with what you built.
 		game.leads_outside = true
-		game.go_outside.connect(func(what: Dictionary): _start("highlands", last_inputs, what), CONNECT_DEFERRED)
+		game.go_outside.connect(_out_of_cave, CONNECT_DEFERRED)
 	elif mode == "highlands":
 		game.carry = carry
+		game.characters = saves.get("characters", [])
+		game.world_save = saves.get("world", {})
 	game.exit_to_title.connect(_show_title, CONNECT_DEFERRED)
 	game.quit_to_title.connect(_show_title, CONNECT_DEFERRED)
 	add_child(game)

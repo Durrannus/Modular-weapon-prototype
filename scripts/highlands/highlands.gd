@@ -7,14 +7,26 @@ extends "res://scripts/game_base.gd"
 ## Since version 40 everyone carries the basic tools (tools.gd): a pickaxe that
 ## digs the rock and mines the ore in it, an axe that fells pines, and a mallet
 ## with nothing to build yet. What they win goes in a materials bag (bag.gd).
-## There are no enemies, no chests and no saving yet: those are the next
-## versions, one at a time.
+## There are no enemies and no chests yet: those are the next versions, one at a
+## time.
 ##
-## You get here by climbing the stairs at the end of the tutorial cave (the weapon
-## you built comes with you), or straight from the title screen (then you carry
-## the arena's four test weapons and B swaps between them, as there).
+## SAVING (version 42; Darren, 21 November: "It works like terraria, player is
+## saved"). Every player is a saved CHARACTER and the land is a saved WORLD
+## (scripts/save.gd): the character keeps its weapons, runes, threads, presets,
+## tool belt and materials bag and goes into any world; the world keeps its
+## number and what was dug, mined and felled in it. There is no save button: the
+## game saves every AUTOSAVE seconds, when the pause menu opens, when the forge
+## screen closes, and when you leave (back to the title, "Quit game", or the
+## window closing).
 ##
-## To see one map again, give its number:   godot --path . -- highlands seed=123456
+## You get here from the title screen by picking a character and a world
+## (scripts/ui/save_pick.gd; a new character carries the arena's four test weapons
+## and B swaps between them), or by climbing the stairs at the end of the tutorial
+## cave (then each player becomes a new character with the weapon they built, in a
+## new world).
+##
+## To see one map again without saving anything, give its number:
+##   godot --path . -- highlands seed=123456
 
 const WorldGen := preload("res://scripts/highlands/world_gen.gd")
 const LandMap := preload("res://scripts/highlands/land_map.gd")
@@ -22,6 +34,14 @@ const LandView := preload("res://scripts/highlands/land_view.gd")
 const Tools := preload("res://scripts/highlands/tools.gd")
 const CaveUi := preload("res://scripts/cave/cave_ui.gd")
 const Music := preload("res://scripts/music.gd")
+const Save := preload("res://scripts/save.gd")
+const Version := preload("res://scripts/version.gd")
+
+## Seconds of play between two saves the game makes by itself. Short on purpose: a game stopped from the Godot editor's
+## Stop button is killed where it stands and cannot save, so this is the most that can ever be lost.
+const AUTOSAVE := 60.0
+const SAVE_APART := 30.0        # leaving writes the clock too, unless the same save was written less than this long ago
+const SAVE_NOTE := 2.0          # how long the word "Saved" stays on the screen
 
 var world_seed := 0             # 0 = a new one every time
 var carry := {}                 # from the cave: {builds: [a weapon each], owned: [part ids each], spirit: [bool each]}
@@ -34,18 +54,44 @@ var interactables: Array = []   # [{at, radius, text, lift, can: Callable(i), us
 var was_busy := false
 var welcome := true             # show the arrival card (tests switch it off)
 var music                       # the calm cave tune, standing in until the Highlands have one of their own
+var characters: Array = []      # each player's saved character (scripts/save.gd); {} = that player is not saved
+var world_save := {}            # the saved world; {} = this land is not saved (the tests, and `-- highlands`)
+var swaps: Array = []           # per player: carries all four weapons, and B swaps between them
+var new_world := false          # this world has never been played before
+var relaid := false             # this world was saved on a land that is made differently now: it was laid out again
+var unreadable: Array = []      # what a character's save held that this game could not read, in words
+var save_clock := 0.0           # seconds of play since the game last saved by itself
+var save_note := 0.0            # seconds the word on the screen still has
+var save_word := ""             # "Saved", or what went wrong
+var save_failed := false
+var saves_written := 0          # how many files have been written (the tests count them)
+var note_panel: Control
+var _saved_text := {}           # a save's name -> what was last written for it, without the clock
+var _saved_at := {}             # a save's name -> when
 
 
 func _ready() -> void:
 	randomize()
 	if not Net.online():
 		Sim.shuffle()
-	for a in OS.get_cmdline_user_args():
-		if a.begins_with("seed="):
-			world_seed = int(a.substr(5))
+	if not world_save.is_empty():
+		world_seed = int(world_save.get("seed", 0))
+		new_world = bool(world_save.get("unsaved", false)) or world_seed <= 0
+	else:
+		for a in OS.get_cmdline_user_args():
+			if a.begins_with("seed="):
+				world_seed = int(a.substr(5))
 	if world_seed <= 0:
 		world_seed = 100000 + randi() % 900000     # six figures: easy to read out
 	map = WorldGen.make(world_seed)
+	if not world_save.is_empty() and not new_world:
+		# The land is made again from its number, and then what was dug, mined and felled is done to it again. If
+		# this game makes the land differently from the one that saved it, the old changes would not fit: they are
+		# left off (the pick screen said so before the world was opened).
+		if int(world_save.get("land", 0)) == WorldGen.GEN:
+			map.apply_changes(world_save)
+		else:
+			relaid = true
 	_make_world()
 	land = LandView.new()
 	land.map = map
@@ -88,44 +134,228 @@ func _ready() -> void:
 	ui = CaveUi.new()
 	add_child(ui)
 	ui.cam = rig.camera
+	_load_hands()
+	_make_note()
+	pause_menu.opened.connect(save_now)
+	pause_menu.quitting.connect(save_now.bind(true))
 	if welcome:
 		ui.fade = 1.0
 		ui.fade_color = Color(1.0, 0.98, 0.9)
 		ui.fade_in(1.2)
-		ui.card("The Greystone Highlands", welcome_text())
+		if relaid:
+			ui.card(str(world_save.get("name", "This world")), "This world was saved by an older version of the game, which made the land differently.\nIts land has been laid out again from its number: what was dug and felled in it before is gone.\nYour character has kept everything.\n\nWorld number %d" % world_seed)
+		elif world_save.is_empty() or new_world:
+			ui.card("The Greystone Highlands", welcome_text())
+	# A new character and a new world are on the disk from the first moment, not from the first autosave. A save
+	# that was just read is not written again until something in it changes, or until you leave.
+	for pair in _saves_now():
+		if not (pair[1] as Dictionary).get("unsaved", false):
+			_saved_text[str(pair[1].get("id", ""))] = _meat(pair[1])
+	save_now(false, false)
+	if not unreadable.is_empty():
+		save_word = "Some of a saved weapon could not be read: " + ", ".join(unreadable)
+		save_failed = true
+		save_note = 8.0
 
 
 ## What the card you arrive to says.
 func welcome_text() -> String:
 	var pad: bool = players[0].input.on_pad()
-	return "A new land, laid out differently every time.\nYou carry a pickaxe, an axe and a mallet. %s uses the one you have picked, on what you aim at. %s picks the next.\nNothing to fight yet. The cave mouth leads back to your forge.\n\nWorld number %d" \
-		% ["The left trigger" if pad else "F", "Select" if pad else "C", world_seed]
+	var kept := "A new land, laid out differently every time."
+	if not world_save.is_empty():
+		kept = "A new land. The game saves by itself: your character, and what you dig and fell here."
+	return "%s\nYou carry a pickaxe, an axe and a mallet. %s uses the one you have picked, on what you aim at. %s picks the next.\nNothing to fight yet. The cave mouth leads back to your forge.\n\nWorld number %d" \
+		% [kept, "The left trigger" if pad else "F", "Select" if pad else "C", world_seed]
 
 
-## The players' controls go on to other places (back down to the cave): there, F and the left trigger are not tools.
+## Leaving, whichever way (back to the title, or the game closing): everything is saved. And the players' controls
+## go on to other places (back down to the cave): there, F and the left trigger are not tools.
 func _exit_tree() -> void:
+	save_now(true, false)
 	for p in players:
 		if is_instance_valid(p) and p.input != null:
 			p.input.tools = false
 
 
-## What everyone holds. From the cave: the weapon they built there. From the title
-## screen: the arena's test weapons, all four.
+## What everyone holds. A saved character: what its save says. Straight from the cave: the weapon they built there.
+## A new character made on the pick screen (and anyone who is not saved): the arena's test weapons, all four.
 func _arm() -> void:
 	var got: Array = carry.get("builds", [])
+	while characters.size() < players.size():
+		characters.append({})
 	for i in players.size():
-		if i < got.size() and SwingBuild.valid_data(got[i]):
+		var c: Dictionary = characters[i]
+		if c.get("weapons") is Dictionary:
+			for problem in builds[i].from_save(c["weapons"]):
+				unreadable.append(str(problem))
+			builds[i].changed.emit()
+			var parts = c.get("owned")
+			owned.append((parts as Array).filter(func(id): return id is String) if parts is Array else null)
+			players[i].with_spirit = bool(c.get("spirit", true))
+			swaps.append(bool(c.get("swap", false)))
+		elif i < got.size() and SwingBuild.valid_data(got[i]):
 			builds[i].set_data(got[i])
 			builds[i].changed.emit()
 			owned.append((carry.get("owned", []) as Array)[i] if i < (carry.get("owned", []) as Array).size() else null)
 			players[i].with_spirit = bool((carry.get("spirit", []) as Array)[i]) if i < (carry.get("spirit", []) as Array).size() else true
+			swaps.append(false)
 		else:
-			can_swap = true
 			builds[i].load_test("D")
 			builds[i].stowed["bow"] = SwingBuild.TEST_BOW.duplicate(true)
 			builds[i].stowed["hammer"] = SwingBuild.TEST_HAMMER.duplicate(true)
 			builds[i].stowed["staff"] = SwingBuild.TEST_STAFF.duplicate(true)
 			owned.append(null)
+			swaps.append(true)
+	can_swap = true in swaps
+
+
+## Only somebody who carries all four weapons swaps between them.
+func swap_weapon(i: int, to := "") -> void:
+	if i >= 0 and i < swaps.size() and swaps[i]:
+		super.swap_weapon(i, to)
+
+
+## Each saved character's tool belt, picked tool and materials bag.
+func _load_hands() -> void:
+	for i in players.size():
+		if not characters[i].is_empty():
+			tools.set_hand_data(i, characters[i])
+
+
+# --- Saving -----------------------------------------------------------------------
+
+## Player i's character as it is at this moment, for its save.
+func _character_now(i: int) -> Dictionary:
+	var c: Dictionary = characters[i]
+	c["weapons"] = builds[i].to_save()
+	c["owned"] = (owned[i] as Array).duplicate() if owned[i] is Array else null
+	c["spirit"] = bool(players[i].with_spirit)
+	c["swap"] = bool(swaps[i])
+	c.merge(tools.hand_data(i), true)
+	if not world_save.is_empty():
+		c["world"] = str(world_save.get("id", ""))
+	c["game"] = Version.NUMBER
+	return c
+
+
+## The world as it is at this moment, for its save: its number and what has been changed on its land.
+func _world_now() -> Dictionary:
+	world_save["seed"] = world_seed
+	world_save["land"] = WorldGen.GEN
+	world_save.merge(map.changes(), true)
+	world_save["game"] = Version.NUMBER
+	return world_save
+
+
+## Every save in play, as it is at this moment: [[Save.WORLDS, the world], [Save.CHARACTERS, a character] ...].
+func _saves_now() -> Array:
+	var out: Array = []
+	if not world_save.is_empty():
+		out.append([Save.WORLDS, _world_now()])
+	for i in mini(characters.size(), players.size()):
+		if not characters[i].is_empty() and is_instance_valid(players[i]):
+			out.append([Save.CHARACTERS, _character_now(i)])
+	return out
+
+
+## A save as it would be written, without its clock (when it was last played, and for how long): two of these are
+## the same when nothing that matters has changed.
+static func _meat(d: Dictionary) -> String:
+	var meat := d.duplicate()
+	meat.erase("played")
+	meat.erase("seconds")
+	return Save.text_of(meat)
+
+
+## Writes the world and everybody's character: each one only if something in it has changed since it was last
+## written, so the one backup is never pushed out by a copy of the same thing. `leaving` (back to the title, the
+## game closing) also writes the clock, how long it has been played, unless that save was written a moment ago.
+## Returns false if something could not be written (the screen then says so, and the file that was there is left
+## as it was).
+func save_now(leaving := false, tell := true) -> bool:
+	if Net.online() or tools == null or map == null:
+		return true
+	var now := Time.get_unix_time_from_system()
+	var wrote := false
+	var failed := false
+	for pair in _saves_now():
+		var d: Dictionary = pair[1]
+		var id := str(d.get("id", ""))
+		var text := _meat(d)
+		var same: bool = _saved_text.get(id, "") == text
+		if same and not (leaving and now - float(_saved_at.get(id, 0.0)) >= SAVE_APART):
+			continue
+		d["played"] = now
+		if Save.write(pair[0], d):
+			_saved_text[id] = text
+			_saved_at[id] = now
+			saves_written += 1
+			wrote = true
+		else:
+			failed = true
+	save_clock = 0.0
+	if failed:
+		save_word = "Could not save: the disk may be full"
+		save_failed = true
+		save_note = 6.0
+	elif wrote and tell:
+		save_word = "Saved"
+		save_failed = false
+		save_note = SAVE_NOTE
+	return not failed
+
+
+## The clock: how long each save has been played, and the autosave.
+func _process(delta: float) -> void:
+	if note_panel != null and (save_note > 0.0 or note_panel.visible):
+		save_note = maxf(save_note - delta, 0.0)
+		note_panel.visible = save_note > 0.0
+		note_panel.queue_redraw()
+	if world_save.is_empty() and characters.all(func(c): return (c as Dictionary).is_empty()):
+		return
+	for d in [world_save] + characters:
+		if not (d as Dictionary).is_empty():
+			d["seconds"] = float(d.get("seconds", 0.0)) + delta
+	save_clock += delta
+	if save_clock >= AUTOSAVE:
+		save_now()
+
+
+## The window is being closed: save before the game goes.
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_CLOSE_REQUEST:
+		save_now(true, false)
+
+
+func _forge_done(i: int) -> void:
+	super._forge_done(i)
+	save_now()
+
+
+## One word at the top of the screen when the game has saved (or a sentence if it could not).
+func _make_note() -> void:
+	var layer := CanvasLayer.new()
+	layer.layer = 6
+	add_child(layer)
+	note_panel = Control.new()
+	note_panel.size = Vector2(640, 360)
+	note_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	note_panel.visible = false
+	layer.add_child(note_panel)
+	note_panel.draw.connect(_draw_note)
+
+
+func _draw_note() -> void:
+	if save_note <= 0.0 or save_word == "":
+		return
+	var f := Art.font("Silkscreen-Regular") if not save_failed else Art.font(Art.TEXT)
+	var size := 8 if not save_failed else Art.TEXT_SIZE
+	var words := save_word.to_upper() if not save_failed else save_word
+	var w := ceilf(f.get_string_size(words, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x)
+	var alpha := clampf(save_note / 0.4, 0.0, 1.0)
+	var x := floorf((640.0 - w) * 0.5)
+	note_panel.draw_rect(Rect2(x - 6.0, 5.0, w + 12.0, 14.0), Color(0.098, 0.078, 0.165, 0.6 * alpha))
+	note_panel.draw_string(f, Vector2(x, 15.0), words, HORIZONTAL_ALIGNMENT_LEFT, -1, size, Color(Color("#f06a40") if save_failed else Color("#8ba688"), alpha))
 
 
 ## The forge is down the stairs. Until the base is built, using the cave mouth

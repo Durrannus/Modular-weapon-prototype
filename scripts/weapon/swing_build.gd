@@ -1076,6 +1076,90 @@ func use_preset(i: int, owned = null) -> Array:
 	return missing
 
 
+# --- The character save -----------------------------------------------------------
+# A character's save holds every weapon they have: the one in the hand, the ones put away, and each weapon's three
+# presets with their names (scripts/save.gd writes it; the Highlands decide when).
+
+## Everything about this player's weapons, as plain values a save file can hold.
+func to_save() -> Dictionary:
+	return {"hand": get_data(), "stowed": stowed.duplicate(true), "preset": preset, "preset_data": preset_data.duplicate(true),
+		"preset_names": preset_names.duplicate(), "presets_away": _presets_away.duplicate(true)}
+
+
+## One weapon's presets as a save gives them back: [chosen, [three weapons or null], [three names]]. Whatever in it
+## is not a `kind` this game could have made is left empty, and `problems` gets a word about it.
+static func _saved_presets(chosen, data, names, kind: String, problems: Array) -> Array:
+	var out_data: Array = [null, null, null]
+	var out_names: Array = ["", "", ""]
+	for i in 3:
+		if data is Array and i < data.size() and data[i] != null:
+			if valid_data(data[i]) and weapon_of(data[i][0]) == kind:
+				out_data[i] = (data[i] as Array).duplicate(true)
+			else:
+				problems.append("%s preset %s" % [kind, PRESET_LETTERS[i]])
+		if names is Array and i < names.size() and names[i] is String:
+			out_names[i] = (names[i] as String).left(PRESET_NAME_MAX)
+	return [clampi(int(chosen), 0, 2) if (chosen is int or chosen is float) else 0, out_data, out_names]
+
+
+## Takes back what to_save() gave. Returns what could not be read, in words ([] when all of it could). A weapon
+## made of a part this game no longer has is left out, so a save from another version never puts something
+## impossible in anybody's hand: if it was the one in the hand, the first weapon that was put away is taken up
+## in its place (the plain wooden sword if there is none). Doesn't announce it: emit `changed` yourself.
+func from_save(d) -> Array:
+	var problems: Array = []
+	if not (d is Dictionary):
+		d = {}
+	# Every weapon the save holds, and each one's presets, by the weapon it is.
+	var weapons := {}
+	var presets := {}
+	var in_hand := ""
+	if valid_data(d.get("hand")):
+		in_hand = weapon_of(d["hand"][0])
+		weapons[in_hand] = (d["hand"] as Array).duplicate(true)
+		presets[in_hand] = _saved_presets(d.get("preset"), d.get("preset_data"), d.get("preset_names"), in_hand, problems)
+	else:
+		problems.append("the weapon in the hand")
+	var put_away = d.get("stowed")
+	var away = d.get("presets_away")
+	for kind in WEAPON_ORDER:
+		if kind == in_hand:
+			continue
+		if put_away is Dictionary and put_away.has(kind):
+			if valid_data(put_away[kind]) and weapon_of(put_away[kind][0]) == kind:
+				weapons[kind] = (put_away[kind] as Array).duplicate(true)
+			else:
+				problems.append("the %s" % kind)
+		if away is Dictionary and away.get(kind) is Array and (away[kind] as Array).size() == 3:
+			presets[kind] = _saved_presets(away[kind][0], away[kind][1], away[kind][2], kind, problems)
+	if in_hand == "":
+		for kind in WEAPON_ORDER:
+			if in_hand == "" and weapons.has(kind):
+				in_hand = kind
+	if in_hand == "":
+		in_hand = "sword"
+		weapons["sword"] = (STARTERS["sword"] as Array).duplicate(true)
+	var hand: Array = weapons[in_hand]
+	blade = hand[0]
+	grip = hand[1]
+	pommel = hand[2]
+	line = (hand[3] as Array).duplicate()
+	arrows = hand[4] if hand.size() > 4 else ""
+	var mine: Array = presets.get(in_hand, [0, [null, null, null], ["", "", ""]])
+	preset = mine[0]
+	preset_data = mine[1]
+	preset_names = mine[2]
+	stowed = {}
+	_presets_away = {}
+	for kind in weapons:
+		if kind != in_hand:
+			stowed[kind] = weapons[kind]
+	for kind in presets:
+		if kind != in_hand:
+			_presets_away[kind] = presets[kind]
+	return problems
+
+
 ## Loads one of the test swords. With a bow in the hand nothing happens: they are swords.
 func load_test(key: String) -> void:
 	var t: Dictionary = TEST_SWORDS[key]

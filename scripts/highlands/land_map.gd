@@ -3,8 +3,9 @@ extends RefCounted
 ## things that stand on it. scripts/highlands/world_gen.gd makes one from a seed;
 ## land_painter.gd draws it; land_view.gd shows the part near the camera.
 ##
-## Nothing in here is random. The same seed always gives the same map, and once
-## saving is built the whole of this is what a world save holds.
+## Nothing in here is random. The same seed always gives the same map, so a world
+## save holds the seed and what was changed since (changes(), apply_changes()),
+## never the land itself.
 ##
 ## Places are in tiles (16 art pixels, 32 world units) from the map's top left
 ## corner, or in art pixels where it says so. The cave mouth stands at the middle.
@@ -14,6 +15,7 @@ const MID := 384             # the tile of the cave mouth
 const CHUNK := 16            # tiles a side of one painted piece of land
 const TILE_PX := 16
 const Veins := preload("res://scripts/highlands/veins.gd")
+const ADDABLE := ["pine_stump"]   # what can be put on the land after it is made (a world save may hold nothing else)
 
 ## What a tile is made of.
 enum { GRASS, SCRUB, HEATH, PATH, YARD, WATER, ROCK, TIN, COPPER, FLOOR, SCREE }
@@ -139,6 +141,55 @@ func add_thing(t: Dictionary) -> void:
 	if not _things_by_chunk.has(key):
 		_things_by_chunk[key] = []
 	(_things_by_chunk[key] as Array).append(t)
+
+
+## What has changed on this land since it was made, as plain values for the world save: the tiles that were dug or
+## mined, the things that were taken away and the things that were put there. Always in the same order, so the same
+## land gives the same save.
+func changes() -> Dictionary:
+	var tiles: Array = dug.keys()
+	tiles.sort()
+	var taken: Array = gone.keys()
+	taken.sort()
+	var put: Array = []
+	for t in added:
+		put.append({"n": str(t["n"]), "x": int(t["x"]), "y": int(t["y"]), "f": bool(t.get("f", false))})
+	return {"dug": tiles, "gone": taken, "added": put}
+
+
+## Does to a newly made map what was done to it when it was saved. Call it once, after the map is made (the seams
+## are already worked out from the ore the land was made with, so mined ore leaves the rest of its seam where it
+## was). What does not fit this land (a tile that is not rock, a thing that is not there) is passed over; returns
+## how many changes were passed over, which is 0 for a save of this same land.
+func apply_changes(d) -> int:
+	var odd := 0
+	if not (d is Dictionary):
+		return 0
+	if d.get("dug") is Array:
+		for v in d["dug"]:
+			var i := int(v)
+			if (v is int or v is float) and i >= 0 and i < SIZE * SIZE and rocky(kinds[i]) and not fixed(i % SIZE, i / SIZE):
+				kinds[i] = FLOOR
+				dug[i] = FLOOR
+			else:
+				odd += 1
+	if d.get("gone") is Array and not (d["gone"] as Array).is_empty():
+		var by_key := {}
+		for t in things:
+			by_key[thing_key(t)] = t
+		for v in d["gone"]:
+			if (v is int or v is float) and by_key.has(int(v)):
+				remove_thing(by_key[int(v)])
+			else:
+				odd += 1
+	if d.get("added") is Array:
+		for t in d["added"]:
+			if t is Dictionary and t.get("n") is String and str(t["n"]) in ADDABLE and (t.get("x") is int or t.get("x") is float) and (t.get("y") is int or t.get("y") is float) \
+					and inside(int(t["x"]) / TILE_PX, int(t["y"]) / TILE_PX):
+				add_thing({"n": str(t["n"]), "x": int(t["x"]), "y": int(t["y"]), "f": bool(t.get("f", false))})
+			else:
+				odd += 1
+	return odd
 
 
 ## Is this pixel of a seam still there? It is while the ore tile it belongs to has not been mined: its own tile if

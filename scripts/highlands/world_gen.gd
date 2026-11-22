@@ -29,6 +29,13 @@ extends RefCounted
 const LandMap := preload("res://scripts/highlands/land_map.gd")
 const Painter := preload("res://scripts/highlands/land_painter.gd")
 
+## Which making of the land this is. A world save holds its number and what was dug and felled, never the land, so
+## it only fits the land this same code makes. RAISE THIS BY ONE whenever the same number would give a different
+## land (tiles, or the things that stand on it): worlds saved before are then laid out again, without what was dug in
+## them, in place of old holes cut into a land they do not fit. tests/saving.gd keeps a fingerprint of one land and
+## fails if the land changes while this number does not.
+const GEN := 1
+
 const MID := LandMap.MID
 const RINGS := [24.0, 125.0, 240.0, 350.0]   # where the base hills, the inner, the middle and the outer ring end (tiles from the cave)
 const REACH := 144             # this version works within this many tiles of the cave

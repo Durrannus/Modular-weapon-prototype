@@ -3,7 +3,7 @@ extends RefCounted
 ##
 ## Darren, 22 November 2026 (a card in the planning thread): "Separate stacking bag". Ore, bars, hides, wood, stone
 ## and other materials go in here, in stacks, and never into the accessory backpack grid. It belongs to the
-## character, so it will be part of the character save. The Game Bible's first numbers: about 20 slots, 99 a stack.
+## character, and is part of the character save. The Game Bible's first numbers: about 20 slots, 99 a stack.
 ##
 ## Nothing in here is random, and it knows nothing about the screen.
 
