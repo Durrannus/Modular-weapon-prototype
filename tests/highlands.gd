@@ -1,17 +1,19 @@
 extends SceneTree
-## The Greystone Highlands map (version 35): the generator's rules, the painter
-## and walking about on it. Prints PASS / FAIL lines.
+## The Greystone Highlands map (version 35 on): the generator's rules, the painter,
+## the ore veins (version 38) and walking about on it. Prints PASS / FAIL lines.
 ##
 ##   godot --headless --path . --fixed-fps 60 -s tests/highlands.gd [-- seeds=30]
 ##
 ## With shots=/some/folder/ (needs a window, so leave out --headless) it also saves
 ## 640x360 screenshots of one world: the base, an ordinary screen, an open place, a
-## dug tunnel, the two named places. "seed=123456" picks the world.
+## dug tunnel, the two named places, tin and copper in a rock face. "seed=123456"
+## picks the world.
 
 const PlayerInput := preload("res://scripts/player_input.gd")
 const WorldGen := preload("res://scripts/highlands/world_gen.gd")
 const LandMap := preload("res://scripts/highlands/land_map.gd")
 const Painter := preload("res://scripts/highlands/land_painter.gd")
+const Veins := preload("res://scripts/highlands/veins.gd")
 const Highlands := preload("res://scripts/highlands/highlands.gd")
 const Title := preload("res://scripts/ui/title.gd")
 const TILE := 32.0
@@ -46,8 +48,19 @@ func _frames(n: int) -> void:
 		await physics_frame
 
 
+## Every ore cluster and every pixel of its seams, as one line of text.
+func _seams(m: LandMap) -> String:
+	var out := ""
+	for v in m.veins:
+		var sum := 0
+		for p: Vector2i in v["px"]:
+			sum += (p.x * 31 + p.y) * int(v["px"][p])
+		out += "%d:%d:%d:%d;" % [int(v["kind"]), (v["cells"] as Array).size(), (v["px"] as Dictionary).size(), sum]
+	return out
+
+
 func _same(a: LandMap, b: LandMap) -> bool:
-	return a.kinds == b.kinds and a.tones == b.tones and str(a.things) == str(b.things) and str(a.decals) == str(b.decals) and str(a.lamps) == str(b.lamps) and str(a.plants) == str(b.plants) and a.spawn == b.spawn
+	return _seams(a) == _seams(b) and a.kinds == b.kinds and a.tones == b.tones and str(a.things) == str(b.things) and str(a.decals) == str(b.decals) and str(a.lamps) == str(b.lamps) and str(a.plants) == str(b.plants) and a.spawn == b.spawn
 
 
 func _run() -> void:
@@ -59,6 +72,7 @@ func _run() -> void:
 		return
 	_rules()
 	_painting()
+	_veins()
 	await _walking()
 	await _from_the_cave()
 	_title()
@@ -144,7 +158,8 @@ func _rules() -> void:
 		_check(q.distance_to(w) >= 40.0, "%s: the two places are at least 40 tiles apart (%d)" % [who, int(q.distance_to(w))])
 		var west := (q - mouth).angle() - (m.turn + PI)
 		_check(absf(angle_difference(0.0, west)) < 0.6, "%s: the Quarry is in the sector the seed turned 'west' to" % who)
-		# Ore: tin and copper in the hills round the base.
+		# Ore: clusters of tin and copper tiles, with seams drawn through each. In the hills round the base, at least
+		# two of them in rock whose lit face you look at; never two clusters run together; some hidden for the pickaxe.
 		var tin := 0
 		var copper := 0
 		for y in range(int(m.base.position.y) - 12, int(m.base.end.y) + 12):
@@ -154,6 +169,44 @@ func _rules() -> void:
 				elif m.kind(x, y) == LandMap.COPPER:
 					copper += 1
 		_check(tin >= 4 and copper >= 4, "%s: tin and copper in the base's hills (%d and %d tiles)" % [who, tin, copper])
+		var too_big := 0
+		var run_together := 0
+		var base_face := 0
+		var hidden := 0
+		for v in m.veins:
+			var own := {}
+			var lo := Vector2i(1 << 20, 1 << 20)
+			var hi := Vector2i(-1, -1)
+			for t: Vector2i in v["cells"]:
+				own[t] = true
+				lo = lo.min(t)
+				hi = hi.max(t)
+			if hi.x - lo.x + 1 > 6 or hi.y - lo.y + 1 > 4:
+				too_big += 1
+			var face := false
+			var in_sight := false
+			var other := false
+			for t: Vector2i in v["cells"]:
+				if m.walkable(t.x, t.y + 1):
+					face = true
+				if m.walkable(t.x, t.y + 1) or m.walkable(t.x, t.y - 1) or m.walkable(t.x - 1, t.y) or m.walkable(t.x + 1, t.y):
+					in_sight = true
+				for j in range(-2, 3):
+					for i in range(-2, 3):
+						var k := m.kind(t.x + i, t.y + j)
+						if (k == LandMap.TIN or k == LandMap.COPPER) and not own.has(t + Vector2i(i, j)):
+							other = true
+			if other:
+				run_together += 1
+			if not in_sight:
+				hidden += 1
+			if face and m.base.grow(6.0).has_point(Vector2(lo + hi) / 2.0):
+				base_face += 1
+		_check(m.veins.size() >= 20, "%s: %d clusters of ore" % [who, m.veins.size()])
+		_check(too_big == 0, "%s: no ore cluster is more than 6 tiles wide or 4 tall (%d are)" % [who, too_big])
+		_check(run_together == 0, "%s: every ore cluster keeps clear of the next (%d do not)" % [who, run_together])
+		_check(base_face >= 2, "%s: ore shows in a rock face of the base's hills (%d clusters)" % [who, base_face])
+		_check(hidden >= 8, "%s: some ore lies hidden in the rock for the pickaxe (%d clusters)" % [who, hidden])
 		# Not cluttered: a handful of things to an open place, and the clearing nearly empty.
 		var in_base := 0
 		for t in m.things:
@@ -266,9 +319,229 @@ func _painting() -> void:
 			if deep.get_pixel(x, y).get_luminance() < 0.12:
 				dark += 1
 	_check(dark > 1000, "the heart of a hill is the dark rock top (%d of 1024 samples)" % dark)
-	# Ore is in the map but not drawn until its veins are agreed (Darren turned down ore as dots on the rock, 21 November).
+	# Ore is never drawn as dots on the rock (Darren turned that down on 21 November): the kit holds no such sheets.
 	_check(not Painter.sheets.has("ore_tin_nat") and not Painter.sheets.has("ore_copper_nat"), "no ore dots are drawn on the rock")
 	print("      one chunk painted in %d ms" % ms)
+
+
+# --- Ore veins ------------------------------------------------------------------------
+
+## Ore is seams of metal through the rock (Darren, 21 and 22 November). The rules are the art thread's; these checks
+## hold the game's copy of them to the art thread's own numbers, and then look at a painted world.
+func _veins() -> void:
+	var ref: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("res://tests/highlands_vein_ref.json"))
+	var bad := 0
+	for r in ref["vmix"]:
+		if Veins.vmix(int(r[0]), int(r[1]), int(r[2]), int(r[3])) != int(r[4]):
+			bad += 1
+	for r in ref["rng"]:
+		var dice := Veins.Rng.new(int(r["key"]))
+		for v in r["next"]:
+			if dice.next() != int(v):
+				bad += 1
+		dice = Veins.Rng.new(int(r["key"]))
+		for v in r["below_100"]:
+			if dice.below(100) != int(v):
+				bad += 1
+		dice = Veins.Rng.new(int(r["key"]))
+		for v in r["between_5_8"]:
+			if dice.between(5, 8) != int(v):
+				bad += 1
+	_check(bad == 0, "the veins' hash and dice give the art thread's numbers (%d wrong)" % bad)
+	bad = 0
+	var pixels := 0
+	for c in ref["clusters"]:
+		var cells: Array = []
+		for t in c["cells"]:
+			cells.append(Vector2i(int(t[0]), int(t[1])))
+		var out := Veins.paths(cells, Veins.TIN if c["kind"] == "tin" else Veins.COPPER, int(c["seed"]))
+		var px: Dictionary = out["px"]
+		var want := {}
+		for p in c["pixels"]:
+			want[Vector2i(int(p[0]), int(p[1]))] = int(p[2])
+		pixels += want.size()
+		for p in want:
+			if int(px.get(p, 0)) != int(want[p]):
+				bad += 1
+		for p in px:
+			if not want.has(p):
+				bad += 1
+		var pockets: Array = []
+		for p in c["pockets"]:
+			pockets.append(Vector2i(int(p[0]), int(p[1])))
+		if pockets != out["pockets"]:
+			bad += 1
+		var again := Veins.paths(cells, Veins.TIN if c["kind"] == "tin" else Veins.COPPER, int(c["seed"]))
+		if again["px"] != px:
+			bad += 1
+	_check(bad == 0 and pixels > 500, "every seam pixel of the art thread's four test clusters comes out the same (%d pixels, %d wrong)" % [pixels, bad])
+	bad = 0
+	var names := {"tin": Veins.M_METAL, "copper": Veins.M_METAL, "verd": Veins.M_VERD, "face": Veins.M_FACE, "cap": Veins.M_CAP}
+	for s in ref["steps"]:
+		var got := Veins.step(int(s[0]), Veins.TIN if s[1] == "tin" else Veins.COPPER, int(s[2]) != 0, int(s[3]), int(s[4]), int(s[5]))
+		var want := -1 if s[6] == null else int(names[s[6]]) * 8 + int(s[7])
+		if got != want:
+			bad += 1
+	_check(bad == 0 and (ref["steps"] as Array).size() > 200, "a seam pixel takes the colour the art thread gives it (%d cases, %d wrong)" % [(ref["steps"] as Array).size(), bad])
+	# How far in from the edge of the rock's top: the quick way gives what the art thread's way of wearing the top away gives.
+	var side := 96
+	var top := PackedByteArray()
+	top.resize(side * side)
+	for y in side:
+		for x in side:
+			var open := Vector2(x - 14, y - 10).length() < 9.0 or Vector2(x - 84, y - 80).length() < 13.0 or (absi(x - 26 - (y - 62) / 3) < 2 and y > 62 and y < 86) or (x == 70 and y == 9)
+			top[y * side + x] = 0 if open else 1
+	var worn := top.duplicate()
+	var deep := PackedByteArray()
+	deep.resize(side * side)
+	for round in 21:
+		var next := worn.duplicate()
+		for y in range(1, side - 1):
+			for x in range(1, side - 1):
+				var i := y * side + x
+				if worn[i] == 0:
+					continue
+				var stays := worn[i - 1] == 1 and worn[i + 1] == 1 and worn[i - side] == 1 and worn[i + side] == 1
+				if stays and round % 2 == 1:
+					stays = worn[i - side - 1] == 1 and worn[i - side + 1] == 1 and worn[i + side - 1] == 1 and worn[i + side + 1] == 1
+				if not stays:
+					next[i] = 0
+		worn = next
+		for i in side * side:
+			deep[i] += worn[i]
+	bad = 0
+	var measured := 0
+	var deepest := 0
+	for y in range(23, side - 23):
+		for x in range(23, side - 23):
+			if top[y * side + x] == 0:
+				continue
+			measured += 1
+			deepest = maxi(deepest, deep[y * side + x])
+			if Veins.depth(top, side, side, x, y) != deep[y * side + x]:
+				bad += 1
+			if Veins.depth(top, side, side, x, y, 12) != mini(deep[y * side + x], 12):
+				bad += 1
+	_check(bad == 0 and measured > 300 and deepest >= 15, "how far a seam pixel lies in from the edge of the rock's top is measured as the art does (%d pixels, %d wrong)" % [measured, bad])
+	# The colours are the art's own ramps, from the kit.
+	_check(Painter.vein_cols.has("tin") and Painter.vein_cols.has("copper") and (Painter.vein_cols["tin"] as Array).size() >= 4 and (Painter.vein_cols["copper"] as Array).size() >= 5, "the kit holds the ore's colours")
+	var ore_colours := {}
+	for name in Painter.vein_cols:
+		for c: Color in Painter.vein_cols[name]:
+			ore_colours[c.to_rgba32()] = true
+	# In a world: a cluster in a rock face shows as a seam, in rock only, in the ore's colours, and down the face.
+	var m := WorldGen.make(77)
+	var shown := 0
+	var stray := 0
+	var odd := 0
+	var off_rock := 0
+	var on_face := 0
+	var on_top := 0
+	var unsteady := 0
+	var looked := 0
+	for v in m.veins:
+		var face := false
+		for t: Vector2i in v["cells"]:
+			if m.walkable(t.x, t.y + 1):
+				face = true
+		if not face or looked >= 3:
+			continue
+		looked += 1
+		var box: Rect2i = v["box"]
+		for cy in range(box.position.y / 256, (box.end.y - 1) / 256 + 1):
+			for cx in range(box.position.x / 256, (box.end.x - 1) / 256 + 1):
+				var with := Painter.paint(m, cx, cy)
+				if with.get_data() != Painter.paint(m, cx, cy).get_data():
+					unsteady += 1
+				var keep: Dictionary = m._veins_by_chunk
+				m._veins_by_chunk = {}
+				var without := Painter.paint(m, cx, cy)
+				m._veins_by_chunk = keep
+				var parts := Painter.rock_parts(m, cx * 16, cy * 16, 16, 16)
+				var on_seam := {}
+				for o in m.veins_in(cx, cy):
+					for p: Vector2i in o["px"]:
+						on_seam[p] = true
+				for y in 256:
+					for x in 256:
+						var c := with.get_pixel(x, y)
+						if c == without.get_pixel(x, y):
+							continue
+						shown += 1
+						if not on_seam.has(Vector2i(cx * 256 + x, cy * 256 + y)):
+							stray += 1
+						if not ore_colours.has(c.to_rgba32()):
+							odd += 1
+						var part := parts.get_pixel(x, y)
+						if part.a < 0.5:
+							off_rock += 1
+						elif part.r > 0.5:
+							on_face += 1
+						else:
+							on_top += 1
+	_check(looked >= 1 and shown >= 30, "ore in a rock face shows as a seam (%d pixels of %d clusters)" % [shown, looked])
+	_check(stray == 0 and off_rock == 0 and odd == 0, "a seam is drawn in rock only, on its own pixels, in the ore's own colours (%d astray, %d off the rock, %d in another colour)" % [stray, off_rock, odd])
+	_check(on_face >= 8 and on_top >= 8, "a seam crosses the rock's top and runs down its lit face (%d and %d pixels)" % [on_top, on_face])
+	_check(unsteady == 0, "painting a chunk with ore in it twice gives the same picture")
+	# The heart of a hill is fog of war: ore with nothing but rock round it shows nothing at all.
+	var buried := 0
+	var seen := 0
+	for v in m.veins:
+		var sealed := true
+		for t: Vector2i in v["cells"]:
+			for j in range(-3, 5):
+				for i in range(-3, 4):
+					if not m.is_rock(t.x + i, t.y + j):
+						sealed = false
+		if not sealed or buried >= 3:
+			continue
+		buried += 1
+		var box: Rect2i = v["box"]
+		for cy in range(box.position.y / 256, (box.end.y - 1) / 256 + 1):
+			for cx in range(box.position.x / 256, (box.end.x - 1) / 256 + 1):
+				var with := Painter.paint(m, cx, cy)
+				for p: Vector2i in v["px"]:
+					var q := p - Vector2i(cx * 256, cy * 256)
+					if q.x >= 0 and q.y >= 0 and q.x < 256 and q.y < 256 and with.get_pixel(q.x, q.y).get_luminance() > 0.14:
+						seen += 1
+	_check(buried >= 1 and seen == 0, "ore deep in a hill shows nothing until somebody digs near (%d clusters, %d pixels seen)" % [buried, seen])
+	# Whichever patch of rock is asked for, a pixel is the same part of the rock: so a seam never changes at a chunk's edge.
+	var at: Vector2i = m.mouth - Vector2i(5, 4)
+	var one := Painter.rock_parts(m, at.x, at.y, 8, 8)
+	var two := Painter.rock_parts(m, at.x + 3, at.y + 2, 8, 8)
+	var differ := 0
+	for y in range(0, 6 * 16):
+		for x in range(0, 5 * 16):
+			if one.get_pixel(x + 48, y + 32) != two.get_pixel(x, y):
+				differ += 1
+	_check(differ == 0, "the rock is the same rock whichever patch of it is asked for (%d pixels differ)" % differ)
+	# Digging towards ore brings it out: open the ground under a buried cluster and its seam shows.
+	for v in m.veins:
+		var sealed := true
+		var low := Vector2i(0, -1)
+		for t: Vector2i in v["cells"]:
+			if t.y > low.y:
+				low = t
+			for j in range(-3, 5):
+				for i in range(-3, 4):
+					if not m.is_rock(t.x + i, t.y + j):
+						sealed = false
+		if not sealed:
+			continue
+		var cx := (low.x * 16 + 8) / 256
+		var cy := (low.y * 16 + 8) / 256
+		var before := Painter.paint(m, cx, cy)
+		for j in range(1, 3):
+			for i in range(-1, 2):
+				m.set_kind(low.x + i, low.y + j, LandMap.FLOOR)
+		var after := Painter.paint(m, cx, cy)
+		var lit := 0
+		for p: Vector2i in v["px"]:
+			var q := p - Vector2i(cx * 256, cy * 256)
+			if q.x >= 0 and q.y >= 0 and q.x < 256 and q.y < 256 and ore_colours.has(after.get_pixel(q.x, q.y).to_rgba32()) and after.get_pixel(q.x, q.y) != before.get_pixel(q.x, q.y):
+				lit += 1
+		_check(lit >= 4, "digging in under hidden ore brings its seam out (%d pixels)" % lit)
+		break
 
 
 # --- The game -------------------------------------------------------------------------
@@ -449,6 +722,16 @@ func _shots() -> void:
 			views["tunnel"] = mid
 		elif not bool(l["tunnel"]) and not views.has("ordinary"):
 			views["ordinary"] = mid
+	# Ore in a rock face, away from the base: one of tin and one of copper.
+	for v in m.veins:
+		var middle := Vector2((v["box"] as Rect2i).get_center()) / 16.0
+		var face := false
+		for t: Vector2i in v["cells"]:
+			if m.walkable(t.x, t.y + 1):
+				face = true
+		var name := "tin" if int(v["kind"]) == Veins.TIN else "copper"
+		if face and middle.distance_to(m.spawn) > 24.0 and not views.has(name):
+			views[name] = middle + Vector2(-3.0, 5.0)
 	for name in views:
 		var at := _stand_near(m, views[name])
 		g.players[0].global_position = at

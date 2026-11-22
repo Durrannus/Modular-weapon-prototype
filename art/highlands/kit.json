@@ -175,7 +175,9 @@
    "rock_nat_foot.png",
    "rock_dug_foot.png",
    "rock_shadow.png",
-   "rock_core.png"
+   "rock_core.png",
+   "rock_nat_part.png",
+   "rock_dug_part.png"
   ],
   "scree": [
    "scree.png",
@@ -2340,5 +2342,46 @@
   }
  },
  "tile": 16,
- "variants": 4
+ "variants": 4,
+ "vein": {
+  "cap": [
+   "19142a",
+   "201b34",
+   "232238",
+   "2b3247",
+   "344856",
+   "446264",
+   "5f8072"
+  ],
+  "copper": [
+   "3e1c28",
+   "6a3430",
+   "a05a34",
+   "cf8a48",
+   "f0c070"
+  ],
+  "face": [
+   "232238",
+   "2b3247",
+   "344856",
+   "446264",
+   "5f8072",
+   "8ba688",
+   "c2c8a0"
+  ],
+  "tin": [
+   "3c4250",
+   "6c7a7c",
+   "a8ae98",
+   "dcd6b0",
+   "f6f0d4"
+  ],
+  "verd": [
+   "12383e",
+   "1a5654",
+   "2a7f70",
+   "4aa888",
+   "86d4a4"
+  ]
+ }
 }

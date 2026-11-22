@@ -17,6 +17,7 @@ extends RefCounted
 
 const LandMap := preload("res://scripts/highlands/land_map.gd")
 const Art := preload("res://scripts/art.gd")
+const Veins := preload("res://scripts/highlands/veins.gd")
 
 const T := 16                  # one tile, in art pixels
 const CH := LandMap.CHUNK
@@ -31,6 +32,7 @@ const RM_T := 6
 const RW := 32
 const RH := 34
 const KIT := "res://art/highlands/"
+const AROUND := [Vector2i(0, -1), Vector2i(1, -1), Vector2i(1, 0), Vector2i(1, 1), Vector2i(0, 1), Vector2i(-1, 1), Vector2i(-1, 0), Vector2i(-1, -1)]   # N NE E SE S SW W NW
 
 const GRASS := LandMap.GRASS
 const SCRUB := LandMap.SCRUB
@@ -67,6 +69,7 @@ static var flowers: Array = []     # [[lit, in shadow], ...]: pale, pink, yellow
 static var tuft_lit: Image
 static var tuft_shade: Image
 static var tuft_size: Array = []   # per pattern: Vector2i
+static var vein_cols := {}         # ore veins: "tin", "copper", "verd", "face", "cap" -> that ramp's colours, step 0 upward
 
 
 static func load_kit() -> void:
@@ -94,6 +97,11 @@ static func load_kit() -> void:
 	floor_lit = Color(str(pal["floor"][1]))
 	floor_shade = Color(str(pal["floor"][0]))
 	flowers = [[Color(str(pal["flag"][5])), Color(str(pal["flag"][3]))], [Color(str(pal["heath"][3])), Color(str(pal["heath"][1]))], [Color(str(pal["gold"][2])), Color(str(pal["gold"][0]))]]
+	for name in kit.get("vein", {}):
+		var ramp: Array = []
+		for h in kit["vein"][name]:
+			ramp.append(Color(str(h)))
+		vein_cols[name] = ramp
 	# The tufts, drawn once for each grass they can stand on (a hollow, plain, a rise).
 	var pats: Array = TUFTS + LONG
 	tuft_lit = Image.create(pats.size() * 10, 18, false, Image.FORMAT_RGBA8)
@@ -219,6 +227,7 @@ static func paint(m: LandMap, cx: int, cy: int) -> Image:
 			for i in CH:
 				var n := hsh(x0 + i, y0 + j, 3) % 32
 				lit.blit_rect(core, Rect2i((n % 8) * T, (n / 8) * T, T, T), Vector2i(i * T, j * T))
+		_veins(lit, m, cx, cy)        # (a seam can still reach in from a rock face just past the tiles looked at)
 		return lit
 	lit.fill(grass[3])
 	var shade := Image.create(PX, PX, false, Image.FORMAT_RGBA8)
@@ -395,10 +404,7 @@ static func paint(m: LandMap, cx: int, cy: int) -> Image:
 			rocks.append([i, n, _near(K, i, FLOOR)])
 			mask.blend_rect(rock_shadow, Rect2i((n % COLS) * RW, (n / COLS) * RH, RW, RH), Vector2i((li - PAD) * T - RM_L, (lj - PAD) * T - RM_T))
 	lit.blit_rect_mask(shade, mask, Rect2i(0, 0, PX, PX), Vector2i.ZERO)
-	# 5. The rock: the stones at its foot, then the rock itself from the top row down. Ore is in the map but is not
-	# drawn yet: Darren turned down ore as dots on the rock (21 November: "I want it like veins through the rock"),
-	# and the art thread's veins come in when he has accepted them. The kit holds no ore sheets until then.
-	var ore: bool = sheets.has("ore_tin_nat")
+	# 5. The rock: the stones at its foot, then the rock itself from the top row down, then the ore that runs through it.
 	for r in rocks:
 		if int(r[1]) < 0:
 			continue
@@ -417,14 +423,118 @@ static func paint(m: LandMap, cx: int, cy: int) -> Image:
 		var src := Rect2i((n % COLS) * RW, (n / COLS) * RH, RW, RH)
 		var dst := Vector2i(px - RM_L, py - RM_T)
 		lit.blend_rect(sheets["rock_dug" if r[2] else "rock_nat"], src, dst)
-		if ore and K[i] == TIN:
-			lit.blend_rect(sheets["ore_tin_dug" if r[2] else "ore_tin_nat"], src, dst)
-		elif ore and K[i] == COPPER:
-			lit.blend_rect(sheets["ore_copper_dug" if r[2] else "ore_copper_nat"], src, dst)
+	_veins(lit, m, cx, cy)
 	# 6. Lamplight on dug floor and the cut rock beside it.
 	if floored != null:
 		_light(lit, floored, lamps, K, ox, oy)
 	return lit
+
+
+## Ore, as seams of metal through the rock (Darren, 21 and 22 November: "I want it like veins through the rock",
+## "fades into fog of war", "Ok on veins look"). Where the metal is comes from the map (every cluster of ore tiles has
+## its seams, the same whichever chunk asks); what colour a pixel of it takes comes from the rock it lies in: bright
+## on the lit face, plain near the edge of the dark top, thinner and broken further in, and gone 21 pixels in. So a
+## seam shows where rock meets open ground, and the heart of a hill shows nothing until somebody digs towards it.
+## Both rules are the art thread's own (veins.gd).
+static func _veins(lit: Image, m: LandMap, cx: int, cy: int) -> void:
+	var seams: Array = m.veins_in(cx, cy)
+	if seams.is_empty() or vein_cols.is_empty() or not sheets.has("rock_nat_part"):
+		return
+	var ox := cx * PX
+	var oy := cy * PX
+	var deep := {}                      # tile -> is every tile round it rock (then no edge is near, and nothing shows)
+	for v: Dictionary in seams:
+		# This cluster's seam pixels that fall in this chunk.
+		var px: Dictionary = v["px"]
+		var kind := int(v["kind"])
+		var found: Array = []           # Vector2i
+		var lo := Vector2i(1 << 30, 1 << 30)
+		var hi := Vector2i(-1, -1)
+		for p: Vector2i in px:
+			if p.x < ox or p.y < oy or p.x >= ox + PX or p.y >= oy + PX:
+				continue
+			var tile := Vector2i(p.x >> 4, p.y >> 4)
+			if not deep.has(tile):
+				var all_rock := true
+				for dy in range(-2, 4):
+					for dx in range(-2, 3):
+						if not m.is_rock(tile.x + dx, tile.y + dy):
+							all_rock = false
+				deep[tile] = all_rock
+			if deep[tile]:
+				continue
+			found.append(p)
+			lo = lo.min(p)
+			hi = hi.max(p)
+		if found.is_empty():
+			continue
+		# The rock round them, pixel by pixel: where it is, and which of it is lit face and which dark top. A pixel's
+		# colour depends on rock up to 21 pixels away, so the patch reaches a little further than the seams.
+		var reach := Veins.GONE + 1
+		var tx0 := floori(float(lo.x - reach) / T)
+		var ty0 := floori(float(lo.y - reach) / T)
+		var w := (floori(float(hi.x + reach) / T) - tx0 + 1) * T
+		var h := (floori(float(hi.y + reach) / T) - ty0 + 1) * T
+		var data := rock_parts(m, tx0, ty0, w / T, h / T).get_data()
+		var top := PackedByteArray()    # 1 = the rock's dark top
+		top.resize(w * h)
+		for i in w * h:
+			if data[i * 4 + 3] != 0 and data[i * 4] == 0:
+				top[i] = 1
+		var metal: Array = vein_cols["tin" if kind == Veins.TIN else "copper"]
+		for p: Vector2i in found:
+			var x := p.x - tx0 * T
+			var y := p.y - ty0 * T
+			var i := y * w + x
+			if data[i * 4 + 3] == 0:
+				continue                # not rock: the seam ends where the rock does
+			var cls := int(px[p])
+			var on_face := data[i * 4] != 0
+			var hgt := 0
+			var depth := 0
+			if on_face:
+				while hgt < 8 and y + 1 + hgt < h and data[((y + 1 + hgt) * w + x) * 4 + 3] != 0:
+					hgt += 1
+			else:
+				# (Only the thin edge of a seam is followed past 12 pixels in; the rest has gone by then.)
+				depth = Veins.depth(top, w, h, x, y, Veins.GONE if cls == Veins.FORK or cls == Veins.EDGE else 12)
+			var code := Veins.step(cls, kind, on_face, hgt, depth, Veins.vmix(p.x, p.y, m.seed_value, 7) % 100)
+			if code < 0:
+				continue
+			var ramp: Array = metal
+			match code / 8:
+				Veins.M_VERD: ramp = vein_cols["verd"]
+				Veins.M_FACE: ramp = vein_cols["face"]
+				Veins.M_CAP: ramp = vein_cols["cap"]
+			lit.set_pixel(p.x - ox, p.y - oy, ramp[mini(code % 8, ramp.size() - 1)])
+
+
+## The rock of tw x th tiles from tile (tx0, ty0), as a picture: clear where there is no rock, black where it is the
+## rock's dark top, red where it is its lit face. Laid out from the same pieces, in the same order, as the rock itself.
+static func rock_parts(m: LandMap, tx0: int, ty0: int, tw: int, th: int) -> Image:
+	load_kit()
+	var out := Image.create_empty(tw * T, th * T, false, Image.FORMAT_RGBA8)
+	for ty in range(ty0 - 1, ty0 + th + 1):
+		for tx in range(tx0 - 1, tx0 + tw + 1):
+			if not m.is_rock(tx, ty):
+				continue
+			var cfg := 0
+			var dug := false
+			for b in 8:
+				var d: Vector2i = AROUND[b]
+				var k := m.kind(tx + d.x, ty + d.y)
+				if LandMap.rocky(k):
+					cfg |= 1 << b
+				elif k == FLOOR:
+					dug = true
+			var px := (tx - tx0) * T
+			var py := (ty - ty0) * T
+			if cfg == 255:
+				out.fill_rect(Rect2i(px, py, T, T), Color(0, 0, 0, 1))
+				continue
+			var n := (hsh(tx, ty, 2) % variants) * 256 + cfg
+			out.blend_rect(sheets["rock_dug_part" if dug else "rock_nat_part"], Rect2i((n % COLS) * RW, (n / COLS) * RH, RW, RH), Vector2i(px - RM_L, py - RM_T))
+	return out
 
 
 ## A tuft may stand on grass only: none of it on a path, the yard, water or a dug

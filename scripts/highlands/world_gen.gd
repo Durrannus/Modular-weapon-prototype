@@ -45,6 +45,7 @@ const SCREE := LandMap.SCREE
 
 var m: LandMap
 var rng := RandomNumberGenerator.new()
+var ore := RandomNumberGenerator.new()    # the ore's own dice (see _ore)
 var ns := 0                    # this map's own salt for the noise
 var gap_starts: Array = []     # where each gap leaves the clearing (tiles)
 var tunnels: Array = []        # the tiles down the middle of each old tunnel
@@ -98,6 +99,7 @@ func _build(seed_value: int, attempt: int) -> LandMap:
 	m.seed_value = seed_value
 	m.region = Rect2i(MID - REACH, MID - REACH, REACH * 2, REACH * 2)
 	rng.seed = _mix(seed_value & 0xffffffff, seed_value >> 32, 1000 + attempt)
+	ore.seed = _mix(seed_value & 0xffffffff, seed_value >> 32, 2000 + attempt)
 	ns = rng.randi() & 0xffff
 	m.turn = rng.randf() * TAU
 	var t := [Time.get_ticks_usec()]
@@ -661,11 +663,13 @@ func _spots(p: Dictionary) -> Dictionary:
 	return out
 
 
-func _take(list: Array, taken: Array, apart: float) -> Vector2i:
+func _take(list: Array, taken: Array, apart: float, dice: RandomNumberGenerator = null) -> Vector2i:
+	if dice == null:
+		dice = rng
 	for t in 12:
 		if list.is_empty():
 			break
-		var at: Vector2i = list[rng.randi() % list.size()]
+		var at: Vector2i = list[dice.randi() % list.size()]
 		var ok := true
 		for o in taken:
 			if Vector2(at).distance_to(Vector2(o)) < apart:
@@ -854,27 +858,51 @@ func _cover_plants() -> void:
 				m.plants.append({"n": name, "x": px, "y": py})
 
 
-## Ore: a vein starts in rock you can see from open ground and runs into the hill.
+## Ore: a cluster of ore tiles that starts in rock you can see from open ground and runs into the hill. What shows
+## of it is drawn as seams through the whole cluster (veins.gd): they come in at its top and run down, about one
+## for every two and a half tiles of its width. So a cluster is wider than it is tall, at most 6 tiles by 4, and it
+## keeps clear of any other cluster.
 func _vein(start: Vector2i, n: int, k: int) -> int:
-	if m.kind(start.x, start.y) != ROCK or _locked(start.x, start.y):
+	if m.kind(start.x, start.y) != ROCK or _locked(start.x, start.y) or _ore_near(start, {}):
 		return 0
 	var cells: Array = [start]
+	var own := {start: true}
+	var box := Rect2i(start, Vector2i.ONE)
 	m.set_kind(start.x, start.y, k)
-	for t in n * 8:
+	for t in n * 10:
 		if cells.size() >= n:
 			break
-		var from: Vector2i = cells[rng.randi() % cells.size()]
-		var d: Vector2i = [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)][rng.randi() % 4]
+		var from: Vector2i = cells[ore.randi() % cells.size()]
+		var d: Vector2i = [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, -1), Vector2i(0, -1), Vector2i(0, 1)][ore.randi() % 7]
 		var at := from + d
-		if m.kind(at.x, at.y) == ROCK and not _locked(at.x, at.y):
+		var grown := box.merge(Rect2i(at, Vector2i.ONE))
+		if grown.size.x > 6 or grown.size.y > 4:
+			continue
+		if m.kind(at.x, at.y) == ROCK and not _locked(at.x, at.y) and not _ore_near(at, own):
 			m.set_kind(at.x, at.y, k)
 			cells.append(at)
+			own[at] = true
+			box = grown
 	return cells.size()
 
 
+## Is there ore within two tiles that is not part of this cluster?
+func _ore_near(at: Vector2i, own: Dictionary) -> bool:
+	for j in range(-2, 3):
+		for i in range(-2, 3):
+			var k := m.kind(at.x + i, at.y + j)
+			if (k == TIN or k == COPPER) and not own.has(at + Vector2i(i, j)):
+				return true
+	return false
+
+
+## Where the ore is. It has its own dice, so a change to the ore never moves the plants and stones.
 func _ore() -> void:
-	# In the hills round the base, so the first dig is also the first ore: two veins of tin and two of copper.
+	# In the hills round the base, so the first dig is also the first ore: two clusters of tin and two of copper
+	# (the Game Bible: "tin and copper veins in the hill above the forge"). First choice is rock with open ground
+	# to its south: its lit face is what you look at from the clearing, and a seam shows brightest there.
 	var rim: Array = []
+	var faces: Array = []
 	for y in range(floori(m.base.position.y) - 4, ceili(m.base.end.y) + 5):
 		for x in range(floori(m.base.position.x) - 4, ceili(m.base.end.x) + 5):
 			if m.kind(x, y) != ROCK or _locked(x, y) or (absi(x - MID) <= 6 and y <= MID + 1):
@@ -887,38 +915,47 @@ func _ore() -> void:
 					ok = false
 			if ok:
 				rim.append(Vector2i(x, y))
+				if m.walkable(x, y + 1):
+					faces.append(Vector2i(x, y))
 	var taken: Array = []
 	for i in 4:
-		var at := _take(rim, taken, 7.0)
-		if at.x >= 0:
-			_vein(at, 5 + rng.randi() % 3, TIN if i % 2 == 0 else COPPER)
+		for go in 5:
+			var at := _take(faces, taken, 7.0 if go < 2 else 5.0, ore)
+			if at.x < 0:
+				at = _take(rim, taken, 7.0 if go < 2 else 5.0, ore)
+			if at.x >= 0 and _vein(at, 6 + ore.randi() % 3, TIN if i % 2 == 0 else COPPER) > 0:
+				break
 	# In the inner ring: on the edge of under half the open places, always in a sealed one, and a few deep in the rock.
 	for p in m.pockets:
 		if bool(p["gate"]):
 			continue
-		var veins := 2 if bool(p["sealed"]) else (1 if rng.randf() < 0.45 else 0)
+		var veins := 2 if bool(p["sealed"]) else (1 if ore.randf() < 0.45 else 0)
 		if veins == 0:
 			continue
 		var spots := _spots(p)
+		var south: Array = spots["rim"].filter(func(at): return m.walkable(at.x, at.y + 1))
 		var used: Array = []
 		for v in veins:
-			var at := _take(spots["rim"], used, 5.0)
+			var at := Vector2i(-1, -1)
+			if ore.randf() < 0.65:
+				at = _take(south, used, 5.0, ore)
+			if at.x < 0:
+				at = _take(spots["rim"], used, 5.0, ore)
 			if at.x >= 0:
-				_vein(at, 3 + rng.randi() % 4, TIN if rng.randf() < 0.55 else COPPER)
+				_vein(at, 4 + ore.randi() % 4, TIN if ore.randf() < 0.55 else COPPER)
 	var deep := 0
 	for t in 400:
 		if deep >= 14:
 			break
-		var a := rng.randf() * TAU
-		var r := rng.randf_range(30.0, RING_INNER)
+		var a := ore.randf() * TAU
+		var r := ore.randf_range(30.0, RING_INNER)
 		var at := Vector2i(MID + int(cos(a) * r), MID + int(sin(a) * r))
 		var buried := true
 		for j in range(-2, 3):
 			for i in range(-2, 3):
 				if m.kind(at.x + i, at.y + j) != ROCK:
 					buried = false
-		if buried:
-			_vein(at, 4 + rng.randi() % 4, TIN if rng.randf() < 0.5 else COPPER)
+		if buried and _vein(at, 5 + ore.randi() % 4, TIN if ore.randf() < 0.5 else COPPER) > 0:
 			deep += 1
 
 

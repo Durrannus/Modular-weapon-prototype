@@ -13,6 +13,7 @@ const SIZE := 544            # tiles a side: room for the whole Highlands (about
 const MID := 272             # the tile of the cave mouth
 const CHUNK := 16            # tiles a side of one painted piece of land
 const TILE_PX := 16
+const Veins := preload("res://scripts/highlands/veins.gd")
 
 ## What a tile is made of.
 enum { GRASS, SCRUB, HEATH, PATH, YARD, WATER, ROCK, TIN, COPPER, FLOOR, SCREE }
@@ -37,11 +38,18 @@ var mouth := Vector2i(MID, MID)  # the rock tile the cave mouth is set into; its
 var spawn := Vector2.ZERO        # where players first stand, in tiles
 var turn := 0.0                  # how far the seed turned the compass (radians)
 var region := Rect2i()           # the part of the map that has anything but solid rock in it
+## Ore, as the seams that run through the rock: one entry for every cluster of tin or copper tiles that touch (corners
+## included): {kind: Veins.TIN or Veins.COPPER, cells: [Vector2i tiles], px: {Vector2i art pixel -> what it is},
+## pockets: [Vector2i], box: Rect2i in art pixels}. Worked out from the ore tiles and the seed by index(); a save
+## holds the tiles, never this.
+var veins: Array = []
 
 var _things_by_chunk := {}
 var _decals_by_chunk := {}
 var _plants_by_chunk := {}
 var _lamps_by_chunk := {}
+var _veins_by_chunk := {}
+var _indexed := false
 
 
 func _init() -> void:
@@ -64,7 +72,11 @@ func kind(x: int, y: int) -> int:
 
 func set_kind(x: int, y: int, k: int) -> void:
 	if x >= 0 and y >= 0 and x < SIZE and y < SIZE:
+		var was := kinds[y * SIZE + x]
 		kinds[y * SIZE + x] = k
+		# Ore put in or taken out after the map was made (mining, later): the seams are worked out again.
+		if _indexed and was != k and (was == TIN or was == COPPER or k == TIN or k == COPPER):
+			index_veins()
 
 
 func tone(x: int, y: int) -> int:
@@ -109,6 +121,64 @@ func index() -> void:
 			if not pair[1].has(key):
 				pair[1][key] = []
 			pair[1][key].append(it)
+	index_veins()
+	_indexed = true
+
+
+## Finds every cluster of ore tiles and the seams that run through it. A cluster is tiles of one ore that touch,
+## corners included; its seams come from the tiles and the seed alone (veins.gd), so they are the same every time.
+func index_veins() -> void:
+	var found: Array = []
+	var by_chunk := {}
+	var seen := {}
+	for pair in [[TIN, Veins.TIN], [COPPER, Veins.COPPER]]:
+		var k: int = pair[0]
+		var i := kinds.find(k)
+		while i >= 0:
+			var start := Vector2i(i % SIZE, i / SIZE)
+			if not seen.has(start) and start.x >= 1 and start.y >= 1:
+				var cells: Array = []
+				var stack: Array = [start]
+				seen[start] = true
+				while not stack.is_empty():
+					var at: Vector2i = stack.pop_back()
+					cells.append(at)
+					for dy in range(-1, 2):
+						for dx in range(-1, 2):
+							var to := at + Vector2i(dx, dy)
+							if to.x >= 1 and to.y >= 1 and not seen.has(to) and kind(to.x, to.y) == k:
+								seen[to] = true
+								stack.append(to)
+				var seams := Veins.paths(cells, int(pair[1]), seed_value)
+				var px: Dictionary = seams["px"]
+				if not px.is_empty():
+					var lo := Vector2i(1 << 30, 1 << 30)
+					var hi := Vector2i(-1, -1)
+					for p: Vector2i in px:
+						lo = lo.min(p)
+						hi = hi.max(p)
+					var box := Rect2i(lo, hi - lo + Vector2i.ONE)
+					found.append({"kind": int(pair[1]), "cells": cells, "px": px, "pockets": seams["pockets"], "box": box})
+					var side := CHUNK * TILE_PX
+					for cy in range(lo.y / side, hi.y / side + 1):
+						for cx in range(lo.x / side, hi.x / side + 1):
+							var key := chunk_key(cx, cy)
+							if not by_chunk.has(key):
+								by_chunk[key] = []
+							by_chunk[key].append(found.size() - 1)
+			i = kinds.find(k, i + 1)
+	veins = found
+	_veins_by_chunk = by_chunk
+
+
+## The ore clusters with a seam pixel in chunk (cx, cy), tin before copper, each in reading order.
+func veins_in(cx: int, cy: int) -> Array:
+	var out: Array = []
+	var all := veins
+	for n: int in _veins_by_chunk.get(chunk_key(cx, cy), []):
+		if n < all.size():
+			out.append(all[n])
+	return out
 
 
 func things_in(cx: int, cy: int) -> Array:

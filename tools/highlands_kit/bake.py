@@ -110,40 +110,11 @@ class Kit:
         under = s.cut(hl3.LUT[W.mat, st], rub, ROCK_M)
         near = hl3.dil(rub, 2) & W.shadow & ~W.rock                              # the stones' own little shadows
         shadow = s.cut(np.full(rgb.shape, 255, np.uint8), (cast | near) & ~keep, ROCK_M)
-        ores = [s.ore(W, keep, kind, cfg * 8 + v * 2 + n) for n, kind in enumerate(("tin", "copper"))]
-        return piece, under, shadow, ores
-
-    def ore(s, W, keep, kind, seed):
-        """Ore showing in this tile's rock, as a layer over the rock piece. The art's own rule and pixels (hl3.py, "ore": white
-        square tin crystals, round copper nuggets with a green crust, on a lit face or a lit rim, never on a dark top), kept
-        inside this one tile so the game can lay it per tile and take it away when the tile is mined."""
-        hl3 = s.hl3; MID = hl3.MID; R = np.random.RandomState(1000 + seed)
-        mat = W.mat.copy(); step = W.step.astype(int).copy(); h, w = mat.shape
-        def pix(x, y, m, st):
-            if 0 <= x < w and 0 <= y < h: mat[y, x] = MID[m]; step[y, x] = st
-        n = 0
-        for _ in range(60):
-            x, y = s.x0 + R.randint(1, T - 4), s.y0 + R.randint(-2, T - 3)
-            if not keep[y:y + 3, x:x + 3].all(): continue
-            onface = W.face[y:y + 3, x:x + 3].all()
-            if not onface and (not W.capm[y:y + 3, x:x + 3].all() or W.step[y + 1, x + 1] < 2 or R.rand() < 0.7): continue
-            if (mat[y - 1:y + 4, x - 1:x + 4] == MID[kind]).any(): continue
-            if kind == "tin":
-                z = 3 if R.rand() < 0.4 else 2
-                mat[y:y + z, x:x + z] = MID["tin"]; step[y:y + z, x:x + z] = hl3.TIN_FACE[0] if onface else 1
-                pix(x, y, "tin", hl3.TIN_FACE[1] if onface else hl3.TIN_FACE[0]); pix(x + z - 1, y + z - 1, "tin", 1 if onface else 0)
-                pix(x + z, y + z, "face" if onface else "cap", 1 if onface else 0)
-            else:
-                for j in range(3):
-                    for i in range(3):
-                        if (j - 1) ** 2 + (i - 1) ** 2 < 2: pix(x + i, y + j, "copper", 3 if onface else 2)
-                pix(x + 1, y, "copper", 4 if onface else 3); pix(x + 2, y + 2, "copper", 1)
-                pix(x - 1, y + 1, "verd", 2 if onface else 1); pix(x + 1, y + 3, "verd", 1)
-            n += 1
-            if n >= 5: break
-        changed = ((mat != W.mat) | (step != W.step)) & keep
-        st = np.clip(step, 0, hl3.TOPS[mat])
-        return s.cut(hl3.LUT[mat, st], changed, ROCK_M)
+        # which of this piece's pixels are the lit face (red) and which the dark top (black): the game's ore veins
+        # are bright on a face and fade out into the top, so it needs to know one from the other
+        part_rgb = np.zeros(rgb.shape, np.uint8); part_rgb[..., 0] = np.where(W.face, 255, 0)
+        part = s.cut(part_rgb, keep, ROCK_M)
+        return piece, under, shadow, part
 
     def rock_core(s, n):
         """The heart of a hill: the cave's own dark wall top with a few strokes. Cut from one big block of rock."""
@@ -367,9 +338,6 @@ def main():
     ap.add_argument("--out", default=os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "art", "highlands"))
     ap.add_argument("--variants", type=int, default=4)
     ap.add_argument("--only", default="")
-    # Ore as crystals dotted on the rock is the look Darren turned down on 21 November ("I want it like veins through
-    # the rock"). The sheets are only written when asked for, and the game draws no ore without them.
-    ap.add_argument("--ore-dots", action="store_true")
     a = ap.parse_args()
     sys.dont_write_bytecode = True
     sys.path.insert(0, a.art)
@@ -385,20 +353,22 @@ def main():
 
     if want("rock"):
         for dug in (False, True):
-            P, U, S, OT, OC = [], [], [], [], []
+            P, U, S, F = [], [], [], []
             for v in range(V):
                 for cfg in range(256):
-                    p, u, sh, ores = K.rock(cfg, v, dug); P.append(p); U.append(u); S.append(sh); OT.append(ores[0]); OC.append(ores[1])
+                    p, u, sh, part = K.rock(cfg, v, dug); P.append(p); U.append(u); S.append(sh); F.append(part)
                 print("rock", "dug" if dug else "nat", v, round(time.time() - t0, 1), flush=True)
             tag = "dug" if dug else "nat"
             sheet(P).save(os.path.join(a.out, "rock_%s.png" % tag)); sheet(U).save(os.path.join(a.out, "rock_%s_foot.png" % tag))
-            if a.ore_dots:
-                sheet(OT).save(os.path.join(a.out, "ore_tin_%s.png" % tag)); sheet(OC).save(os.path.join(a.out, "ore_copper_%s.png" % tag))
+            sheet(F).save(os.path.join(a.out, "rock_%s_part.png" % tag))
             if not dug: sheet(S).save(os.path.join(a.out, "rock_shadow.png"))
         sheet(K.rock_core(32), 8).save(os.path.join(a.out, "rock_core.png"))
-        info["sheets"]["rock"] = ["rock_nat.png", "rock_dug.png", "rock_nat_foot.png", "rock_dug_foot.png", "rock_shadow.png", "rock_core.png"]
-        if a.ore_dots:
-            info["sheets"]["rock"] += ["ore_tin_nat.png", "ore_tin_dug.png", "ore_copper_nat.png", "ore_copper_dug.png"]
+        info["sheets"]["rock"] = ["rock_nat.png", "rock_dug.png", "rock_nat_foot.png", "rock_dug_foot.png", "rock_shadow.png", "rock_core.png",
+                                  "rock_nat_part.png", "rock_dug_part.png"]
+        # Ore is drawn by the game as veins through the rock (scripts/highlands/veins.gd, a port of hl3.vein_paths and
+        # hl3.vein_step). These are the colours those veins use, straight from the art's own ramps: step 0 upward.
+        info["vein"] = {name: ["%02x%02x%02x" % tuple(int(c) for c in hl3.LUT[hl3.MID[name], st]) for st in range(int(hl3.TOPS[hl3.MID[name]]) + 1)]
+                        for name in ("tin", "copper", "verd", "face", "cap")}
     for name, ch in (("yard", "y"), ("water", "w"), ("floor", "o"), ("path", "e"), ("scree", ":")):
         if not want(name): continue
         L, D = [], []
