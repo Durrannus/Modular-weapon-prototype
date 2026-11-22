@@ -17,6 +17,7 @@ const TILE := 16.0 * UNIT
 const CHUNK := LandMap.CHUNK * TILE
 const SORT_BIAS := 14.0                 # as the cave's props: players sort by their middle, things by their feet
 const TALL := 44                        # things at least this tall (art pixels) fade when somebody walks behind them
+const GIVE := 4.0                       # how far rock and water stand back from open ground (world units: two art pixels)
 
 var map: LandMap
 var world: Node2D                       # the y-sorted layer the players are in
@@ -27,6 +28,7 @@ var tall: Array = []                    # [sprite, Rect2 in world units, feet y]
 var ground: Node2D
 var _atlas := {}
 var _things_tex: Texture2D
+var _tools_tex: Texture2D
 var _mutex := Mutex.new()
 var _painted: Array = []                # [[key, Image]], filled by the painting threads
 var _asked := {}                        # key -> task id
@@ -41,6 +43,7 @@ func _ready() -> void:
 	ground.z_index = -10
 	add_child(ground)
 	_things_tex = ImageTexture.create_from_image(Painter.sheets["things"])
+	_tools_tex = Art.texture("tools/tools.png")     # the stump a felled pine leaves is on the tool art's sheet
 
 
 func _exit_tree() -> void:
@@ -59,7 +62,7 @@ func thing_texture(name: String, frame := 0) -> AtlasTexture:
 		var r: Array = info["rect"]
 		var w := int(info.get("frame_w", r[2]))
 		var t := AtlasTexture.new()
-		t.atlas = _things_tex
+		t.atlas = _tools_tex if str(info.get("sheet", "")) == "tools" else _things_tex
 		t.region = Rect2(int(r[0]) + frame * w, r[1], w, r[3])
 		_atlas[key] = t
 	return _atlas[key]
@@ -139,9 +142,18 @@ func _ensure(cx: int, cy: int) -> void:
 	var key := LandMap.chunk_key(cx, cy)
 	if chunks.has(key):
 		return
-	var c := {"at": Vector2i(cx, cy), "sprite": null, "things": []}
+	var c := {"at": Vector2i(cx, cy), "sprite": null, "things": [], "by_thing": {}}
 	c["body"] = _make_body(cx, cy)
-	for t in map.things_in(cx, cy):
+	_stand_things(c)
+	chunks[key] = c
+	if not _asked.has(key):       # (a picture asked for before the chunk was let go is still on its way)
+		_asked[key] = WorkerThreadPool.add_task(_paint.bind(key, cx, cy))
+
+
+## Stands a chunk's things on it, with the boxes of those that stop you.
+func _stand_things(c: Dictionary) -> void:
+	var at: Vector2i = c["at"]
+	for t in map.things_in(at.x, at.y):
 		var name := str(t["n"])
 		var info: Dictionary = Painter.things.get(name, {})
 		if info.is_empty():
@@ -149,6 +161,7 @@ func _ensure(cx: int, cy: int) -> void:
 		var foot := Vector2(float(t["x"]), float(t["y"]))
 		var s := stand(name, foot, bool(t.get("f", false)))
 		c["things"].append(s)
+		c["by_thing"][LandMap.thing_key(t)] = s
 		if info.has("frames"):
 			# An animal: it plays its few frames, each at its own time.
 			var life := Animal.new()
@@ -161,9 +174,37 @@ func _ensure(cx: int, cy: int) -> void:
 		if int(r[3]) >= TALL:
 			var f: Array = info["foot"]
 			tall.append([s, Rect2((foot - Vector2(float(f[0]), float(f[1])) + Vector2(4, 0)) * UNIT, Vector2(float(r[2]) - 8.0, float(r[3]) - 10.0) * UNIT), foot.y * UNIT])
-	chunks[key] = c
-	if not _asked.has(key):       # (a picture asked for before the chunk was let go is still on its way)
-		_asked[key] = WorkerThreadPool.add_task(_paint.bind(key, cx, cy))
+
+
+## The picture of a thing that stands on the land now (null if its chunk is not shown).
+func sprite_of(t: Dictionary) -> Sprite2D:
+	var key := LandMap.chunk_key(int(t["x"]) / (LandMap.CHUNK * LandMap.TILE_PX), int(t["y"]) / (LandMap.CHUNK * LandMap.TILE_PX))
+	if not chunks.has(key):
+		return null
+	return chunks[key]["by_thing"].get(LandMap.thing_key(t), null)
+
+
+## A thing was taken off the land or put on it (a pine felled, its stump left): the things of its chunk are stood
+## again, and what stops you there is made again. Nothing is painted.
+func things_changed(foot: Vector2) -> void:
+	var key := LandMap.chunk_key(int(foot.x) / (LandMap.CHUNK * LandMap.TILE_PX), int(foot.y) / (LandMap.CHUNK * LandMap.TILE_PX))
+	if not chunks.has(key):
+		return
+	var c: Dictionary = chunks[key]
+	var faded := {}
+	for k in c["by_thing"]:
+		faded[k] = (c["by_thing"][k] as Sprite2D).modulate.a
+	for s in c["things"]:
+		tall = tall.filter(func(t): return t[0] != s)
+		s.queue_free()
+	c["things"] = []
+	c["by_thing"] = {}
+	c["body"].queue_free()
+	c["body"] = _make_body(c["at"].x, c["at"].y)
+	_stand_things(c)
+	for k in c["by_thing"]:
+		if faded.has(k):
+			(c["by_thing"][k] as Sprite2D).modulate.a = faded[k]
 
 
 ## Runs on another thread.
@@ -211,7 +252,9 @@ func _drop(key: int) -> void:
 
 
 ## What stops you in one chunk: a box for every run of rock or water that has
-## open ground beside it. (Rock deep inside a hill needs none.)
+## open ground beside it. (Rock deep inside a hill needs none.) Where a box has
+## open ground at a side, that side stands back by GIVE: somebody is as wide as a
+## tile, and a tunnel dug one tile wide must be wide enough to walk.
 func _make_body(cx: int, cy: int) -> StaticBody2D:
 	var body := StaticBody2D.new()
 	body.collision_layer = 4
@@ -226,9 +269,15 @@ func _make_body(cx: int, cy: int) -> StaticBody2D:
 				x += 1
 				continue
 			var from := x
-			while x < x0 + LandMap.CHUNK and _edge(x, y):
+			var up := map.walkable(x, y - 1)
+			var down := map.walkable(x, y + 1)
+			while x < x0 + LandMap.CHUNK and _edge(x, y) and map.walkable(x, y - 1) == up and map.walkable(x, y + 1) == down:
 				x += 1
-			_box(body, Vector2(float(from + x) * 0.5 * TILE, (float(y) + 0.5) * TILE), Vector2(float(x - from) * TILE, TILE))
+			var left := float(from) * TILE + (GIVE if map.walkable(from - 1, y) else 0.0)
+			var right := float(x) * TILE - (GIVE if map.walkable(x, y) else 0.0)
+			var top := float(y) * TILE + (GIVE if up else 0.0)
+			var bottom := float(y + 1) * TILE - (GIVE if down else 0.0)
+			_box(body, Vector2((left + right) * 0.5, (top + bottom) * 0.5), Vector2(right - left, bottom - top))
 	return body
 
 

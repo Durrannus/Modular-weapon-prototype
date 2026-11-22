@@ -1,0 +1,585 @@
+extends SceneTree
+## The basic tools of the Highlands (version 40): the tool belt, the work and cycle buttons, digging rock, mining
+## ore, felling pines, and the materials bag. Prints PASS / FAIL lines.
+##
+##   godot --headless --path . --fixed-fps 60 -s tests/highlands_tools.gd
+##
+## With shots=/some/folder/ (needs a window, so leave out --headless) it saves 640x360 frames instead: the belt and
+## the bag on the screen, mining into a vein blow by blow, and a pine coming down. "seed=123456" picks the world.
+
+const PlayerInput := preload("res://scripts/player_input.gd")
+const LandMap := preload("res://scripts/highlands/land_map.gd")
+const Painter := preload("res://scripts/highlands/land_painter.gd")
+const Highlands := preload("res://scripts/highlands/highlands.gd")
+const Tools := preload("res://scripts/highlands/tools.gd")
+const Bag := preload("res://scripts/highlands/bag.gd")
+const TILE := 32.0
+const SWING_TICKS := 26          # one swing of a tool, in physics ticks, and one to spare
+
+var fails := 0
+var checks := 0
+var shot_dir := ""
+var shot_seed := 1
+
+
+func _init() -> void:
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("shots="):
+			shot_dir = a.substr(6)
+		elif a.begins_with("seed="):
+			shot_seed = int(a.substr(5))
+	_run()
+
+
+func _check(ok: bool, what: String) -> void:
+	checks += 1
+	if not ok:
+		fails += 1
+		print("FAIL  " + what)
+
+
+func _frames(n: int) -> void:
+	for i in n:
+		await physics_frame
+
+
+func _run() -> void:
+	await physics_frame
+	Painter.load_kit()
+	if shot_dir != "":
+		await _shots()
+		quit()
+		return
+	_bag()
+	_buttons()
+	await _belt()
+	await _digging()
+	await _mining()
+	await _felling()
+	await _limits()
+	await _two_players()
+	print("%s  the Highlands' tools: %d checks, %d failed" % ["PASS" if fails == 0 else "FAIL", checks, fails])
+	quit(1 if fails > 0 else 0)
+
+
+func _game(seed_value: int, players := 1):
+	var g = Highlands.new()
+	var inputs: Array = []
+	for i in players:
+		inputs.append(PlayerInput.make("script"))
+	g.inputs = inputs
+	g.world_seed = seed_value
+	g.welcome = false
+	root.add_child(g)
+	return g
+
+
+# --- Finding things to work on -------------------------------------------------------------
+
+## Nothing that stops you stands within a tile and a half of this place (world units)?
+func _clear(m: LandMap, at: Vector2) -> bool:
+	for t in m.things:
+		if Painter.things.get(str(t["n"]), {}).has("solid") and (Vector2(float(t["x"]), float(t["y"])) * 2.0).distance_to(at) < 56.0:
+			return false
+	return true
+
+
+## A tile of this kind with open ground beside it to stand on, away from the base: [the tile, the way to face it].
+## `fixed` asks for rock that cannot be dug instead.
+func _face(m: LandMap, kind: int, fixed := false, skip := 0) -> Array:
+	for r in range(6 if not fixed else 0, 130):
+		for j in range(-r, r + 1):
+			for i in range(-r, r + 1):
+				if maxi(absi(i), absi(j)) != r:
+					continue
+				var t := Vector2i(m.mouth.x + i, m.mouth.y + j)
+				if m.kind(t.x, t.y) != kind or m.fixed(t.x, t.y) != fixed:
+					continue
+				for d: Vector2i in [Vector2i.LEFT, Vector2i.RIGHT, Vector2i.DOWN, Vector2i.UP]:
+					var s := t + d
+					if m.walkable(s.x, s.y) and m.kind(s.x, s.y) != LandMap.WATER and _clear(m, (Vector2(s) + Vector2(0.5, 0.5)) * TILE):
+						if skip > 0:
+							skip -= 1
+							continue
+						return [t, Vector2(-d)]
+	return []
+
+
+## A thing of this sort (its name begins so) with room to stand west of it: the thing.
+func _thing(m: LandMap, prefix: String, skip := 0) -> Dictionary:
+	for t in m.things:
+		if not str(t["n"]).begins_with(prefix):
+			continue
+		var foot := Vector2(float(t["x"]), float(t["y"])) * 2.0
+		var at := _beside(t)
+		var ok := true
+		for q in [at, at + Vector2(-16, 0), at + Vector2(0, 16), at + Vector2(0, -16), foot + Vector2(40, 0)]:
+			if not m.walkable(floori(q.x / TILE), floori(q.y / TILE)):
+				ok = false
+		for other in m.things:
+			if other != t and Painter.things.get(str(other["n"]), {}).has("solid") and (Vector2(float(other["x"]), float(other["y"])) * 2.0).distance_to(foot) < 90.0:
+				ok = false
+		if ok:
+			if skip > 0:
+				skip -= 1
+				continue
+			return t
+	return {}
+
+
+## Where to stand to work on a thing: just west of it.
+func _beside(t: Dictionary) -> Vector2:
+	var solid: Array = Painter.things[str(t["n"])]["solid"]
+	return Vector2(float(t["x"]), float(t["y"])) * 2.0 + Vector2(-float(solid[0]) - 19.0, -5.0)
+
+
+## Stands the player at a tile's neighbour, facing it.
+func _stand(g, p, tile: Vector2i, dir: Vector2) -> void:
+	p.global_position = (Vector2(tile) + Vector2(0.5, 0.5) - dir) * TILE
+	p.input.stick_aim = dir
+	p.input.move = Vector2.ZERO
+	g.rig.snap()
+	await _frames(4)
+	g.land.settle()
+
+
+## Holds the work button down for so many swings, then lets go and lets the swing end.
+func _work(p, swings: int) -> void:
+	p.input.work_held = true
+	await _frames((swings - 1) * SWING_TICKS + 16)      # (the last blow has landed; letting go does not cut a swing short)
+	p.input.work_held = false
+	await _frames(SWING_TICKS + 2)
+
+
+func _press(p, field: String) -> void:
+	await physics_frame               # (so that the press lasts exactly one tick, wherever in a frame this is called)
+	p.input.set(field, true)
+	await physics_frame
+	p.input.set(field, false)
+	await physics_frame
+
+
+# --- The bag -------------------------------------------------------------------------------
+
+func _bag() -> void:
+	var b := Bag.new()
+	_check(Bag.SLOTS == 20 and Bag.STACK == 99, "the bag has 20 places of 99 (the Game Bible's first numbers)")
+	_check(b.add("stone", 250) == 250 and b.slots.size() == 3 and b.count("stone") == 250, "250 stone fills three places")
+	_check(b.add("wood", 5) == 5 and b.slots.size() == 4 and b.count("wood") == 5, "another material starts its own place")
+	_check(b.add("stone", 10) == 10 and b.slots.size() == 4 and b.count("stone") == 260, "more of the same tops its last place up first")
+	_check(b.room("stone") == (20 - 4) * 99 + (99 * 3 - 260), "room counts what is left in its places and every empty place (%d)" % b.room("stone"))
+	_check(not b.take("wood", 6) and b.count("wood") == 5, "taking more than there is takes nothing")
+	_check(b.take("wood", 5) and b.count("wood") == 0 and b.slots.size() == 3, "taking the last of a material frees its place")
+	_check(b.take("stone", 200) and b.count("stone") == 60 and b.slots.size() == 1, "taking empties places from the last one back")
+	var full := Bag.new()
+	_check(full.add("stone", 5000) == 20 * 99 and full.slots.size() == 20 and full.room("stone") == 0 and full.room("wood") == 0, "a full bag takes no more (%d)" % full.count("stone"))
+	_check(full.add("tin_ore", 1) == 0, "and nothing else either")
+	var copy := Bag.new()
+	copy.set_data(b.data())
+	_check(str(copy.slots) == str(b.slots) and copy.slots != b.slots or str(copy.slots) == str(b.slots), "the bag comes back from its saved form")
+	copy.set_data([["stone", 500], ["wood", -3], "rubbish", ["tin_ore", 2.0]])
+	_check(copy.count("stone") == 99 and copy.count("wood") == 0 and copy.count("tin_ore") == 2, "and a bad save cannot overfill it")
+
+
+# --- The buttons ---------------------------------------------------------------------------
+
+func _key(code: Key) -> InputEventKey:
+	var e := InputEventKey.new()
+	e.physical_keycode = code
+	e.pressed = true
+	return e
+
+
+func _buttons() -> void:
+	var inp = PlayerInput.make("kbm")
+	_check(inp._event_is(_key(KEY_F), "interact") and not inp._event_is(_key(KEY_F), "work"), "away from the Highlands F is still a use key")
+	inp.tools = true
+	_check(inp._event_is(_key(KEY_F), "work") and not inp._event_is(_key(KEY_F), "interact") and inp._event_is(_key(KEY_E), "interact"), "with tools on, F is the work button and E still uses things")
+	_check(inp._event_is(_key(KEY_C), "tool_next"), "C picks the next tool")
+	var wheel := InputEventMouseButton.new()
+	wheel.button_index = MOUSE_BUTTON_WHEEL_DOWN
+	wheel.pressed = true
+	var up := InputEventMouseButton.new()
+	up.button_index = MOUSE_BUTTON_WHEEL_UP
+	up.pressed = true
+	_check(inp._event_is(wheel, "tool_next") and inp._event_is(up, "tool_prev") and not inp._event_is(wheel, "attack"), "the mouse wheel picks the next tool or the one before")
+	var pad = PlayerInput.make("pad", 0)
+	pad.tools = true
+	var back := InputEventJoypadButton.new()
+	back.button_index = JOY_BUTTON_BACK
+	back.pressed = true
+	_check(pad._event_is(back, "tool_next"), "Select picks the next tool on a controller")
+	pad.tools = false
+	_check(not pad._event_is(back, "tool_next"), "and does nothing of the sort elsewhere")
+	for action in ["work", "tool_next", "tool_prev", "interact_tools", "dash_tools"]:
+		_check(InputMap.has_action(action), "the controls know \"%s\"" % action)
+
+
+# --- The belt ------------------------------------------------------------------------------
+
+func _belt() -> void:
+	var g = _game(77)
+	await _frames(5)
+	var p = g.players[0]
+	var tools = g.tools
+	_check(p.input.tools, "the Highlands switch the tool buttons on")
+	_check(tools.tool_of(0) == "pickaxe", "you start with the pickaxe picked")
+	var belt: Dictionary = tools.hands[0].belt
+	_check(str(belt["pickaxe"]) == "basic" and str(belt["axe"]) == "basic" and str(belt["mallet"]) == "basic", "everyone starts with the basic three on the belt")
+	var seen: Array = []
+	for n in 3:
+		await _press(p, "tool_next_pressed")
+		seen.append(tools.tool_of(0))
+	_check(seen == ["axe", "mallet", "pickaxe"], "the cycle button steps through pickaxe, axe, mallet and round again (%s)" % str(seen))
+	await _press(p, "tool_prev_pressed")
+	_check(tools.tool_of(0) == "mallet", "the wheel the other way steps back")
+	# The mallet has nothing to build yet: swinging it changes nothing.
+	var before: PackedByteArray = g.map.kinds.duplicate()
+	var things_before: int = g.map.things.size()
+	var face := _face(g.map, LandMap.ROCK)
+	await _stand(g, p, face[0], face[1])
+	await _work(p, 4)
+	_check(g.map.kinds == before and g.map.things.size() == things_before and tools.bag_of(0).slots.is_empty(), "the mallet changes nothing yet")
+	# A belt with a tool missing skips its place.
+	belt["axe"] = ""
+	await _press(p, "tool_next_pressed")
+	await _press(p, "tool_next_pressed")
+	_check(tools.tool_of(0) == "mallet", "a tool you do not have is stepped over (%s)" % tools.tool_of(0))
+	belt["axe"] = "basic"
+	g.queue_free()
+	await _frames(3)
+	_check(not p.input.tools if is_instance_valid(p) else true, "leaving the Highlands hands F and the left trigger back")
+
+
+# --- Digging rock --------------------------------------------------------------------------
+
+func _digging() -> void:
+	var g = _game(77)
+	await _frames(5)
+	var p = g.players[0]
+	var tools = g.tools
+	var m: LandMap = g.map
+	var face := _face(m, LandMap.ROCK)
+	_check(not face.is_empty(), "there is rock with open ground beside it")
+	var tile: Vector2i = face[0]
+	var dir: Vector2 = face[1]
+	await _stand(g, p, tile, dir)
+	var stood: Vector2 = p.global_position
+	# Walking at it does nothing: rock stops you.
+	p.input.move = dir
+	await _frames(20)
+	p.input.move = Vector2.ZERO
+	_check(m.is_rock(tile.x, tile.y) and p.global_position.distance_to(stood) < 6.0, "rock stops you until it is dug")
+	await _stand(g, p, tile, dir)
+	# One blow marks it; it is not dug yet. While the tool swings, the tool is in the hand and you walk slowly.
+	p.input.work_held = true
+	await _frames(8)
+	_check(p.tool_dir.distance_to(dir) < 0.01 and p.tool_move < 0.5, "while the pickaxe swings you face the work and walk slowly")
+	_check(p.current_step < 0, "and the weapon does not swing")
+	await _frames(8)
+	p.input.work_held = false
+	_check(tools.wear.size() == 1 and m.is_rock(tile.x, tile.y), "one blow marks the rock but does not dig it")
+	await _frames(SWING_TICKS)
+	_check(p.tool_dir == Vector2.ZERO and p.tool_move == 1.0, "when the swing ends the weapon is back in the hand")
+	# Left alone, the mark goes.
+	await _frames(int(Tools.FORGET * 60.0) + 10)
+	_check(tools.wear.is_empty(), "rock left alone is whole again")
+	# Three blows dig it.
+	var chunk := LandMap.chunk_key(floori(tile.x / 16.0), floori(tile.y / 16.0))
+	var before: Image = (g.land.chunks[chunk]["sprite"] as Sprite2D).texture.get_image()
+	await _work(p, int(Tools.TILE_NEED[LandMap.ROCK]))
+	_check(m.kind(tile.x, tile.y) == LandMap.FLOOR, "three blows of the pickaxe dig a rock tile out (it is %s)" % LandMap.NAMES[m.kind(tile.x, tile.y)])
+	_check(tools.bag_of(0).count("stone") == 1, "and one stone goes in the bag (%d)" % tools.bag_of(0).count("stone"))
+	_check(m.dug.has(tile.y * LandMap.SIZE + tile.x) and m.dug.size() == 1, "the map remembers what was dug, for the world save")
+	await _frames(3)
+	g.land.settle()
+	var after: Image = (g.land.chunks[chunk]["sprite"] as Sprite2D).texture.get_image()
+	_check(before.get_data() != after.get_data(), "the land is painted again where it was dug")
+	p.input.move = dir
+	await _frames(24)
+	p.input.move = Vector2.ZERO
+	var in_tile := Vector2i(floori(p.global_position.x / TILE), floori(p.global_position.y / TILE))
+	_check(in_tile == tile, "and you can walk in where the rock was, though the way is one tile wide (%s, not %s)" % [str(in_tile), str(tile)])
+	# A tunnel one tile wide can be walked: dig two more and go to the end.
+	for n in 2:
+		p.global_position = (Vector2(tile) + Vector2(0.5, 0.5) + dir * float(n)) * TILE
+		await _frames(2)
+		await _work(p, 3)
+	await _frames(3)
+	g.land.settle()
+	p.global_position = (Vector2(tile) + Vector2(0.5, 0.5) - dir + Vector2(dir.y, dir.x) * 0.2) * TILE     # (a little off its middle)
+	p.input.move = dir
+	await _frames(40)
+	p.input.move = Vector2.ZERO
+	var end := Vector2i(tile + Vector2i(dir) * 2)
+	_check(Vector2i(floori(p.global_position.x / TILE), floori(p.global_position.y / TILE)) == end and m.kind(end.x, end.y) == LandMap.FLOOR, "a tunnel dug one tile wide can be walked to its end")
+	# The axe does not dig, and the game never picks the pickaxe for you.
+	var next := _face(m, LandMap.ROCK, false, 3)
+	await _stand(g, p, next[0], next[1])
+	await _press(p, "tool_next_pressed")
+	await _work(p, 5)
+	_check(tools.tool_of(0) == "axe" and m.is_rock(next[0].x, next[0].y), "the axe does not dig, and the game never picks the tool for you")
+	# Attacking always wins over the tool.
+	await _press(p, "tool_prev_pressed")
+	p.input.work_held = true
+	await _frames(6)
+	p.input.attack_pressed = true
+	await physics_frame
+	p.input.attack_pressed = false
+	await _frames(3)
+	_check(p.current_step >= 0 and p.tool_dir == Vector2.ZERO, "attack while a tool swings and the weapon swings instead")
+	p.input.work_held = false
+	await _frames(60)
+	g.queue_free()
+	await _frames(3)
+
+
+# --- Mining ore ----------------------------------------------------------------------------
+
+func _shown(m: LandMap, v: Dictionary) -> int:
+	var n := 0
+	for px: Vector2i in v["px"]:
+		if m.vein_shows(v, px):
+			n += 1
+	return n
+
+
+func _mining() -> void:
+	for pair in [[LandMap.TIN, "tin_ore"], [LandMap.COPPER, "copper_ore"]]:
+		var g = _game(77)
+		await _frames(5)
+		var p = g.players[0]
+		var tools = g.tools
+		var m: LandMap = g.map
+		var face := _face(m, int(pair[0]))
+		_check(not face.is_empty(), "there is %s with open ground beside it" % LandMap.NAMES[int(pair[0])])
+		if face.is_empty():
+			g.queue_free()
+			continue
+		var tile: Vector2i = face[0]
+		var vein := {}
+		for v in m.veins:
+			if (v["set"] as Dictionary).has(tile):
+				vein = v
+		var all: int = (vein["px"] as Dictionary).size()
+		var mine := 0                # the pixels of the seam that belong to this tile
+		for px: Vector2i in vein["px"]:
+			var t := Vector2i(px.x >> 4, px.y >> 4)
+			if t == tile or (not (vein["set"] as Dictionary).has(t) and (vein["own"] as Dictionary).get(px, t) == tile):
+				mine += 1
+		_check(_shown(m, vein) == all and mine > 0, "before mining the whole seam is there (%d pixels, %d of them this tile's)" % [all, mine])
+		await _stand(g, p, tile, face[1])
+		var chunk := LandMap.chunk_key(floori(tile.x / 16.0), floori(tile.y / 16.0))
+		var before: Image = (g.land.chunks[chunk]["sprite"] as Sprite2D).texture.get_image()
+		await _work(p, int(Tools.TILE_NEED[int(pair[0])]) - 1)
+		_check(m.kind(tile.x, tile.y) == int(pair[0]) and tools.bag_of(0).count(str(pair[1])) == 0, "ore takes one more blow than rock")
+		await _frames(2)
+		await _work(p, int(Tools.TILE_NEED[int(pair[0])]))
+		_check(m.kind(tile.x, tile.y) == LandMap.FLOOR, "four blows mine a tile of %s" % LandMap.NAMES[int(pair[0])])
+		_check(tools.bag_of(0).count(str(pair[1])) == 2 and tools.bag_of(0).count("stone") == 0, "and two %s go in the bag, not stone" % str(pair[1]).replace("_", " "))
+		_check(_shown(m, vein) == all - mine, "the mined tile's own part of the seam is gone and the rest stays (%d of %d left)" % [_shown(m, vein), all])
+		_check((vein["px"] as Dictionary).size() == all, "and the seam is not worked out again")
+		await _frames(3)
+		g.land.settle()
+		var after: Image = (g.land.chunks[chunk]["sprite"] as Sprite2D).texture.get_image()
+		_check(before.get_data() != after.get_data(), "the land is painted again where the ore was")
+		g.queue_free()
+		await _frames(3)
+
+
+# --- Felling pines, breaking boulders -------------------------------------------------------
+
+func _felling() -> void:
+	var g = _game(77)
+	await _frames(5)
+	var p = g.players[0]
+	var tools = g.tools
+	var m: LandMap = g.map
+	var pine := _thing(m, "pine_")
+	_check(not pine.is_empty(), "there is a pine with room to stand beside it")
+	p.global_position = _beside(pine)
+	p.input.stick_aim = Vector2.RIGHT
+	g.rig.snap()
+	await _frames(4)
+	g.land.settle()
+	_check(p.global_position.distance_to(_beside(pine)) < 6.0, "you can stand beside it")
+	var n_things := m.things.size()
+	# The pickaxe does not fell.
+	await _work(p, 6)
+	_check(m.things.has(pine) and tools.bag_of(0).count("wood") == 0, "the pickaxe does not fell a pine")
+	await _press(p, "tool_next_pressed")
+	_check(tools.tool_of(0) == "axe", "the axe is picked by hand")
+	await _work(p, int(Tools.THING_NEED["pine"]) - 1)
+	_check(m.things.has(pine), "a pine stands until the fifth blow")
+	await _frames(2)
+	await _work(p, int(Tools.THING_NEED["pine"]))
+	_check(not m.things.has(pine), "five blows of the axe fell a pine")
+	_check(tools.bag_of(0).count("wood") == 3, "and three wood go in the bag (%d)" % tools.bag_of(0).count("wood"))
+	var stump := {}
+	for t in m.things:
+		if str(t["n"]) == "pine_stump" and int(t["x"]) == int(pine["x"]) and int(t["y"]) == int(pine["y"]):
+			stump = t
+	_check(not stump.is_empty() and m.things.size() == n_things, "its stump is left where it stood")
+	_check(m.gone.has(LandMap.thing_key(pine)) and m.added.has(stump), "the map remembers the pine went and the stump came, for the world save")
+	_check(Painter.things.has("pine_stump") and g.land.sprite_of(stump) != null, "the stump is drawn")
+	await _work(p, 6)
+	_check(m.things.has(stump) and tools.bag_of(0).count("wood") == 3, "a stump gives nothing more")
+	# A boulder breaks up under the pickaxe.
+	var rock := _thing(m, "boulder_")
+	_check(not rock.is_empty(), "there is a boulder with room to stand beside it")
+	if not rock.is_empty():
+		p.global_position = _beside(rock)
+		g.rig.snap()
+		await _frames(4)
+		g.land.settle()
+		await _work(p, 5)
+		_check(m.things.has(rock), "the axe does not break a boulder")
+		await _press(p, "tool_prev_pressed")
+		await _work(p, int(Tools.THING_NEED["boulder"]))
+		_check(not m.things.has(rock) and tools.bag_of(0).count("stone") == 2, "four blows of the pickaxe break a boulder into two stone (%d)" % tools.bag_of(0).count("stone"))
+		p.input.move = Vector2.RIGHT
+		await _frames(40)
+		p.input.move = Vector2.ZERO
+		_check(p.global_position.x > float(rock["x"]) * 2.0 - 4.0, "and you can walk where it was")
+	g.queue_free()
+	await _frames(3)
+
+
+# --- What cannot be dug, and a full bag -----------------------------------------------------
+
+func _limits() -> void:
+	var g = _game(77)
+	await _frames(5)
+	var p = g.players[0]
+	var tools = g.tools
+	var m: LandMap = g.map
+	# The hill the cave mouth is in can never be dug.
+	var hill := _face(m, LandMap.ROCK, true)
+	_check(not hill.is_empty() and m.fixed(m.mouth.x, m.mouth.y) and m.fixed(m.mouth.x - 4, m.mouth.y - 6) and not m.fixed(m.mouth.x - 5, m.mouth.y), "the hill round the cave mouth is fixed rock")
+	_check(m.fixed(m.region.position.x + 2, m.mouth.y) and not m.fixed(m.region.position.x + 3, m.mouth.y) and m.fixed(m.mouth.x, m.region.end.y - 3), "and so is the rim of the land laid out so far")
+	if not hill.is_empty():
+		await _stand(g, p, hill[0], hill[1])
+		await _work(p, 5)
+		_check(m.is_rock(hill[0].x, hill[0].y) and tools.wear.is_empty() and tools.bag_of(0).slots.is_empty(), "fixed rock takes no mark and gives nothing")
+	# A full bag: ore stays in the rock, plain rock can still be dug (the stone is left).
+	tools.bag_of(0).add("stone", 99 * 20)
+	var ore := _face(m, LandMap.TIN)
+	await _stand(g, p, ore[0], ore[1])
+	await _work(p, 6)
+	_check(m.kind(ore[0].x, ore[0].y) == LandMap.TIN, "with a full bag the ore stays in the rock")
+	var rock := _face(m, LandMap.ROCK)
+	await _stand(g, p, rock[0], rock[1])
+	await _work(p, 3)
+	_check(m.kind(rock[0].x, rock[0].y) == LandMap.FLOOR and tools.bag_of(0).count("stone") == 99 * 20, "but rock can still be dug: the stone is left behind")
+	_check(tools.bag_of(0).take("stone", 99) and tools.bag_of(0).room("tin_ore") == 99, "taking a stack out makes room again")
+	await _stand(g, p, ore[0], ore[1])
+	await _work(p, 4)
+	_check(m.kind(ore[0].x, ore[0].y) == LandMap.FLOOR and tools.bag_of(0).count("tin_ore") == 2, "and then the ore can be mined")
+	g.queue_free()
+	await _frames(3)
+
+
+# --- Two players ---------------------------------------------------------------------------
+
+func _two_players() -> void:
+	var g = _game(77, 2)
+	await _frames(5)
+	var tools = g.tools
+	var m: LandMap = g.map
+	var a = g.players[0]
+	var b = g.players[1]
+	var face := _face(m, LandMap.ROCK)
+	a.global_position = (Vector2(face[0]) + Vector2(0.5, 0.5) - (face[1] as Vector2) * 3.0) * TILE
+	await _press(a, "tool_next_pressed")
+	await _stand(g, b, face[0], face[1])
+	await _work(b, 3)
+	_check(tools.tool_of(0) == "axe" and tools.tool_of(1) == "pickaxe", "each player picks their own tool")
+	_check(tools.bag_of(1).count("stone") == 1 and tools.bag_of(0).slots.is_empty(), "and what you dig goes in your own bag")
+	_check(tools.belt_rect(0).position.x < 320.0 and tools.belt_rect(1).position.x > 320.0, "the second player's belt is on their side of the screen")
+	g.queue_free()
+	await _frames(3)
+
+
+# --- Pictures ------------------------------------------------------------------------------
+
+func _snap(name: String) -> void:
+	await RenderingServer.frame_post_draw
+	var img: Image = root.get_texture().get_image()
+	if img.get_width() != 640:
+		img.resize(640, 360, Image.INTERPOLATE_NEAREST)
+	img.save_png("%s/%s.png" % [shot_dir, name])
+	print("saved %s/%s.png" % [shot_dir, name])
+
+
+func _shots() -> void:
+	DirAccess.make_dir_recursive_absolute(shot_dir)
+	var g = _game(shot_seed)
+	await _frames(10)
+	var p = g.players[0]
+	var tools = g.tools
+	var m: LandMap = g.map
+	# Mining into a vein: a tile of ore with a rock face to the south, away from the base.
+	for pair in [[LandMap.COPPER, "copper"], [LandMap.TIN, "tin"]]:
+		var tile := Vector2i(-1, -1)
+		for v in m.veins:
+			if tile.x >= 0:
+				break
+			for t: Vector2i in v["cells"]:
+				if m.kind(t.x, t.y) == int(pair[0]) and m.walkable(t.x, t.y + 1) and m.walkable(t.x, t.y + 2) and (v["cells"] as Array).size() >= 4 \
+						and Vector2(t).distance_to(m.spawn) > 20.0 and _clear(m, (Vector2(t) + Vector2(0.5, 1.5)) * TILE):
+					tile = t
+					break
+		if tile.x < 0:
+			continue
+		await _stand(g, p, tile, Vector2.UP)
+		await _frames(30)
+		await _snap("%s_0_before" % pair[1])
+		p.input.work_held = true
+		var marks := {4: "1_raised", 13: "2_blow_1", 24: "2b_after_blow_1", 39: "3_blow_2", 50: "3b_after_blow_2", 65: "4_blow_3", 76: "4b_after_blow_3", 91: "5_blow_4", 97: "6_into_the_bag", 106: "7_bag"}
+		for f in 110:
+			await physics_frame
+			if marks.has(f):
+				await _snap("%s_%s" % [pair[1], marks[f]])
+		p.input.work_held = false
+		await _frames(40)
+		g.land.settle()
+		await _frames(10)
+		await _snap("%s_8_first_tile_out" % pair[1])
+		# Walk in and go on: three tiles deeper, whatever is there.
+		for n in 3:
+			p.global_position = (Vector2(tile) + Vector2(0.5, 0.5) + Vector2.UP * float(n)) * TILE
+			await _frames(3)
+			await _work(p, 4)
+		await _frames(20)
+		g.land.settle()
+		await _frames(10)
+		await _snap("%s_9_dug_in" % pair[1])
+	# Felling a pine.
+	var pine := _thing(m, "pine_", 2)
+	if not pine.is_empty():
+		p.global_position = _beside(pine)
+		p.input.stick_aim = Vector2.RIGHT
+		g.rig.snap()
+		await _frames(4)
+		g.land.settle()
+		await _press(p, "tool_next_pressed")
+		await _frames(30)
+		await _snap("pine_0_before")
+		p.input.work_held = true
+		var marks := {4: "1_raised", 13: "2_blow_1", 65: "3_blow_3", 117: "4_blow_5", 126: "5_falling", 136: "6_falling", 146: "7_down"}
+		for f in 150:
+			await physics_frame
+			if marks.has(f):
+				await _snap("pine_%s" % marks[f])
+		p.input.work_held = false
+		await _frames(60)
+		g.land.settle()
+		await _frames(10)
+		await _snap("pine_8_stump")
+	# The mallet picked, and "nothing to build yet".
+	await _press(p, "tool_next_pressed")
+	p.input.work_held = true
+	await _frames(16)
+	await _snap("mallet")
+	p.input.work_held = false
+	await _frames(30)

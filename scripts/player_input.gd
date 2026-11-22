@@ -29,9 +29,18 @@ var pause_pressed := false
 var ability_held: Array = [false, false, false]
 var ability_pressed: Array = [false, false, false]
 var aim_offset := Vector2.ZERO   # "net" only: the mouse, as an offset from the player
+## Tools (the Highlands: Darren, 22 November 2026, "One work button", then "would rather cycle tools to what u need
+## rather than auto picking it"). The work button uses the tool that is picked; the cycle buttons pick the next or
+## the one before. F, C and the mouse wheel; or the left trigger and Select. They are only read where `tools` is
+## switched on. There, F is no longer a second "use" key and the left trigger no longer a second dodge button.
+var tools := false
+var work_held := false
+var work_pressed := false
+var tool_next_pressed := false
+var tool_prev_pressed := false
 
-var _was := {"attack": false, "dash": false, "interact": false, "pause": false, "ability1": false, "ability2": false, "ability3": false}
-var _latched := {"attack": false, "dash": false, "interact": false, "pause": false, "ability1": false, "ability2": false, "ability3": false}
+var _was := {"attack": false, "dash": false, "interact": false, "pause": false, "ability1": false, "ability2": false, "ability3": false, "work": false, "tool_next": false, "tool_prev": false}
+var _latched := {"attack": false, "dash": false, "interact": false, "pause": false, "ability1": false, "ability2": false, "ability3": false, "work": false, "tool_next": false, "tool_prev": false}
 
 const STICK_DEAD := 0.25
 const TRIGGER_ON := 0.4
@@ -98,18 +107,23 @@ func feed(event: InputEvent) -> void:
 func _event_is(event: InputEvent, name: String) -> bool:
 	if event is InputEventMouseButton:
 		var b := (event as InputEventMouseButton).button_index
+		if tools and ((name == "tool_next" and b == MOUSE_BUTTON_WHEEL_DOWN) or (name == "tool_prev" and b == MOUSE_BUTTON_WHEEL_UP)):
+			return true
 		return (name == "attack" and b == MOUSE_BUTTON_LEFT) or (name == "ability1" and b == MOUSE_BUTTON_RIGHT)
 	if event is InputEventKey:
 		var k := (event as InputEventKey).physical_keycode
 		match name:
 			"dash": return k == KEY_SPACE or k == KEY_SHIFT
-			"interact": return k == KEY_E or k == KEY_F
+			"interact": return k == KEY_E or (k == KEY_F and not tools)
 			"ability2": return k == KEY_Q
 			"ability3": return k == KEY_R
+			"work": return tools and k == KEY_F
+			"tool_next": return tools and k == KEY_C
 		return false
 	if event is InputEventJoypadButton:
 		var j := (event as InputEventJoypadButton).button_index
 		match name:
+			"tool_next": return tools and j == JOY_BUTTON_BACK
 			"attack": return j == JOY_BUTTON_X
 			"dash": return j == JOY_BUTTON_A
 			"interact": return j == JOY_BUTTON_Y
@@ -125,19 +139,27 @@ func _held(name: String) -> bool:
 		"any":
 			if name == "pause":
 				return false
+			if name == "work" or name == "tool_next" or name == "tool_prev":
+				return tools and Input.is_action_pressed(name)
+			if tools and (name == "dash" or name == "interact"):
+				return Input.is_action_pressed(name + "_tools")
 			return Input.is_action_pressed(name)
 		"kbm":
 			match name:
 				"attack": return Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT)
 				"dash": return Input.is_physical_key_pressed(KEY_SPACE) or Input.is_physical_key_pressed(KEY_SHIFT)
-				"interact": return Input.is_physical_key_pressed(KEY_E) or Input.is_physical_key_pressed(KEY_F)
+				"interact": return Input.is_physical_key_pressed(KEY_E) or (not tools and Input.is_physical_key_pressed(KEY_F))
+				"work": return tools and Input.is_physical_key_pressed(KEY_F)
+				"tool_next": return tools and Input.is_physical_key_pressed(KEY_C)
 				"ability1": return Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT)
 				"ability2": return Input.is_physical_key_pressed(KEY_Q)
 				"ability3": return Input.is_physical_key_pressed(KEY_R)
 		"pad":
 			match name:
 				"attack": return Input.is_joy_button_pressed(device, JOY_BUTTON_X) or Input.get_joy_axis(device, JOY_AXIS_TRIGGER_RIGHT) > TRIGGER_ON
-				"dash": return Input.is_joy_button_pressed(device, JOY_BUTTON_A) or Input.get_joy_axis(device, JOY_AXIS_TRIGGER_LEFT) > TRIGGER_ON
+				"dash": return Input.is_joy_button_pressed(device, JOY_BUTTON_A) or (not tools and Input.get_joy_axis(device, JOY_AXIS_TRIGGER_LEFT) > TRIGGER_ON)
+				"work": return tools and Input.get_joy_axis(device, JOY_AXIS_TRIGGER_LEFT) > TRIGGER_ON
+				"tool_next": return tools and Input.is_joy_button_pressed(device, JOY_BUTTON_BACK)
 				"interact": return Input.is_joy_button_pressed(device, JOY_BUTTON_Y)
 				"pause": return Input.is_joy_button_pressed(device, JOY_BUTTON_START)
 				"ability1": return Input.is_joy_button_pressed(device, JOY_BUTTON_RIGHT_SHOULDER)
@@ -191,6 +213,10 @@ func poll() -> void:
 	pause_pressed = pressed["pause"]
 	ability_held = [_was["ability1"], _was["ability2"], _was["ability3"]]
 	ability_pressed = [pressed["ability1"], pressed["ability2"], pressed["ability3"]]
+	work_held = _was["work"]
+	work_pressed = pressed["work"]
+	tool_next_pressed = pressed["tool_next"]
+	tool_prev_pressed = pressed["tool_prev"]
 
 
 ## Forget anything held or latched (after a menu closes, so its last click doesn't swing).
@@ -204,3 +230,7 @@ func clear() -> void:
 	pause_pressed = false
 	ability_held = [false, false, false]
 	ability_pressed = [false, false, false]
+	work_held = false
+	work_pressed = false
+	tool_next_pressed = false
+	tool_prev_pressed = false

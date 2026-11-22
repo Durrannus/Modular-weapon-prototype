@@ -39,7 +39,7 @@ const PLAYER_COLORS := Art.PLAYER_COLORS
 const ITEMS := [
 	["cave", "Tutorial", "The four-room cave: pick a weapon, fit a rune, beat the guardian."],
 	["arena", "Arena", "The sandbox: every part unlocked, endless enemies, the forge on Tab or Y."],
-	["highlands", "Highlands", "The land outside the cave: a new map every time. The land only so far."],
+	["highlands", "Highlands", "The land outside the cave: a new map every time. Dig, mine and fell with the basic tools."],
 	["online", "Play online", "Two players over the internet, one on each computer. One hosts, the other joins."],
 	["quit", "Quit", ""],
 ]

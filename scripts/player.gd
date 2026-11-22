@@ -168,6 +168,11 @@ var show_marker := false       # coloured ring under the feet (two players)
 var light: PointLight2D     # the small light the player carries
 var interact_ready := false    # standing at something usable: A on a controller uses it and doesn't dodge
 var note := ""                 # a word over their head ("AT THE FORGE", online, for the other player to read)
+## A tool in use (the Highlands, scripts/highlands/tools.gd): while a pickaxe or an axe swings, the body faces the
+## work, walks slowly, and the weapon is out of the hand for that moment. It is still your weapon: attack and it swings.
+var tool_dir := Vector2.ZERO   # where the tool is swinging (zero: no tool is)
+var tool_move := 1.0           # walking speed while it swings
+var tool_draw := Callable()    # draws that tool in the hand, on the weapon's own layer (so it gets the weapon's outline)
 
 ## Screen shake goes to the shared camera.
 var shake: float:
@@ -523,6 +528,8 @@ func _physics_process(delta: float) -> void:
 	elif current_step >= 0:
 		# Barely slowed while swinging; the blade's shape can change that.
 		target *= float(weapon.get("swing_move", SwingBuild.SWING_MOVE))
+	elif tool_dir != Vector2.ZERO:
+		target *= tool_move
 	var rate := ACCEL
 	if move == Vector2.ZERO:
 		rate = DECEL
@@ -566,6 +573,9 @@ func _update_facing(delta: float, move: Vector2) -> void:
 		face_linger = FACE_LINGER
 	elif dodge_timer > 0.0:
 		face_dir = dodge_dir
+	elif tool_dir != Vector2.ZERO:
+		face_dir = tool_dir
+		face_linger = FACE_LINGER
 	elif not input.uses_mouse() and stick.length() > 0.3:
 		face_dir = stick.normalized()
 	elif move.length() > 0.2 and face_linger <= 0.0:
@@ -4153,7 +4163,7 @@ func _process(delta: float) -> void:
 	weapon_group.visible = not is_down and rise_timer <= 0.0
 	# The ghost sword is in the other hand: behind the body when that hand is on the far side.
 	ghost_group.show_behind_parent = facing8 in ["up", "up_left", "up_right", "right"]
-	ghost_group.visible = _ghost_shown() and weapon_group.visible
+	ghost_group.visible = _ghost_shown() and weapon_group.visible and tool_dir == Vector2.ZERO
 	anim_time += delta
 	if is_down:
 		down_time += delta
@@ -4872,6 +4882,9 @@ func draw_colored_polygon_on(ci: CanvasItem, pts: PackedVector2Array, c: Color) 
 
 
 func _draw_weapon() -> void:
+	if tool_dir != Vector2.ZERO and tool_draw.is_valid():
+		tool_draw.call(weapon_layer)      # a tool is swinging: for that moment it is in the hand, not the weapon
+		return
 	_draw_weapon_on(weapon_layer, Vector2.ZERO, _slot_glow())
 
 

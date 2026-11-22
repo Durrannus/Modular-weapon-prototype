@@ -1,0 +1,282 @@
+{
+ "note": "Basic tools, a pine stump and the first materials. Sizes in px at 640x360. See README.md.",
+ "sprites": {
+  "hand_pickaxe": {
+   "size": [
+    15,
+    20
+   ],
+   "pivot": [
+    7.5,
+    15.0
+   ],
+   "strike": [
+    [
+     0.5,
+     4.0
+    ],
+    [
+     14.5,
+     4.0
+    ]
+   ],
+   "outline": false,
+   "box": [
+    1,
+    1,
+    15,
+    20
+   ]
+  },
+  "hand_axe": {
+   "size": [
+    11,
+    18
+   ],
+   "pivot": [
+    5.5,
+    13.0
+   ],
+   "strike": [
+    [
+     10.5,
+     4.0
+    ]
+   ],
+   "outline": false,
+   "box": [
+    17,
+    1,
+    11,
+    18
+   ]
+  },
+  "hand_mallet": {
+   "size": [
+    11,
+    15
+   ],
+   "pivot": [
+    5.5,
+    11.0
+   ],
+   "strike": [
+    [
+     0.5,
+     2.5
+    ],
+    [
+     10.5,
+     2.5
+    ]
+   ],
+   "outline": false,
+   "box": [
+    29,
+    1,
+    11,
+    15
+   ]
+  },
+  "belt_pickaxe": {
+   "size": [
+    16,
+    16
+   ],
+   "box": [
+    41,
+    1,
+    16,
+    16
+   ]
+  },
+  "belt_axe": {
+   "size": [
+    16,
+    16
+   ],
+   "box": [
+    58,
+    1,
+    16,
+    16
+   ]
+  },
+  "belt_mallet": {
+   "size": [
+    16,
+    16
+   ],
+   "box": [
+    75,
+    1,
+    16,
+    16
+   ]
+  },
+  "glyph_pickaxe": {
+   "size": [
+    12,
+    12
+   ],
+   "box": [
+    92,
+    1,
+    12,
+    12
+   ]
+  },
+  "glyph_axe": {
+   "size": [
+    12,
+    12
+   ],
+   "box": [
+    105,
+    1,
+    12,
+    12
+   ]
+  },
+  "glyph_mallet": {
+   "size": [
+    12,
+    12
+   ],
+   "box": [
+    118,
+    1,
+    12,
+    12
+   ]
+  },
+  "item_tin_ore": {
+   "size": [
+    16,
+    16
+   ],
+   "box": [
+    131,
+    1,
+    16,
+    16
+   ]
+  },
+  "item_copper_ore": {
+   "size": [
+    16,
+    16
+   ],
+   "box": [
+    148,
+    1,
+    16,
+    16
+   ]
+  },
+  "item_stone": {
+   "size": [
+    16,
+    16
+   ],
+   "box": [
+    165,
+    1,
+    16,
+    16
+   ]
+  },
+  "item_wood": {
+   "size": [
+    16,
+    16
+   ],
+   "box": [
+    182,
+    1,
+    16,
+    16
+   ]
+  },
+  "drop_tin_ore": {
+   "size": [
+    9,
+    7
+   ],
+   "foot": [
+    4,
+    7
+   ],
+   "box": [
+    199,
+    1,
+    9,
+    7
+   ]
+  },
+  "drop_copper_ore": {
+   "size": [
+    9,
+    7
+   ],
+   "foot": [
+    4,
+    7
+   ],
+   "box": [
+    209,
+    1,
+    9,
+    7
+   ]
+  },
+  "drop_stone": {
+   "size": [
+    9,
+    7
+   ],
+   "foot": [
+    4,
+    7
+   ],
+   "box": [
+    219,
+    1,
+    9,
+    7
+   ]
+  },
+  "drop_wood": {
+   "size": [
+    10,
+    6
+   ],
+   "foot": [
+    5,
+    6
+   ],
+   "box": [
+    229,
+    1,
+    10,
+    6
+   ]
+  },
+  "pine_stump": {
+   "size": [
+    13,
+    10
+   ],
+   "foot": [
+    6,
+    11
+   ],
+   "box": [
+    240,
+    1,
+    13,
+    10
+   ]
+  }
+ }
+}

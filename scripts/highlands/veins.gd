@@ -27,11 +27,18 @@ enum { M_METAL, M_VERD, M_FACE, M_CAP }
 
 const LEAN := [[50, 70, 80], [30, 56, 82], [12, 42, 87]]   # per seam: chances out of 100 of steep, diagonal, flat (else a kink)
 const FORK_LEAN := [12, 48, 92]
+## The tables since 22 November 2026, when Darren asked for the ore to "shine a little more": a step brighter than
+## before, and with glints.
 const FACE_STEP := {                                        # the step on the metal's ramp: [low on the face, high on the face]
-	TIN: {FORK: [1, 2], EDGE: [1, 1], BODY: [2, 2], POCKET: [3, 3]},
-	COPPER: {FORK: [1, 2], EDGE: [1, 2], BODY: [2, 3], POCKET: [4, 4]},
+	TIN: {FORK: [1, 2], EDGE: [2, 2], BODY: [2, 3], POCKET: [3, 3]},
+	COPPER: {FORK: [1, 2], EDGE: [2, 2], BODY: [3, 3], POCKET: [4, 4]},
 }
-const TOP_STEP := {FORK: 1, EDGE: 1, BODY: 2, POCKET: 3}   # on the rock's top, near its edge
+const TOP_STEP := {                                         # on the rock's top: [under 6 px from its edge, 6 to 9 px in]
+	TIN: {FORK: [1, 1], EDGE: [2, 1], BODY: [3, 2], POCKET: [3, 3]},
+	COPPER: {FORK: [1, 1], EDGE: [2, 1], BODY: [3, 2], POCKET: [4, 3]},
+}
+const GLINT := {TIN: 4, COPPER: 5}                          # the shine: single pixels of the ramp's last step
+const GLINT_ODDS := {POCKET: 25, BODY: 5}                   # the chance out of 100 that a pixel of that class is a glint
 const GONE := 21                                            # this many pixels in from the edge of the top, nothing shows
 
 
@@ -245,7 +252,10 @@ static func step(cls: int, kind: int, on_face: bool, hgt: int, depth: int, ph: i
 		if on_face and hgt > 0:
 			return M_VERD * 8 + (2 if cls == STAIN else 1)
 		return -1
+	var odds: int = GLINT_ODDS.get(cls, 0)
 	if on_face:
+		if hgt > 0 and ph < odds:
+			return M_METAL * 8 + int(GLINT[kind])
 		var st: int = FACE_STEP[kind][cls][1 if hgt >= 8 else 0]
 		return M_METAL * 8 + (st - 1 if hgt == 0 and st > 0 else st)
 	if depth >= GONE:
@@ -260,7 +270,9 @@ static func step(cls: int, kind: int, on_face: bool, hgt: int, depth: int, ph: i
 		return M_CAP * 8 + 1                    # the last of it: one step off black
 	if depth >= 10:
 		return M_METAL * 8 + (1 if cls == POCKET else 0)
-	return M_METAL * 8 + int(TOP_STEP[cls])
+	if ph < odds:
+		return M_METAL * 8 + int(GLINT[kind])
+	return M_METAL * 8 + int(TOP_STEP[kind][cls][0 if depth < 6 else 1])
 
 
 ## How far in from the edge of the rock's top a pixel lies, the art code's way: rounds of wearing the top away, a

@@ -437,7 +437,7 @@ func _veins() -> void:
 				bad += 1
 	_check(bad == 0 and measured > 300 and deepest >= 15, "how far a seam pixel lies in from the edge of the rock's top is measured as the art does (%d pixels, %d wrong)" % [measured, bad])
 	# The colours are the art's own ramps, from the kit.
-	_check(Painter.vein_cols.has("tin") and Painter.vein_cols.has("copper") and (Painter.vein_cols["tin"] as Array).size() >= 4 and (Painter.vein_cols["copper"] as Array).size() >= 5, "the kit holds the ore's colours")
+	_check(Painter.vein_cols.has("tin") and Painter.vein_cols.has("copper") and (Painter.vein_cols["tin"] as Array).size() >= 5 and (Painter.vein_cols["copper"] as Array).size() >= 6, "the kit holds the ore's colours")
 	var ore_colours := {}
 	for name in Painter.vein_cols:
 		for c: Color in Painter.vein_cols[name]:
@@ -703,7 +703,7 @@ func _shots() -> void:
 	# The card you arrive to.
 	var first = _game(shot_seed, 1)
 	first.welcome = true
-	first.ui.card("The Greystone Highlands", "A new land, laid out differently every time.\nThis version is the land alone: nothing to fight, dig or take yet. The cave mouth leads back to your forge.\n\nWorld number %d" % shot_seed)
+	first.ui.card("The Greystone Highlands", first.welcome_text())
 	await _frames(40)
 	await RenderingServer.frame_post_draw
 	var card: Image = root.get_texture().get_image()

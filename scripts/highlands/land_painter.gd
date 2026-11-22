@@ -77,6 +77,16 @@ static func load_kit() -> void:
 		return
 	kit = Art.json("highlands/kit.json")
 	things = kit.get("things", {})
+	# What a felled pine leaves (scripts/highlands/tools.gd). Its picture is on the tool art's sheet, not the kit's
+	# ("sheet": "tools"); its shadow and what stops you are the kit stump's, which is the same size at the root.
+	var stump_box: Array = Art.json("tools/tools.json").get("sprites", {}).get("pine_stump", {}).get("box", [])
+	if stump_box.size() == 4:
+		var old: Dictionary = things.get("stump", {})
+		var stump := {"rect": stump_box, "foot": [6, 10], "solid": old.get("solid", [6, 3]), "sheet": "tools"}
+		if old.has("shadow"):
+			stump["shadow"] = old["shadow"]
+			stump["shadow_at"] = old["shadow_at"]
+		things["pine_stump"] = stump
 	variants = int(kit.get("variants", 4))
 	for group in kit.get("sheets", {}).values():
 		for file in group:
@@ -453,6 +463,8 @@ static func _veins(lit: Image, m: LandMap, cx: int, cy: int) -> void:
 		for p: Vector2i in px:
 			if p.x < ox or p.y < oy or p.x >= ox + PX or p.y >= oy + PX:
 				continue
+			if not m.vein_shows(v, p):
+				continue                # the ore tile this bit of the seam belongs to has been mined
 			var tile := Vector2i(p.x >> 4, p.y >> 4)
 			if not deep.has(tile):
 				var all_rock := true

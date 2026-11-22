@@ -22,6 +22,14 @@ func _ready() -> void:
 	_add("ability3", [_key(KEY_R), _btn(JOY_BUTTON_B)])   # a first guess, to settle in testing
 	_add("build", [_key(KEY_TAB), _btn(JOY_BUTTON_Y)])
 	_add("interact", [_key(KEY_E), _key(KEY_F), _btn(JOY_BUTTON_Y)])
+	# The Highlands' tools (player_input.gd, `tools`): the work button uses the tool that is picked, and the others
+	# pick the next one or the one before. Where tools are on, F and the left trigger are theirs, so "use" and the
+	# dodge are read from the two actions after them.
+	_add("work", [_key(KEY_F), _axis(JOY_AXIS_TRIGGER_LEFT, 1.0)])
+	_add("tool_next", [_key(KEY_C), _mouse(MOUSE_BUTTON_WHEEL_DOWN), _btn(JOY_BUTTON_BACK)])
+	_add("tool_prev", [_mouse(MOUSE_BUTTON_WHEEL_UP)])
+	_add("interact_tools", [_key(KEY_E), _btn(JOY_BUTTON_Y)])
+	_add("dash_tools", [_key(KEY_SPACE), _key(KEY_SHIFT), _btn(JOY_BUTTON_A)])
 	_add("toggle_spawning", [_key(KEY_P), _btn(JOY_BUTTON_START)])        # the test arena: pause the enemies
 	_add("toggle_invincible", [_key(KEY_H), _btn(JOY_BUTTON_BACK)])       # the test arena: can you be hurt?
 	_add("swap_weapon", [_key(KEY_B), _btn(JOY_BUTTON_RIGHT_STICK)])      # the test arena: the next weapon

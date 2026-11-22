@@ -40,9 +40,17 @@ var turn := 0.0                  # how far the seed turned the compass (radians)
 var region := Rect2i()           # the part of the map that has anything but solid rock in it
 ## Ore, as the seams that run through the rock: one entry for every cluster of tin or copper tiles that touch (corners
 ## included): {kind: Veins.TIN or Veins.COPPER, cells: [Vector2i tiles], px: {Vector2i art pixel -> what it is},
-## pockets: [Vector2i], box: Rect2i in art pixels}. Worked out from the ore tiles and the seed by index(); a save
-## holds the tiles, never this.
+## pockets: [Vector2i], box: Rect2i in art pixels, set: {tile -> true}, own: {art pixel outside the cluster's own
+## tiles -> the tile of the cluster it belongs to}}. Worked out by index() from the ore tiles the map was MADE with
+## and the seed, and never again: mining a tile takes that tile's own part of the seam away and leaves the rest of
+## the seam exactly where it was (vein_shows()). A save holds the tiles that changed, never this.
 var veins: Array = []
+
+## What has changed since the map was made, for the world save: tiles that were dug or mined (tile index -> what it
+## is now), things that were taken away (thing_key -> true) and things that were put there (a felled pine's stump).
+var dug := {}
+var gone := {}
+var added: Array = []
 
 var _things_by_chunk := {}
 var _decals_by_chunk := {}
@@ -72,11 +80,7 @@ func kind(x: int, y: int) -> int:
 
 func set_kind(x: int, y: int, k: int) -> void:
 	if x >= 0 and y >= 0 and x < SIZE and y < SIZE:
-		var was := kinds[y * SIZE + x]
 		kinds[y * SIZE + x] = k
-		# Ore put in or taken out after the map was made (mining, later): the seams are worked out again.
-		if _indexed and was != k and (was == TIN or was == COPPER or k == TIN or k == COPPER):
-			index_veins()
 
 
 func tone(x: int, y: int) -> int:
@@ -87,6 +91,64 @@ func tone(x: int, y: int) -> int:
 
 static func rocky(k: int) -> bool:
 	return k == ROCK or k == TIN or k == COPPER
+
+
+## Rock, or ore in it, is dug out: the tile becomes dug floor. Returns what it was (ROCK, TIN or COPPER), or -1 if
+## there was nothing to dig. The change is remembered for the world save.
+func dig(x: int, y: int) -> int:
+	if x < 0 or y < 0 or x >= SIZE or y >= SIZE:
+		return -1
+	var was := kinds[y * SIZE + x]
+	if not rocky(was):
+		return -1
+	kinds[y * SIZE + x] = FLOOR
+	dug[y * SIZE + x] = FLOOR
+	return was
+
+
+## Rock that can never be dug: the hill the cave mouth is set into (the way down to the forge must stay), and the
+## rim of the land that has been laid out so far (beyond it the next ring is not made yet).
+func fixed(x: int, y: int) -> bool:
+	if absi(x - mouth.x) <= 4 and y <= mouth.y and y >= mouth.y - 6:
+		return true
+	return x < region.position.x + 3 or y < region.position.y + 3 or x >= region.end.x - 3 or y >= region.end.y - 3
+
+
+## One number for a thing, from where its foot is (no two things share a foot).
+static func thing_key(t: Dictionary) -> int:
+	return int(t["y"]) * 16384 + int(t["x"])
+
+
+## A thing is taken off the land (a pine is felled, a boulder broken up).
+func remove_thing(t: Dictionary) -> void:
+	things.erase(t)
+	var key := chunk_key(int(t["x"]) / (CHUNK * TILE_PX), int(t["y"]) / (CHUNK * TILE_PX))
+	if _things_by_chunk.has(key):
+		(_things_by_chunk[key] as Array).erase(t)
+	if added.has(t):
+		added.erase(t)
+	else:
+		gone[thing_key(t)] = true
+
+
+## A thing is put on the land after the map was made (a stump where a pine stood).
+func add_thing(t: Dictionary) -> void:
+	things.append(t)
+	added.append(t)
+	var key := chunk_key(int(t["x"]) / (CHUNK * TILE_PX), int(t["y"]) / (CHUNK * TILE_PX))
+	if not _things_by_chunk.has(key):
+		_things_by_chunk[key] = []
+	(_things_by_chunk[key] as Array).append(t)
+
+
+## Is this pixel of a seam still there? It is while the ore tile it belongs to has not been mined: its own tile if
+## that is one of the cluster's, else the cluster's tile nearest to it (a seam strays a few pixels into plain rock).
+func vein_shows(v: Dictionary, p: Vector2i) -> bool:
+	var t := Vector2i(p.x >> 4, p.y >> 4)
+	if not (v["set"] as Dictionary).has(t):
+		t = (v["own"] as Dictionary).get(p, t)
+	var k := kind(t.x, t.y)
+	return k == TIN or k == COPPER
 
 
 func is_rock(x: int, y: int) -> bool:
@@ -158,7 +220,25 @@ func index_veins() -> void:
 						lo = lo.min(p)
 						hi = hi.max(p)
 					var box := Rect2i(lo, hi - lo + Vector2i.ONE)
-					found.append({"kind": int(pair[1]), "cells": cells, "px": px, "pockets": seams["pockets"], "box": box})
+					# Which of the cluster's tiles each pixel belongs to: its own, or for a pixel that strays into plain
+					# rock, the nearest (the first of them in the cluster's order, if two are as near).
+					var cell_set := {}
+					for c: Vector2i in cells:
+						cell_set[c] = true
+					var own := {}
+					for p: Vector2i in px:
+						if cell_set.has(Vector2i(p.x >> 4, p.y >> 4)):
+							continue
+						var best := Vector2i.ZERO
+						var best_d := 1 << 30
+						for c: Vector2i in cells:
+							var ddx := maxi(maxi(c.x * TILE_PX - p.x, p.x - (c.x * TILE_PX + TILE_PX - 1)), 0)
+							var ddy := maxi(maxi(c.y * TILE_PX - p.y, p.y - (c.y * TILE_PX + TILE_PX - 1)), 0)
+							if ddx * ddx + ddy * ddy < best_d:
+								best_d = ddx * ddx + ddy * ddy
+								best = c
+						own[p] = best
+					found.append({"kind": int(pair[1]), "cells": cells, "px": px, "pockets": seams["pockets"], "box": box, "set": cell_set, "own": own})
 					var side := CHUNK * TILE_PX
 					for cy in range(lo.y / side, hi.y / side + 1):
 						for cx in range(lo.x / side, hi.x / side + 1):
