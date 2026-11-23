@@ -298,7 +298,7 @@ func _cage() -> void:
 	_check(folk != null and folk.has_roost() and folk.pip == 0 and folk.cage != null and folk.cage.anim == "idle", "a new world: Pip is in his cage at the Roost")
 	_check(not folk.pip_actor.visible, "(and nowhere else)")
 	var q := _quest(folk, "smoke")
-	_check(folk.quests().size() == 1 and str(q.get("name", "")) == "Smoke over the Canyon" and str(q.get("text", "")).begins_with("Find the stone-throwers' roost"), "the first quest is on the screen from the start: \"%s\"" % str(q.get("text", "")))
+	_check(folk.quests().size() == 1 and str(q.get("name", "")) == "Smoke over the Canyon" and str(q.get("text", "")).begins_with("Follow the smoke to the stone-throwers' roost"), "the first quest is on the screen from the start: \"%s\"" % str(q.get("text", "")))
 	_check(folk.track_at() == Vector2(640.0 - 10.0 - Folk.TRACK_W, 10.0), "in the top right corner")
 	_check(not _prompt(g, "Talk to Pip"), "(nobody to talk to at the cave mouth yet)")
 	_put(g, p, folk.pip_home() + Vector2(0, 30))
@@ -430,9 +430,9 @@ func _pip_and_shop() -> void:
 	_check(bag.room("tin_bar") == 0, "(a full bag)")
 	shop.row = 0
 	shop.confirm()
-	_check(purse.coins == 50 and shop.note == "Your bag is full.", "a full bag: nothing, and why (\"%s\")" % shop.note)
+	_check(purse.coins == 50 and shop.note == "Your inventory is full.", "a full inventory: nothing, and why (\"%s\")" % shop.note)
 	# Asking about the horn.
-	shop.row = 2
+	shop.row = shop.rows().find(Shop.ASK)
 	shop.confirm()
 	_check(shop.line.contains("quarry") and shop.line.contains("hound") and shop.line.contains("roost") and shop.note == "", "asked about the Scrap Crown he says where all three pieces are")
 	purse.kept["horn_body"] = true
@@ -471,7 +471,7 @@ func _pip_and_shop() -> void:
 	await _press(p, "interact_pressed")
 	_check(shop.is_open, "(and it opens again)")
 	await _frames(12)
-	shop.row = 3
+	shop.row = shop.rows().find(Shop.LEAVE)
 	shop.confirm()
 	_check(not shop.is_open and not paused, "LEAVE leaves it too")
 	await _frames(3)
@@ -852,7 +852,7 @@ func _shots() -> void:
 	folk.shop.confirm()
 	await _idle(10)
 	await _snap("18_too_few_coins")
-	folk.shop.move(1)
+	folk.shop.row = folk.shop.rows().find(Shop.ASK)
 	folk.shop.confirm()
 	await _idle(10)
 	await _snap("19_asked_about_the_horn")

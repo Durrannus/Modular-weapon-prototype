@@ -4,7 +4,7 @@ extends Node
 ## From the Game Bible:
 ##   - Random chests "scattered around": "usually tin or copper bars, coins and Memory (straight into your bar)".
 ##     Which chests have been opened is saved with the world.
-##   - "Coins are a plain counter." Bars go in the materials bag (bag.gd). Both belong to the character.
+##   - "Coins are a plain counter." Bars go in the inventory (bag.gd). Both belong to the character.
 ##   - Memory is "earned from everything: killing, mining, chopping and building". What you carry belongs to the
 ##     character; it is shown as a bar under their health, and poured into the forge to level the squad
 ##     (levels.gd, version 45).
@@ -23,12 +23,17 @@ extends Node
 ##     pines give a little.
 ##   - What falling costs (some coins and half your unbanked Memory, left as a marker) is levels.gd's, since
 ##     version 45.
+##   - ACCESSORIES (version 47; the Bible: "Any of them can spawn randomly in any chest ... elites and stashes can
+##     drop them too"). Some chests hold one (loot_plan.gd says which), and an elite leaves one about half the time.
+##     Everyone gets their own. Whoever has that accessory already gets GIFT_COINS coins in its place: a second
+##     one would do nothing (gear.gd), and there is nobody to sell it to yet.
 ##
 ## THE RULES AND THE LOOKS ARE KEPT APART, as everywhere: what you hold changes at once, on the tick (give(),
 ## open(), tick()); the things that hop out and fly to you are looks only, with dice of their own.
 
 const LandMap := preload("res://scripts/highlands/land_map.gd")
 const LootPlan := preload("res://scripts/highlands/loot_plan.gd")
+const Accessories := preload("res://scripts/highlands/accessories.gd")
 const ItemArt := preload("res://scripts/highlands/item_art.gd")
 const Art := preload("res://scripts/art.gd")
 const Sfx := preload("res://scripts/sfx.gd")
@@ -59,6 +64,8 @@ static var ELITE_COINS_MAX := 30
 static var ELITE_BARS_MIN := 2
 static var ELITE_BARS_MAX := 4
 static var WORK_MEMORY := {"tin_ore": 1, "copper_ore": 1, "wood": 1}
+static var ELITE_GIFT := 0.5       # how often an elite leaves an accessory
+static var GIFT_COINS := 20        # what you get in place of an accessory you already have
 
 const INK := Color("#e8e4bc")
 const DIM := Color("#8ba688")
@@ -215,13 +222,54 @@ func open(k: int, _by := -1) -> bool:
 	for i in players.size():
 		if not is_instance_valid(players[i]):
 			continue
-		give(i, "coins", int(c["coins"]), at, OUT_AT, true)
+		give(i, "coins", _lucky(i, int(c["coins"])), at, OUT_AT, true)
 		for it in c["items"]:
 			give(i, str(it[0]), int(it[1]), at, OUT_AT + 0.05, true)
 		give(i, "memory", int(c["memory"]), at, OUT_AT + 0.25, true)
+	gift(str(c.get("gift", "")), at, OUT_AT + 0.4, true)
 	Sfx.play(game, "click", -7.0, 0.7)
 	Sfx.play(game, "thud", -12.0, 1.3)
 	return true
+
+
+## The accessories (gear.gd), where the game has them (not online, which is on hold).
+func _gear():
+	return game.gear if game != null and "gear" in game and game.gear != null else null
+
+
+## Lucky Copper: the coins player i gets from a chest or an elite.
+func _lucky(i: int, n: int) -> int:
+	var gear = _gear()
+	return gear.coins(i, n) if gear != null else n
+
+
+## Does player i have this accessory, in their inventory or in their satchel?
+func owns(i: int, id: String) -> bool:
+	var gear = _gear()
+	return (tools != null and tools.bag_of(i).count(id) > 0) or (gear != null and gear.has(i, id))
+
+
+## An accessory for everybody, each their own, from a place on the land. Whoever has it already gets coins in its
+## place. "" gives nothing.
+func gift(id: String, from: Vector2, after := 0.0, front := false) -> void:
+	if not Accessories.has(id) or _gear() == null:
+		return
+	var new_to := 0
+	for i in players.size():
+		if not is_instance_valid(players[i]):
+			continue
+		if owns(i, id):
+			give(i, "coins", int(GIFT_COINS), from, after, front)
+		else:
+			give(i, id, 1, from, after, front)
+			new_to += 1
+			_gear().nudge(i)      # the screen tells whoever it is for which button opens the inventory
+	var name := Accessories.name_of(id)
+	if new_to == 0:
+		say("%s again: %d coins instead" % [name, int(GIFT_COINS)])
+	else:
+		say("Found: %s" % name)
+	Sfx.play(game, "pickup", -8.0, 1.2)
 
 
 ## Gives player i so many of a thing, from a place on the land. Coins and Memory are counted at once; a kept thing
@@ -276,13 +324,25 @@ func foe_died(e) -> void:
 		if not is_instance_valid(players[i]):
 			continue
 		give(i, "memory", memory, at, 0.15)
-		give(i, "coins", coins, at, 0.1)
+		give(i, "coins", _lucky(i, coins), at, 0.1)
 		give(i, bar, bars, at, 0.1)
 		if piece != "" and not (purses[i] as Purse).kept.has(piece):
 			give(i, piece, 1, at, 0.3)
 			var have := (purses[i] as Purse).kept.size()
 			say("%s the Rusted Warhorn's %s (%d of 3)" % ["You have" if players.size() == 1 else "Player %d has" % (i + 1), str(KEPT_NAMES[piece]).trim_prefix("the Warhorn's "), have])
 			Sfx.play(game, "pickup", -8.0, 1.0)
+	# An elite may leave an accessory too. (Asked of the shared dice after everything else, and only where the
+	# game has accessories. A Warhorn piece's line is the one that stays on the screen.)
+	if elite and _gear() != null:
+		var roll := Sim.chance()
+		var pick := floori(Sim.between(0.0, float(Accessories.POOL.size()) - 0.001))
+		if roll < float(ELITE_GIFT):
+			var line := said
+			var until := said_until
+			gift(str(Accessories.POOL[clampi(pick, 0, Accessories.POOL.size() - 1)]), at, 0.45)
+			if piece != "" and until > clock:
+				said = line
+				said_until = until
 
 
 ## Somebody's tool won something (tools.gd tells us): mining ore and felling a pine are worth a little Memory.
@@ -312,7 +372,7 @@ func tick(delta: float) -> void:
 			flies.append({"item": str(l["item"]), "i": i, "from": l["at"], "spot": l["at"], "t": HOP, "wait": 0.0, "mote": false})
 		elif clock - (purses[i] as Purse).told_at > 1.6:
 			(purses[i] as Purse).told_at = clock
-			p._label("BAG FULL", INK)
+			p._label("INVENTORY FULL", INK)
 
 
 ## A line for everyone, for a few seconds.
@@ -402,6 +462,9 @@ func _draw_over(ci: Node2D) -> void:
 	# What lies on the ground waiting for room: it glints every second or two, as the art asks.
 	for k in lying.size():
 		var l: Dictionary = lying[k]
+		if Accessories.has(l["item"]):
+			_draw_accessory(ci, str(l["item"]), (l["at"] as Vector2) + Vector2(0, -16))
+			continue
 		var name := "drop_" + str(l["item"])
 		var glint := fmod(clock + 0.37 * float(k), 1.7) < 0.14
 		ItemArt.draw(ci, name, (((l["at"] as Vector2) / UNIT).floor() - Vector2(6, 12)) * UNIT, UNIT, Color.WHITE, 1 if glint else 0)
@@ -424,9 +487,18 @@ func _draw_over(ci: Node2D) -> void:
 			at = (f["spot"] as Vector2).lerp(to, k * k) + Vector2(0, -30.0 * sin(k * PI))
 		if bool(f["mote"]):
 			ItemArt.draw(ci, "memory_mote", ((at / UNIT).floor() - Vector2(3, 3)) * UNIT, UNIT, Color.WHITE, int(clock * 10.0))
+		elif Accessories.has(f["item"]):
+			_draw_accessory(ci, str(f["item"]), at)
 		else:
 			var name := "drop_" + str(f["item"])
 			ItemArt.draw(ci, name, ((at / UNIT).floor() - (ItemArt.size(name) * 0.5).floor()) * UNIT, UNIT)
+
+
+## An accessory's own picture, its middle at `at` (world units): what comes out of a chest, and what lies waiting.
+func _draw_accessory(ci: CanvasItem, id: String, at: Vector2) -> void:
+	var tex := Art.texture("accessories/%s_icon.png" % id)
+	if tex != null:
+		ci.draw_texture_rect(tex, Rect2(((at / UNIT).floor() - (tex.get_size() * 0.5).floor()) * UNIT, tex.get_size() * UNIT), false)
 
 
 func _head(text: String, pos: Vector2, col: Color, width := -1.0, align := HORIZONTAL_ALIGNMENT_LEFT) -> void:

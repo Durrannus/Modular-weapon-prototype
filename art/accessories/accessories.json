@@ -1,0 +1,276 @@
+{
+ "note": "The twelve tier 1 accessories found anywhere (Game Bible, 17 Nov). One backpack cell is 24 x 24. <id>_icon.png is 24 x 24, for loot pop-ups, lists and the HUD. <id>_pack.png is the picture in the backpack: it covers the item's own cells, drawn with its top left at the top left of the item's bounding box. 'cells' are [column, row] inside that box. For a one-cell item the two pictures are the same. Draw cell_filled under every cell an item takes, then the item on top. Pictures are drawn one way up only; nothing here assumes items can be turned.",
+ "cell": 24,
+ "cells": {
+  "cell": "empty",
+  "cell_filled": "under an item",
+  "cell_ok": "the held item fits here",
+  "cell_blocked": "it does not fit here"
+ },
+ "items": {
+  "tinkers_thimble": {
+   "name": "Tinker's Thimble",
+   "cells": [
+    [
+     0,
+     0
+    ]
+   ],
+   "size_cells": [
+    1,
+    1
+   ],
+   "icon": "accessories/tinkers_thimble_icon.png",
+   "pack": "accessories/tinkers_thimble_pack.png",
+   "pack_size": [
+    24,
+    24
+   ],
+   "effect": "Your dodge recharges 20% faster"
+  },
+  "hearthstone_pebble": {
+   "name": "Hearthstone Pebble",
+   "cells": [
+    [
+     0,
+     0
+    ]
+   ],
+   "size_cells": [
+    1,
+    1
+   ],
+   "icon": "accessories/hearthstone_pebble_icon.png",
+   "pack": "accessories/hearthstone_pebble_pack.png",
+   "pack_size": [
+    24,
+    24
+   ],
+   "effect": "Out of a fight for 4 s, you slowly heal"
+  },
+  "ashen_locket": {
+   "name": "Ashen Locket",
+   "cells": [
+    [
+     0,
+     0
+    ]
+   ],
+   "size_cells": [
+    1,
+    1
+   ],
+   "icon": "accessories/ashen_locket_icon.png",
+   "pack": "accessories/ashen_locket_pack.png",
+   "pack_size": [
+    24,
+    24
+   ],
+   "effect": "Dying drops a quarter of your Memory, not half"
+  },
+  "lucky_copper": {
+   "name": "Lucky Copper",
+   "cells": [
+    [
+     0,
+     0
+    ]
+   ],
+   "size_cells": [
+    1,
+    1
+   ],
+   "icon": "accessories/lucky_copper_icon.png",
+   "pack": "accessories/lucky_copper_pack.png",
+   "pack_size": [
+    24,
+    24
+   ],
+   "effect": "Chests and elites drop about 20% more coins"
+  },
+  "banner_pin": {
+   "name": "Banner Pin",
+   "cells": [
+    [
+     0,
+     0
+    ]
+   ],
+   "size_cells": [
+    1,
+    1
+   ],
+   "icon": "accessories/banner_pin_icon.png",
+   "pack": "accessories/banner_pin_pack.png",
+   "pack_size": [
+    24,
+    24
+   ],
+   "effect": "You and teammates near you take 5% less damage"
+  },
+  "thorn_charm": {
+   "name": "Thorn Charm",
+   "cells": [
+    [
+     0,
+     0
+    ]
+   ],
+   "size_cells": [
+    1,
+    1
+   ],
+   "icon": "accessories/thorn_charm_icon.png",
+   "pack": "accessories/thorn_charm_pack.png",
+   "pack_size": [
+    24,
+    24
+   ],
+   "effect": "Enemies that hit you up close take a small hit back"
+  },
+  "iron_bracer": {
+   "name": "Iron Bracer",
+   "cells": [
+    [
+     0,
+     0
+    ]
+   ],
+   "size_cells": [
+    1,
+    1
+   ],
+   "icon": "accessories/iron_bracer_icon.png",
+   "pack": "accessories/iron_bracer_pack.png",
+   "pack_size": [
+    24,
+    24
+   ],
+   "effect": "Enemy hits knock you back half as far"
+  },
+  "wayfinders_compass": {
+   "name": "Wayfinder's Compass",
+   "cells": [
+    [
+     0,
+     0
+    ]
+   ],
+   "size_cells": [
+    1,
+    1
+   ],
+   "icon": "accessories/wayfinders_compass_icon.png",
+   "pack": "accessories/wayfinders_compass_pack.png",
+   "pack_size": [
+    24,
+    24
+   ],
+   "effect": "An arrow points to the nearest place you haven't explored"
+  },
+  "dowsing_rod": {
+   "name": "Dowsing Rod",
+   "cells": [
+    [
+     0,
+     0
+    ],
+    [
+     0,
+     1
+    ]
+   ],
+   "size_cells": [
+    1,
+    2
+   ],
+   "icon": "accessories/dowsing_rod_icon.png",
+   "pack": "accessories/dowsing_rod_pack.png",
+   "pack_size": [
+    24,
+    48
+   ],
+   "effect": "Buried caches and hidden stones glint and hum nearby"
+  },
+  "prospectors_sieve": {
+   "name": "Prospector's Sieve",
+   "cells": [
+    [
+     0,
+     0
+    ],
+    [
+     1,
+     0
+    ]
+   ],
+   "size_cells": [
+    2,
+    1
+   ],
+   "icon": "accessories/prospectors_sieve_icon.png",
+   "pack": "accessories/prospectors_sieve_pack.png",
+   "pack_size": [
+    48,
+    24
+   ],
+   "effect": "1 in 4 ore nodes gives one extra ore"
+  },
+  "bandolier": {
+   "name": "Bandolier",
+   "cells": [
+    [
+     0,
+     0
+    ],
+    [
+     0,
+     1
+    ],
+    [
+     0,
+     2
+    ]
+   ],
+   "size_cells": [
+    1,
+    3
+   ],
+   "icon": "accessories/bandolier_icon.png",
+   "pack": "accessories/bandolier_pack.png",
+   "pack_size": [
+    24,
+    72
+   ],
+   "effect": "Active runes recharge 10% faster"
+  },
+  "field_rations": {
+   "name": "Field Rations",
+   "cells": [
+    [
+     0,
+     0
+    ],
+    [
+     0,
+     1
+    ],
+    [
+     1,
+     1
+    ]
+   ],
+   "size_cells": [
+    2,
+    2
+   ],
+   "icon": "accessories/field_rations_icon.png",
+   "pack": "accessories/field_rations_pack.png",
+   "pack_size": [
+    48,
+    48
+   ],
+   "effect": "15% more max health"
+  }
+ }
+}

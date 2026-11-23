@@ -2,8 +2,9 @@ extends CanvasLayer
 ## Pip's shop (version 46): one screen on the menu kit's plates, in the forge's screen's manner.
 ##
 ## The Game Bible: Pip "buys spare parts for coins, sells tin and copper bars and one rotating tier 1 accessory".
-## There are no spare parts to sell him yet and no backpack for an accessory, so for now he sells bars, and tells
-## you where the Warhorn's pieces are ("gives the odd hint about places").
+## There are no spare parts to sell him yet, so he sells bars and, since version 47 (the Accessory Satchel), the
+## one accessory he has that day (folk.ware()), and tells you where the Warhorn's pieces are ("gives the odd hint
+## about places").
 ##
 ## The player who spoke to him has the screen; with two players the other one's controls do nothing here. The game
 ## stands still while it is open. The rules (what a bar costs, whether you can buy one) are folk.gd's.
@@ -13,6 +14,8 @@ signal closed(i: int)
 const Art := preload("res://scripts/art.gd")
 const Sfx := preload("res://scripts/sfx.gd")
 const ItemArt := preload("res://scripts/highlands/item_art.gd")
+const Bag := preload("res://scripts/highlands/bag.gd")
+const Accessories := preload("res://scripts/highlands/accessories.gd")
 
 const SCREEN := Vector2(640, 360)
 const INK := Color("#e8e4bc")
@@ -21,9 +24,10 @@ const FAINT := Color("#5f8072")
 const AMBER := Color("#ffc850")
 const PLATE := Color("#19142a")
 const SHADOW := Color(0.06, 0.04, 0.11, 0.9)
-const BOX := Rect2(140, 52, 360, 252)
-const ROWS := ["Tin bar", "Copper bar", "Ask about the Scrap Crown", "Leave"]
-const ITEMS := ["tin_bar", "copper_bar"]
+const BOX := Rect2(140, 38, 360, 284)
+const BARS := ["tin_bar", "copper_bar"]
+const ASK := "Ask about the Scrap Crown"
+const LEAVE := "Leave"
 
 var folk                      # scripts/highlands/folk.gd
 var who := 0                  # the player who has the screen
@@ -48,6 +52,25 @@ func _ready() -> void:
 	root.visible = false
 	add_child(root)
 	root.draw.connect(_draw_screen)
+
+
+## What he sells, top row first: the bars, then his accessory if he has one.
+func items() -> Array:
+	var out: Array = BARS.duplicate()
+	var ware: String = folk.ware() if folk != null else ""
+	if ware != "":
+		out.append(ware)
+	return out
+
+
+## The rows, top first: what he sells, then the question, then the way out.
+func rows() -> Array:
+	var out: Array = []
+	for item in items():
+		out.append(Bag.name_of(str(item)))
+	out.append(ASK)
+	out.append(LEAVE)
+	return out
 
 
 func open(i: int) -> void:
@@ -146,7 +169,7 @@ func _under_mouse() -> int:
 
 
 func move(dy: int) -> void:
-	row = posmod(row + dy, ROWS.size())
+	row = posmod(row + dy, rows().size())
 	Sfx.play(self, "click", -16.0)
 
 
@@ -156,22 +179,28 @@ func close_by_hand() -> void:
 
 
 func confirm() -> void:
-	match row:
-		0, 1:
-			var item: String = ITEMS[row]
-			var why: String = folk.buy(who, item)
-			if why == "":
-				Sfx.play(self, "pickup", -8.0, 1.1)
-				say("Bought a %s for %d coins." % [str(ROWS[row]).to_lower(), int(folk.price(item))], 2.5)
+	var sold := items()
+	var all := rows()
+	row = clampi(row, 0, all.size() - 1)
+	if row < sold.size():
+		var item := str(sold[row])
+		var cost := int(folk.price(item))
+		var why: String = folk.buy(who, item)
+		if why == "":
+			Sfx.play(self, "pickup", -8.0, 1.1)
+			if Accessories.has(item):
+				say("Bought the %s for %d coins." % [Bag.name_of(item), cost], 3.5)
 			else:
-				Sfx.play(self, "click", -14.0, 0.7)
-				say(why, 2.5)
-		2:
-			line = folk.crown_words(who)
-			note = ""
-			Sfx.play(self, "talk", -10.0, 0.9)
-		3:
-			close_by_hand()
+				say("Bought a %s for %d coins." % [Bag.name_of(item).to_lower(), cost], 2.5)
+		else:
+			Sfx.play(self, "click", -14.0, 0.7)
+			say(why, 2.5)
+	elif str(all[row]) == ASK:
+		line = folk.crown_words(who)
+		note = ""
+		Sfx.play(self, "talk", -10.0, 0.9)
+	else:
+		close_by_hand()
 
 
 # --- Drawing ------------------------------------------------------------------------------
@@ -238,12 +267,15 @@ func _draw_screen() -> void:
 	ItemArt.draw(root, "hud_coin", Vector2(hx, hy - 9.0))
 	_words(pix, Vector2(hx + 15.0, hy), "%d coins" % int(purse.coins), Art.TEXT_SIZE, AMBER)
 	hx += 110.0
-	for item in ITEMS:
+	for item in BARS:
 		ItemArt.draw(root, "item_" + str(item), Vector2(hx, hy - 12.0))
 		_words(pix, Vector2(hx + 20.0, hy), "%d" % int(bag.count(item)), Art.TEXT_SIZE, INK)
 		hx += 60.0
 
-	for k in ROWS.size():
+	var sold := items()
+	var all := rows()
+	row = clampi(row, 0, all.size() - 1)
+	for k in all.size():
 		var rr := Rect2(x, y + 122.0 + float(k) * 24.0, w, 21.0)
 		var on := k == row
 		rects.append([rr, k])
@@ -255,15 +287,27 @@ func _draw_screen() -> void:
 			if arrow != null:
 				root.draw_texture(arrow, Vector2(tx + (1.0 if fmod(t, 0.8) < 0.4 else 0.0), rr.position.y + 5.0))
 			tx += 12.0
-		if k < ITEMS.size():
-			ItemArt.draw(root, "item_" + str(ITEMS[k]), Vector2(tx, rr.position.y + 2.0))
-			tx += 20.0
-			var cost: int = folk.price(str(ITEMS[k]))
-			_words(pix, Vector2(rr.position.x + 8.0, rr.position.y + 14.0), "%d coins" % cost, Art.TEXT_SIZE, AMBER if int(purse.coins) >= cost else DIM, rr.size.x - 16.0, HORIZONTAL_ALIGNMENT_RIGHT)
-		_words(silk, Vector2(tx, rr.position.y + 14.0), str(ROWS[k]).to_upper(), 8, AMBER if on else INK)
+		if k < sold.size():
+			var item := str(sold[k])
+			if not Accessories.has(item):
+				ItemArt.draw(root, "item_" + item, Vector2(tx, rr.position.y + 2.0))
+				tx += 20.0
+			var cost: int = folk.price(item)
+			var have: bool = Accessories.has(item) and folk.loot.owns(who, item)
+			_words(pix, Vector2(rr.position.x + 8.0, rr.position.y + 14.0), "you have it" if have else "%d coins" % cost, Art.TEXT_SIZE, AMBER if int(purse.coins) >= cost and not have else DIM, rr.size.x - 16.0, HORIZONTAL_ALIGNMENT_RIGHT)
+		_words(silk, Vector2(tx, rr.position.y + 14.0), str(all[k]).to_upper(), 8, AMBER if on else INK)
 
+	# Under the rows: news of the last press, or what the accessory under the cursor does (its picture beside it).
+	var foot := y + 122.0 + float(all.size()) * 24.0
 	if t < note_until and note != "":
-		_words(pix, Vector2(x, y + r.size.y - 12.0), note, Art.TEXT_SIZE, AMBER)
+		_words(pix, Vector2(x, foot + 17.0), note, Art.TEXT_SIZE, AMBER)
+	elif row < sold.size() and Accessories.has(sold[row]):
+		var icon := Art.texture("accessories/%s_icon.png" % str(sold[row]))
+		if icon != null:
+			root.draw_texture(icon, Vector2(x, foot + 1.0))
+		var does := lines_of(pix, Accessories.text_of(str(sold[row])), Art.TEXT_SIZE, w - 30.0)
+		for n in mini(does.size(), 2):
+			_words(pix, Vector2(x + 30.0, foot + 11.0 + 12.0 * float(n)), str(does[n]), Art.TEXT_SIZE, DIM)
 
 	# The bottom band: what the buttons do.
 	for band in 3:

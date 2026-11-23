@@ -1,0 +1,153 @@
+{
+ "note": "Inventory art, first drafts (23 Nov). The loot sheet's form: name -> box. Sizes in px at 640x360. See README.md.",
+ "slot": 24,
+ "item_at": [
+  4,
+  4
+ ],
+ "sprites": {
+  "slot": {
+   "box": [
+    1,
+    1,
+    24,
+    24
+   ],
+   "size": [
+    24,
+    24
+   ],
+   "note": "An empty inventory slot. The same size as the satchel's cell (accessories/cell.png), drawn plainer. Slots tile with no gap."
+  },
+  "slot_hover": {
+   "box": [
+    26,
+    1,
+    24,
+    24
+   ],
+   "size": [
+    24,
+    24
+   ],
+   "note": "The slot under the cursor: pale corner brackets. Ready made, for one player."
+  },
+  "slot_cursor": {
+   "box": [
+    51,
+    1,
+    24,
+    24
+   ],
+   "size": [
+    24,
+    24
+   ],
+   "note": "The brackets alone, WHITE with a dark inner line: draw it over a slot or a satchel cell and tint it with a player's scarf colour (Art.PLAYER_COLORS) when two players share the screen."
+  },
+  "pack_hide": {
+   "box": [
+    76,
+    1,
+    24,
+    24
+   ],
+   "size": [
+    24,
+    24
+   ],
+   "note": "The Hide Pack (a backpack: one more row of slots). For the lab and Pip's shop."
+  },
+  "satchel_hide": {
+   "box": [
+    101,
+    1,
+    24,
+    24
+   ],
+   "size": [
+    24,
+    24
+   ],
+   "note": "The Hide Satchel (a bigger accessory satchel). For the lab and Pip's shop."
+  },
+  "item_tin_bar": {
+   "box": [
+    1,
+    26,
+    16,
+    16
+   ],
+   "size": [
+    16,
+    16
+   ],
+   "note": "Tin bar. Put 16 px items at (4, 4) in a slot."
+  },
+  "item_copper_bar": {
+   "box": [
+    18,
+    26,
+    16,
+    16
+   ],
+   "size": [
+    16,
+    16
+   ],
+   "note": "Copper bar."
+  },
+  "item_stone": {
+   "box": [
+    35,
+    26,
+    16,
+    16
+   ],
+   "size": [
+    16,
+    16
+   ],
+   "note": "Copied unchanged from tools-v1 (it is already on art/tools/tools.png), so all six materials are in one place."
+  },
+  "item_wood": {
+   "box": [
+    52,
+    26,
+    16,
+    16
+   ],
+   "size": [
+    16,
+    16
+   ],
+   "note": "Copied unchanged from tools-v1 (it is already on art/tools/tools.png), so all six materials are in one place."
+  },
+  "item_tin_ore": {
+   "box": [
+    69,
+    26,
+    16,
+    16
+   ],
+   "size": [
+    16,
+    16
+   ],
+   "note": "Copied unchanged from tools-v1 (it is already on art/tools/tools.png), so all six materials are in one place."
+  },
+  "item_copper_ore": {
+   "box": [
+    86,
+    26,
+    16,
+    16
+   ],
+   "size": [
+    16,
+    16
+   ],
+   "note": "Copied unchanged from tools-v1 (it is already on art/tools/tools.png), so all six materials are in one place."
+  }
+ }
+}

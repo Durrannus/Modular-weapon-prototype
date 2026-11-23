@@ -3,8 +3,8 @@ extends Node
 ##
 ## The rules, from the Game Bible:
 ##   - The Slinger Roost: "Pip is locked in a hanging scrap cage in the middle; clear the camp and break the cage".
-##   - Pip: "Freed, he moves to the base". His shop "sells tin and copper bars" (and buys parts and sells an
-##     accessory, which wait for the anvil and the backpack). He "gives the odd hint about places".
+##   - Pip: "Freed, he moves to the base". His shop "sells tin and copper bars and one rotating tier 1 accessory"
+##     (the accessory since version 47; buying parts waits for the anvil). He "gives the odd hint about places".
 ##   - The quests: "Smoke over the Canyon: find the stone-throwers' roost and free Pip... Opens his shop." Then "The
 ##     Scrap Crown (Pip): take the three horn pieces from the three elites." And, never required, "Light the Watch
 ##     (repair the Watchpost waystone with copper)".
@@ -16,13 +16,19 @@ extends Node
 ##     the Roost is down.
 ##   - Pip waits where he dropped until nobody is near, and is then at the base, beside the cave mouth (rooms cannot
 ##     be built yet). The first time you speak to him there he tells you of the horn; after that he is a shop.
-##   - A bar costs TIN_PRICE or COPPER_PRICE coins. He buys nothing yet.
+##   - A bar costs TIN_PRICE or COPPER_PRICE coins. He buys nothing yet. His one accessory (ware()) costs
+##     ACCESSORY_PRICE and changes each time the forge's level rises; he will not sell you one you already have.
 ##   - The waystone takes REPAIR_COPPER copper bars, from the whole squad's bags (whoever uses it first). A mended
 ##     stone takes the whole squad to the forge, and the forge's screen takes them back. Nobody travels while an
 ##     enemy is after them. Once its stone is lit, nothing comes back to live at the Watchpost.
 ##   - The quests are the world's: they are saved with it. "Smoke over the Canyon" is there from the first moment
 ##     (the two quests before it, the smith's, need building). "Light the Watch" shows once the stone has been seen.
 ##   - Pip's words are stand-ins. The story is Darren's to write.
+##   - Smoke (version 47, asked for in the review of version 46: the first quest had nothing to find it by in a
+##     land 350 tiles out). While Pip is caged the camp's smoke stands over the Roost, half a screen tall, and
+##     while the Roost is off the screen a small far-off plume stands at the screen's edge on the Roost's side,
+##     over the quest's own mark (SMOKE_SIGN, in the lab). Both go once the cage is broken. The puffs are the Art builder's (art/smoke): the
+##     game's greys, a pixel at a time. Looks only: nothing in the rules reads them.
 ##
 ## The rules run on the game's tick (tick()); nothing here asks any dice.
 
@@ -31,6 +37,7 @@ const Sfx := preload("res://scripts/sfx.gd")
 const LandMap := preload("res://scripts/highlands/land_map.gd")
 const ItemArt := preload("res://scripts/highlands/item_art.gd")
 const Shop := preload("res://scripts/ui/shop.gd")
+const Accessories := preload("res://scripts/highlands/accessories.gd")
 
 const UNIT := Art.PIXEL
 const TILE := 16.0 * UNIT
@@ -43,11 +50,16 @@ const FADE_OUT := 0.35             # a waystone's journey: the screen goes dark 
 const FADE_IN := 0.5               # ... and comes back somewhere else
 const CAGE_AT := Vector2(20, -27)  # the cage's middle from the foot of its post, in art pixels (the art's README)
 const DROP_AT := Vector2(20, 0)    # where Pip lands
+const SMOKE_AT := Vector2(-15, -2) # where the camp's smoke rises from, from the foot of the cage's post (art pixels): beside it, leaning away from the cage
+const SMOKE_LIFE := 26.0           # seconds a puff of it lasts: twice the art's own 13, so the plume stands about 156 art pixels tall
+const FACE := "folk/pip_portrait.png"
 
 static var CAGE_BLOWS := 3
 static var REPAIR_COPPER := 5
 static var TIN_PRICE := 6
 static var COPPER_PRICE := 10
+static var ACCESSORY_PRICE := 40
+static var SMOKE_SIGN := 5         # the far-off plume at the screen's edge that shows the way to the Roost: how many puffs tall (0: none)
 
 const NAME := "Pip"
 ## Stand-ins, all of them: the story is Darren's to write.
@@ -135,6 +147,15 @@ class Actor extends Node2D:
 		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 
+## The camp's smoke: drawn over everything on the land, by the clock (folk.draw_plume).
+class Plume extends Node2D:
+	var folk
+
+	func _draw() -> void:
+		if folk != null:
+			folk.draw_plume(self)
+
+
 var game                           # the Highlands scene
 var map: LandMap
 var world: Node2D                  # the y-sorted layer everything stands in
@@ -155,10 +176,12 @@ var freed_said := true
 var speaking := false              # Pip's words are up
 var mending := false               # the waystone's copper is going in
 var told_at := -9.0
+var smoke_until := INF             # no new puff over the Roost after this moment of the clock (the cage is broken)
 
 var cage: Actor
 var pip_actor: Actor
 var stone: Actor
+var smoke: Plume
 var body: StaticBody2D
 var pip_shape: CollisionShape2D
 var layer: CanvasLayer
@@ -206,6 +229,11 @@ func cage_middle() -> Vector2:
 	return cage_feet() + CAGE_AT * UNIT
 
 
+## Where the camp's smoke rises from.
+func smoke_feet() -> Vector2:
+	return cage_feet() + SMOKE_AT * UNIT
+
+
 func pip_landing() -> Vector2:
 	return cage_feet() + DROP_AT * UNIT
 
@@ -250,6 +278,11 @@ func setup(plan_: Dictionary) -> void:
 	if has_roost():
 		cage = _actor(sheet, book.get("pip_cage", {}), cage_feet())
 		cage.play("idle")
+		smoke = Plume.new()
+		smoke.folk = self
+		smoke.z_index = 41             # over everything that stands on the land, and over the rock tops
+		smoke.position = smoke_feet()
+		add_child(smoke)
 		_solid(cage_feet(), Vector2(6, 4) * UNIT)
 		_block(plan["roost"]["tile"])
 		its.append({"at": cage_feet() + Vector2(DROP_AT.x * UNIT, -6.0), "radius": REACH + 12.0, "lift": 122.0, "text": "Break the cage",
@@ -313,6 +346,8 @@ func _block(tile: Vector2i) -> void:
 func _show() -> void:
 	if cage != null:
 		cage.play("empty" if pip >= 1 else "idle")
+	if pip >= 1 and smoke_until == INF:
+		smoke_until = -INF             # freed before this game was opened: the fire is long out
 	if pip_actor != null:
 		pip_actor.visible = pip >= 1
 		if pip == 1 and has_roost():
@@ -370,6 +405,7 @@ func strike_cage(i: int) -> bool:
 	# It gives way: the floor swings down and Pip drops out.
 	cage.play("break", false, true)
 	pip = 1
+	smoke_until = clock            # the camp's fire is left to die: no new smoke
 	freed_said = false
 	cheer_left = -1.0              # set once the cage's own strip has shown him drop
 	Sfx.play(game, "slam", -9.0, 1.4)
@@ -399,7 +435,7 @@ func talk(i: int) -> void:
 
 func _say(lines: Array, done := Callable()) -> void:
 	speaking = true
-	game.ui.say(NAME, "", lines, func():
+	game.ui.say(NAME, FACE, lines, func():
 		speaking = false
 		game._swallow_presses()
 		if done.is_valid():
@@ -412,8 +448,19 @@ func _shop_closed(_i: int) -> void:
 		game.save_now()
 
 
-## What a bar costs at Pip's.
+## The one accessory Pip has for sale ("" in a game with no Accessory Satchel). Which one comes from the world's
+## number and the forge's level, so it changes each time the squad levels up and is the same for everyone.
+func ware() -> String:
+	if game == null or not ("gear" in game) or game.gear == null or map == null:
+		return ""
+	var level := int(game.levels.level) if "levels" in game and game.levels != null else 0
+	return str(Accessories.POOL[posmod(int(map.seed_value) + level, Accessories.POOL.size())])
+
+
+## What a thing costs at Pip's.
 func price(item: String) -> int:
+	if Accessories.has(item):
+		return int(ACCESSORY_PRICE)
 	return int(TIN_PRICE) if item == "tin_bar" else int(COPPER_PRICE)
 
 
@@ -423,12 +470,16 @@ func buy(i: int, item: String) -> String:
 		return "Nobody is there to buy."
 	var purse = loot.purses[i]
 	var cost := price(item)
+	if Accessories.has(item) and loot.owns(i, item):
+		return "You have one. A second would do nothing more."
 	if int(purse.coins) < cost:
 		return "That is %d coins. You have %d." % [cost, int(purse.coins)]
 	if tools.bag_of(i).room(item) < 1:
-		return "Your bag is full."
+		return "Your inventory is full."
 	purse.coins = int(purse.coins) - cost
 	tools.bag_of(i).add(item, 1)
+	if Accessories.has(item) and game != null and "gear" in game and game.gear != null:
+		game.gear.nudge(i)
 	return ""
 
 
@@ -586,6 +637,10 @@ func tick(delta: float) -> void:
 	for a in [cage, pip_actor, stone]:
 		if a != null:
 			a.step(delta)
+	if smoke != null:
+		smoke.visible = smoking()
+		if smoke.visible:
+			smoke.queue_redraw()
 	# A journey: dark, somewhere else, light.
 	if not travel.is_empty():
 		travel["t"] = float(travel["t"]) + delta
@@ -667,13 +722,135 @@ func _tell(i: int, words: String) -> void:
 	players[i]._label(words.to_upper(), INK)
 
 
+# --- Looks only: the smoke over the Roost ------------------------------------------------------
+
+## Is there still smoke over the Roost? (Until the last puff made before the cage broke has gone.)
+func smoking() -> bool:
+	return has_roost() and clock - smoke_until < SMOKE_LIFE
+
+
+## The puffs of a plume, oldest first: [[where from its foot (art pixels), which of the art's four ages, mirrored]].
+## `life` is how long a puff lasts, `until` the last moment one was made. The art's own rules (smoke.json, "plume"):
+## a new puff every second, rising 6 pixels a second, drifting 1.5 with a pixel of sway, always on whole pixels,
+## every other one mirrored. A taller plume keeps each age for the same share of a puff's life.
+func puffs(now: float, life: float, until := INF) -> Array:
+	var rules: Dictionary = Art.json("smoke/smoke.json").get("plume", {})
+	var every := maxf(float(rules.get("spawn_every_s", 1.0)), 0.1)
+	var rise := float(rules.get("rise_px_per_s", 6.0))
+	var drift := float(rules.get("drift_px_per_s", 1.5))
+	var sway := float(rules.get("sway_px", 1.0))
+	var ages: Array = rules.get("frame_at_s", [0, 3, 7, 11])
+	var stretch := life / maxf(float(rules.get("life_s", 13.0)), 0.1)
+	var out: Array = []
+	var newest := int(floor(minf(now, until) / every))
+	var oldest := int(floor((now - life) / every)) + 1
+	for k in range(oldest, newest + 1):
+		var age := now - float(k) * every
+		if age < 0.0 or age >= life:
+			continue
+		var frame := 0
+		for j in ages.size():
+			if age >= float(ages[j]) * stretch:
+				frame = j
+		var at := Vector2(-drift * age + sway * sin(age * 0.6 + float(k) * 2.4), -rise * age).round()
+		out.append([at, frame, posmod(k, 2) == 1])
+	return out
+
+
+## Draws them, the newest last. `px` is the size of one art pixel there.
+func _draw_puffs(ci: CanvasItem, foot: Vector2, px: float, list: Array) -> void:
+	var tex := Art.texture("smoke/smoke.png")
+	var info: Dictionary = Art.json("smoke/smoke.json").get("sprites", {}).get("smoke_puff", {})
+	if tex == null or not info.has("box"):
+		return
+	var box: Array = info["box"]
+	var one: Array = info.get("frame", [18, 14])
+	var mid: Array = info.get("origin", [9, 7])
+	var size := Vector2(float(one[0]), float(one[1]))
+	for p in list:
+		ci.draw_set_transform(foot + (p[0] as Vector2) * px, 0.0, Vector2(-px if bool(p[2]) else px, px))
+		ci.draw_texture_rect_region(tex, Rect2(Vector2(-float(mid[0]), -float(mid[1])), size), Rect2(float(box[0]) + size.x * float(int(p[1])), float(box[1]), size.x, size.y))
+	ci.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+
+
+func draw_plume(ci: CanvasItem) -> void:
+	_draw_puffs(ci, Vector2.ZERO, UNIT, puffs(clock, SMOKE_LIFE, smoke_until))
+
+
+## Where the far-off plume stands on the screen (art pixels), or [] when there is none: Pip is out, or the Roost's
+## own smoke can be seen. It stands at the edge of the screen on the Roost's side, clear of the bars, the quests
+## and the belts.
+func smoke_sign() -> Array:
+	if int(SMOKE_SIGN) < 1 or pip != 0 or not has_roost() or game == null or not ("rig" in game) or game.rig == null:
+		return []
+	var mid: Vector2 = game.rig.camera.get_screen_center_position()
+	var to: Vector2 = (smoke_feet() - mid) / UNIT + SIZE * 0.5
+	if Rect2(-40.0, 0.0, SIZE.x + 80.0, SIZE.y + 140.0).has_point(to):
+		return []                  # its foot, or the top of the plume, is on the screen
+	var tall := sign_height()
+	var box := Rect2(18.0, 6.0 + tall, SIZE.x - 36.0, SIZE.y - (6.0 + tall) - 20.0)
+	var from := SIZE * 0.5
+	var dir := (to - from).normalized()
+	var far := INF
+	if dir.x > 0.001:
+		far = minf(far, (box.end.x - from.x) / dir.x)
+	elif dir.x < -0.001:
+		far = minf(far, (box.position.x - from.x) / dir.x)
+	if dir.y > 0.001:
+		far = minf(far, (box.end.y - from.y) / dir.y)
+	elif dir.y < -0.001:
+		far = minf(far, (box.position.y - from.y) / dir.y)
+	if far == INF:
+		return []
+	var at := (from + dir * far).round()
+	# What sits in the corners (the bars, the quests, the belts) keeps its room: the plume slides along its edge of
+	# the screen, towards the middle, until it is clear of them.
+	var on_side := absf(at.x - box.position.x) < 0.5 or absf(at.x - box.end.x) < 0.5
+	for again in 2:
+		for r: Rect2 in hud_corners():
+			if not Rect2(at.x - 12.0, at.y - tall, 24.0, tall + 18.0).intersects(r):
+				continue
+			if on_side:
+				at.y = r.end.y + tall + 1.0 if r.get_center().y < SIZE.y * 0.5 else r.position.y - 19.0
+			else:
+				at.x = r.end.x + 13.0 if r.get_center().x < SIZE.x * 0.5 else r.position.x - 13.0
+	return [at.round()]
+
+
+## How far above its foot the far-off plume reaches (art pixels): a puff a second, each a little higher.
+func sign_height() -> float:
+	var rules: Dictionary = Art.json("smoke/smoke.json").get("plume", {})
+	return float(rules.get("rise_px_per_s", 6.0)) * maxf(float(int(SMOKE_SIGN)) - 1.0, 0.0) + 14.0
+
+
+## Where the quests are listed, as a box (empty when there are none).
+func track_rect() -> Rect2:
+	var pix := Art.font(Art.TEXT)
+	var h := 0.0
+	for q in quests():
+		h += 17.0 + 12.0 * float(Shop.lines_of(pix, str(q["text"]), Art.TEXT_SIZE, TRACK_W - 12.0).size()) + 3.0 + 3.0
+	return Rect2(track_at(), Vector2(TRACK_W, maxf(h - 3.0, 0.0)))
+
+
+## The corners of the screen that are spoken for: each player's bars above and belt below, and the quests.
+func hud_corners() -> Array:
+	var out: Array = [Rect2(0.0, 0.0, 216.0, 74.0), Rect2(0.0, 280.0, 276.0, 80.0)]
+	if players.size() > 1:
+		out.append(Rect2(SIZE.x - 216.0, 0.0, 216.0, 74.0))
+		out.append(Rect2(SIZE.x - 276.0, 280.0, 276.0, 80.0))
+	var track := track_rect()
+	if track.size.y > 0.0:
+		out.append(track.grow(4.0))
+	return out
+
+
 # --- The quests ------------------------------------------------------------------------------
 
 ## What the squad has to do, for the corner of the screen: [{id, name, text}].
 func quests() -> Array:
 	var out: Array = []
 	if pip < 3:
-		var text := "Find the stone-throwers' roost and free Pip."
+		var text := "Follow the smoke to the stone-throwers' roost and free Pip." if int(SMOKE_SIGN) >= 1 and has_roost() else "Find the stone-throwers' roost and free Pip."
 		if pip == 0 and found.has("roost") or pip == 1 and not freed_said:
 			text = "Clear the roost and break Pip's cage."
 		elif pip >= 1:
@@ -747,6 +924,13 @@ func track_at() -> Vector2:
 func _draw_hud() -> void:
 	if game != null and game.ui != null and (game.ui.busy() or game.ui.fade > 0.5):
 		return
+	var sign := smoke_sign()
+	if not sign.is_empty():
+		# The quest's own mark under it says what the smoke is for: it is the way to "Smoke over the Canyon".
+		var its := Art.texture("hud/objective_mark.png")
+		if its != null:
+			panel.draw_texture(its, (sign[0] as Vector2) + Vector2(-floorf(its.get_width() * 0.5), 9.0))
+		_draw_puffs(panel, sign[0], 1.0, puffs(clock, float(int(SMOKE_SIGN))))
 	var silk := Art.font("Silkscreen-Regular")
 	var pix := Art.font(Art.TEXT)
 	var at := track_at()

@@ -5,12 +5,13 @@ extends RefCounted
 ## tool art's is looked in first. The levelling art's sheet (highlands-levelling-v1: the Memory bar, the level's
 ## roundel, the marker left where somebody fell, the level-up) and the role trees' (highlands-roles-v1: the marks
 ## for Challenged and Open, the Spark, the shimmer, the four trees' emblems) are in the same form and are found
-## the same way.
+## the same way. So is the inventory art's (version 47: the inventory's slot, its cursor, the Hide Pack and the Hide
+## Satchel), looked in last.
 
 const Art := preload("res://scripts/art.gd")
 
 const BOOKS := [["tools/tools.png", "tools/tools.json"], ["loot/loot.png", "loot/loot.json"], ["levelling/levelling.png", "levelling/levelling.json"],
-	["roles/roles.png", "roles/roles.json"]]
+	["roles/roles.png", "roles/roles.json"], ["inventory/inventory.png", "inventory/inventory.json"]]
 
 
 ## [the sheet, what its book says about the picture], or [] if neither sheet has it.

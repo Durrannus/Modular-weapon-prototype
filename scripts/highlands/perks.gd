@@ -72,7 +72,7 @@ const PERKS := {
 	"field_anvil": {"name": "Field Anvil", "text": "You can build a small anvil anywhere with the mallet. Anyone in the squad can change fittings or load a preset there. One at a time."},
 	"laden": {"name": "Laden", "text": "The more unbanked Memory you carry, the harder you hit: up to a quarter more with a full bar. Dying still drops half of it."},
 	"second_look": {"name": "Second Look", "text": "When an elite or boss drops a part for you, the game rolls twice and you keep the better one."},
-	"deep_pockets": {"name": "Deep Pockets", "text": "Your backpack has one extra row."},
+	"deep_pockets": {"name": "Deep Pockets", "text": "Your Accessory Satchel has one extra row."},
 	"forge_prophet": {"name": "Forge Prophet", "text": "Darren's idea. While a Forge Prophet is in the squad, every player's weapon has one extra slot, on top of the normal cap. Two Prophets don't give two slots. If the Prophet leaves the game or respecs away, the slot goes cold: what is fitted in it stays put but does nothing until a Prophet is back. Solo, you are your own Prophet."},
 }
 

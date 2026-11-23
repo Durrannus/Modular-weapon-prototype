@@ -16,16 +16,19 @@ extends RefCounted
 ##   - The Keeper's Watchpost and the Old Quarry each have a richer one.
 ##   - The open place nearest the cave always has a small one, so the first chest is met in the safe hills.
 ##   - Nearer the cave the bars are mostly tin; farther out mostly copper. A richer chest holds both.
-##   - Accessories, blank rune stones and the unique parts are NOT in the chests yet: there is no backpack and no
-##     anvil to do anything with them.
+##   - ACCESSORIES are in some chests since version 47 (the Bible: "sometimes a tier 1 accessory"): the first chest
+##     always holds one, so the satchel is met in the safe hills; a richer chest holds one about half the time
+##     and any other about one time in seven. Which one is the chest's own roll (`gift`).
+##   - Blank rune stones and the unique parts are NOT in the chests yet: there is no anvil to do anything with them.
 ##
 ## A chest: {id (its place's number: what the world save keeps), pocket, kind: "first", "plain", "guarded", "sealed"
-## or "site", tile, foot (art pixels), coins, memory, items: [[what, how many]]}.
+## or "site", tile, foot (art pixels), coins, memory, items: [[what, how many]], gift: an accessory or ""}.
 
 const LandMap := preload("res://scripts/highlands/land_map.gd")
 const WorldGen := preload("res://scripts/highlands/world_gen.gd")
 const Painter := preload("res://scripts/highlands/land_painter.gd")
 const FoePlan := preload("res://scripts/highlands/foe_plan.gd")
+const Accessories := preload("res://scripts/highlands/accessories.gd")
 
 static var GUARDED_SHARE := 0.5    # of the places somebody lives in, how many have a chest
 static var EMPTY_SHARE := 0.2      # of the places nobody lives in, beyond the safe hills
@@ -36,6 +39,8 @@ static var BARS_MAX := 3
 static var MEMORY := 15
 static var RICH := 2.5             # a sealed place's chest and a named place's hold this many times the coins and Memory
 static var FIRST := 0.6            # and the first one, by the cave, this share
+static var GIFT := 0.15            # how often a chest holds an accessory ...
+static var RICH_GIFT := 0.5        # ... and a richer one (the first chest always does)
 const FIRST_FROM := 12.0           # tiles from the cave: the first chest is in the nearest place at least this far out
 const TALL := 30                   # a thing at least this tall (art pixels) would hide a chest standing behind it
 
@@ -119,7 +124,11 @@ static func _holds(seed_value: int, id: int, kind: String, far: bool) -> Diction
 		items = [["tin_bar", 1]]
 	else:
 		items = [["copper_bar" if copper else "tin_bar", bars]]
-	return {"coins": maxi(coins, 1), "memory": maxi(memory, 1), "items": items}
+	# The accessory: rolled last, so that what chests held before version 47 is what they hold now.
+	var roll := rng.randf()
+	var pick := rng.randi_range(0, Accessories.POOL.size() - 1)
+	var chance := 1.0 if kind == "first" else (RICH_GIFT if kind in ["sealed", "site"] else GIFT)
+	return {"coins": maxi(coins, 1), "memory": maxi(memory, 1), "items": items, "gift": str(Accessories.POOL[pick]) if roll < chance else ""}
 
 
 ## The tile for a chest in an open place: one that can be walked to from the place's middle, with open ground all

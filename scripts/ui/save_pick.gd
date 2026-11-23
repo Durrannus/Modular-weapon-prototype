@@ -23,6 +23,7 @@ const Sfx := preload("res://scripts/sfx.gd")
 const Save := preload("res://scripts/save.gd")
 const SwingBuild := preload("res://scripts/weapon/swing_build.gd")
 const Bag := preload("res://scripts/highlands/bag.gd")
+const Accessories := preload("res://scripts/highlands/accessories.gd")
 const ItemArt := preload("res://scripts/highlands/item_art.gd")
 const WorldGen := preload("res://scripts/highlands/world_gen.gd")
 
@@ -310,7 +311,22 @@ static func weapon_words(c: Dictionary) -> String:
 	return "Sword"
 
 
-## What is in a character's materials bag: [[item, how many]], in the bag's own order.
+## How many accessories a character has: those lying in its inventory and those worn in its satchel.
+static func accessory_count(c: Dictionary) -> int:
+	var n := 0
+	var bag := Bag.new()
+	bag.set_data(c.get("bag"))
+	for s in bag.slots:
+		if Accessories.has(s[0]):
+			n += int(s[1])
+	if c.get("worn") is Array:
+		for w in c["worn"]:
+			if w is Array and w.size() >= 1 and Accessories.has(w[0]):
+				n += 1
+	return n
+
+
+## The materials in a character's inventory: [[item, how many]], in the inventory's own order.
 static func bag_counts(c: Dictionary) -> Array:
 	var bag := Bag.new()
 	bag.set_data(c.get("bag"))
@@ -392,7 +408,7 @@ func _draw_screen() -> void:
 	_words(silk, Vector2(32, 38), "WHO IS PLAYING?" if step == 0 else "WHICH WORLD?", 16, AMBER)
 	_words(silk, Vector2(32, 38), "STEP %d OF 2" % (step + 1), 8, DIM, 576.0, HORIZONTAL_ALIGNMENT_RIGHT)
 	if step == 0:
-		_words(pix, Vector2(32, 56), "A character keeps its weapons, runes, tools, bag, coins and perks, and can go into any world.", Art.TEXT_SIZE, INK)
+		_words(pix, Vector2(32, 56), "A character keeps its weapons, runes, tools, inventory, coins and perks, and can go into any world.", Art.TEXT_SIZE, INK)
 		var width := 280.0 if count > 1 else 360.0
 		for p in count:
 			var x := 32.0 + float(p) * 296.0 if count > 1 else 140.0
@@ -460,6 +476,9 @@ func _draw_characters(p: int, x: float, width: float, silk: Font, pix: Font) -> 
 				parts[0] = "%s, %s" % [parts[0], perk_words(c)]
 			if (c.get("coins") is int or c.get("coins") is float) and int(c["coins"]) > 0:
 				parts.append(["coins", int(c["coins"])])
+			var worn := accessory_count(c)
+			if worn > 0:
+				parts.append("1 accessory" if worn == 1 else "%d accessories" % worn)
 			# The bag from its dearest thing to its cheapest, so what is left off a full row is the stone.
 			var held := bag_counts(c)
 			held.reverse()

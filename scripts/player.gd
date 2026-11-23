@@ -153,6 +153,7 @@ var hp := MAX_HP
 var spawn_point := Vector2.ZERO
 var fell_at := Vector2.ZERO     # where they last fell (set as they fall, before they wake at spawn_point)
 var roles = null                # the Highlands' role trees (scripts/highlands/levels.gd): their perks hook in here. Null anywhere else
+var gear = null                 # the Highlands' Accessory Satchel (scripts/highlands/gear.gd): what is worn hooks in here. Null anywhere else
 var aim_dir := Vector2.RIGHT   # where an attack goes: the mouse, the right stick, or the way you face
 var face_dir := Vector2.DOWN   # where the body looks
 var input: PlayerInput         # this player's controls (set before adding; defaults to every device)
@@ -619,7 +620,7 @@ func _update_facing(delta: float, move: Vector2) -> void:
 
 func _update_dodge(delta: float, move: Vector2) -> void:
 	if dodge_charges < DODGE_MAX_CHARGES:
-		dodge_refill += delta
+		dodge_refill += delta * (gear.dodge_speed(self) if gear != null else 1.0)      # (the Tinker's Thimble)
 		if dodge_refill >= DODGE_REFILL:
 			dodge_refill = 0.0
 			dodge_charges += 1
@@ -1278,6 +1279,7 @@ func _rune_arrow_hit(a, e, dmg: float) -> void:
 	if a.rune == "snipe":
 		# The farther it flew, the harder it lands.
 		dmg *= lerpf(SwingBuild.SNIPE_NEAR, SwingBuild.SNIPE_FAR, clampf(float(a.hit_flown) / SwingBuild.SNIPE_DISTANCE, 0.0, 1.0))
+	_dealt()
 	e.take_hit(dmg, a.dir, a.knock, false, a.color, a.stun, a.freeze)
 	if a.rune == "snipe":
 		_strip("snipe_hit", at, a.dir.angle())
@@ -1579,6 +1581,7 @@ func _rain_falls(r: Dictionary) -> void:
 		var rel: Vector2 = (e.global_position - at) / (rad + Vector2.ONE * float(e.radius))
 		if rel.length_squared() > 1.0:
 			continue
+		_dealt()
 		e.take_hit(float(r["dmg"]), Vector2.ZERO, 0.0, false, r["col"], SwingBuild.RAIN_PIN if r["pin"] else 0.0, 0.0)
 		if r["pin"]:
 			e.apply_stun(SwingBuild.RAIN_PIN)
@@ -1759,6 +1762,7 @@ func _add_stagger(e, points: float) -> void:
 	e.stagger_break(time)
 	# (The blow keeps the shove the swing just gave it.)
 	var kept: Vector2 = e.knock
+	_dealt()
 	e.take_hit(float(weapon.get("damage", 8.0)) * SwingBuild.STAGGER_DAMAGE * power, (at - global_position).normalized(), 0.0, false, col, 0.0, 0.08)
 	if is_instance_valid(e) and not e.dead:
 		e.knock = kept
@@ -1830,6 +1834,7 @@ func _run_rumbles() -> void:
 			var rel: Vector2 = e.global_position - where
 			if rel.length() > SwingBuild.AFTERSHOCK_RADIUS * patch + float(e.radius):
 				continue
+			_dealt()
 			e.take_hit(float(r["dmg"]), rel.normalized() if rel.length() > 1.0 else Vector2.UP, 110.0, false, r["col"], SwingBuild.AFTERSHOCK_STUN, 0.05)
 			struck += 1
 		shake = maxf(shake, (6.0 if struck > 0 else 3.0) * minf(patch, 2.0))
@@ -1861,6 +1866,7 @@ func _quake(size: float, power: float, col: Color) -> void:
 		var r := float(e.radius)
 		if along < -r or along > length + r or absf(side) > half + r:
 			continue
+		_dealt()
 		e.take_hit(dmg, across * (1.0 if side >= 0.0 else -1.0), 150.0, false, col, SwingBuild.QUAKE_STUN, 0.08)
 		e.apply_stun(SwingBuild.QUAKE_STUN)
 		struck += 1
@@ -1930,6 +1936,7 @@ func _hook(size: float, hit: float, saved: bool, col: Color, quick := false, aga
 	_hook_chain(tip, best, Vector2.INF, col)
 	_strip("hook_snag", best.global_position)
 	Sfx.play(self, "hook", -4.0)
+	_dealt()
 	best.take_hit(hit, toward, 0.0, false, col)
 	if best.is_boss() or float(best.knock_resist) <= 0.0:
 		# Too heavy: you go to it. Never right up against it.
@@ -2307,6 +2314,7 @@ func _run_orbs() -> void:
 	orb_struck = game_time
 	var to: Vector2 = best.global_position
 	var rel := to - global_position
+	_dealt()
 	best.take_hit(float(o["dmg"]), rel.normalized() if rel.length() > 1.0 else aim_dir, SwingBuild.ORBIT_KNOCK, false, o["col"], SwingBuild.ORBIT_STUN, 0.04)
 	# The orb darts across and bursts on them. (The hit has landed already: this
 	# is only what you see.)
@@ -2413,6 +2421,7 @@ func _chain_lightning(from: Vector2, struck: Dictionary, jumps: int, reach: floa
 		taken[best.get_instance_id()] = true
 		var to: Vector2 = best.global_position
 		var gap := to - at
+		_dealt()
 		best.take_hit(dmg, gap.normalized() if gap.length() > 1.0 else Vector2.UP, 70.0, false, col, 0.15, 0.02)
 		# (All the jumps land on this tick. On screen each shows a moment after the last.)
 		var arc := _strip("chain_arc", at + Arrow.HEIGHT * 0.5)
@@ -2462,6 +2471,7 @@ func _nova(size: float, power: float, col: Color, at: Vector2) -> void:
 		var rel: Vector2 = e.global_position + e._feet() - centre
 		if (rel / (rad + Vector2.ONE * float(e.radius))).length_squared() > 1.0:
 			continue
+		_dealt()
 		e.take_hit(dmg, rel.normalized() if rel.length() > 4.0 else aim_dir, SwingBuild.NOVA_KNOCK, false, col, SwingBuild.NOVA_STUN, 0.06)
 		struck += 1
 	shake = maxf(shake, (8.0 if struck > 0 else 4.0) * minf(size, 1.6))
@@ -2517,6 +2527,7 @@ func _lance_pulse(size: float, power: float, col: Color, stage: int) -> bool:
 	if e == null:
 		Sfx.play(self, "cast", -15.0, 0.7 + 0.15 * float(stage))
 		return false
+	_dealt()
 	e.take_hit(float(weapon.get("damage", 8.0)) * SwingBuild.LANCE_DAMAGE * float(stage) * power, aim_dir, 30.0 * float(stage), false, col, 0.12, 0.0)
 	shake = maxf(shake, 1.5 + 1.5 * float(stage))
 	Sfx.play(self, "cast", -10.0, 0.7 + 0.15 * float(stage))
@@ -2748,6 +2759,7 @@ func _spectre_dodge() -> void:
 		var rel: Vector2 = e.global_position - at
 		if rel.length() > SwingBuild.SPECTRE_BURST_RADIUS + float(e.radius):
 			continue
+		_dealt()
 		e.take_hit(dmg, rel.normalized() if rel.length() > 1.0 else Vector2.UP, 260.0, false, GHOST_COLOR, 0.3, 0.03)
 	var pop := _strip("burst_hit", at + Arrow.HEIGHT * 0.5, 0.0, SwingBuild.SPECTRE_BURST_RADIUS / 56.0)
 	if pop != null:
@@ -2957,6 +2969,8 @@ func _swing_hits(info: Dictionary, dir: Vector2, reach: float) -> Array:
 ## spark: an effect strip to show where it lands in place of the blade's spark
 ## (an arrow's). A crit always gets the crit spark.
 func _hit_enemy(e, dmg: float, kdir: Vector2, knock: float, stun := 0.12, freeze := 0.05, swing := {}, ghost := false, shot = null) -> void:
+	if gear != null:
+		gear.dealt(self)      # (the Hearthstone Pebble warms only out of the fight)
 	# A Weak Point mark turns this hit into a big crit, whoever's mark it is.
 	var mark: Dictionary = {}
 	if not swing.is_empty() and not e.weak_marks.is_empty():
@@ -3386,7 +3400,7 @@ func _refill_abilities(delta: float) -> void:
 		elif b != hold_button and not _shield_up(list[b]):
 			ability_wait[b] = maxf(float(ability_wait[b]) - delta, 0.0)
 			if float(ability_wait[b]) <= 0.0:
-				ability_charge[b] = minf(float(ability_charge[b]) + delta / float(list[b]["recharge"]), 1.0)
+				ability_charge[b] = minf(float(ability_charge[b]) + delta * (gear.rune_speed(self) if gear != null else 1.0) / float(list[b]["recharge"]), 1.0)      # (the Bandolier)
 
 
 func _update_abilities(delta: float) -> void:
@@ -3778,6 +3792,7 @@ func _run_shards() -> void:
 		if not is_instance_valid(e) or e.dead:
 			continue
 		ghost_fx = s.get("ghost", false)
+		_dealt()
 		e.take_hit(float(s["dmg"]), s["dir"], 140.0, false, s["col"])
 		if _strip("shards_hit", e.global_position, 0.0, float(s["size"])) == null:
 			_strip("cleave_echo", e.global_position, 0.0, float(s["size"]))
@@ -3882,6 +3897,7 @@ func _run_leap() -> void:
 			continue
 		var rel: Vector2 = e.global_position - global_position
 		if rel.length() <= reach + float(e.radius) and (rel.length() < float(e.radius) + RADIUS or absf(dir.angle_to(rel)) <= half_arc):
+			_dealt()
 			e.take_hit(dmg, dir, 160.0, false, col, LEAP_STUN, 0.06)
 			e.apply_stun(LEAP_STUN)
 			Art.play_piece(self, "hit_spark", e.global_position - dir * float(e.radius) * 0.4, dir.angle())
@@ -4084,6 +4100,7 @@ func _chain(from_enemy, dmg: float, jumps: int, stun: bool) -> void:
 		get_parent().add_child(line)
 		line.global_position = current.global_position
 		var dir: Vector2 = (best.global_position - current.global_position).normalized()
+		_dealt()
 		best.take_hit(dmg, dir, 60.0, false, col)
 		if stun:
 			best.apply_stun(0.5)
@@ -4106,10 +4123,17 @@ func _steam(target, dmg: float) -> void:
 			continue
 		if e.global_position.distance_to(target.global_position) <= radius + e.radius:
 			var dir: Vector2 = (e.global_position - target.global_position).normalized()
+			_dealt()
 			e.take_hit(dmg, dir, 140.0, false, col)
 
 
 # --- Taking damage ------------------------------------------------------------
+
+## Something of this player's has hurt an enemy (a rune's hit, which does not go through _hit_enemy()).
+func _dealt() -> void:
+	if gear != null:
+		gear.dealt(self)
+
 
 ## from: where the hit came from (you're knocked away from it).
 ## by: the enemy whose hit it is, where that is known (a Challenged enemy does less to whoever Challenged it).
@@ -4125,6 +4149,8 @@ func take_damage(amount: float, from: Vector2 = Vector2.INF, by = null) -> void:
 		return
 	if roles != null:
 		amount = roles.softened(self, amount, by)
+	if gear != null:
+		amount = gear.softened(self, amount)      # (the Banner Pin)
 	hp -= amount
 	invuln = 0.8
 	hurt_flash = 0.12
@@ -4133,8 +4159,10 @@ func take_damage(amount: float, from: Vector2 = Vector2.INF, by = null) -> void:
 	var away := Vector2.UP
 	if from != Vector2.INF and from.distance_to(global_position) > 0.5:
 		away = (global_position - from).normalized()
-		hurt_vel = away * 330.0
+		hurt_vel = away * 330.0 * (gear.knock(self) if gear != null else 1.0)      # (the Iron Bracer)
 	Art.play_piece(self, "hurt_burst", global_position + Vector2(0, -8), away.angle())
+	if gear != null:
+		gear.struck(self, by)      # (the Thorn Charm answers; the Hearthstone Pebble goes cold)
 	if hp <= 0.0:
 		hp = 0.0
 		fell_at = global_position

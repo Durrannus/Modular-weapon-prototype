@@ -48,6 +48,7 @@ var _stuck := 0.0
 var _side_t := 0.0
 var _side := 1.0
 var _word_t := 0.0
+var _own := 0                  # a small number of its own, from where it first stood: the same on every run and every machine
 
 
 func _ready() -> void:
@@ -57,6 +58,8 @@ func _ready() -> void:
 	if home == Vector2.INF:
 		home = position
 	_last_pos = position
+	# (Never the object's own number: that one differs from run to run, and the fights with it.)
+	_own = absi(int(round(position.x)) * 7 + int(round(position.y)) * 13)
 
 
 func _set_mode(m: String, time := 0.0) -> void:
@@ -159,7 +162,7 @@ func _go(goal: Vector2, spd: float, delta: float) -> Vector2:
 	if nav != null:
 		_clear_t -= delta
 		if _clear_t <= 0.0 or goal.distance_to(_clear_goal) > 40.0:
-			_clear_t = 0.15 + float(get_instance_id() % 7) * 0.01
+			_clear_t = 0.15 + float(_own % 7) * 0.01
 			_clear_goal = goal
 			_clear = nav.clear(global_position, goal)
 		if not _clear:
@@ -185,7 +188,7 @@ func _go(goal: Vector2, spd: float, delta: float) -> Vector2:
 func _along_path(goal: Vector2, delta: float, straight: Vector2) -> Vector2:
 	_path_t -= delta
 	if _path_t <= 0.0 or goal.distance_to(_path_goal) > 48.0 or _path_stamp != nav.stamp:
-		_path_t = 0.5 + float(get_instance_id() % 5) * 0.03
+		_path_t = 0.5 + float(_own % 5) * 0.03
 		_path_goal = goal
 		_path_stamp = nav.stamp
 		_path = nav.path(global_position, goal)

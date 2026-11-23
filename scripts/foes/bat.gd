@@ -24,6 +24,7 @@ var dive_dir := Vector2.RIGHT
 var dive_left := 0.0
 var nipped := false
 var bob := 0.0
+var flutter := 0.0                   # its own clock for the flutter (never the drawing's: that one starts by chance)
 
 
 func _setup() -> void:
@@ -55,6 +56,7 @@ func _stats() -> void:
 
 func _think(delta: float) -> Vector2:
 	mode_t -= delta
+	flutter += delta
 	if not fighting() or not is_instance_valid(shaman) or shaman.dead:
 		scatter()
 		return Vector2.ZERO
@@ -76,7 +78,7 @@ func _think(delta: float) -> Vector2:
 			if dist > HOVER + 120.0:
 				return facing * speed * 1.3
 			var v := facing.orthogonal() * side + facing * clampf((dist - HOVER) / 30.0, -1.0, 1.0)
-			return v.normalized() * speed * (0.8 + 0.2 * sin(anim_time * 5.0 + bob))
+			return v.normalized() * speed * (0.8 + 0.2 * sin(flutter * 5.0 + bob))
 		"dive":
 			dive_left -= DIVE_SPEED * delta
 			if not nipped:

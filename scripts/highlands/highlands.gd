@@ -18,16 +18,21 @@ extends "res://scripts/game_base.gd"
 ## perks.gd, scripts/ui/forge_hall.gd). Since version 46 Pip hangs in a cage at the
 ## Slinger Roost, the first quests are listed on the screen, Pip keeps a shop at the
 ## cave mouth once he is free, and the Watchpost's waystone can be mended and
-## travelled by (folk.gd, folk_plan.gd, scripts/ui/shop.gd).
+## travelled by (folk.gd, folk_plan.gd, scripts/ui/shop.gd). Since version 47 the
+## materials bag is ONE INVENTORY for everything (bag.gd), accessories are found in
+## chests and worn in the Accessory Satchel, where their shapes have to fit and only
+## what is in it works (gear.gd, accessories.gd), and Tab or a click of the left
+## stick opens the screen for both (scripts/ui/pack_screen.gd).
 ##
 ## SAVING (version 42; Darren, 21 November: "It works like terraria, player is
 ## saved"). Every player is a saved CHARACTER and the land is a saved WORLD
 ## (scripts/save.gd): the character keeps its weapons, runes, threads, presets,
-## tool belt, materials bag, coins, Memory, the Warhorn's pieces and its perks,
-## and goes into any world; the world keeps its number, what was dug, mined and
-## felled in it, which of its chests have been opened, the squad's level, what the
-## forge holds towards the next, the Memory left lying where somebody fell, and how
-## things stand with Pip, the quests and the waystones. There is no save button: the
+## tool belt, inventory, backpack, satchel and what is worn in it, coins, Memory,
+## the Warhorn's pieces and its perks, and goes into any world; the world keeps its
+## number, what was dug, mined and felled in it, which of its chests have been
+## opened, the squad's level, what the forge holds towards the next, the Memory
+## left lying where somebody fell, how things stand with Pip, the quests and the
+## waystones, and which of its places the squad has walked into. There is no save button: the
 ## game saves every AUTOSAVE seconds, when the pause menu opens, when the forge's
 ## screens close, and when you leave (back to the title, "Quit game", or the
 ## window closing).
@@ -50,6 +55,8 @@ const FoePlan := preload("res://scripts/highlands/foe_plan.gd")
 const Loot := preload("res://scripts/highlands/loot.gd")
 const LootPlan := preload("res://scripts/highlands/loot_plan.gd")
 const Levels := preload("res://scripts/highlands/levels.gd")
+const Gear := preload("res://scripts/highlands/gear.gd")
+const PackScreen := preload("res://scripts/ui/pack_screen.gd")
 const Folk := preload("res://scripts/highlands/folk.gd")
 const FolkPlan := preload("res://scripts/highlands/folk_plan.gd")
 const ForgeHall := preload("res://scripts/ui/forge_hall.gd")
@@ -76,6 +83,8 @@ var loot                        # chests, drops, coins and Memory (loot.gd)
 var chest_plan: Array = []      # where this land's chests stand and what is in them (loot_plan.gd)
 var levels                      # Memory, the squad's level, the role trees' perks, what falling costs (levels.gd)
 var hall                        # the forge's screen: give your Memory, the role trees (scripts/ui/forge_hall.gd)
+var gear                        # the Accessory Satchel and what is worn in it (gear.gd); null online
+var packs                       # the inventory's screen (scripts/ui/pack_screen.gd); null online
 var folk                        # Pip, his cage, the quests and the waystone (folk.gd); null online
 var folk_plan := {}             # where they stand on this land (folk_plan.gd)
 var ui
@@ -181,6 +190,17 @@ func _ready() -> void:
 		if relaid:
 			kept.erase("markers")
 		levels.set_world_data(kept)
+	# The Accessory Satchel. (Online, which is on hold, has no accessories yet.)
+	if not Net.online():
+		gear = Gear.new()
+		gear.game = self
+		gear.map = map
+		gear.players = players
+		gear.tools = tools
+		gear.levels = levels
+		add_child(gear)
+		if not world_save.is_empty() and not new_world and not relaid:
+			gear.set_world_data(world_save)
 	# Pip, his cage, the quests and the waystone. (Online, which is on hold, has none of them yet.)
 	if not Net.online():
 		folk = Folk.new()
@@ -214,6 +234,14 @@ func _ready() -> void:
 	hall.weapons.connect(_open_weapons)
 	hall.closed.connect(_hall_closed)
 	hall.travel.connect(_hall_travel)
+	if gear != null:
+		packs = PackScreen.new()
+		packs.game = self
+		packs.gear = gear
+		packs.tools = tools
+		packs.players = players
+		add_child(packs)
+		packs.closed.connect(_packs_closed)
 	music = Music.new()
 	add_child(music)
 	music.play("cave_calm", 4.0)
@@ -254,8 +282,8 @@ func welcome_text() -> String:
 	var kept := "A new land, laid out differently every time."
 	if not world_save.is_empty():
 		kept = "A new land. The game saves by itself: your character, and what you dig and fell here."
-	return "%s\nYou carry a pickaxe, an axe and a mallet. %s uses the one you have picked, on what you aim at. %s picks the next.\nThe hills round the cave are safe. Farther out, hounds and goblins have made the land theirs, and there are chests to find.\nWhat you kill, mine and chop gives Memory. Take it down the cave mouth to your forge: it raises the squad's level.\n\nWorld number %d" \
-		% [kept, "The left trigger" if pad else "F", "Select" if pad else "C", world_seed]
+	return "%s\nYou carry a pickaxe, an axe and a mallet. %s uses the one you have picked, on what you aim at. %s picks the next. %s opens your inventory.\nThe hills round the cave are safe. Farther out, hounds and goblins have made the land theirs, and there are chests to find.\nWhat you kill, mine and chop gives Memory. Take it down the cave mouth to your forge: it raises the squad's level.\n\nWorld number %d" \
+		% [kept, "The left trigger" if pad else "F", "Select" if pad else "C", "A click of the left stick" if pad else "Tab", world_seed]
 
 
 ## Leaving, whichever way (back to the title, or the game closing): everything is saved. And the players' controls
@@ -305,13 +333,17 @@ func swap_weapon(i: int, to := "") -> void:
 		super.swap_weapon(i, to)
 
 
-## Each saved character's tool belt, picked tool and materials bag, its coins, Memory and kept things, and its perks.
+## Each saved character's tool belt, picked tool, inventory and backpack, its coins, Memory and kept things, its
+## perks, and its satchel with what is worn in it (last: a satchel's size can hang on a perk, and what does not fit
+## goes into the inventory).
 func _load_hands() -> void:
 	for i in players.size():
 		if not characters[i].is_empty():
 			tools.set_hand_data(i, characters[i])
 			loot.set_purse_data(i, characters[i])
 			levels.set_perks_data(i, characters[i])
+			if gear != null:
+				gear.set_kit_data(i, characters[i])
 
 
 # --- Saving -----------------------------------------------------------------------
@@ -326,6 +358,8 @@ func _character_now(i: int) -> Dictionary:
 	c.merge(tools.hand_data(i), true)
 	c.merge(loot.purse_data(i), true)
 	c.merge(levels.perks_data(i), true)
+	if gear != null:
+		c.merge(gear.kit_data(i), true)
 	if not world_save.is_empty():
 		c["world"] = str(world_save.get("id", ""))
 	c["game"] = Version.NUMBER
@@ -341,6 +375,8 @@ func _world_now() -> Dictionary:
 	world_save.merge(map.changes(), true)
 	world_save["chests"] = loot.opened_ids()
 	world_save.merge(levels.world_data(), true)
+	if gear != null:
+		world_save.merge(gear.world_data(), true)
 	if folk != null:
 		world_save.merge(folk.world_data(), true)
 	world_save["game"] = Version.NUMBER
@@ -484,6 +520,29 @@ func _hall_closed(_i: int) -> void:
 		save_now()
 
 
+## Is a controller's left stick clicked in?
+func _left_stick_down() -> bool:
+	for device in 8:
+		if Input.is_joy_button_pressed(device, JOY_BUTTON_LEFT_STICK):
+			return true
+	return false
+
+
+## Somebody has closed their inventory: what was moved is saved.
+func _packs_closed(_i: int) -> void:
+	_swallow_presses()
+	save_now()
+
+
+## Numbers were changed in the lab: what the accessories do and how big everything is follow at once.
+func lab_changed() -> void:
+	super.lab_changed()
+	if gear != null:
+		for i in players.size():
+			gear.settle(i)
+			gear.refresh(i)
+
+
 ## The forge's screen sent the squad off by waystone (folk.gd does the going).
 func _hall_travel(i: int) -> void:
 	_swallow_presses()
@@ -538,10 +597,14 @@ func _physics_process(delta: float) -> void:
 		if was_busy and not busy:
 			p.need_release = true
 	was_busy = busy
+	if packs != null:
+		packs.allowed = not busy and not (folk != null and folk.travelling()) and not hall.is_open and not build_menu.is_open
 	tools.tick(delta, busy)
 	foes.tick(delta)
 	loot.tick(delta)
 	levels.tick(delta)
+	if gear != null:
+		gear.tick(delta)
 	if folk != null:
 		folk.tick(delta)
 	ui.prompts = []
@@ -552,7 +615,9 @@ func _physics_process(delta: float) -> void:
 	if not Net.online():
 		if can_swap and Input.is_action_just_pressed("swap_weapon"):
 			swap_weapon(_swap_key_player())
-		if Input.is_action_just_pressed("lab") and lab_screen != null and not lab_screen.just_closed():
+		# (The lab's other button, a click of the left stick, is the inventory's here: the lab is on L and in the
+		# pause menu.)
+		if Input.is_action_just_pressed("lab") and not _left_stick_down() and lab_screen != null and not lab_screen.just_closed():
 			open_lab()
 	_update_interactions()
 

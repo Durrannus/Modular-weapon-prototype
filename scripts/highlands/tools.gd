@@ -6,7 +6,7 @@ extends Node2D
 ## the mallet ("would rather cycle tools to what u need rather than auto picking it"). The game never picks the
 ## tool for you. Your weapon stays your weapon: attack and it swings, and its swing path and spirit stay on screen.
 ## Tools sit on a belt that belongs to the character, they never break, and a better tool replaces the old one.
-## What they win goes into the character's materials bag (bag.gd), never into the accessory backpack.
+## What they win goes into the character's inventory (bag.gd).
 ##
 ##   pickaxe   digs rock (it becomes dug floor and gives stone), mines tin and copper out of it, breaks up boulders
 ##   axe       fells pines for wood, and leaves the stump
@@ -73,8 +73,9 @@ const MARGIN := 10.0
 const SLOT := 18.0
 
 
-## What one player carries and is doing with it. The belt, the tool that is picked and the bag belong to the
-## character and are in its save (hand_data(), set_hand_data()); the rest is this moment's.
+## What one player carries and is doing with it. The belt, the tool that is picked, the inventory and the backpack
+## that sets its size belong to the character and are in its save (hand_data(), set_hand_data()); the rest is this
+## moment's.
 class Hand:
 	var tool := 0                                                         # which of TOOLS is picked
 	var belt := {"pickaxe": "basic", "axe": "basic", "mallet": "basic"}   # the make of each tool ("" = none)
@@ -86,7 +87,7 @@ class Hand:
 	var target := {}              # what it will strike, or struck ({}: nothing)
 	var picked_at := -9.0         # when the picked tool last changed (the belt lights up)
 	var gained := {}              # item -> when some last went into the bag
-	var told_at := -9.0           # when a word was last put over their head ("Bag full")
+	var told_at := -9.0           # when a word was last put over their head ("Inventory full")
 
 
 ## Chips, dust and pick-ups: over everything on the land.
@@ -162,10 +163,10 @@ func bag_of(i: int) -> Bag:
 
 
 ## What player i carries that belongs to their character, as plain values for the character save: the belt, the
-## tool that is picked and the materials bag.
+## tool that is picked, the inventory (under "bag", as the materials bag it grew out of was) and the backpack.
 func hand_data(i: int) -> Dictionary:
 	var h: Hand = hands[i]
-	return {"belt": h.belt.duplicate(), "tool": h.tool, "bag": h.bag.data()}
+	return {"belt": h.belt.duplicate(), "tool": h.tool, "bag": h.bag.data(), "pack": h.bag.pack}
 
 
 ## And back. A make of tool this game does not have becomes the basic one; whatever is missing stays as it was.
@@ -183,6 +184,8 @@ func set_hand_data(i: int, d: Dictionary) -> void:
 			if str(h.belt.get(TOOLS[n], "")) != "":
 				h.tool = n
 				break
+	if d.get("pack") is int or d.get("pack") is float:
+		h.bag.pack = clampi(int(d["pack"]), 0, Bag.PACKS.size() - 1)
 	if d.has("bag"):
 		h.bag.set_data(d["bag"])
 
@@ -367,9 +370,9 @@ func _strike(i: int) -> void:
 		return
 	var gives: Array = TILE_GIVES[int(t["kind"])] if t.has("tile") else THING_GIVES[str(t["class"])]
 	# Ore and wood are never thrown away: with no room for them the tool stays its blow. Stone is only rubble,
-	# and digging must always be possible, so a full bag just leaves it lying.
+	# and digging must always be possible, so a full inventory just leaves it lying.
 	if str(gives[0]) != "stone" and h.bag.room(str(gives[0])) < int(gives[1]):
-		_tell(p, h, "Bag full")
+		_tell(p, h, "Inventory full")
 		Sfx.play(game, "click", -10.0, 0.6)
 		return
 	var key := _wear_key(t)
@@ -454,7 +457,11 @@ func _break(i: int, t: Dictionary, gives: Array) -> void:
 			p.shake = maxf(p.shake, 2.0)
 		land.things_changed(foot)
 		_tell_nav(Vector2i.ZERO, foot)
-	var got: int = h.bag.add(str(gives[0]), int(gives[1]))
+	# The Prospector's Sieve: an ore mined may give one more (gear.gd asks the game's shared dice).
+	var more := 0
+	if t.has("tile") and game != null and "gear" in game and game.gear != null:
+		more = game.gear.extra_ore(i, str(gives[0]))
+	var got: int = h.bag.add(str(gives[0]), int(gives[1]) + more)
 	# What was won jumps out, lies a moment, and flies to whoever won it. It lies on the far side of where it came
 	# from: dug from right against the rock, the near side is behind your own head.
 	var away: Vector2 = (at - p.global_position).normalized()
@@ -915,7 +922,7 @@ func _draw_hand(layer: Node2D, i: int) -> void:
 	layer.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 
-# --- On the screen: the belt and the bag ---------------------------------------------------
+# --- On the screen: the belt and the materials carried ---------------------------------------
 
 func _head(text: String, pos: Vector2, col: Color, width := -1.0, align := HORIZONTAL_ALIGNMENT_LEFT) -> void:
 	panel.draw_string(Art.font("Silkscreen-Regular"), pos, text.to_upper(), align, width, 8, col)
@@ -974,7 +981,7 @@ func _draw_hud() -> void:
 				panel.draw_rect(Rect2(r.position + Vector2(1.5, 1.5), r.size - Vector2(3, 3)), Color(AMBER.r, AMBER.g, AMBER.b, 0.35 + 0.5 * lit), false, 1.0)
 			if str(h.belt.get(TOOLS[k], "")) != "":
 				_sprite(panel, "belt_" + str(TOOLS[k]), r.position + Vector2(1, 1), 1.0, Color.WHITE if on else Color(0.55, 0.55, 0.6))
-		# The bag's count of each material, lit for a moment when more comes in.
+		# The count of each material carried, lit for a moment when more comes in.
 		var x := belt.end.x + 7.0 if not right else belt.position.x - 4.0 - bag_w
 		for item in held:
 			var n := str(h.bag.count(item))

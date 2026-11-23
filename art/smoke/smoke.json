@@ -1,0 +1,37 @@
+{
+ "note": "Smoke over the Slinger Roost, first draft (23 Nov). The loot sheet's form. Four ages of one puff, drifted upward by the game. See README.md.",
+ "sprites": {
+  "smoke_puff": {
+   "box": [
+    1,
+    1,
+    72,
+    14
+   ],
+   "frame": [
+    18,
+    14
+   ],
+   "origin": [
+    9,
+    7
+   ],
+   "frames": 4,
+   "note": "NOT a loop: frame 0 is a fresh puff, 1 opened, 2 wide, 3 breaking up (hatched). Each puff shows frame 0, then 1, 2 and 3 as it ages. No outline."
+  }
+ },
+ "plume": {
+  "spawn_every_s": 1.0,
+  "rise_px_per_s": 6,
+  "drift_px_per_s": 1.5,
+  "sway_px": 1,
+  "life_s": 13,
+  "frame_at_s": [
+   0,
+   3,
+   7,
+   11
+  ],
+  "note": "A suggestion: about 78 px tall with 13 puffs alive, close enough to overlap into one column. Draw the newest puff last. Move puffs in whole pixels. Mirror every other puff. Draw above the rock tops and over everything."
+ }
+}

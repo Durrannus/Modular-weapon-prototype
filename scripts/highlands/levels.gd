@@ -290,7 +290,10 @@ func fell(i: int, at: Vector2) -> void:
 	if loot == null or i < 0 or i >= loot.purses.size():
 		return
 	var purse = loot.purses[i]
-	var lost_m := floori(float(purse.memory) * clampf(FALL_MEMORY, 0.0, 1.0))
+	var share := clampf(FALL_MEMORY, 0.0, 1.0)
+	if game != null and "gear" in game and game.gear != null:
+		share = game.gear.fall_share(i, share)      # (the Ashen Locket)
+	var lost_m := floori(float(purse.memory) * share)
 	var lost_c := floori(float(purse.coins) * clampf(FALL_COINS, 0.0, 1.0))
 	purse.memory -= lost_m
 	purse.coins -= lost_c

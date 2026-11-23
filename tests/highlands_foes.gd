@@ -37,6 +37,7 @@ var checks := 0
 var shot_dir := ""
 var shot_seed := 424242
 var debug_seed := 0
+var trace := 0                         # "-- trace=30": the long fights print where everybody is every 30 ticks (two runs must print the same)
 var soak := 0                          # "-- soak=8": only the long fights, eight times over with different dice
 var m                                  # the arena
 var p                                  # its player
@@ -52,6 +53,8 @@ func _init() -> void:
 			soak = int(a.substr(5))
 		elif a.begins_with("land="):
 			debug_seed = int(a.substr(5))
+		elif a.begins_with("trace="):
+			trace = int(a.substr(6))
 	_run()
 
 
@@ -811,11 +814,13 @@ func _land() -> void:
 ## Long fights on the land with a player who cannot be hurt and keeps walking about: nobody ends up in the rock,
 ## nobody stands lost while there is somebody to fight, and the game keeps its pace.
 func _long_fights(dice: int) -> void:
-	Sim.seed_with(dice)
 	var walks := [Vector2.RIGHT, Vector2.DOWN, Vector2.LEFT, Vector2.UP, Vector2(1, 1), Vector2(-1, 1), Vector2(-1, -1), Vector2(1, -1)]
 	for seed_value in ([424242, 77] if debug_seed == 0 else [debug_seed]):
 		var g = _game(seed_value)
 		await _frames(3)
+		# The dice are set once the game is made (a game shuffles them when it starts, as it must for real play):
+		# from here the same dice give the same fights on every run.
+		Sim.seed_with(dice)
 		var q = g.player
 		q.unhurt = true
 		var foes = g.foes
@@ -851,6 +856,12 @@ func _long_fights(dice: int) -> void:
 				q.input.move = walks[(f / 80 + fights) % walks.size()] if (f / 80) % 3 != 2 else Vector2.ZERO
 				await physics_frame
 				ticks += 1
+				if trace > 0 and f % trace == 0:
+					var line := "T %d %d %d p %.2f,%.2f" % [seed_value, fights, f, q.global_position.x, q.global_position.y]
+					for e in pack.members:
+						if is_instance_valid(e):
+							line += " | %s %s %.2f,%.2f" % [e.kind, e.mode, e.global_position.x, e.global_position.y]
+					print(line)
 				for e in pack.members:
 					if not is_instance_valid(e) or e.dead or e.kind == "bat":
 						continue
@@ -873,7 +884,11 @@ func _long_fights(dice: int) -> void:
 						print("      lost: a %s of group %d (seed %d) at %s, player at %s" % [e.kind, int(gr["id"]), seed_value, str(Nav.tile_of(at)), str(Nav.tile_of(q.global_position))])
 			q.input.move = Vector2.ZERO
 		var ms := float(Time.get_ticks_usec() - t0) / 1000.0 / float(maxi(ticks, 1))
-		print("      seed %d, dice %d: %d fights (%d joined), %.2f ms a tick" % [seed_value, dice, fights, woke, ms])
+		# Where everybody ended up, as one number: the same dice must give the same fights on every run.
+		var mark := 0.0
+		for e in get_nodes_in_group("foes"):
+			mark += e.global_position.x + e.global_position.y * 0.37
+		print("      seed %d, dice %d: %d fights (%d joined), %.2f ms a tick, everybody ended at mark %.1f" % [seed_value, dice, fights, woke, ms, mark])
 		_check(woke >= fights - 1 and fights >= 8, "seed %d: the groups come to fight (%d of %d)" % [seed_value, woke, fights])
 		_check(in_rock == 0, "seed %d: nobody is ever inside the rock (%d)" % [seed_value, in_rock])
 		_check(lost == 0, "seed %d: nobody stands lost while a fight goes on (%d)" % [seed_value, lost])
