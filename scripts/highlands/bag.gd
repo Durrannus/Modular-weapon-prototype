@@ -11,8 +11,8 @@ const SLOTS := 20
 const STACK := 99
 
 ## What can be carried so far, in the order the screen lists it.
-const ORDER := ["stone", "wood", "tin_ore", "copper_ore"]
-const NAMES := {"stone": "Stone", "wood": "Wood", "tin_ore": "Tin ore", "copper_ore": "Copper ore"}
+const ORDER := ["stone", "wood", "tin_ore", "copper_ore", "tin_bar", "copper_bar"]
+const NAMES := {"stone": "Stone", "wood": "Wood", "tin_ore": "Tin ore", "copper_ore": "Copper ore", "tin_bar": "Tin bar", "copper_bar": "Copper bar"}
 
 var slots: Array = []        # [[item id, how many]], at most SLOTS of them, none empty
 

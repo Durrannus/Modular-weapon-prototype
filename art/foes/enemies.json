@@ -1,5 +1,5 @@
 {
- "note": "Highlands enemies, first drafts. Everything faces right: mirror for left. Strips run left to right, every frame of a strip the same size. Sizes in px at 640x360. See README.md.",
+ "note": "Highlands enemies, second drafts (redrawn 23 Nov). Same names, strips, frame counts, frame sizes and feet as the first drafts; every box is where it was, so the sheet drops in. Everything faces right: mirror for left. Sizes in px at 640x360. See README.md.",
  "enemies": {
   "hound": {
    "frame": [
@@ -10,7 +10,7 @@
     19,
     28
    ],
-   "note": "The Cliff Hound: a lean grey wild dog. Circles (move), crouches, then lunges.",
+   "note": "The Cliff Hound: a lean grey wild dog with a black mane. Circles (move); crouch: rump up, chest down, tail up; then lunges with its jaws open.",
    "strips": {
     "idle": {
      "frames": 4,
@@ -83,7 +83,7 @@
     19,
     28
    ],
-   "note": "The elite Cliff Hound: the white, scarred pack leader. It howls to call more hounds.",
+   "note": "The elite Cliff Hound: the white, scarred pack leader, with a thick black ruff and its tail carried high. It howls with its head thrown back to call more hounds.",
    "strips": {
     "idle": {
      "frames": 4,
@@ -243,7 +243,7 @@
     15,
     28
    ],
-   "note": "The Pebble Slinger: a small goblin with a sling. Keeps its distance and backs away.",
+   "note": "The Pebble Slinger: a small big-eared goblin with a leather sling. Keeps its distance and backs away. windup: the sling goes round over its head.",
    "strips": {
     "idle": {
      "frames": 4,
@@ -316,7 +316,7 @@
     15,
     28
    ],
-   "note": "The elite Pebble Slinger: carries a rock as big as its head and throws it; the rock bursts into shards.",
+   "note": "The elite Pebble Slinger: an old verdigris cap, and a rock as big as its head that bursts into shards. It carries the rock at its belly; windup: it heaves it up over its head and leans back.",
    "strips": {
     "idle": {
      "frames": 4,
@@ -455,7 +455,7 @@
     21,
     44
    ],
-   "note": "The Scrap Brute: a big goblin behind a slab of forge scrap. It blocks from the front; 'open' is the moment after its swing.",
+   "note": "The Scrap Brute: a big goblin behind a slab of verdigris scrap, a boulder on a pole over its shoulder. It blocks from the front. windup: the boulder goes up over its head. open: after its swing the shield has dropped to its side and its whole front is bare.",
    "strips": {
     "idle": {
      "frames": 4,
@@ -548,7 +548,7 @@
     21,
     44
    ],
-   "note": "The elite Scrap Brute: bronze-plated shield and a horned helm. Every few swings it bashes with the shield.",
+   "note": "The elite Scrap Brute: a bronze-plated shield and a horned bronze cap. bash_windup: it drops low and hauls the shield right back past its hip. bash: it drives the shield out at arm's length (frame 0 is the blow).",
    "strips": {
     "idle": {
      "frames": 4,
@@ -771,7 +771,7 @@
     14,
     28
    ],
-   "note": "The Goblin Shaman: a robed goblin in a bat-skull mask. Its staff's old bronze ring calls bats (cast).",
+   "note": "The Goblin Shaman: a robed goblin in a horned skull mask. cast: it thrusts its staff up and the ring on it lights, calling bats.",
    "strips": {
     "idle": {
      "frames": 4,
@@ -834,7 +834,7 @@
     14,
     28
    ],
-   "note": "The elite Goblin Shaman: bone prongs and a bronze collar. It also wards another goblin (ward).",
+   "note": "The elite Goblin Shaman: a crown of bone spikes, a broad bronze collar and a bronze ring on its staff. ward: it levels its staff at the goblin it shields.",
    "strips": {
     "idle": {
      "frames": 4,
@@ -1201,7 +1201,7 @@
    ],
    "frames": 4,
    "fps": 8,
-   "note": "Where a pebble will land, flat on the floor, no outline, in the game's warning colours. An orange ring closes in from the edge over frames 0 to 2: spread them over the pebble's flight. Frame 3 is the landing flash.",
+   "note": "NOT USED since 23 Nov: only bosses get marks on the floor (Art principles, rule 24). Kept so nothing that names it breaks.",
    "box": [
     192,
     1088,

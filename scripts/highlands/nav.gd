@@ -6,7 +6,8 @@ extends RefCounted
 ## answers three questions: the tiles to walk from here to there, whether a straight line between two places is
 ## free to walk, and whether one place can be seen from another (rock hides, water and boulders do not).
 ##
-## A tile is not free if it is rock or water, or if something broad stands on it (a boulder, a bush, a cairn).
+## A tile is not free if it is rock or water, or if something broad stands on it (a boulder, a bush, a cairn; and
+## since version 44 a chest, which the loot tells it about with block()).
 ## When a tile is dug or a thing is broken the grid is told (tile_changed, thing_changed), and `stamp` goes up so
 ## that anybody walking an old way asks again.
 ##
@@ -24,6 +25,7 @@ var region := Rect2i()
 var stamp := 0
 var made_ms := 0.0               # how long the grid took to make (the tests print it)
 var covered := {}                # tile index -> how many broad things stand on it
+var blocked := {}                # tile index -> true: something that is not one of the map's things stands there (a chest)
 
 
 func setup(map_: LandMap) -> void:
@@ -78,14 +80,24 @@ func _cover(t: Dictionary, by: int) -> void:
 	covered[key] = int(covered.get(key, 0)) + by
 	if int(covered[key]) <= 0:
 		covered.erase(key)
-	grid.set_point_solid(at, covered.has(key) or not map.walkable(at.x, at.y))
+	grid.set_point_solid(at, covered.has(key) or blocked.has(key) or not map.walkable(at.x, at.y))
+
+
+## Something that is not one of the map's things stands on this tile from now on (a chest): nobody walks through it.
+func block(tile: Vector2i) -> void:
+	if not region.has_point(tile):
+		return
+	blocked[tile.y * LandMap.SIZE + tile.x] = true
+	grid.set_point_solid(tile, true)
+	stamp += 1
 
 
 ## A tile was dug (or otherwise changed).
 func tile_changed(tile: Vector2i) -> void:
 	if not region.has_point(tile):
 		return
-	grid.set_point_solid(tile, covered.has(tile.y * LandMap.SIZE + tile.x) or not map.walkable(tile.x, tile.y))
+	var key := tile.y * LandMap.SIZE + tile.x
+	grid.set_point_solid(tile, covered.has(key) or blocked.has(key) or not map.walkable(tile.x, tile.y))
 	stamp += 1
 
 
@@ -110,7 +122,8 @@ func things_changed(foot_px: Vector2) -> void:
 		for i in range(-2, 3):
 			var at := c + Vector2i(i, j)
 			if region.has_point(at):
-				grid.set_point_solid(at, covered.has(at.y * LandMap.SIZE + at.x) or not map.walkable(at.x, at.y))
+				var key := at.y * LandMap.SIZE + at.x
+				grid.set_point_solid(at, covered.has(key) or blocked.has(key) or not map.walkable(at.x, at.y))
 	stamp += 1
 
 

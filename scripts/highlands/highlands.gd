@@ -9,14 +9,17 @@ extends "res://scripts/game_base.gd"
 ## with nothing to build yet. What they win goes in a materials bag (bag.gd).
 ## Since version 43 the land has its enemies (foes.gd; scripts/foes/): packs of
 ## Cliff Hounds, Pebble Slingers, the odd Scrap Brute, Goblin Shamans with their
-## bats, and an elite of each. Nothing lives near the cave. There are no chests
-## and nothing drops yet: that is the next version.
+## bats, and an elite of each. Nothing lives near the cave. Since version 44
+## there are chests to find, enemies leave Memory when they fall, and the elites
+## leave loot and the pieces of the Rusted Warhorn (loot.gd, loot_plan.gd): coins
+## and Memory are counted beside your health, and bars go in the bag.
 ##
 ## SAVING (version 42; Darren, 21 November: "It works like terraria, player is
 ## saved"). Every player is a saved CHARACTER and the land is a saved WORLD
 ## (scripts/save.gd): the character keeps its weapons, runes, threads, presets,
-## tool belt and materials bag and goes into any world; the world keeps its
-## number and what was dug, mined and felled in it. There is no save button: the
+## tool belt, materials bag, coins, Memory and the Warhorn's pieces, and goes
+## into any world; the world keeps its number, what was dug, mined and felled in
+## it, and which of its chests have been opened. There is no save button: the
 ## game saves every AUTOSAVE seconds, when the pause menu opens, when the forge
 ## screen closes, and when you leave (back to the title, "Quit game", or the
 ## window closing).
@@ -35,6 +38,9 @@ const LandMap := preload("res://scripts/highlands/land_map.gd")
 const LandView := preload("res://scripts/highlands/land_view.gd")
 const Tools := preload("res://scripts/highlands/tools.gd")
 const Foes := preload("res://scripts/highlands/foes.gd")
+const FoePlan := preload("res://scripts/highlands/foe_plan.gd")
+const Loot := preload("res://scripts/highlands/loot.gd")
+const LootPlan := preload("res://scripts/highlands/loot_plan.gd")
 const CaveUi := preload("res://scripts/cave/cave_ui.gd")
 const Music := preload("res://scripts/music.gd")
 const Save := preload("res://scripts/save.gd")
@@ -53,6 +59,8 @@ var land
 var tools                       # the tool belts and the materials bags (tools.gd)
 var foes                        # the land's enemies (foes.gd)
 var with_foes := true           # false: the land is empty of enemies (the tests of other things)
+var loot                        # chests, drops, coins and Memory (loot.gd)
+var chest_plan: Array = []      # where this land's chests stand and what is in them (loot_plan.gd)
 var ui
 var owned: Array = []           # per player: the part ids they can use at the forge (null = all of them)
 var interactables: Array = []   # [{at, radius, text, lift, can: Callable(i), use: Callable(i)}]
@@ -89,6 +97,9 @@ func _ready() -> void:
 	if world_seed <= 0:
 		world_seed = 100000 + randi() % 900000     # six figures: easy to read out
 	map = WorldGen.make(world_seed)
+	# Where the chests stand is worked out from the land as it was made, before a save's digging and felling are
+	# done to it again: the same world always has the same chests in the same places.
+	chest_plan = LootPlan.make(map, FoePlan.make(map))
 	if not world_save.is_empty() and not new_world:
 		# The land is made again from its number, and then what was dug, mined and felled is done to it again. If
 		# this game makes the land differently from the one that saved it, the old changes would not fit: they are
@@ -127,6 +138,17 @@ func _ready() -> void:
 	foes.on = with_foes
 	add_child(foes)
 	foes.setup()
+	loot = Loot.new()
+	loot.game = self
+	loot.map = map
+	loot.world = world
+	loot.players = players
+	loot.tools = tools
+	loot.nav = foes.nav
+	add_child(loot)
+	loot.setup(chest_plan)
+	if not world_save.is_empty() and not new_world and not relaid:
+		loot.set_opened(world_save.get("chests"))
 	rig.set_limits(Rect2(Vector2(map.region.position) * TILE, Vector2(map.region.size) * TILE), 0.0)
 	rig.snap()
 	land.prime()
@@ -177,7 +199,7 @@ func welcome_text() -> String:
 	var kept := "A new land, laid out differently every time."
 	if not world_save.is_empty():
 		kept = "A new land. The game saves by itself: your character, and what you dig and fell here."
-	return "%s\nYou carry a pickaxe, an axe and a mallet. %s uses the one you have picked, on what you aim at. %s picks the next.\nThe hills round the cave are safe. Farther out, hounds and goblins have made the land theirs.\nThe cave mouth leads back to your forge.\n\nWorld number %d" \
+	return "%s\nYou carry a pickaxe, an axe and a mallet. %s uses the one you have picked, on what you aim at. %s picks the next.\nThe hills round the cave are safe. Farther out, hounds and goblins have made the land theirs, and there are chests to find.\nThe cave mouth leads back to your forge.\n\nWorld number %d" \
 		% [kept, "The left trigger" if pad else "F", "Select" if pad else "C", world_seed]
 
 
@@ -228,11 +250,12 @@ func swap_weapon(i: int, to := "") -> void:
 		super.swap_weapon(i, to)
 
 
-## Each saved character's tool belt, picked tool and materials bag.
+## Each saved character's tool belt, picked tool and materials bag, and its coins, Memory and kept things.
 func _load_hands() -> void:
 	for i in players.size():
 		if not characters[i].is_empty():
 			tools.set_hand_data(i, characters[i])
+			loot.set_purse_data(i, characters[i])
 
 
 # --- Saving -----------------------------------------------------------------------
@@ -245,17 +268,20 @@ func _character_now(i: int) -> Dictionary:
 	c["spirit"] = bool(players[i].with_spirit)
 	c["swap"] = bool(swaps[i])
 	c.merge(tools.hand_data(i), true)
+	c.merge(loot.purse_data(i), true)
 	if not world_save.is_empty():
 		c["world"] = str(world_save.get("id", ""))
 	c["game"] = Version.NUMBER
 	return c
 
 
-## The world as it is at this moment, for its save: its number and what has been changed on its land.
+## The world as it is at this moment, for its save: its number, what has been changed on its land, and which of
+## its chests have been opened.
 func _world_now() -> Dictionary:
 	world_save["seed"] = world_seed
 	world_save["land"] = WorldGen.GEN
 	world_save.merge(map.changes(), true)
+	world_save["chests"] = loot.opened_ids()
 	world_save["game"] = Version.NUMBER
 	return world_save
 
@@ -286,7 +312,7 @@ static func _meat(d: Dictionary) -> String:
 ## Returns false if something could not be written (the screen then says so, and the file that was there is left
 ## as it was).
 func save_now(leaving := false, tell := true) -> bool:
-	if Net.online() or tools == null or map == null:
+	if Net.online() or tools == null or loot == null or map == null:
 		return true
 	var now := Time.get_unix_time_from_system()
 	var wrote := false
@@ -412,6 +438,7 @@ func _physics_process(delta: float) -> void:
 	was_busy = busy
 	tools.tick(delta, busy)
 	foes.tick(delta)
+	loot.tick(delta)
 	ui.prompts = []
 	for p in players:
 		p.interact_ready = false

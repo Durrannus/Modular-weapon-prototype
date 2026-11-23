@@ -370,7 +370,7 @@ func _art_key() -> String:
 
 
 func _draw() -> void:
-	# An elite's rim: a thin amber line on its lit side, drawn by the art for every frame, under the enemy.
+	# An elite's rim: a thin pale bronze line on its lit side, drawn by the art for every frame, under the enemy.
 	if elite and not dead:
 		var sp := _sprite()
 		if not sp.is_empty():

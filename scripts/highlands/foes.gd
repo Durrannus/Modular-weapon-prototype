@@ -206,10 +206,13 @@ func _send_off(pack: Pack) -> void:
 			e.queue_free()
 
 
-func _on_died(_e, i: int, k: int) -> void:
+func _on_died(e, i: int, k: int) -> void:
 	if not fallen.has(i):
 		fallen[i] = {}
 	fallen[i][k] = BACK_AFTER
+	# What it leaves behind (loot.gd): Memory, and an elite's loot. Those called into a fight never come this way.
+	if game != null and "loot" in game and game.loot != null:
+		game.loot.foe_died(e)
 
 
 ## The dead come back, at home, when their time is up and nobody is near.

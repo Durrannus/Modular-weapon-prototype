@@ -33,6 +33,8 @@ const SCRIPTS := {
 	"shaman": "res://scripts/foes/shaman.gd",
 	"bat": "res://scripts/foes/bat.gd",
 	"foes": "res://scripts/highlands/foes.gd",
+	"loot": "res://scripts/highlands/loot.gd",
+	"loot_plan": "res://scripts/highlands/loot_plan.gd",
 }
 
 ## How a number is shown and stepped:
@@ -49,7 +51,7 @@ const UNITS := {
 	"": {"step": 1.0, "lo": 0.0, "hi": 100000.0},
 }
 
-const PAGES := ["All weapons", "Sword", "Bow", "Hammer", "Staff", "Sword runes", "Bow runes", "Hammer runes", "Staff runes", "Threads", "Players", "Enemies", "Highlands enemies", "Forge guardian"]
+const PAGES := ["All weapons", "Sword", "Bow", "Hammer", "Staff", "Sword runes", "Bow runes", "Hammer runes", "Staff runes", "Threads", "Players", "Enemies", "Highlands enemies", "Chests and loot", "Forge guardian"]
 
 ## A line under a page's name, where one helps.
 const PAGE_NOTES := {
@@ -66,6 +68,7 @@ const PAGE_NOTES := {
 	"Players": "Everyone gets the same numbers.",
 	"Enemies": "Enemies already here keep the same share of their health.",
 	"Highlands enemies": "The hounds and goblins of the Highlands. You can also put them in the arena: see Spawn.",
+	"Chests and loot": "What chests hold and what enemies leave. Chest changes take hold when a world is next opened.",
 	"Forge guardian": "The tutorial cave's boss. You can also put him in the arena: see Spawn.",
 }
 
@@ -419,13 +422,13 @@ static func _build_rows() -> void:
 	g = "Scrap Brute"
 	_add(p, g, "Health", "scrap_brute:HP", "", 1.0, 1.0, 10000.0)
 	_add(p, g, "Walking speed", "scrap_brute:SPEED", "d", 2.0, 0.0, 600.0)
-	_add(p, g, "What its cleaver does", "scrap_brute:CLUB", "", 1.0, 0.0, 1000.0)
+	_add(p, g, "What its swing does", "scrap_brute:CLUB", "", 1.0, 0.0, 1000.0)
 	_add(p, g, "Warning before it swings", "scrap_brute:WINDUP", "s", 0.05, 0.2, 5.0)
 	_add(p, g, "Open after a swing for (your time to hit it)", "scrap_brute:OPEN", "s", 0.05, 0.2, 10.0)
-	_add(p, g, "How far the cleaver reaches", "scrap_brute:REACH", "d", 2.0, 20.0, 300.0)
+	_add(p, g, "How far its swing reaches", "scrap_brute:REACH", "d", 2.0, 20.0, 300.0)
 	g = "Elite brute"
 	_add(p, g, "Health", "scrap_brute:ELITE_HP", "", 1.0, 1.0, 10000.0)
-	_add(p, g, "What its cleaver does", "scrap_brute:ELITE_CLUB", "", 1.0, 0.0, 1000.0)
+	_add(p, g, "What its swing does", "scrap_brute:ELITE_CLUB", "", 1.0, 0.0, 1000.0)
 	_add(p, g, "A shield bash every so many attacks", "scrap_brute:BASH_EVERY", "n", 1.0, 2.0, 10.0)
 	_add(p, g, "What the bash does", "scrap_brute:BASH", "", 1.0, 0.0, 1000.0)
 	_add(p, g, "Warning before the bash", "scrap_brute:BASH_WINDUP", "s", 0.05, 0.2, 5.0)
@@ -450,6 +453,33 @@ static func _build_rows() -> void:
 	_add(p, g, "Longest wait between swoops", "bat:REST_MAX", "s", 0.1, 0.2, 20.0)
 	g = "On the land"
 	_add(p, g, "A killed enemy is back after (with nobody near)", "foes:BACK_AFTER", "s", 10.0, 2.0, 3600.0)
+
+	p = "Chests and loot"
+	g = "Chests"
+	_add(p, g, "Places with enemies that have a chest", "loot_plan:GUARDED_SHARE", "%", 0.05, 0.0, 1.0)
+	_add(p, g, "Empty places that have a chest", "loot_plan:EMPTY_SHARE", "%", 0.05, 0.0, 1.0)
+	_add(p, g, "Fewest coins in a chest", "loot_plan:COINS_MIN", "", 1.0, 0.0, 1000.0)
+	_add(p, g, "Most coins in a chest", "loot_plan:COINS_MAX", "", 1.0, 0.0, 1000.0)
+	_add(p, g, "Fewest bars in a chest", "loot_plan:BARS_MIN", "n", 1.0, 1.0, 20.0)
+	_add(p, g, "Most bars in a chest", "loot_plan:BARS_MAX", "n", 1.0, 1.0, 20.0)
+	_add(p, g, "Memory in a chest", "loot_plan:MEMORY", "", 1.0, 0.0, 10000.0)
+	_add(p, g, "A sealed or named place's chest holds", "loot_plan:RICH", "%", 0.1, 1.0, 10.0)
+	_add(p, g, "The first chest, by the cave, holds", "loot_plan:FIRST", "%", 0.05, 0.1, 2.0)
+	g = "Memory for a kill"
+	_add(p, g, "Cliff Hound", "loot:MEMORY_FOR/hound", "", 1.0, 0.0, 10000.0)
+	_add(p, g, "Pebble Slinger", "loot:MEMORY_FOR/slinger", "", 1.0, 0.0, 10000.0)
+	_add(p, g, "Scrap Brute", "loot:MEMORY_FOR/scrap_brute", "", 1.0, 0.0, 10000.0)
+	_add(p, g, "Goblin Shaman", "loot:MEMORY_FOR/shaman", "", 1.0, 0.0, 10000.0)
+	_add(p, g, "Any elite", "loot:ELITE_MEMORY", "", 1.0, 0.0, 10000.0)
+	g = "What an elite leaves"
+	_add(p, g, "Fewest coins", "loot:ELITE_COINS_MIN", "", 1.0, 0.0, 1000.0)
+	_add(p, g, "Most coins", "loot:ELITE_COINS_MAX", "", 1.0, 0.0, 1000.0)
+	_add(p, g, "Fewest bars", "loot:ELITE_BARS_MIN", "n", 1.0, 1.0, 20.0)
+	_add(p, g, "Most bars", "loot:ELITE_BARS_MAX", "n", 1.0, 1.0, 20.0)
+	g = "Memory for work"
+	_add(p, g, "A tile of tin ore mined", "loot:WORK_MEMORY/tin_ore", "", 1.0, 0.0, 1000.0)
+	_add(p, g, "A tile of copper ore mined", "loot:WORK_MEMORY/copper_ore", "", 1.0, 0.0, 1000.0)
+	_add(p, g, "A pine felled", "loot:WORK_MEMORY/wood", "", 1.0, 0.0, 1000.0)
 
 	p = "Forge guardian"
 	g = "Body"

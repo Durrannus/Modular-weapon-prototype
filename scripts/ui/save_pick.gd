@@ -23,6 +23,7 @@ const Sfx := preload("res://scripts/sfx.gd")
 const Save := preload("res://scripts/save.gd")
 const SwingBuild := preload("res://scripts/weapon/swing_build.gd")
 const Bag := preload("res://scripts/highlands/bag.gd")
+const ItemArt := preload("res://scripts/highlands/item_art.gd")
 const WorldGen := preload("res://scripts/highlands/world_gen.gd")
 
 const SCREEN := Vector2(640, 360)
@@ -378,7 +379,7 @@ func _draw_screen() -> void:
 	_words(silk, Vector2(32, 38), "WHO IS PLAYING?" if step == 0 else "WHICH WORLD?", 16, AMBER)
 	_words(silk, Vector2(32, 38), "STEP %d OF 2" % (step + 1), 8, DIM, 576.0, HORIZONTAL_ALIGNMENT_RIGHT)
 	if step == 0:
-		_words(pix, Vector2(32, 56), "A character keeps its weapons, runes, tools and bag, and can go into any world.", Art.TEXT_SIZE, INK)
+		_words(pix, Vector2(32, 56), "A character keeps its weapons, runes, tools, bag and coins, and can go into any world.", Art.TEXT_SIZE, INK)
 		var width := 280.0 if count > 1 else 360.0
 		for p in count:
 			var x := 32.0 + float(p) * 296.0 if count > 1 else 140.0
@@ -442,7 +443,12 @@ func _draw_characters(p: int, x: float, width: float, silk: Font, pix: Font) -> 
 		elif c.get("restored", false):
 			parts = [weapon_words(c), "(from its backup)"]
 		if not c.get("newer", false):
-			parts.append_array(bag_counts(c))
+			if (c.get("coins") is int or c.get("coins") is float) and int(c["coins"]) > 0:
+				parts.append(["coins", int(c["coins"])])
+			# The bag from its dearest thing to its cheapest, so what is left off a full row is the stone.
+			var held := bag_counts(c)
+			held.reverse()
+			parts.append_array(held)
 		var right := Save.when(float(c.get("played", 0.0)))
 		var right_col := DIM
 		if other >= 0:
@@ -487,15 +493,24 @@ func _draw_row(r: Rect2, on: bool, faded: bool, title: String, right: String, ri
 		_words(pix, Vector2(r.position.x + 8.0, r.position.y + 13.0), right, Art.TEXT_SIZE, Color(right_col, a), inner, HORIZONTAL_ALIGNMENT_RIGHT)
 	if right2 != "":
 		_words(pix, Vector2(r.position.x + 8.0, r.position.y + 28.0), right2, Art.TEXT_SIZE, Color(FAINT, a), inner, HORIZONTAL_ALIGNMENT_RIGHT)
-	for part in parts:
+	# What it holds stops short of the words at the right: what does not fit is counted ("+3 more").
+	var limit := r.position.x + 8.0 + inner - (_width(pix, right2, Art.TEXT_SIZE) + 12.0 if right2 != "" else 0.0)
+	for k in parts.size():
+		var part = parts[k]
+		var more := "+%d more" % (parts.size() - k)
+		var room := limit - (_width(pix, more, Art.TEXT_SIZE) + 4.0 if k < parts.size() - 1 else 0.0)
 		if part is String:
+			if x + _width(pix, part, Art.TEXT_SIZE) > room and k > 0:
+				_words(pix, Vector2(x, r.position.y + 28.0), more, Art.TEXT_SIZE, Color(DIM, a))
+				break
 			_words(pix, Vector2(x, r.position.y + 28.0), part, Art.TEXT_SIZE, Color(DIM, a))
 			x += _width(pix, part, Art.TEXT_SIZE) + 10.0
-		elif part is Array and boxes.has("item_" + str(part[0])) and sheet != null:
-			var box: Array = boxes["item_" + str(part[0])]["box"]
-			root.draw_texture_rect_region(sheet, Rect2(x, r.position.y + 16.0, float(box[2]), float(box[3])), Rect2(float(box[0]), float(box[1]), float(box[2]), float(box[3])), Color(1, 1, 1, a))
-			x += float(box[2]) + 1.0
+		elif part is Array and ItemArt.size("item_" + str(part[0])) != Vector2.ZERO:
 			var n := str(int(part[1]))
+			if x + ItemArt.size("item_" + str(part[0])).x + 1.0 + _width(silk, n, 8) > room:
+				_words(pix, Vector2(x, r.position.y + 28.0), more, Art.TEXT_SIZE, Color(DIM, a))
+				break
+			x += ItemArt.draw(root, "item_" + str(part[0]), Vector2(x, r.position.y + 16.0), 1.0, Color(1, 1, 1, a)).x + 1.0
 			_words(silk, Vector2(x, r.position.y + 28.0), n, 8, Color(INK, a))
 			x += _width(silk, n, 8) + 6.0
 

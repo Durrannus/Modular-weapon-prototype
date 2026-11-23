@@ -23,6 +23,7 @@ extends Node2D
 const LandMap := preload("res://scripts/highlands/land_map.gd")
 const Painter := preload("res://scripts/highlands/land_painter.gd")
 const Bag := preload("res://scripts/highlands/bag.gd")
+const ItemArt := preload("res://scripts/highlands/item_art.gd")
 const Art := preload("res://scripts/art.gd")
 const Sfx := preload("res://scripts/sfx.gd")
 const SpriteOnce := preload("res://scripts/fx/sprite_once.gd")
@@ -437,6 +438,9 @@ func _break(i: int, t: Dictionary, gives: Array) -> void:
 	for n in got:
 		var spot := at + away * dice.randf_range(5.0, 9.0) + away.rotated(PI * 0.5) * dice.randf_range(4.0, 10.0) * (1.0 if n % 2 == 0 else -1.0)
 		flies.append({"from": at, "spot": spot, "i": i, "t": -after, "wait": LIE + 0.08 * float(n), "item": str(gives[0])})
+	# Mining ore and felling a pine are worth a little Memory (loot.gd says how much).
+	if got > 0 and game != null and "loot" in game and game.loot != null:
+		game.loot.worked(i, str(gives[0]), at, after)
 	h.target = {}
 
 
@@ -842,7 +846,7 @@ func _draw_over(ci: Node2D) -> void:
 func _sprite(ci: CanvasItem, name: String, at: Vector2, px: float, tint := Color.WHITE) -> Vector2:
 	var box: Array = boxes.get(name, {}).get("box", [])
 	if sheet == null or box.size() != 4:
-		return Vector2.ZERO
+		return ItemArt.draw(ci, name, at, px, tint)      # (the bars' pictures are on the loot art's sheet)
 	var size := Vector2(float(box[2]), float(box[3]))
 	ci.draw_texture_rect_region(sheet, Rect2(at, size * px), Rect2(box[0], box[1], box[2], box[3]), tint)
 	return size
@@ -851,7 +855,7 @@ func _sprite(ci: CanvasItem, name: String, at: Vector2, px: float, tint := Color
 ## How big a picture on the tool sheet is, in art pixels.
 func _sprite_size(name: String) -> Vector2:
 	var box: Array = boxes.get(name, {}).get("box", [])
-	return Vector2(float(box[2]), float(box[3])) if box.size() == 4 else Vector2.ZERO
+	return Vector2(float(box[2]), float(box[3])) if box.size() == 4 else ItemArt.size(name)
 
 
 ## The tool in the hand of player i while it swings: drawn on the player's weapon layer (player.gd, tool_draw), in the

@@ -4,8 +4,8 @@ extends "res://scripts/foes/foe.gd"
 ## "uncommon so the shield doesn't get annoying. Usually one at a time."
 ##
 ## It walks at you behind its shield and turns to keep the shield on you, but it turns slowly. A blow that comes
-## at the shield does nothing (BLOCKED). A blow from the side or behind lands. It raises its cleaver (the
-## warning), swings, and then for a second the shield hangs at its side and the cleaver is on the ground: it is
+## at the shield does nothing (BLOCKED). A blow from the side or behind lands. It raises its weapon (the
+## warning), swings, and then for a second the shield hangs at its side and the weapon is on the ground: it is
 ## OPEN, and a blow from anywhere lands. Stunned or staggered, its shield is down too.
 ##
 ## The ELITE has a bronze-plated shield and, every third attack, BASHES with it: a short charge, shield first,
@@ -16,9 +16,9 @@ static var SPEED := 62.0
 static var CLUB := 18.0
 static var TURN := 2.6               # how fast it turns its shield towards you, in radians a second
 static var GUARD := 65.0             # the shield covers this many degrees to each side of where it points
-static var WINDUP := 0.65            # the cleaver raised before the swing
+static var WINDUP := 0.65            # the weapon raised before the swing (a boulder on a pole, in the art since version 44)
 static var OPEN := 1.0               # how long the shield is down after a swing
-static var REACH := 56.0             # from its middle to the end of the cleaver
+static var REACH := 56.0             # from its middle to the end of its weapon
 static var ELITE_HP := 200.0
 static var ELITE_CLUB := 22.0
 static var BASH_EVERY := 3           # every this many attacks the elite bashes

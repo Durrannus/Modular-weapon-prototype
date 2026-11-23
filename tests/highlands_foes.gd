@@ -445,11 +445,11 @@ func _brute() -> void:
 	b.facing = Vector2.LEFT
 	b.cool = 0.0
 	var t := await _wait(func(): return b.mode == "windup", 60)
-	_check(t >= 0, "close to you it raises its cleaver")
+	_check(t >= 0, "close to you it raises its weapon")
 	_strike(b, 10.0)
-	_check(b.hp == b.max_hp, "the shield is still up while the cleaver is raised")
+	_check(b.hp == b.max_hp, "the shield is still up while its weapon is raised")
 	var wind := await _wait(func(): return b.mode != "windup", 90)
-	_check(absf(float(wind) / 60.0 - ScrapBrute.WINDUP) < 0.06, "the cleaver is up for its warning time (%.2f s)" % (float(wind) / 60.0))
+	_check(absf(float(wind) / 60.0 - ScrapBrute.WINDUP) < 0.06, "its weapon is up for its warning time (%.2f s)" % (float(wind) / 60.0))
 	await _wait(func(): return b.mode == "open", 40)
 	_check(is_equal_approx(p.hp, p.max_hp - ScrapBrute.CLUB), "the swing hits a player in front of it (%.0f)" % (p.max_hp - p.hp))
 	_check(b.mode == "open" and not b.guarding(), "after the swing its shield is down")

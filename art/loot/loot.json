@@ -1,0 +1,546 @@
+{
+ "note": "A Highlands chest and loot, first drafts. Sizes in px at 640x360. item_* are 16x16 bag icons, drop_* lie on the ground (put the foot on the spot). See README.md.",
+ "sprites": {
+  "chest": {
+   "box": [
+    1,
+    1,
+    90,
+    20
+   ],
+   "frames": 5,
+   "frame": [
+    18,
+    20
+   ],
+   "foot": [
+    9,
+    20
+   ],
+   "fps": 10,
+   "solid": [
+    16,
+    5
+   ],
+   "note": "Frame 0 is the closed chest. Play 0 to 4 when it is opened: unlatched, lifting, thrown open, settled open with its loot showing."
+  },
+  "chest_empty": {
+   "box": [
+    92,
+    1,
+    18,
+    20
+   ],
+   "frame": [
+    18,
+    20
+   ],
+   "foot": [
+    9,
+    20
+   ],
+   "solid": [
+    16,
+    5
+   ],
+   "note": "Open and emptied: what an opened chest stays as."
+  },
+  "item_coins": {
+   "box": [
+    111,
+    1,
+    16,
+    16
+   ],
+   "size": [
+    16,
+    16
+   ],
+   "note": "A few bronze coins."
+  },
+  "item_tin_bar": {
+   "box": [
+    128,
+    1,
+    16,
+    16
+   ],
+   "size": [
+    16,
+    16
+   ],
+   "note": "A tin bar."
+  },
+  "item_copper_bar": {
+   "box": [
+    145,
+    1,
+    16,
+    16
+   ],
+   "size": [
+    16,
+    16
+   ],
+   "note": "A copper bar."
+  },
+  "item_blank_rune": {
+   "box": [
+    162,
+    1,
+    16,
+    16
+   ],
+   "size": [
+    16,
+    16
+   ],
+   "note": "A passive blank rune stone: smooth, with an empty socket."
+  },
+  "item_part_bundle": {
+   "box": [
+    179,
+    1,
+    16,
+    16
+   ],
+   "size": [
+    16,
+    16
+   ],
+   "note": "A weapon part, wrapped: one picture for any part lying on the ground."
+  },
+  "item_accessory_pouch": {
+   "box": [
+    196,
+    1,
+    16,
+    16
+   ],
+   "size": [
+    16,
+    16
+   ],
+   "note": "An accessory, in its pouch: one picture for any accessory lying on the ground."
+  },
+  "item_hide_small": {
+   "box": [
+    213,
+    1,
+    16,
+    16
+   ],
+   "size": [
+    16,
+    16
+   ],
+   "note": "A small hide (hare)."
+  },
+  "item_hide_large": {
+   "box": [
+    230,
+    1,
+    16,
+    16
+   ],
+   "size": [
+    16,
+    16
+   ],
+   "note": "A large hide (hound, goat)."
+  },
+  "item_feather": {
+   "box": [
+    1,
+    22,
+    16,
+    16
+   ],
+   "size": [
+    16,
+    16
+   ],
+   "note": "A ptarmigan feather."
+  },
+  "item_horn": {
+   "box": [
+    18,
+    22,
+    16,
+    16
+   ],
+   "size": [
+    16,
+    16
+   ],
+   "note": "A goat's horn."
+  },
+  "item_meat": {
+   "box": [
+    35,
+    22,
+    16,
+    16
+   ],
+   "size": [
+    16,
+    16
+   ],
+   "note": "Meat."
+  },
+  "item_horn_body": {
+   "box": [
+    52,
+    22,
+    16,
+    16
+   ],
+   "size": [
+    16,
+    16
+   ],
+   "note": "The Rusted Warhorn's body (elite Scrap Brute)."
+  },
+  "item_horn_bell": {
+   "box": [
+    69,
+    22,
+    16,
+    16
+   ],
+   "size": [
+    16,
+    16
+   ],
+   "note": "The Rusted Warhorn's bell (elite Cliff Hound)."
+  },
+  "item_horn_mouthpiece": {
+   "box": [
+    86,
+    22,
+    16,
+    16
+   ],
+   "size": [
+    16,
+    16
+   ],
+   "note": "The Rusted Warhorn's mouthpiece (elite Pebble Slinger)."
+  },
+  "item_cellar_key": {
+   "box": [
+    103,
+    22,
+    16,
+    16
+   ],
+   "size": [
+    16,
+    16
+   ],
+   "note": "The Watchpost cellar key (an extra, not asked for yet)."
+  },
+  "drop_coins": {
+   "box": [
+    120,
+    22,
+    24,
+    12
+   ],
+   "frames": 2,
+   "frame": [
+    12,
+    12
+   ],
+   "foot": [
+    6,
+    12
+   ],
+   "note": "Frame 1 has a small glint: show it for a moment every second or two."
+  },
+  "drop_tin_bar": {
+   "box": [
+    145,
+    22,
+    24,
+    12
+   ],
+   "frames": 2,
+   "frame": [
+    12,
+    12
+   ],
+   "foot": [
+    6,
+    12
+   ],
+   "note": "Frame 1 has a small glint: show it for a moment every second or two."
+  },
+  "drop_copper_bar": {
+   "box": [
+    170,
+    22,
+    24,
+    12
+   ],
+   "frames": 2,
+   "frame": [
+    12,
+    12
+   ],
+   "foot": [
+    6,
+    12
+   ],
+   "note": "Frame 1 has a small glint: show it for a moment every second or two."
+  },
+  "drop_blank_rune": {
+   "box": [
+    195,
+    22,
+    24,
+    12
+   ],
+   "frames": 2,
+   "frame": [
+    12,
+    12
+   ],
+   "foot": [
+    6,
+    12
+   ],
+   "note": "Frame 1 has a small glint: show it for a moment every second or two."
+  },
+  "drop_part_bundle": {
+   "box": [
+    220,
+    22,
+    24,
+    12
+   ],
+   "frames": 2,
+   "frame": [
+    12,
+    12
+   ],
+   "foot": [
+    6,
+    12
+   ],
+   "note": "Frame 1 has a small glint: show it for a moment every second or two."
+  },
+  "drop_accessory_pouch": {
+   "box": [
+    1,
+    39,
+    24,
+    12
+   ],
+   "frames": 2,
+   "frame": [
+    12,
+    12
+   ],
+   "foot": [
+    6,
+    12
+   ],
+   "note": "Frame 1 has a small glint: show it for a moment every second or two."
+  },
+  "drop_hide_small": {
+   "box": [
+    26,
+    39,
+    24,
+    12
+   ],
+   "frames": 2,
+   "frame": [
+    12,
+    12
+   ],
+   "foot": [
+    6,
+    12
+   ],
+   "note": "Frame 1 has a small glint: show it for a moment every second or two."
+  },
+  "drop_hide_large": {
+   "box": [
+    51,
+    39,
+    24,
+    12
+   ],
+   "frames": 2,
+   "frame": [
+    12,
+    12
+   ],
+   "foot": [
+    6,
+    12
+   ],
+   "note": "Frame 1 has a small glint: show it for a moment every second or two."
+  },
+  "drop_feather": {
+   "box": [
+    76,
+    39,
+    24,
+    12
+   ],
+   "frames": 2,
+   "frame": [
+    12,
+    12
+   ],
+   "foot": [
+    6,
+    12
+   ],
+   "note": "Frame 1 has a small glint: show it for a moment every second or two."
+  },
+  "drop_horn": {
+   "box": [
+    101,
+    39,
+    24,
+    12
+   ],
+   "frames": 2,
+   "frame": [
+    12,
+    12
+   ],
+   "foot": [
+    6,
+    12
+   ],
+   "note": "Frame 1 has a small glint: show it for a moment every second or two."
+  },
+  "drop_meat": {
+   "box": [
+    126,
+    39,
+    24,
+    12
+   ],
+   "frames": 2,
+   "frame": [
+    12,
+    12
+   ],
+   "foot": [
+    6,
+    12
+   ],
+   "note": "Frame 1 has a small glint: show it for a moment every second or two."
+  },
+  "drop_horn_body": {
+   "box": [
+    151,
+    39,
+    24,
+    12
+   ],
+   "frames": 2,
+   "frame": [
+    12,
+    12
+   ],
+   "foot": [
+    6,
+    12
+   ],
+   "note": "Frame 1 has a small glint: show it for a moment every second or two."
+  },
+  "drop_horn_bell": {
+   "box": [
+    176,
+    39,
+    24,
+    12
+   ],
+   "frames": 2,
+   "frame": [
+    12,
+    12
+   ],
+   "foot": [
+    6,
+    12
+   ],
+   "note": "Frame 1 has a small glint: show it for a moment every second or two."
+  },
+  "drop_horn_mouthpiece": {
+   "box": [
+    201,
+    39,
+    24,
+    12
+   ],
+   "frames": 2,
+   "frame": [
+    12,
+    12
+   ],
+   "foot": [
+    6,
+    12
+   ],
+   "note": "Frame 1 has a small glint: show it for a moment every second or two."
+  },
+  "drop_cellar_key": {
+   "box": [
+    226,
+    39,
+    24,
+    12
+   ],
+   "frames": 2,
+   "frame": [
+    12,
+    12
+   ],
+   "foot": [
+    6,
+    12
+   ],
+   "note": "Frame 1 has a small glint: show it for a moment every second or two."
+  },
+  "memory_mote": {
+   "box": [
+    1,
+    52,
+    28,
+    7
+   ],
+   "frames": 4,
+   "frame": [
+    7,
+    7
+   ],
+   "origin": [
+    3,
+    3
+   ],
+   "fps": 10,
+   "note": "Memory: a mote that flies to the player. No outline; its own bronze edge keeps it readable on the moor."
+  },
+  "hud_coin": {
+   "box": [
+    30,
+    52,
+    12,
+    12
+   ],
+   "size": [
+    12,
+    12
+   ],
+   "note": "The coin beside the HUD's count, in the HUD glyphs' amber with their 0f0b18 outline."
+  }
+ }
+}

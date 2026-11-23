@@ -2,8 +2,9 @@ extends Node2D
 ## What a Pebble Slinger throws (version 43). Darren's rule (23 November): slingers "keep their distance, throwing
 ## rocks from behind rubble or boulders", so a rock is LOBBED: it goes up and over whatever the slinger hides
 ## behind, and comes down on the spot the slinger aimed at. You see it in the air over its shadow, which runs
-## along the ground to that spot; keep moving and it lands behind you. Nothing is marked on the ground (Darren,
-## 23 November: "Not every enemy has to have telegraph markers for its moves, only bosses").
+## along the ground to that spot and grows as the rock comes down (version 44); keep moving and it lands behind
+## you. Nothing is marked on the ground (Darren, 23 November: "Not every enemy has to have telegraph markers for
+## its moves, only bosses"): the shadow is the rock's own, under it, not a mark of where it will hurt.
 ##
 ## A pebble hurts whoever is on the spot when it lands. The elite's big rock does too, and then bursts: its shards
 ## fly out flat from where it landed, and each hurts the first player it meets.
@@ -17,6 +18,7 @@ const Sim := preload("res://scripts/sim.gd")
 
 const ARC := 44.0              # how high a lobbed rock goes, in world units
 const SHARD_SPEED := 300.0
+const SHADOW := {"pebble": [3.0, 5.0], "rock": [4.0, 9.0]}     # half the shadow's width in art pixels: at the top of the arc, on the ground
 
 var kind := "pebble"
 var from := Vector2.ZERO
@@ -115,9 +117,14 @@ func _draw() -> void:
 		return
 	var k := clampf(t / flight, 0.0, 1.0)
 	var up := sin(k * PI) * ARC * (1.3 if kind == "rock" else 1.0)
-	# Its shadow on the ground, smaller the higher it is.
-	var w := (5.0 if kind == "rock" else 3.0) * Art.PIXEL * (1.0 - 0.4 * sin(k * PI))
-	draw_rect(Rect2(-roundf(w), -Art.PIXEL, roundf(w) * 2.0, Art.PIXEL * 2.0), Color(0.098, 0.078, 0.165, 0.45))
+	# Its own shadow on the ground under it (not a mark of where it will hurt): small and faint while the rock is
+	# high, and growing broad and dark as it comes down, so you see it fall. Three rows, in whole art pixels.
+	var near := 1.0 - sin(k * PI)
+	var half := roundf(lerpf(SHADOW[kind][0] if SHADOW.has(kind) else 2.0, SHADOW[kind][1] if SHADOW.has(kind) else 5.0, near)) * Art.PIXEL
+	var shade := Color(0.098, 0.078, 0.165, lerpf(0.35, 0.6, near))
+	draw_rect(Rect2(-half + Art.PIXEL, -2.0 * Art.PIXEL, half * 2.0 - 2.0 * Art.PIXEL, Art.PIXEL), shade)
+	draw_rect(Rect2(-half, -Art.PIXEL, half * 2.0, 2.0 * Art.PIXEL), shade)
+	draw_rect(Rect2(-half + Art.PIXEL, Art.PIXEL, half * 2.0 - 2.0 * Art.PIXEL, Art.PIXEL), shade)
 	var info := Foe.shot(kind)
 	var frame := int(t * float(info.get("fps", 10))) if not info.is_empty() else 0
 	if not Foe.draw_shot(self, kind, frame, Vector2(0, -up - 10.0)):
