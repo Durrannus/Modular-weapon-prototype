@@ -212,6 +212,10 @@ func _shots() -> void:
 	await _snap("08b_a_trap_rattles")
 	await _frames(22)
 	await _snap("08c_the_spikes_come_up")
+	# (Stepped off it, to see the spikes standing.)
+	_put(g, p, row + Vector2(-40, 44))
+	await _frames(8)
+	await _snap("08d_the_spikes_standing")
 	# The room.
 	_put(g, p, crown.room_rect().get_center() + Vector2(0, 300))
 	g.land.settle()
@@ -493,6 +497,12 @@ func _gate() -> void:
 	for r: Rect2i in CrownPlan.TRAPS:
 		want += r.size.x * r.size.y
 	_check(crown.traps.size() == want and crown.traps.all(func(tr): return tr.state == "down"), "its %d spike traps lie in the floor, down" % want)
+	var rim := 0
+	var corners_kerbed := 0
+	for tr in crown.traps:
+		rim += int(tr.edges != 0)
+		corners_kerbed += int(tr.edges in [3, 6, 12, 9])
+	_check(rim > 0 and rim < want and corners_kerbed == 16 and crown.traps.any(func(tr): return tr.edges == 5), "a kerb runs round each patch of them and along the row inside the gate (%d of %d are on a rim)" % [rim, want])
 	_check(not crown.bars.up and not crown.bars_shape.disabled and crown.chest.texture == crown._chest_tex("chest", 0) and crown.hoard == "", "his hoard's chest stands behind its bars")
 	folk.pip = 3
 	folk._show()
@@ -504,7 +514,7 @@ func _gate() -> void:
 	await _frames(4)
 	_check(_prompt(g, "The Scrapyard gate: only the Rusted Warhorn opens it"), "at the gate without the horn, it says what opens it")
 	await _press(p, "interact_pressed")
-	_check(not crown.gate_open, "and stays shut")
+	_check(not crown.gate_open and p.get_children().all(func(c): return not (c is Label)), "and stays shut, with nothing printed over the prompt")
 	p.input.move = Vector2.UP
 	await _frames(90)
 	p.input.move = Vector2.ZERO
@@ -603,7 +613,7 @@ func _gate() -> void:
 	p.input.move = Vector2.ZERO
 	_check(tr.state != "down" and p.global_position.y < mid.y - 40.0, "stepping on a trap sets it rattling")
 	await _wait(func(): return tr.state == "up", 120)
-	_check(tr.state == "up" and tr.z_index == 0, "and its spikes come up")
+	_check(tr.state == "up" and (tr.z_index == 0 if tr.drawn() else (tr.z_index == -4 and tr.spikes != null and tr.spikes.z_index == 0)), "and its spikes come up, among whoever stands there, while its floor stays under them")
 	await _wait(func(): return tr.state == "down" and tr.rest <= 0.0, 300)
 	_check(p.hp == hp0, "walking straight across one does not hurt: you are off it before the spikes are up")
 	_put(g, p, mid)
@@ -697,8 +707,8 @@ func _fight() -> void:
 	var memory0: int = purse.memory
 	await _press(p, "interact_pressed")
 	_check(crown.stage == "call" and crown.fighting() and crown.phase() == 1 and crown.throne.anim == "point", "the horn is blown: he points")
-	_check(g.ui.hint == Crown.SAYS["call"] and g.loot.said_y == Crown.NEWS_Y, "the tip line says what is coming, and the line of news moves down out of its way")
-	_check(crown.shut_in and crown.gate.anim == "shut" and g.loot.said == "The gate shuts behind you", "the gate shuts behind you, and the screen says so")
+	_check(crown.shut_in and crown.gate.anim == "shut" and g.ui.hint == Crown.SAYS["shut"] and g.loot.said != Crown.SAYS["shut"], "the gate shuts behind you, and the tip line says so (one line at a time: nothing else is printed)")
+	_check(crown.tip_next == Crown.SAYS["call"] and g.loot.said_y == Crown.NEWS_Y, "what is coming waits its turn in the same line, and the line of news moves down out of its way")
 	await _frames(3)
 	_check(not crown.gate_shape.disabled and not g.foes.nav.is_free(crown.plan["gate"]), "(nobody passes it now)")
 	_check(str(_quest(folk, "horn").get("text", "")) == "Beat Rattlecrown, the Scrap King." and crown.sign_target() == Vector2.INF and not _prompt(g, "Blow the Rusted Warhorn"), "the quest is to beat him; the horn is not offered twice")
@@ -709,6 +719,7 @@ func _fight() -> void:
 	_check(crown.boss == null and crown.throne.anim == "idle" and get_nodes_in_group("crown_shots").is_empty(), "he watches from his throne and does not attack")
 	await _frames(240)
 	_check(crown.stage == "elites" and crown.boss == null and get_nodes_in_group("crown_shots").is_empty() and not is_instance_valid(g.ui.boss), "(four seconds on, still)")
+	_check(g.ui.hint == Crown.SAYS["call"] and crown.tip_next == "", "by now the tip line says what is coming")
 	# His champions do not set the traps off.
 	var patch: Vector2i = (crown.plan["room"] as Rect2i).position + (CrownPlan.TRAPS[1] as Rect2i).position
 	var its_trap = crown.trap_at.get(patch)
@@ -996,7 +1007,7 @@ func _two_players() -> void:
 		if corners.any(func(r): return (r as Rect2).intersects(back)) or back.end.y > Crown.NEWS_Y:
 			covered += 1
 	_check(g.ui.hint_w == Crown.TIP_W and worst <= 2 and widest <= Crown.TIP_W and covered == 0, "every tip of the fight fits under the bar in two lines at most, clear of the corners and of the line of news (%d lines, %.0f wide)" % [worst, widest])
-	for line in ["The gate shuts behind you", "Rattlecrown sits back down", "Quest done: Blow the Horn", "Rattlecrown is beaten again", "Quest done: Mend the Horn", "The Scrapyard gate is open"]:
+	for line in ["Rattlecrown sits back down", "Quest done: Blow the Horn", "Rattlecrown is beaten again", "Quest done: Mend the Horn", "The Scrapyard gate is open"]:
 		var w: float = g.loot._head_width(line) + 12.0
 		var at_bar := Rect2(320.0 - w * 0.5, 42.0, w, 14.0)
 		var low := Rect2(320.0 - w * 0.5, Crown.NEWS_Y, w, 14.0)

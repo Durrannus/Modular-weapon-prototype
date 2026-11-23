@@ -41,8 +41,8 @@ extends Node
 ##
 ## SPIKE TRAPS. Darren, 23 November, of the first Throne Room: "room needs to be bigger with spike traps". He said
 ## nothing of how they work, so that is Claude's choice until he does:
-##   - A trap is one tile of the floor: holes in it that are always there to be seen. Nothing happens until
-##     somebody of the squad steps on it. Then it rattles for SPIKE_WARN seconds (its own warning), and the spikes
+##   - A trap is one tile of the floor, always there to be seen: a slab sunk below a kerb, with holes in it.
+##     Nothing happens until somebody of the squad steps on it. Then it rattles for SPIKE_WARN seconds (its own warning), and the spikes
 ##     come up and stay up for SPIKE_UP seconds. Whoever is on it as they come up, or steps onto it while they are
 ##     up, is hurt (once for each time it comes up). Then it goes down and rests a moment.
 ##   - So walking or running straight across traps does not hurt (you are off each one before its spikes are up);
@@ -93,6 +93,7 @@ const CALL_TIME := 1.1             # he points, and then the three come in
 const WON_TIME := 2.4              # seconds he takes to fall
 const HOARD_REACH := 64.0          # how near his hoard's chest you stand to open it
 const HOARD_OUT := 0.3             # what it holds comes out this long after the lid starts up (as the land's chests)
+const SHUT_TIP := 1.8              # the tip line says the gate has shut for this long, then what is coming
 const HOARD_CARD := 1.6            # and the card says what the first one held this long after
 const HOARD_TIP := "Rattlecrown is beaten. His hoard stands open, right of the throne."
 const ELITES := ["scrap_brute", "hound", "slinger"]
@@ -115,6 +116,7 @@ static var AGAIN_BARS := 2
 
 ## What the tip line says as the fight goes on, and as each attack begins (once crowned, TIPS_TWICE).
 const SAYS := {
+	"shut": "The gate shuts behind you.",
 	"call": "His three champions come first. He watches until they fall.",
 	"kick": "His champions are down. He kicks his throne apart.",
 	"foot": "Rattlecrown is on his feet. Every attack of his shows on the floor first.",
@@ -149,12 +151,13 @@ var stage := "wait"                # wait, call (he points), elites, kick, foot,
 var stage_t := 0.0
 var empty_t := 0.0                 # seconds nobody has stood in the room during a fight
 var clock := 0.0
-var told_at := -9.0
 var first_win := false
 var hoard := ""                    # what his hoard's chest holds, unopened: "" nothing, "first" (the first kill's), "again"
 var shut_in := false               # the gate has shut behind the squad (a fight is on)
 var card_in := 0.0                 # seconds until the card says what the first hoard held
 var tip_left := 0.0
+var tip_next := ""             # the tip that follows the one showing, and in how long
+var tip_next_in := 0.0
 
 var gate: Folk.Actor
 var throne: Folk.Actor
@@ -178,10 +181,18 @@ var boss = null
 class Trap extends Node2D:
 	const PX := 2.0
 	const RISE := 2.0 / 12.0       # the spikes take this long to come up, and to go down
+	const TALL := 11.0             # how far the spikes stand up (art pixels)
+	# The stand-in's colours are the ones of the Art builder's still of the hall (hall_final.png): the floor's own
+	# paving stone, sunk below a kerb, with an iron collar round each hole.
+	const STONE := Color("#344856")
+	const JOINT := Color("#2b3247")
+	const KERB := Color("#446264")
+	const KERB_TOP := Color("#5f8072")
 	const HOLE := Color("#19142a")
-	const LIP := Color(0.78, 0.75, 0.88, 0.14)     # the floor's own stone catching a little light under each hole
+	const COLLAR := Color("#6e6a7c")
 	const IRON := Color("#8c8894")
 	const TIP := Color("#e0e2d0")
+	const WARN := Color("#ff8a3c")    # the game's warning orange, as the marks of his attacks
 
 	var tile := Vector2i.ZERO
 	var sheet: Texture2D
@@ -190,14 +201,23 @@ class Trap extends Node2D:
 	var t := 0.0
 	var rest := 0.0
 	var hit := {}                  # the players this rise has hurt
+	var edges := 0                 # the sides with no trap beside them (1 up, 2 right, 4 down, 8 left): the kerb runs there
+	var spikes: Node2D             # the stand-in's spikes: they stand among the players while the floor stays under them
 	var _shown := ""
+
+	## True when the Scrapyard's sheet has the trap's own pictures (then nothing here is drawn by the code).
+	func drawn() -> bool:
+		return sheet != null and (book.get("spike_trap_down", {}) as Dictionary).has("box")
 
 	func go(to: String) -> void:
 		state = to
 		t = 0.0
-		# Down, the plate lies in the floor under everyone; up, the spikes stand among them.
-		z_index = -4 if to in ["down", "warn"] else 0
+		# Down, it lies in the floor under everyone; up, the spikes stand among them. (The stand-in's floor stays
+		# under everyone and its spikes are a thing of their own.)
+		z_index = -4 if to in ["down", "warn"] or not drawn() else 0
 		queue_redraw()
+		if spikes != null:
+			spikes.queue_redraw()
 
 	## How far up the spikes are, 0 to 1.
 	func up() -> float:
@@ -216,6 +236,30 @@ class Trap extends Node2D:
 		if now != _shown:
 			_shown = now
 			queue_redraw()
+			if spikes != null:
+				spikes.queue_redraw()
+
+	## Where the four holes of the stand-in are: the top left corner of each.
+	func holes() -> Array:
+		var out: Array = []
+		for j in 2:
+			for i in 2:
+				out.append(Vector2(-12.0 + 16.0 * float(i), -10.0 + 14.0 * float(j)))
+		return out
+
+	## The stand-in's spikes, drawn by `spikes` (a thing of its own, so that it sorts among the players).
+	func draw_spikes(on: Node2D) -> void:
+		if state in ["down", "warn"] or drawn():
+			return
+		var tall := roundf(up() * TALL) * PX
+		if tall <= 0.0:
+			return
+		for at: Vector2 in holes():
+			# A pale blade three art pixels wide with a shaded side, and a point.
+			on.draw_rect(Rect2(at.x + 2.0, at.y + 4.0 - tall, 4, tall), TIP)
+			on.draw_rect(Rect2(at.x + 6.0, at.y + 4.0 - tall, 2, tall), IRON)
+			on.draw_rect(Rect2(at.x + 2.0, at.y + 2.0 - tall, 4, 2), TIP)
+			on.draw_rect(Rect2(at.x + 2.0, at.y - tall, 2, 2), TIP)
 
 	func _draw() -> void:
 		var name := "spike_trap_" + ("rise" if state == "lower" else state)
@@ -236,24 +280,53 @@ class Trap extends Node2D:
 			draw_texture_rect_region(sheet, Rect2(-float(o[0]), -float(o[1]), fw, float(box[3])), Rect2(float(box[0]) + fw * float(k), float(box[1]), fw, float(box[3])))
 			draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 			return
-		# The stand-in: four holes in the floor itself, with no plate laid on it (Darren, 23 November, of the traps
-		# and the paving: "it has to look part of the world and not just a thing placed onto"); tips that rattle in
-		# them; four spikes.
-		var tall := 0.0
+		# The stand-in, after the Art builder's still of the hall: the floor's own paving, sunk below a kerb, with an
+		# iron collar round each of its four holes and the spikes' tips showing in them (Darren, 23 November, of the
+		# traps and the paving: "it has to look part of the world and not just a thing placed onto"). While it
+		# rattles the collars and the slab's rim are warning orange and the tips jump. The spikes themselves are draw_spikes'.
+		draw_rect(Rect2(-16, -16, 32, 32), STONE)
+		draw_rect(Rect2(-16, 14, 32, 2), JOINT)
+		draw_rect(Rect2(14, -16, 2, 32), JOINT)
+		var left := 4.0 if edges & 8 else 0.0
+		var right := 4.0 if edges & 2 else 0.0
+		if edges & 1:
+			draw_rect(Rect2(-16, -16, 32, 4), JOINT)          # the shadow of the kerb on the sunk floor
+			draw_rect(Rect2(-16.0 - left, -20, 32.0 + left + right, 4), KERB)
+			draw_rect(Rect2(-16.0 - left, -20, 32.0 + left + right, 2), KERB_TOP)
+			draw_rect(Rect2(14, -20, 2, 4), JOINT)
+		if edges & 4:
+			draw_rect(Rect2(-16.0 - left, 16, 32.0 + left + right, 4), KERB)
+			draw_rect(Rect2(-16.0 - left, 16, 32.0 + left + right, 2), KERB_TOP)
+			draw_rect(Rect2(14, 16, 2, 4), JOINT)
+		if edges & 8:
+			draw_rect(Rect2(-16, -16, 2, 32), JOINT)
+			draw_rect(Rect2(-20, -16, 4, 32), KERB)
+			draw_rect(Rect2(-20, 14, 4, 2), JOINT)
+		if edges & 2:
+			draw_rect(Rect2(16, -16, 4, 32), KERB)
+			draw_rect(Rect2(16, 14, 4, 2), JOINT)
+		var jump := 0.0
 		if state == "warn":
-			tall = 4.0 if int(t * 16.0) % 2 == 0 else 2.0
-		elif state != "down":
-			tall = roundf(up() * 9.0) * PX
-		for j in 2:
-			for i in 2:
-				var at := Vector2(-12.0 + 16.0 * float(i), -10.0 + 14.0 * float(j))
-				draw_rect(Rect2(at, Vector2(8, 4)), HOLE)
-				draw_rect(Rect2(at + Vector2(0, 4), Vector2(8, 2)), LIP)
-				if tall > 0.0:
-					draw_rect(Rect2(at.x + 2.0, at.y + 4.0 - tall, 4, tall), IRON)
-					draw_rect(Rect2(at.x + 2.0, at.y + 4.0 - tall, 2, tall), TIP if tall > 6.0 else IRON)
-					draw_rect(Rect2(at.x + 2.0, at.y + 2.0 - tall, 2, 2), TIP)
+			jump = 2.0 if int(t * 16.0) % 2 == 0 else 0.0
+			# The rattle's warning has to be seen round the feet of whoever set it off: the slab's own rim, too.
+			draw_rect(Rect2(-16, -16, 32, 2), WARN)
+			draw_rect(Rect2(-16, 14, 32, 2), WARN)
+			draw_rect(Rect2(-16, -16, 2, 32), WARN)
+			draw_rect(Rect2(14, -16, 2, 32), WARN)
+		for at: Vector2 in holes():
+			draw_rect(Rect2(at - Vector2(2, 2), Vector2(12, 8)), WARN if state == "warn" else COLLAR)
+			draw_rect(Rect2(at, Vector2(8, 4)), HOLE)
+			if state in ["down", "warn"]:
+				draw_rect(Rect2(at.x + 2.0, at.y + 2.0 - jump, 4, 2.0 + jump), TIP if state == "warn" else IRON)
 
+
+## The stand-in spikes of one trap (see Trap.draw_spikes).
+class Spikes extends Node2D:
+	var of                         # the Trap
+
+	func _draw() -> void:
+		if of != null:
+			of.draw_spikes(self)
 
 ## The bars across the mouth of the hoard's alcove. When they are up is the game's (crown.gd); this is how they look.
 class Bars extends Node2D:
@@ -407,6 +480,20 @@ func setup(plan_: Dictionary) -> void:
 			add_child(tr)
 		traps.append(tr)
 		trap_at[tile] = tr
+		if not tr.drawn():
+			tr.spikes = Spikes.new()
+			tr.spikes.of = tr
+			tr.spikes.position = tr.position
+			if world != null:
+				world.add_child(tr.spikes)
+			else:
+				add_child(tr.spikes)
+	# The kerb runs round each patch of them: along every side of a trap that has no trap beside it.
+	for tr: Trap in traps:
+		var sides := [Vector2i(0, -1), Vector2i(1, 0), Vector2i(0, 1), Vector2i(-1, 0)]
+		for k in 4:
+			if not trap_at.has(tr.tile + sides[k]):
+				tr.edges |= 1 << k
 	# His hoard: the chest in its alcove, and the bars across the alcove's mouth.
 	var of_chest := _chest_info()
 	var cf: Array = of_chest.get("foot", [9, 20])
@@ -601,7 +688,7 @@ func use_gate(i: int) -> bool:
 	if gate_open or not ok():
 		return false
 	if not horn:
-		_tell(i, "It wants the Warhorn")
+		# (The prompt over the gate already says what it wants: no second line on top of it.)
 		Sfx.play(game, "click", -8.0, 0.6)
 		return false
 	gate_open = true
@@ -663,9 +750,10 @@ func start() -> bool:
 	throne.play("point")
 	_blare()
 	_top(true)
-	_tip(SAYS["call"])
-	if loot != null:
-		loot.say("The gate shuts behind you")
+	# One line at a time, in the tip line: first that the gate has shut, then what is coming.
+	_tip(SAYS["shut"])
+	tip_next = SAYS["call"]
+	tip_next_in = SHUT_TIP
 	return true
 
 
@@ -675,6 +763,8 @@ func _top(on: bool) -> void:
 
 
 func _tip(words: String) -> void:
+	tip_next = ""
+	tip_next_in = 0.0
 	if game != null and "ui" in game and game.ui != null:
 		game.ui.hint = words
 
@@ -894,6 +984,10 @@ func tick(delta: float) -> void:
 		if card_in <= 0.001 and game != null and "ui" in game and game.ui != null and not game.ui.busy():
 			card_in = 0.0
 			game.ui.card("Rattlecrown's hoard", won_text())
+	if tip_next_in > 0.0:
+		tip_next_in -= delta
+		if tip_next_in <= 0.0 and tip_next != "":
+			_tip(tip_next)
 	if tip_left > 0.0:
 		tip_left -= delta
 		if tip_left <= 0.0 and game != null and "ui" in game and game.ui != null and str(game.ui.hint) == HOARD_TIP:
@@ -993,13 +1087,6 @@ func _near(at: Vector2, far: float) -> bool:
 
 
 ## A few words over a player's head, not more than once in a while.
-func _tell(i: int, words: String) -> void:
-	if clock - told_at < 1.2 or i < 0 or i >= players.size() or not is_instance_valid(players[i]):
-		return
-	told_at = clock
-	players[i]._label(words.to_upper(), Color("#e8e4bc"))
-
-
 # --- For the quests' corner (folk.gd draws it) ---------------------------------------------------
 
 ## The quest the horn gives right now: {id, name, text}, or {} when there is none. `pieces`: how many of the three
