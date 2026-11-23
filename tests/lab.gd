@@ -337,17 +337,18 @@ func _arena() -> void:
 	for entry in m.SPAWNABLE:
 		var kind := str(entry[0])
 		var got: Array = m.spawn_enemies(kind, 1)
-		_check(got.size() == 1 and got[0].kind == kind, "the spawner makes a %s" % entry[1])
+		_check(got.size() == 1 and got[0].kind == kind.trim_suffix("_elite") and got[0].elite == kind.ends_with("_elite"), "the spawner makes a %s" % entry[1])
 		made[kind] = got[0]
 		var e = got[0]
 		_check(m.ARENA.has_point(e.global_position) and e.global_position.distance_to(p.global_position) >= 190.0, "the %s is inside the walls and not on top of you" % entry[1])
-	_check(m.enemy_total() == 6, "six enemies and a dummy: the room counts six (%d)" % m.enemy_total())
+	var all_but_dummy: int = m.SPAWNABLE.size() - 1
+	_check(m.enemy_total() == all_but_dummy, "one of each and a dummy: the room counts all but the dummy (%d)" % m.enemy_total())
 	s._refresh_spawn()
-	_check(s._count_label.text == "In the arena now: 6 enemies.", "the page says so: %s" % s._count_label.text)
+	_check(s._count_label.text == "In the arena now: %d enemies." % all_but_dummy, "the page says so: %s" % s._count_label.text)
 	var g = made["guardian"]
 	_check(g.mode != "dormant" and g.room == m.ARENA and g.show_bar and is_equal_approx(g.max_hp, Guardian.HP), "the guardian is awake, keeps to the arena and shows his health")
 	s._spawn("slime", 5)
-	_check(m.enemy_total() == 11, "+5 makes five more (%d)" % m.enemy_total())
+	_check(m.enemy_total() == all_but_dummy + 5, "+5 makes five more (%d)" % m.enemy_total())
 	s._arrive_button.pressed.emit()
 	_check(m.spawning, "the switch lets new enemies arrive by themselves again")
 	s._arrive_button.pressed.emit()

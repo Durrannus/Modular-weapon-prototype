@@ -377,6 +377,16 @@ func _strike(i: int) -> void:
 
 
 ## It gives way: the tile becomes dug floor, the pine a stump, the boulder nothing; what it held goes in the bag.
+## The land changed: the enemies' way-finding is told (a dug tile can be walked, a broken boulder is gone).
+func _tell_nav(tile: Vector2i, foot: Vector2) -> void:
+	if game == null or not ("foes" in game) or game.foes == null or game.foes.nav == null:
+		return
+	if foot == Vector2.INF:
+		game.foes.nav.tile_changed(tile)
+	else:
+		game.foes.nav.things_changed(foot)
+
+
 func _break(i: int, t: Dictionary, gives: Array) -> void:
 	var p = players[i]
 	var h: Hand = hands[i]
@@ -388,6 +398,7 @@ func _break(i: int, t: Dictionary, gives: Array) -> void:
 		if map.dig(tile.x, tile.y) < 0:
 			return
 		land.changed(tile)
+		_tell_nav(tile, Vector2.INF)
 		Sfx.play(game, "slam", -13.0, 1.5)
 		Sfx.play(game, "thud", -8.0, 0.9)
 		if not _play("burst_" + {"stone": "rock", "tin_ore": "tin", "copper_ore": "copper"}[what], at):
@@ -418,6 +429,7 @@ func _break(i: int, t: Dictionary, gives: Array) -> void:
 			land.changed(ground)
 			p.shake = maxf(p.shake, 2.0)
 		land.things_changed(foot)
+		_tell_nav(Vector2i.ZERO, foot)
 	var got: int = h.bag.add(str(gives[0]), int(gives[1]))
 	# What was won jumps out, lies a moment, and flies to whoever won it. It lies on the far side of where it came
 	# from: dug from right against the rock, the near side is behind your own head.

@@ -27,6 +27,12 @@ const SCRIPTS := {
 	"burrower": "res://scripts/cave/burrower.gd",
 	"guardian": "res://scripts/cave/guardian.gd",
 	"arena": "res://scripts/main.gd",
+	"hound": "res://scripts/foes/hound.gd",
+	"slinger": "res://scripts/foes/slinger.gd",
+	"scrap_brute": "res://scripts/foes/scrap_brute.gd",
+	"shaman": "res://scripts/foes/shaman.gd",
+	"bat": "res://scripts/foes/bat.gd",
+	"foes": "res://scripts/highlands/foes.gd",
 }
 
 ## How a number is shown and stepped:
@@ -43,7 +49,7 @@ const UNITS := {
 	"": {"step": 1.0, "lo": 0.0, "hi": 100000.0},
 }
 
-const PAGES := ["All weapons", "Sword", "Bow", "Hammer", "Staff", "Sword runes", "Bow runes", "Hammer runes", "Staff runes", "Threads", "Players", "Enemies", "Forge guardian"]
+const PAGES := ["All weapons", "Sword", "Bow", "Hammer", "Staff", "Sword runes", "Bow runes", "Hammer runes", "Staff runes", "Threads", "Players", "Enemies", "Highlands enemies", "Forge guardian"]
 
 ## A line under a page's name, where one helps.
 const PAGE_NOTES := {
@@ -59,6 +65,7 @@ const PAGE_NOTES := {
 	"Threads": "The forge's sentences keep their own words for these (\"half strength\").",
 	"Players": "Everyone gets the same numbers.",
 	"Enemies": "Enemies already here keep the same share of their health.",
+	"Highlands enemies": "The hounds and goblins of the Highlands. You can also put them in the arena: see Spawn.",
 	"Forge guardian": "The tutorial cave's boss. You can also put him in the arena: see Spawn.",
 }
 
@@ -372,6 +379,77 @@ static func _build_rows() -> void:
 	_add(p, g, "Lunge speed", "burrower:LUNGE_SPEED", "d", 10.0, 100.0, 2000.0)
 	_add(p, g, "Warning before it lunges", "burrower:WARN_TIME", "s", 0.05, 0.25, 5.0)
 	_add(p, g, "Stunned after a miss for", "burrower:STUN_MISS", "s", 0.1, 0.0, 10.0)
+
+	p = "Highlands enemies"
+	g = "Cliff Hound"
+	_add(p, g, "Health", "hound:HP", "", 1.0, 1.0, 10000.0)
+	_add(p, g, "Circling speed", "hound:SPEED", "d", 5.0, 0.0, 600.0)
+	_add(p, g, "Running speed", "hound:RUN", "d", 5.0, 0.0, 600.0)
+	_add(p, g, "What its bite does", "hound:BITE", "", 1.0, 0.0, 1000.0)
+	_add(p, g, "Warning before it lunges", "hound:CROUCH_TIME", "s", 0.05, 0.2, 5.0)
+	_add(p, g, "Lunge speed", "hound:LUNGE_SPEED", "d", 10.0, 100.0, 2000.0)
+	_add(p, g, "How far it lunges", "hound:LUNGE_DIST", "d", 5.0, 50.0, 800.0)
+	_add(p, g, "Shortest wait between lunges", "hound:REST_MIN", "s", 0.1, 0.2, 20.0)
+	_add(p, g, "Longest wait between lunges", "hound:REST_MAX", "s", 0.1, 0.2, 20.0)
+	g = "Elite hound (the pack leader)"
+	_add(p, g, "Health", "hound:ELITE_HP", "", 1.0, 1.0, 10000.0)
+	_add(p, g, "What its bite does", "hound:ELITE_BITE", "", 1.0, 0.0, 1000.0)
+	_add(p, g, "It howls every", "hound:HOWL_EVERY", "s", 0.5, 2.0, 120.0)
+	_add(p, g, "The howl takes (hit it to cut it off)", "hound:HOWL_TIME", "s", 0.05, 0.3, 5.0)
+	_add(p, g, "Hounds that answer a howl", "hound:HOWL_CALLS", "n", 1.0, 1.0, 6.0)
+	_add(p, g, "Howls in one fight", "hound:HOWL_MOST", "n", 1.0, 1.0, 20.0)
+	g = "Pebble Slinger"
+	_add(p, g, "Health", "slinger:HP", "", 1.0, 1.0, 10000.0)
+	_add(p, g, "Walking speed", "slinger:SPEED", "d", 5.0, 0.0, 600.0)
+	_add(p, g, "Speed backing away", "slinger:FLEE", "d", 5.0, 0.0, 600.0)
+	_add(p, g, "What a pebble does", "slinger:PEBBLE", "", 1.0, 0.0, 1000.0)
+	_add(p, g, "Warning before it throws", "slinger:WINDUP", "s", 0.05, 0.2, 5.0)
+	_add(p, g, "A pebble is in the air for", "slinger:FLIGHT", "s", 0.05, 0.2, 5.0)
+	_add(p, g, "Shortest wait between throws", "slinger:RELOAD_MIN", "s", 0.1, 0.2, 20.0)
+	_add(p, g, "Longest wait between throws", "slinger:RELOAD_MAX", "s", 0.1, 0.2, 20.0)
+	_add(p, g, "It backs away when you are within", "slinger:NEAR", "d", 5.0, 0.0, 600.0)
+	g = "Elite slinger"
+	_add(p, g, "Health", "slinger:ELITE_HP", "", 1.0, 1.0, 10000.0)
+	_add(p, g, "What its rock does", "slinger:ELITE_ROCK", "", 1.0, 0.0, 1000.0)
+	_add(p, g, "Warning before it throws", "slinger:ELITE_WINDUP", "s", 0.05, 0.2, 5.0)
+	_add(p, g, "The rock is in the air for", "slinger:ELITE_FLIGHT", "s", 0.05, 0.2, 5.0)
+	_add(p, g, "Shards from a burst rock", "slinger:SHARDS", "n", 1.0, 1.0, 16.0)
+	_add(p, g, "What a shard does", "slinger:SHARD_DAMAGE", "", 1.0, 0.0, 1000.0)
+	_add(p, g, "How far a shard flies", "slinger:SHARD_REACH", "d", 5.0, 20.0, 600.0)
+	g = "Scrap Brute"
+	_add(p, g, "Health", "scrap_brute:HP", "", 1.0, 1.0, 10000.0)
+	_add(p, g, "Walking speed", "scrap_brute:SPEED", "d", 2.0, 0.0, 600.0)
+	_add(p, g, "What its cleaver does", "scrap_brute:CLUB", "", 1.0, 0.0, 1000.0)
+	_add(p, g, "Warning before it swings", "scrap_brute:WINDUP", "s", 0.05, 0.2, 5.0)
+	_add(p, g, "Open after a swing for (your time to hit it)", "scrap_brute:OPEN", "s", 0.05, 0.2, 10.0)
+	_add(p, g, "How far the cleaver reaches", "scrap_brute:REACH", "d", 2.0, 20.0, 300.0)
+	g = "Elite brute"
+	_add(p, g, "Health", "scrap_brute:ELITE_HP", "", 1.0, 1.0, 10000.0)
+	_add(p, g, "What its cleaver does", "scrap_brute:ELITE_CLUB", "", 1.0, 0.0, 1000.0)
+	_add(p, g, "A shield bash every so many attacks", "scrap_brute:BASH_EVERY", "n", 1.0, 2.0, 10.0)
+	_add(p, g, "What the bash does", "scrap_brute:BASH", "", 1.0, 0.0, 1000.0)
+	_add(p, g, "Warning before the bash", "scrap_brute:BASH_WINDUP", "s", 0.05, 0.2, 5.0)
+	_add(p, g, "How hard the bash throws you back", "scrap_brute:BASH_PUSH", "d", 10.0, 0.0, 2000.0)
+	g = "Goblin Shaman"
+	_add(p, g, "Health", "shaman:HP", "", 1.0, 1.0, 10000.0)
+	_add(p, g, "Walking speed", "shaman:SPEED", "d", 5.0, 0.0, 600.0)
+	_add(p, g, "The staff is up before a bat comes for", "shaman:CAST_TIME", "s", 0.05, 0.2, 5.0)
+	_add(p, g, "It calls a bat every", "shaman:CAST_EVERY", "s", 0.5, 1.0, 60.0)
+	_add(p, g, "The most bats it keeps", "shaman:BATS", "n", 1.0, 1.0, 20.0)
+	g = "Elite shaman"
+	_add(p, g, "Health", "shaman:ELITE_HP", "", 1.0, 1.0, 10000.0)
+	_add(p, g, "The most bats it keeps", "shaman:ELITE_BATS", "n", 1.0, 1.0, 20.0)
+	_add(p, g, "Bats in one call", "shaman:ELITE_A_CAST", "n", 1.0, 1.0, 6.0)
+	_add(p, g, "It wards a goblin every", "shaman:WARD_EVERY", "s", 0.5, 2.0, 120.0)
+	_add(p, g, "A warded goblin cannot be hurt for", "shaman:WARD_TIME", "s", 0.1, 0.5, 30.0)
+	g = "Bat"
+	_add(p, g, "Health", "bat:HP", "", 1.0, 1.0, 10000.0)
+	_add(p, g, "What its nip does", "bat:NIP", "", 1.0, 0.0, 1000.0)
+	_add(p, g, "Swooping speed", "bat:DIVE_SPEED", "d", 10.0, 50.0, 2000.0)
+	_add(p, g, "Shortest wait between swoops", "bat:REST_MIN", "s", 0.1, 0.2, 20.0)
+	_add(p, g, "Longest wait between swoops", "bat:REST_MAX", "s", 0.1, 0.2, 20.0)
+	g = "On the land"
+	_add(p, g, "A killed enemy is back after (with nobody near)", "foes:BACK_AFTER", "s", 10.0, 2.0, 3600.0)
 
 	p = "Forge guardian"
 	g = "Body"

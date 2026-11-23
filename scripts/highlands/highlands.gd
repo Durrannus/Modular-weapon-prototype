@@ -7,8 +7,10 @@ extends "res://scripts/game_base.gd"
 ## Since version 40 everyone carries the basic tools (tools.gd): a pickaxe that
 ## digs the rock and mines the ore in it, an axe that fells pines, and a mallet
 ## with nothing to build yet. What they win goes in a materials bag (bag.gd).
-## There are no enemies and no chests yet: those are the next versions, one at a
-## time.
+## Since version 43 the land has its enemies (foes.gd; scripts/foes/): packs of
+## Cliff Hounds, Pebble Slingers, the odd Scrap Brute, Goblin Shamans with their
+## bats, and an elite of each. Nothing lives near the cave. There are no chests
+## and nothing drops yet: that is the next version.
 ##
 ## SAVING (version 42; Darren, 21 November: "It works like terraria, player is
 ## saved"). Every player is a saved CHARACTER and the land is a saved WORLD
@@ -32,6 +34,7 @@ const WorldGen := preload("res://scripts/highlands/world_gen.gd")
 const LandMap := preload("res://scripts/highlands/land_map.gd")
 const LandView := preload("res://scripts/highlands/land_view.gd")
 const Tools := preload("res://scripts/highlands/tools.gd")
+const Foes := preload("res://scripts/highlands/foes.gd")
 const CaveUi := preload("res://scripts/cave/cave_ui.gd")
 const Music := preload("res://scripts/music.gd")
 const Save := preload("res://scripts/save.gd")
@@ -48,6 +51,8 @@ var carry := {}                 # from the cave: {builds: [a weapon each], owned
 var map: LandMap
 var land
 var tools                       # the tool belts and the materials bags (tools.gd)
+var foes                        # the land's enemies (foes.gd)
+var with_foes := true           # false: the land is empty of enemies (the tests of other things)
 var ui
 var owned: Array = []           # per player: the part ids they can use at the forge (null = all of them)
 var interactables: Array = []   # [{at, radius, text, lift, can: Callable(i), use: Callable(i)}]
@@ -114,6 +119,14 @@ func _ready() -> void:
 	add_child(tools)
 	for p in players:
 		p.input.tools = true                  # F and the left trigger use the tool, C and Select pick the next
+	foes = Foes.new()
+	foes.game = self
+	foes.map = map
+	foes.world = world
+	foes.players = players
+	foes.on = with_foes
+	add_child(foes)
+	foes.setup()
 	rig.set_limits(Rect2(Vector2(map.region.position) * TILE, Vector2(map.region.size) * TILE), 0.0)
 	rig.snap()
 	land.prime()
@@ -164,7 +177,7 @@ func welcome_text() -> String:
 	var kept := "A new land, laid out differently every time."
 	if not world_save.is_empty():
 		kept = "A new land. The game saves by itself: your character, and what you dig and fell here."
-	return "%s\nYou carry a pickaxe, an axe and a mallet. %s uses the one you have picked, on what you aim at. %s picks the next.\nNothing to fight yet. The cave mouth leads back to your forge.\n\nWorld number %d" \
+	return "%s\nYou carry a pickaxe, an axe and a mallet. %s uses the one you have picked, on what you aim at. %s picks the next.\nThe hills round the cave are safe. Farther out, hounds and goblins have made the land theirs.\nThe cave mouth leads back to your forge.\n\nWorld number %d" \
 		% [kept, "The left trigger" if pad else "F", "Select" if pad else "C", world_seed]
 
 
@@ -367,6 +380,11 @@ func _use_forge(i: int) -> void:
 	open_forge(i)
 
 
+## A hound answering its pack leader's howl (scripts/foes/hound.gd asks the game for it).
+func call_foe(by, kind: String):
+	return foes.call_in(by, kind)
+
+
 func _swap_key_player() -> int:
 	for i in players.size():
 		var inp = players[i].input
@@ -393,6 +411,7 @@ func _physics_process(delta: float) -> void:
 			p.need_release = true
 	was_busy = busy
 	tools.tick(delta, busy)
+	foes.tick(delta)
 	ui.prompts = []
 	for p in players:
 		p.interact_ready = false

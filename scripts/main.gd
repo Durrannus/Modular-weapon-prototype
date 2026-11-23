@@ -5,6 +5,7 @@ const PartLibrary := preload("res://scripts/parts/part_library.gd")
 const Crawler := preload("res://scripts/cave/crawler.gd")
 const Burrower := preload("res://scripts/cave/burrower.gd")
 const Guardian := preload("res://scripts/cave/guardian.gd")
+const FoeMake := preload("res://scripts/foes/make.gd")
 ## The test arena: one big room, a training dummy, endless enemies, and a forge
 ## you can open anywhere (Tab / Y) with every part unlocked. It is a room for
 ## trying weapons out, so nobody can be hurt in it unless they ask to be (H / Select
@@ -37,6 +38,14 @@ const SPAWNABLE := [
 	["crawler", "Cave crawler", "Rears up, then bites"],
 	["burrower", "Cave burrower", "Digs under, comes up and lunges"],
 	["guardian", "Forge guardian", "The tutorial cave's boss"],
+	["hound", "Cliff Hound", "Circles, crouches, lunges"],
+	["slinger", "Pebble Slinger", "Keeps away, lobs pebbles"],
+	["scrap_brute", "Scrap Brute", "Blocks in front, open after its swing"],
+	["shaman", "Goblin Shaman", "Keeps back, calls bats"],
+	["hound_elite", "Elite hound (pack leader)", "Howls for more hounds"],
+	["slinger_elite", "Elite slinger", "Its rock bursts into shards"],
+	["scrap_brute_elite", "Elite brute", "Every third attack is a shield bash"],
+	["shaman_elite", "Elite shaman", "Wards another goblin"],
 	["dummy", "Training dummy", "Never moves, shows your damage"],
 ]
 var home_dummy = null        # the dummy the room starts with ("Remove every enemy" leaves it)
@@ -263,8 +272,10 @@ func spawn_enemies(kind: String, count := 1) -> Array:
 				e = Guardian.new()
 				e.team = players.size()
 			_:
-				e = EnemyScript.new()
-				e.kind = kind
+				e = FoeMake.make(kind)       # the Highlands' enemies (scripts/foes/)
+				if e == null:
+					e = EnemyScript.new()
+					e.kind = kind
 		e.position = _spot_near_player(280.0 if kind == "guardian" else 200.0)
 		world.add_child(e)
 		if kind == "guardian":
@@ -276,6 +287,13 @@ func spawn_enemies(kind: String, count := 1) -> Array:
 		out.append(e)
 	_hold_enemies()
 	return out
+
+
+## A hound answering its pack leader's howl (scripts/foes/hound.gd asks the game for it): it comes in at the far
+## side of the room.
+func call_foe(_by, kind: String):
+	var got := spawn_enemies(kind, 1)
+	return got[0] if not got.is_empty() else null
 
 
 ## Somewhere inside the walls, at least `far` from everyone.

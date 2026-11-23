@@ -1,0 +1,1213 @@
+{
+ "note": "Highlands enemies, first drafts. Everything faces right: mirror for left. Strips run left to right, every frame of a strip the same size. Sizes in px at 640x360. See README.md.",
+ "enemies": {
+  "hound": {
+   "frame": [
+    40,
+    32
+   ],
+   "origin_feet": [
+    19,
+    28
+   ],
+   "note": "The Cliff Hound: a lean grey wild dog. Circles (move), crouches, then lunges.",
+   "strips": {
+    "idle": {
+     "frames": 4,
+     "fps": 5,
+     "box": [
+      0,
+      0,
+      160,
+      32
+     ]
+    },
+    "move": {
+     "frames": 6,
+     "fps": 12,
+     "box": [
+      160,
+      0,
+      240,
+      32
+     ]
+    },
+    "crouch": {
+     "frames": 2,
+     "fps": 6,
+     "box": [
+      400,
+      0,
+      80,
+      32
+     ]
+    },
+    "lunge": {
+     "frames": 3,
+     "fps": 12,
+     "box": [
+      0,
+      32,
+      120,
+      32
+     ]
+    },
+    "hit": {
+     "frames": 2,
+     "fps": 12,
+     "box": [
+      120,
+      32,
+      80,
+      32
+     ]
+    },
+    "death": {
+     "frames": 4,
+     "fps": 8,
+     "box": [
+      200,
+      32,
+      160,
+      32
+     ]
+    }
+   }
+  },
+  "hound_elite": {
+   "frame": [
+    40,
+    32
+   ],
+   "origin_feet": [
+    19,
+    28
+   ],
+   "note": "The elite Cliff Hound: the white, scarred pack leader. It howls to call more hounds.",
+   "strips": {
+    "idle": {
+     "frames": 4,
+     "fps": 5,
+     "box": [
+      0,
+      64,
+      160,
+      32
+     ]
+    },
+    "idle_rim": {
+     "frames": 4,
+     "fps": 5,
+     "rim": true,
+     "box": [
+      160,
+      64,
+      160,
+      32
+     ]
+    },
+    "move": {
+     "frames": 6,
+     "fps": 12,
+     "box": [
+      0,
+      96,
+      240,
+      32
+     ]
+    },
+    "move_rim": {
+     "frames": 6,
+     "fps": 12,
+     "rim": true,
+     "box": [
+      240,
+      96,
+      240,
+      32
+     ]
+    },
+    "crouch": {
+     "frames": 2,
+     "fps": 6,
+     "box": [
+      0,
+      128,
+      80,
+      32
+     ]
+    },
+    "crouch_rim": {
+     "frames": 2,
+     "fps": 6,
+     "rim": true,
+     "box": [
+      80,
+      128,
+      80,
+      32
+     ]
+    },
+    "lunge": {
+     "frames": 3,
+     "fps": 12,
+     "box": [
+      160,
+      128,
+      120,
+      32
+     ]
+    },
+    "lunge_rim": {
+     "frames": 3,
+     "fps": 12,
+     "rim": true,
+     "box": [
+      280,
+      128,
+      120,
+      32
+     ]
+    },
+    "howl": {
+     "frames": 3,
+     "fps": 5,
+     "box": [
+      0,
+      160,
+      120,
+      32
+     ]
+    },
+    "howl_rim": {
+     "frames": 3,
+     "fps": 5,
+     "rim": true,
+     "box": [
+      120,
+      160,
+      120,
+      32
+     ]
+    },
+    "hit": {
+     "frames": 2,
+     "fps": 12,
+     "box": [
+      240,
+      160,
+      80,
+      32
+     ]
+    },
+    "hit_rim": {
+     "frames": 2,
+     "fps": 12,
+     "rim": true,
+     "box": [
+      320,
+      160,
+      80,
+      32
+     ]
+    },
+    "death": {
+     "frames": 4,
+     "fps": 8,
+     "box": [
+      0,
+      192,
+      160,
+      32
+     ]
+    },
+    "death_rim": {
+     "frames": 4,
+     "fps": 8,
+     "rim": true,
+     "box": [
+      160,
+      192,
+      160,
+      32
+     ]
+    }
+   }
+  },
+  "slinger": {
+   "frame": [
+    32,
+    32
+   ],
+   "origin_feet": [
+    15,
+    28
+   ],
+   "note": "The Pebble Slinger: a small goblin with a sling. Keeps its distance and backs away.",
+   "strips": {
+    "idle": {
+     "frames": 4,
+     "fps": 5,
+     "box": [
+      320,
+      192,
+      128,
+      32
+     ]
+    },
+    "move": {
+     "frames": 6,
+     "fps": 9,
+     "box": [
+      0,
+      224,
+      192,
+      32
+     ]
+    },
+    "windup": {
+     "frames": 2,
+     "fps": 8,
+     "box": [
+      192,
+      224,
+      64,
+      32
+     ]
+    },
+    "throw": {
+     "frames": 3,
+     "fps": 10,
+     "box": [
+      256,
+      224,
+      96,
+      32
+     ]
+    },
+    "hit": {
+     "frames": 2,
+     "fps": 12,
+     "box": [
+      352,
+      224,
+      64,
+      32
+     ]
+    },
+    "death": {
+     "frames": 4,
+     "fps": 8,
+     "box": [
+      0,
+      256,
+      128,
+      32
+     ]
+    }
+   }
+  },
+  "slinger_elite": {
+   "frame": [
+    32,
+    32
+   ],
+   "origin_feet": [
+    15,
+    28
+   ],
+   "note": "The elite Pebble Slinger: carries a rock as big as its head and throws it; the rock bursts into shards.",
+   "strips": {
+    "idle": {
+     "frames": 4,
+     "fps": 5,
+     "box": [
+      128,
+      256,
+      128,
+      32
+     ]
+    },
+    "idle_rim": {
+     "frames": 4,
+     "fps": 5,
+     "rim": true,
+     "box": [
+      256,
+      256,
+      128,
+      32
+     ]
+    },
+    "move": {
+     "frames": 6,
+     "fps": 9,
+     "box": [
+      0,
+      288,
+      192,
+      32
+     ]
+    },
+    "move_rim": {
+     "frames": 6,
+     "fps": 9,
+     "rim": true,
+     "box": [
+      192,
+      288,
+      192,
+      32
+     ]
+    },
+    "windup": {
+     "frames": 2,
+     "fps": 5,
+     "box": [
+      384,
+      288,
+      64,
+      32
+     ]
+    },
+    "windup_rim": {
+     "frames": 2,
+     "fps": 5,
+     "rim": true,
+     "box": [
+      448,
+      288,
+      64,
+      32
+     ]
+    },
+    "throw": {
+     "frames": 3,
+     "fps": 10,
+     "box": [
+      0,
+      320,
+      96,
+      32
+     ]
+    },
+    "throw_rim": {
+     "frames": 3,
+     "fps": 10,
+     "rim": true,
+     "box": [
+      96,
+      320,
+      96,
+      32
+     ]
+    },
+    "hit": {
+     "frames": 2,
+     "fps": 12,
+     "box": [
+      192,
+      320,
+      64,
+      32
+     ]
+    },
+    "hit_rim": {
+     "frames": 2,
+     "fps": 12,
+     "rim": true,
+     "box": [
+      256,
+      320,
+      64,
+      32
+     ]
+    },
+    "death": {
+     "frames": 4,
+     "fps": 8,
+     "box": [
+      320,
+      320,
+      128,
+      32
+     ]
+    },
+    "death_rim": {
+     "frames": 4,
+     "fps": 8,
+     "rim": true,
+     "box": [
+      0,
+      352,
+      128,
+      32
+     ]
+    }
+   }
+  },
+  "brute": {
+   "frame": [
+    48,
+    48
+   ],
+   "origin_feet": [
+    21,
+    44
+   ],
+   "note": "The Scrap Brute: a big goblin behind a slab of forge scrap. It blocks from the front; 'open' is the moment after its swing.",
+   "strips": {
+    "idle": {
+     "frames": 4,
+     "fps": 4,
+     "box": [
+      128,
+      352,
+      192,
+      48
+     ]
+    },
+    "move": {
+     "frames": 6,
+     "fps": 7,
+     "box": [
+      0,
+      400,
+      288,
+      48
+     ]
+    },
+    "windup": {
+     "frames": 2,
+     "fps": 5,
+     "box": [
+      288,
+      400,
+      96,
+      48
+     ]
+    },
+    "swing": {
+     "frames": 3,
+     "fps": 10,
+     "box": [
+      0,
+      448,
+      144,
+      48
+     ]
+    },
+    "open": {
+     "frames": 2,
+     "fps": 3,
+     "box": [
+      144,
+      448,
+      96,
+      48
+     ]
+    },
+    "block": {
+     "frames": 2,
+     "fps": 10,
+     "box": [
+      240,
+      448,
+      96,
+      48
+     ]
+    },
+    "hit": {
+     "frames": 2,
+     "fps": 12,
+     "box": [
+      336,
+      448,
+      96,
+      48
+     ]
+    },
+    "death": {
+     "frames": 4,
+     "fps": 7,
+     "box": [
+      0,
+      496,
+      192,
+      48
+     ]
+    }
+   }
+  },
+  "brute_elite": {
+   "frame": [
+    48,
+    48
+   ],
+   "origin_feet": [
+    21,
+    44
+   ],
+   "note": "The elite Scrap Brute: bronze-plated shield and a horned helm. Every few swings it bashes with the shield.",
+   "strips": {
+    "idle": {
+     "frames": 4,
+     "fps": 4,
+     "box": [
+      192,
+      496,
+      192,
+      48
+     ]
+    },
+    "idle_rim": {
+     "frames": 4,
+     "fps": 4,
+     "rim": true,
+     "box": [
+      0,
+      544,
+      192,
+      48
+     ]
+    },
+    "move": {
+     "frames": 6,
+     "fps": 7,
+     "box": [
+      192,
+      544,
+      288,
+      48
+     ]
+    },
+    "move_rim": {
+     "frames": 6,
+     "fps": 7,
+     "rim": true,
+     "box": [
+      0,
+      592,
+      288,
+      48
+     ]
+    },
+    "windup": {
+     "frames": 2,
+     "fps": 5,
+     "box": [
+      288,
+      592,
+      96,
+      48
+     ]
+    },
+    "windup_rim": {
+     "frames": 2,
+     "fps": 5,
+     "rim": true,
+     "box": [
+      384,
+      592,
+      96,
+      48
+     ]
+    },
+    "swing": {
+     "frames": 3,
+     "fps": 10,
+     "box": [
+      0,
+      640,
+      144,
+      48
+     ]
+    },
+    "swing_rim": {
+     "frames": 3,
+     "fps": 10,
+     "rim": true,
+     "box": [
+      144,
+      640,
+      144,
+      48
+     ]
+    },
+    "open": {
+     "frames": 2,
+     "fps": 3,
+     "box": [
+      288,
+      640,
+      96,
+      48
+     ]
+    },
+    "open_rim": {
+     "frames": 2,
+     "fps": 3,
+     "rim": true,
+     "box": [
+      384,
+      640,
+      96,
+      48
+     ]
+    },
+    "block": {
+     "frames": 2,
+     "fps": 10,
+     "box": [
+      0,
+      688,
+      96,
+      48
+     ]
+    },
+    "block_rim": {
+     "frames": 2,
+     "fps": 10,
+     "rim": true,
+     "box": [
+      96,
+      688,
+      96,
+      48
+     ]
+    },
+    "bash_windup": {
+     "frames": 2,
+     "fps": 5,
+     "box": [
+      192,
+      688,
+      96,
+      48
+     ]
+    },
+    "bash_windup_rim": {
+     "frames": 2,
+     "fps": 5,
+     "rim": true,
+     "box": [
+      288,
+      688,
+      96,
+      48
+     ]
+    },
+    "bash": {
+     "frames": 3,
+     "fps": 12,
+     "box": [
+      0,
+      736,
+      144,
+      48
+     ]
+    },
+    "bash_rim": {
+     "frames": 3,
+     "fps": 12,
+     "rim": true,
+     "box": [
+      144,
+      736,
+      144,
+      48
+     ]
+    },
+    "hit": {
+     "frames": 2,
+     "fps": 12,
+     "box": [
+      288,
+      736,
+      96,
+      48
+     ]
+    },
+    "hit_rim": {
+     "frames": 2,
+     "fps": 12,
+     "rim": true,
+     "box": [
+      384,
+      736,
+      96,
+      48
+     ]
+    },
+    "death": {
+     "frames": 4,
+     "fps": 7,
+     "box": [
+      0,
+      784,
+      192,
+      48
+     ]
+    },
+    "death_rim": {
+     "frames": 4,
+     "fps": 7,
+     "rim": true,
+     "box": [
+      192,
+      784,
+      192,
+      48
+     ]
+    }
+   }
+  },
+  "shaman": {
+   "frame": [
+    32,
+    32
+   ],
+   "origin_feet": [
+    14,
+    28
+   ],
+   "note": "The Goblin Shaman: a robed goblin in a bat-skull mask. Its staff's old bronze ring calls bats (cast).",
+   "strips": {
+    "idle": {
+     "frames": 4,
+     "fps": 4,
+     "box": [
+      384,
+      784,
+      128,
+      32
+     ]
+    },
+    "move": {
+     "frames": 6,
+     "fps": 8,
+     "box": [
+      0,
+      832,
+      192,
+      32
+     ]
+    },
+    "cast": {
+     "frames": 3,
+     "fps": 6,
+     "box": [
+      192,
+      832,
+      96,
+      32
+     ]
+    },
+    "hit": {
+     "frames": 2,
+     "fps": 12,
+     "box": [
+      288,
+      832,
+      64,
+      32
+     ]
+    },
+    "death": {
+     "frames": 4,
+     "fps": 8,
+     "box": [
+      352,
+      832,
+      128,
+      32
+     ]
+    }
+   }
+  },
+  "shaman_elite": {
+   "frame": [
+    32,
+    32
+   ],
+   "origin_feet": [
+    14,
+    28
+   ],
+   "note": "The elite Goblin Shaman: bone prongs and a bronze collar. It also wards another goblin (ward).",
+   "strips": {
+    "idle": {
+     "frames": 4,
+     "fps": 4,
+     "box": [
+      0,
+      864,
+      128,
+      32
+     ]
+    },
+    "idle_rim": {
+     "frames": 4,
+     "fps": 4,
+     "rim": true,
+     "box": [
+      128,
+      864,
+      128,
+      32
+     ]
+    },
+    "move": {
+     "frames": 6,
+     "fps": 8,
+     "box": [
+      256,
+      864,
+      192,
+      32
+     ]
+    },
+    "move_rim": {
+     "frames": 6,
+     "fps": 8,
+     "rim": true,
+     "box": [
+      0,
+      896,
+      192,
+      32
+     ]
+    },
+    "cast": {
+     "frames": 3,
+     "fps": 6,
+     "box": [
+      192,
+      896,
+      96,
+      32
+     ]
+    },
+    "cast_rim": {
+     "frames": 3,
+     "fps": 6,
+     "rim": true,
+     "box": [
+      288,
+      896,
+      96,
+      32
+     ]
+    },
+    "ward": {
+     "frames": 3,
+     "fps": 6,
+     "box": [
+      384,
+      896,
+      96,
+      32
+     ]
+    },
+    "ward_rim": {
+     "frames": 3,
+     "fps": 6,
+     "rim": true,
+     "box": [
+      0,
+      928,
+      96,
+      32
+     ]
+    },
+    "hit": {
+     "frames": 2,
+     "fps": 12,
+     "box": [
+      96,
+      928,
+      64,
+      32
+     ]
+    },
+    "hit_rim": {
+     "frames": 2,
+     "fps": 12,
+     "rim": true,
+     "box": [
+      160,
+      928,
+      64,
+      32
+     ]
+    },
+    "death": {
+     "frames": 4,
+     "fps": 8,
+     "box": [
+      224,
+      928,
+      128,
+      32
+     ]
+    },
+    "death_rim": {
+     "frames": 4,
+     "fps": 8,
+     "rim": true,
+     "box": [
+      352,
+      928,
+      128,
+      32
+     ]
+    }
+   }
+  },
+  "bat": {
+   "frame": [
+    16,
+    16
+   ],
+   "origin_feet": [
+    8,
+    8
+   ],
+   "note": "A bat of the shaman's swarm. It flies, so its origin is its middle. puff: it scatters when the shaman dies.",
+   "strips": {
+    "fly": {
+     "frames": 4,
+     "fps": 12,
+     "box": [
+      0,
+      960,
+      64,
+      16
+     ]
+    },
+    "dive": {
+     "frames": 2,
+     "fps": 12,
+     "box": [
+      64,
+      960,
+      32,
+      16
+     ]
+    },
+    "puff": {
+     "frames": 3,
+     "fps": 10,
+     "box": [
+      96,
+      960,
+      48,
+      16
+     ]
+    }
+   }
+  },
+  "ward": {
+   "frame": [
+    32,
+    32
+   ],
+   "origin_feet": [
+    15,
+    28
+   ],
+   "note": "Worn by a warded goblin for as long as it cannot be hurt: three scrap shields circling it. Each strip is a 4 frame loop. Draw 'back' under the goblin and 'front' over it, or just 'loop' over it. Sized for the 32x32 goblins.",
+   "strips": {
+    "back": {
+     "frames": 4,
+     "fps": 6,
+     "box": [
+      144,
+      960,
+      128,
+      32
+     ]
+    },
+    "front": {
+     "frames": 4,
+     "fps": 6,
+     "box": [
+      272,
+      960,
+      128,
+      32
+     ]
+    },
+    "loop": {
+     "frames": 4,
+     "fps": 6,
+     "box": [
+      0,
+      992,
+      128,
+      32
+     ]
+    }
+   }
+  },
+  "ward_big": {
+   "frame": [
+    48,
+    48
+   ],
+   "origin_feet": [
+    21,
+    44
+   ],
+   "note": "Worn by a warded goblin for as long as it cannot be hurt: three scrap shields circling it. Each strip is a 4 frame loop. Draw 'back' under the goblin and 'front' over it, or just 'loop' over it. Sized for the brute's 48x48 frame.",
+   "strips": {
+    "back": {
+     "frames": 4,
+     "fps": 6,
+     "box": [
+      128,
+      992,
+      192,
+      48
+     ]
+    },
+    "front": {
+     "frames": 4,
+     "fps": 6,
+     "box": [
+      320,
+      992,
+      192,
+      48
+     ]
+    },
+    "loop": {
+     "frames": 4,
+     "fps": 6,
+     "box": [
+      0,
+      1040,
+      192,
+      48
+     ]
+    }
+   }
+  }
+ },
+ "shots": {
+  "pebble": {
+   "frame": [
+    6,
+    6
+   ],
+   "origin": [
+    3,
+    3
+   ],
+   "frames": 4,
+   "fps": 12,
+   "note": "The slinger's pebble, spinning. Origin at its middle; lob it over a ground shadow.",
+   "box": [
+    192,
+    1040,
+    24,
+    6
+   ]
+  },
+  "rock": {
+   "frame": [
+    10,
+    8
+   ],
+   "origin": [
+    5,
+    4
+   ],
+   "frames": 4,
+   "fps": 8,
+   "note": "The elite's rock, turning slowly.",
+   "box": [
+    216,
+    1040,
+    40,
+    8
+   ]
+  },
+  "shard": {
+   "frame": [
+    8,
+    5
+   ],
+   "origin": [
+    4,
+    2
+   ],
+   "frames": 2,
+   "fps": 10,
+   "note": "One flying piece of the burst rock, pointing right: turn it to its heading.",
+   "box": [
+    256,
+    1040,
+    16,
+    5
+   ]
+  },
+  "pebble_puff": {
+   "frame": [
+    14,
+    6
+   ],
+   "origin": [
+    7,
+    4
+   ],
+   "frames": 4,
+   "fps": 12,
+   "note": "Dust where a pebble lands. Origin on the landing spot.",
+   "box": [
+    272,
+    1040,
+    56,
+    6
+   ]
+  },
+  "rock_burst": {
+   "frame": [
+    32,
+    28
+   ],
+   "origin": [
+    16,
+    17
+   ],
+   "frames": 6,
+   "fps": 16,
+   "note": "The big rock breaks where it lands (the same burst as a rock tile breaking).",
+   "box": [
+    0,
+    1088,
+    192,
+    28
+   ]
+  },
+  "pebble_mark": {
+   "frame": [
+    28,
+    14
+   ],
+   "origin": [
+    14,
+    7
+   ],
+   "frames": 4,
+   "fps": 8,
+   "note": "Where a pebble will land, flat on the floor, no outline, in the game's warning colours. An orange ring closes in from the edge over frames 0 to 2: spread them over the pebble's flight. Frame 3 is the landing flash.",
+   "box": [
+    192,
+    1088,
+    112,
+    14
+   ]
+  }
+ }
+}

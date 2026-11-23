@@ -119,6 +119,7 @@ func _game(characters: Array, world: Dictionary, carry := {}, seed_value := 0):
 	g.world_save = world
 	g.carry = carry
 	g.world_seed = seed_value
+	g.with_foes = false
 	g.welcome = shot_dir != "" and false
 	root.add_child(g)
 	return g

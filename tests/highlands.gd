@@ -566,6 +566,7 @@ func _game(seed_value: int, players := 1, carry := {}):
 		inputs.append(PlayerInput.make("script"))
 	g.inputs = inputs
 	g.world_seed = seed_value
+	g.with_foes = false
 	g.carry = carry
 	g.welcome = false
 	root.add_child(g)

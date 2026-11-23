@@ -539,15 +539,7 @@ func current_dps() -> float:
 
 func _die() -> void:
 	dead = true
-	# What was awake goes back to green: a verdigris ring and bronze flakes.
-	if Art.play_piece(self, "death_burst", global_position, 0.0, clampf(radius / 14.0, 0.8, 2.0)) == null:
-		var b := Fx.new()
-		b.kind = "burst"
-		b.radius = radius * 1.6
-		b.color = color
-		b.life = 0.25
-		get_parent().add_child(b)
-		b.global_position = global_position
+	_death_burst()
 	var info := _art_info()
 	var death := _art_tex("death")
 	if death != null and info.get("strips", {}).has("death"):
@@ -565,6 +557,19 @@ func _die() -> void:
 	Sfx.play(self, "squish", -9.0)
 	died.emit(self)
 	queue_free()
+
+
+## What bursts out of it as it dies. The forge's bronze creatures go back to green: a verdigris ring and bronze
+## flakes. (The Highlands' goblins and hounds are flesh and blood, and have their own: scripts/foes/foe.gd.)
+func _death_burst() -> void:
+	if Art.play_piece(self, "death_burst", global_position, 0.0, clampf(radius / 14.0, 0.8, 2.0)) == null:
+		var b := Fx.new()
+		b.kind = "burst"
+		b.radius = radius * 1.6
+		b.color = color
+		b.life = 0.25
+		get_parent().add_child(b)
+		b.global_position = global_position
 
 
 func _process(delta: float) -> void:
@@ -630,7 +635,7 @@ func _sprite() -> Dictionary:
 	if not a[2]:
 		frame = mini(frame, int(strip["frames"]) - 1)
 	var o: Array = info["origin_feet"]
-	return {"tex": tex, "glow": glow, "frames": int(strip["frames"]), "frame": frame, "origin": Vector2(o[0], o[1]), "flip": _flip(anim)}
+	return {"tex": tex, "glow": glow, "frames": int(strip["frames"]), "frame": frame, "origin": Vector2(o[0], o[1]), "flip": _flip(anim), "anim": anim}
 
 
 var _glow: Node2D
@@ -690,6 +695,11 @@ func _draw_ground(ci: CanvasItem) -> void:
 
 static var _tops: Dictionary = {}
 
+## The name its pictures go by (an elite of the Highlands has its own).
+func _art_key() -> String:
+	return "%s/%s" % [art_set, kind]
+
+
 ## How high the top of its picture is above this node (world units, negative is up),
 ## so the bar and the stars sit over the head whatever its size.
 func _head_y() -> float:
@@ -697,7 +707,7 @@ func _head_y() -> float:
 	var tex := _art_tex("idle")
 	if tex == null or not info.has("origin_feet"):
 		return -radius
-	var key := "%s/%s" % [art_set, kind]
+	var key := _art_key()
 	if not _tops.has(key):
 		var top := 0.0
 		var img := tex.get_image()
