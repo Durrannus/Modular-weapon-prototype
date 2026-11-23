@@ -1,0 +1,118 @@
+{
+ "note": "Levelling art, first drafts (23 Nov). The loot sheet's form: name -> box, with frames left to right. Sizes in px at 640x360. See README.md.",
+ "sprites": {
+  "memory_frame": {
+   "box": [
+    1,
+    1,
+    92,
+    8
+   ],
+   "size": [
+    92,
+    8
+   ],
+   "fill_at": [
+    6,
+    2
+   ],
+   "note": "The Memory bar's frame: the mana bar's size and layout, with a mote on each cap. Draw memory_empty then memory_fill (cut to the share that is full) at fill_at."
+  },
+  "memory_fill": {
+   "box": [
+    94,
+    1,
+    80,
+    3
+   ],
+   "size": [
+    80,
+    3
+   ],
+   "note": "What is carried. Cut it from the left, as the mana fill is. Its quarter marks line up with the empty bar's."
+  },
+  "memory_empty": {
+   "box": [
+    175,
+    1,
+    80,
+    3
+   ],
+   "size": [
+    80,
+    3
+   ],
+   "note": "The empty bar, with quarter marks."
+  },
+  "level_badge": {
+   "box": [
+    256,
+    1,
+    15,
+    13
+   ],
+   "size": [
+    15,
+    13
+   ],
+   "note": "The squad's level: write the number on the dark middle (9x7 at (3, 3)) in the HUD's amber."
+  },
+  "memory_marker": {
+   "box": [
+    1,
+    15,
+    96,
+    34
+   ],
+   "frame": [
+    16,
+    34
+   ],
+   "origin": [
+    8,
+    31
+   ],
+   "frames": 6,
+   "fps": 6,
+   "note": "Left where a player fell, holding the Memory they lost. A slow loop. No outline, as the mote. Origin on the ground under it. No shadow (it is a light)."
+  },
+  "memory_marker_take": {
+   "box": [
+    98,
+    15,
+    64,
+    34
+   ],
+   "frame": [
+    16,
+    34
+   ],
+   "origin": [
+    8,
+    31
+   ],
+   "frames": 4,
+   "fps": 12,
+   "note": "Played once when the marker is collected; then fly memory_mote to the player as a chest does."
+  },
+  "level_up": {
+   "box": [
+    1,
+    50,
+    320,
+    60
+   ],
+   "frame": [
+    40,
+    60
+   ],
+   "origin": [
+    20,
+    54
+   ],
+   "frames": 8,
+   "fps": 10,
+   "note": "Played once over every player when the squad gains a level. Origin at the player's feet; draw it over the player. Frame 4 is the moment the level lands."
+  }
+ }
+}

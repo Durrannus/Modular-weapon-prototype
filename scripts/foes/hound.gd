@@ -134,9 +134,12 @@ func _fight(delta: float) -> Vector2:
 					continue
 				if p.global_position.distance_to(global_position) < radius + 16.0 + 4.0 and p.invuln <= 0.0:
 					struck[p.get_instance_id()] = true
-					p.take_damage(_bite(), global_position - lunge_dir * 20.0)
+					p.take_damage(_bite(), global_position - lunge_dir * 20.0, self)
 			if lunge_left <= 0.0 or (get_slide_collision_count() > 0 and lunge_left < LUNGE_DIST - 40.0):
 				_recover(RECOVER_TIME)
+				# A lunge that bit nobody: it is Open while it gathers itself (the Striker's word).
+				if struck.is_empty():
+					open_for(RECOVER_TIME)
 				return Vector2.ZERO
 			return lunge_dir * LUNGE_SPEED
 		"recover":

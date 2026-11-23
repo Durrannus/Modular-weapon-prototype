@@ -35,6 +35,7 @@ const SCRIPTS := {
 	"foes": "res://scripts/highlands/foes.gd",
 	"loot": "res://scripts/highlands/loot.gd",
 	"loot_plan": "res://scripts/highlands/loot_plan.gd",
+	"levels": "res://scripts/highlands/levels.gd",
 }
 
 ## How a number is shown and stepped:
@@ -51,7 +52,7 @@ const UNITS := {
 	"": {"step": 1.0, "lo": 0.0, "hi": 100000.0},
 }
 
-const PAGES := ["All weapons", "Sword", "Bow", "Hammer", "Staff", "Sword runes", "Bow runes", "Hammer runes", "Staff runes", "Threads", "Players", "Enemies", "Highlands enemies", "Chests and loot", "Forge guardian"]
+const PAGES := ["All weapons", "Sword", "Bow", "Hammer", "Staff", "Sword runes", "Bow runes", "Hammer runes", "Staff runes", "Threads", "Players", "Enemies", "Highlands enemies", "Chests and loot", "Levelling", "Forge guardian"]
 
 ## A line under a page's name, where one helps.
 const PAGE_NOTES := {
@@ -69,6 +70,7 @@ const PAGE_NOTES := {
 	"Enemies": "Enemies already here keep the same share of their health.",
 	"Highlands enemies": "The hounds and goblins of the Highlands. You can also put them in the arena: see Spawn.",
 	"Chests and loot": "What chests hold and what enemies leave. Chest changes take hold when a world is next opened.",
+	"Levelling": "The forge's levels, what falling costs, and the four signature perks of the role trees.",
 	"Forge guardian": "The tutorial cave's boss. You can also put him in the arena: see Spawn.",
 }
 
@@ -480,6 +482,29 @@ static func _build_rows() -> void:
 	_add(p, g, "A tile of tin ore mined", "loot:WORK_MEMORY/tin_ore", "", 1.0, 0.0, 1000.0)
 	_add(p, g, "A tile of copper ore mined", "loot:WORK_MEMORY/copper_ore", "", 1.0, 0.0, 1000.0)
 	_add(p, g, "A pine felled", "loot:WORK_MEMORY/wood", "", 1.0, 0.0, 1000.0)
+
+	p = "Levelling"
+	g = "The forge's levels"
+	_add(p, g, "Memory from each player for level 1", "levels:FIRST_LEVEL", "", 10.0, 10.0, 100000.0)
+	_add(p, g, "Every level after it needs this much more", "levels:LEVEL_STEP", "", 10.0, 0.0, 100000.0)
+	_add(p, g, "The highest level", "levels:LEVEL_CAP", "n", 1.0, 1.0, 99.0)
+	_add(p, g, "Forgetting your perks costs, a perk", "levels:FORGET_COST", "", 5.0, 0.0, 10000.0)
+	g = "Falling"
+	_add(p, g, "Carried Memory left where you fell", "levels:FALL_MEMORY", "%", 0.05, 0.0, 1.0)
+	_add(p, g, "Coins lost for good", "levels:FALL_COINS", "%", 0.05, 0.0, 1.0)
+	g = "Challenge (Warden)"
+	_add(p, g, "An enemy stays Challenged for", "levels:CHALLENGE_TIME", "s", 0.5, 0.5, 60.0)
+	_add(p, g, "A boss stays Challenged for", "levels:CHALLENGE_BOSS_TIME", "s", 0.5, 0.5, 60.0)
+	_add(p, g, "Then a boss cannot be Challenged for", "levels:CHALLENGE_BOSS_REST", "s", 0.5, 0.0, 120.0)
+	_add(p, g, "Its hits on the challenger do this much less", "levels:CHALLENGE_SOFTEN", "%", 0.05, 0.0, 1.0)
+	g = "Punish (Striker): how long an enemy is Open"
+	_add(p, g, "A Pebble Slinger whose pebble hit nobody", "slinger:MISS_OPEN", "s", 0.1, 0.1, 10.0)
+	g = "Kindle (Mender)"
+	_add(p, g, "A Spark at most every", "levels:SPARK_EVERY", "s", 0.5, 0.0, 60.0)
+	_add(p, g, "A Spark heals this share of your health", "levels:SPARK_HEAL", "%", 0.05, 0.0, 1.0)
+	_add(p, g, "A Spark lasts", "levels:SPARK_LIFE", "s", 0.5, 2.5, 120.0)
+	g = "Ore Sense (Delver)"
+	_add(p, g, "How far it sees, in tiles", "levels:ORE_SENSE_TILES", "", 1.0, 1.0, 40.0)
 
 	p = "Forge guardian"
 	g = "Body"

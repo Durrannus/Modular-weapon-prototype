@@ -151,6 +151,8 @@ static var MAX_HP := 100.0     # everyone's health (the lab can change it)
 var max_hp := MAX_HP
 var hp := MAX_HP
 var spawn_point := Vector2.ZERO
+var fell_at := Vector2.ZERO     # where they last fell (set as they fall, before they wake at spawn_point)
+var roles = null                # the Highlands' role trees (scripts/highlands/levels.gd): their perks hook in here. Null anywhere else
 var aim_dir := Vector2.RIGHT   # where an attack goes: the mouse, the right stick, or the way you face
 var face_dir := Vector2.DOWN   # where the body looks
 var input: PlayerInput         # this player's controls (set before adding; defaults to every device)
@@ -869,6 +871,9 @@ func _do_move(move: String) -> void:
 			shake = maxf(shake, 5.0 if shape == "impact" else 2.5)
 			Sfx.play(self, "finisher", -12.0)
 		fired.append_array(_trigger("finisher", hit_list))
+		# The role trees' perks that hang on a finisher that lands (Challenge, Kindle).
+		if roles != null and hits > 0:
+			roles.finisher(self, hit_list)
 	if hits > 0:
 		Sfx.play(self, "thud" if _is_hammer() else "hit", -5.0 if _is_hammer() else -8.0)
 		fired.append_array(_trigger("hit", hit_list))
@@ -949,6 +954,9 @@ func arrow_hit(a, e) -> void:
 	var copied: bool = float(a.copy) > 0.0
 	_hit_enemy(e, dmg, a.dir, a.knock, a.stun, a.freeze, {}, copied, a)
 	Sfx.play(self, "hit", -6.0 if a.heavy else -9.0, 1.0 if a.heavy else 1.25)
+	# A bow's finisher is its last, heavy shot: the role trees' perks hang on it where it lands.
+	if a.finisher and not copied and roles != null:
+		roles.finisher(self, [e])
 	if a.heavy and not copied:
 		shake = maxf(shake, float(MOVES["heavy_shot"].get("shake", 6.0)))
 	# Runes belong to the bow that loosed it: an arrow still in the air when you
@@ -1113,6 +1121,9 @@ func _bolt_hit(a, e) -> void:
 	var hits: Array = [e]
 	if a.splash > 0.0:
 		hits.append_array(_bolt_burst(a, at, {e.get_instance_id(): true}))
+	# A staff's finisher is the last cast of its chain: the role trees' perks hang on it where it lands.
+	if a.finisher and not copied and a.rune == "" and not a.quiet and roles != null:
+		roles.finisher(self, hits)
 	# Runes belong to the staff that cast it, and a spray counts once.
 	if a.stamp != weapon_stamp or a.rune != "" or a.quiet:
 		return
@@ -2973,6 +2984,9 @@ func _hit_enemy(e, dmg: float, kdir: Vector2, knock: float, stun := 0.12, freeze
 	var crit_chance := float(shot.crit) if shot != null else float(weapon.get("crit", 0.05))
 	var crit_times := float(shot.crit_damage) if shot != null else float(weapon.get("crit_damage", 1.5))
 	var crit := Sim.chance() < crit_chance
+	# Punish, the Striker's signature perk: your own hit on an Open enemy always crits (a ghost's hit is not yours).
+	if not ghost and roles != null and roles.punishes(self, e):
+		crit = true
 	var final := dmg * (crit_times if crit else 1.0)
 	e.take_hit(final, kdir, knock, crit, GHOST_COLOR if ghost else weapon.get("hit_color", Color.WHITE), stun, freeze)
 	# A spark where the blade lands, thrown the way the hit goes.
@@ -4098,7 +4112,8 @@ func _steam(target, dmg: float) -> void:
 # --- Taking damage ------------------------------------------------------------
 
 ## from: where the hit came from (you're knocked away from it).
-func take_damage(amount: float, from: Vector2 = Vector2.INF) -> void:
+## by: the enemy whose hit it is, where that is known (a Challenged enemy does less to whoever Challenged it).
+func take_damage(amount: float, from: Vector2 = Vector2.INF, by = null) -> void:
 	if invuln > 0.0 or is_down:
 		return
 	# Bulwark stops a hit that comes from somewhere. Enough of them break it.
@@ -4108,6 +4123,8 @@ func take_damage(amount: float, from: Vector2 = Vector2.INF) -> void:
 		return
 	if unhurt:
 		return
+	if roles != null:
+		amount = roles.softened(self, amount, by)
 	hp -= amount
 	invuln = 0.8
 	hurt_flash = 0.12
@@ -4120,6 +4137,7 @@ func take_damage(amount: float, from: Vector2 = Vector2.INF) -> void:
 	Art.play_piece(self, "hurt_burst", global_position + Vector2(0, -8), away.angle())
 	if hp <= 0.0:
 		hp = 0.0
+		fell_at = global_position
 		_reset_combo()
 		dodge_timer = 0.0
 		_end_ghost()

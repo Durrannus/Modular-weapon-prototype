@@ -30,6 +30,7 @@ var shards := 0                # the big rock: how many pieces it bursts into
 var shard_damage := 5.0
 var shard_reach := 110.0
 var nav = null                 # where there is a map, a shard stops at rock
+var by = null                  # the slinger that threw it (it may have fallen since)
 var dir := Vector2.RIGHT       # a shard's heading
 var left := 0.0                # a shard: how far it still flies
 var t := 0.0
@@ -69,10 +70,20 @@ func _players() -> Array:
 	return out
 
 
+## The slinger that threw it, if it is still standing.
+func _thrower():
+	return by if by != null and is_instance_valid(by) and not by.dead else null
+
+
 func _land() -> void:
+	var missed := true
 	for p in _players():
 		if p.global_position.distance_to(to) <= splash + 10.0:
-			p.take_damage(damage, to)
+			if p.invuln <= 0.0:
+				missed = false
+			p.take_damage(damage, to, _thrower())
+	if missed and _thrower() != null and by.has_method("rock_missed"):
+		by.rock_missed()
 	if kind == "pebble":
 		Sfx.play(self, "click", -9.0, 0.6)
 		Foe.play_shot(self, "pebble_puff", to)
@@ -89,6 +100,7 @@ func _land() -> void:
 		s.damage = shard_damage
 		s.shard_reach = shard_reach
 		s.nav = nav
+		s.by = by
 		get_parent().add_child(s)
 		s.global_position = to + s.dir * 10.0
 	for p in _players():
@@ -103,7 +115,7 @@ func _fly_shard(delta: float) -> void:
 	left -= step
 	for p in _players():
 		if p.global_position.distance_to(global_position) <= 16.0 + 6.0 and p.invuln <= 0.0:
-			p.take_damage(damage, global_position - dir * 12.0)
+			p.take_damage(damage, global_position - dir * 12.0, _thrower())
 			queue_free()
 			return
 	if left <= 0.0 or (nav != null and not nav.sees(global_position - dir * 4.0, global_position + dir * 4.0)):

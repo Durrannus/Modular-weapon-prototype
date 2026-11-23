@@ -6,7 +6,8 @@ extends Node
 ##     Which chests have been opened is saved with the world.
 ##   - "Coins are a plain counter." Bars go in the materials bag (bag.gd). Both belong to the character.
 ##   - Memory is "earned from everything: killing, mining, chopping and building". What you carry belongs to the
-##     character; pouring it into the forge to level the squad is a later version.
+##     character; it is shown as a bar under their health, and poured into the forge to level the squad
+##     (levels.gd, version 45).
 ##   - Elites give "the same kinds of loot as the chests", and three of them a piece of the Rusted Warhorn: the body
 ##     from the Elite Scrap Brute, the bell from the Elite Cliff Hound, the mouthpiece from the Elite Pebble Slinger.
 ##
@@ -20,8 +21,8 @@ extends Node
 ##     bats cannot be farmed.
 ##   - Digging plain rock gives no Memory (it would be the safest and fastest way to earn it there is); ore and
 ##     pines give a little.
-##   - Falling costs nothing yet. The Bible's price (some coins and half your unbanked Memory, left as a marker)
-##     comes with the forge's levels, when there is a way to bank Memory first.
+##   - What falling costs (some coins and half your unbanked Memory, left as a marker) is levels.gd's, since
+##     version 45.
 ##
 ## THE RULES AND THE LOOKS ARE KEPT APART, as everywhere: what you hold changes at once, on the tick (give(),
 ## open(), tick()); the things that hop out and fly to you are looks only, with dice of their own.
@@ -440,16 +441,17 @@ func _head_width(text: String) -> float:
 func purse_rect(i: int) -> Rect2:
 	var purse: Purse = purses[i]
 	var lead := 26.0 if players.size() > 1 else 0.0
-	var w := 15.0 + maxf(_head_width(str(purse.coins)), _head_width(str(purse.memory))) + 2.0
+	var w := 15.0 + _head_width(str(purse.coins)) + 2.0
 	if not purse.kept.is_empty():
 		w += 5.0 + 17.0 * float(purse.kept.size())
 	var x := MARGIN + lead + HP_BAR + 10.0
 	if i % 2 == 1:
 		x = SIZE.x - MARGIN - lead - HP_BAR - 10.0 - w
-	return Rect2(x, 7.0, w, 23.0)
+	return Rect2(x, 7.0, w, 16.0)
 
 
-## On the screen, beside each health bar: the coins, the Memory carried, and the Warhorn's pieces that are held.
+## On the screen, beside each health bar: the coins, and the Warhorn's pieces that are held. (The Memory carried is
+## the bar under the health bar: levels.gd draws it.)
 func _draw_hud() -> void:
 	for i in purses.size():
 		if i >= players.size() or not is_instance_valid(players[i]):
@@ -458,16 +460,13 @@ func _draw_hud() -> void:
 		var r := purse_rect(i)
 		panel.draw_rect(Rect2(r.position - Vector2(4, 3), r.size + Vector2(8, 6)), SHADE)
 		var lit_c := clampf(1.0 - (clock - float(purse.gained.get("coins", -9.0))) / 0.7, 0.0, 1.0)
-		var lit_m := clampf(1.0 - (clock - float(purse.gained.get("memory", -9.0))) / 0.7, 0.0, 1.0)
-		ItemArt.draw(panel, "hud_coin", r.position + Vector2(0, -1))
-		_head(str(purse.coins), r.position + Vector2(15, 9), INK.lerp(AMBER, lit_c))
-		ItemArt.draw(panel, "memory_mote", r.position + Vector2(2, 14), 1.0, Color.WHITE, int(clock * 6.0) if lit_m > 0.0 else 0)
-		_head(str(purse.memory), r.position + Vector2(15, 21), INK.lerp(AMBER, lit_m))
+		ItemArt.draw(panel, "hud_coin", r.position + Vector2(0, 2))
+		_head(str(purse.coins), r.position + Vector2(15, 12), INK.lerp(AMBER, lit_c))
 		var x := r.end.x - 17.0 * float(purse.kept.size())
 		for name in KEPT:
 			if purse.kept.has(name):
 				var fresh := clampf(1.0 - (clock - float(purse.gained.get(name, -9.0))) / 1.2, 0.0, 1.0)
-				ItemArt.draw(panel, "item_" + str(name), Vector2(x + 1.0, r.position.y + 3.0 - roundf(2.0 * fresh)))
+				ItemArt.draw(panel, "item_" + str(name), Vector2(x + 1.0, r.position.y - roundf(2.0 * fresh)))
 				x += 17.0
 	if clock < said_until:
 		var w := _head_width(said) + 12.0

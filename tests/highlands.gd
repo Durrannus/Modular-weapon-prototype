@@ -621,9 +621,13 @@ func _walking() -> void:
 	await _frames(2)
 	p.input.interact_pressed = false
 	await _frames(2)
-	_check(g.build_menu.is_open, "using the cave mouth opens the forge screen")
+	_check(g.hall.is_open and not g.build_menu.is_open, "using the cave mouth opens the forge's screen (version 45: levels and role trees)")
+	g.hall.row = 2
+	g.hall.confirm()
+	_check(not g.hall.is_open and g.build_menu.is_open, "and WEAPONS AND RUNES there opens the weapon forge")
 	g.build_menu.close()
 	await _frames(3)
+	_check(not paused, "(the game goes on after)")
 	# Walking far brings new land in and lets the old go; pictures arrive without the game waiting.
 	var far: Vector2 = g.map.pockets[g.map.pockets.size() - 1]["at"] * TILE
 	for q in g.players:

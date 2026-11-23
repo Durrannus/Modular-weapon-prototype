@@ -32,6 +32,7 @@ static var ELITE_SPLASH := 46.0
 static var SHARDS := 6
 static var SHARD_DAMAGE := 5.0
 static var SHARD_REACH := 110.0
+static var MISS_OPEN := 1.0          # how long it is Open after a pebble of its lands on nobody
 const THROW_TIME := 0.3
 const THROW_MOST := 320.0            # it does not throw farther than this
 const COVER_EVERY := 1.0
@@ -139,8 +140,14 @@ func _throw() -> void:
 	r.shard_damage = SHARD_DAMAGE
 	r.shard_reach = SHARD_REACH
 	r.nav = nav
+	r.by = self
 	get_parent().add_child(r)
 	Sfx.play(self, "swing", -9.0, 1.4 if not elite else 0.8)
+
+
+## Its pebble or rock came down on nobody (rock.gd tells it): it is Open for a moment (the Striker's word).
+func rock_missed() -> void:
+	open_for(MISS_OPEN)
 
 
 ## A hit while the sling goes round spoils the throw.

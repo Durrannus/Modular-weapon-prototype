@@ -330,15 +330,28 @@ static func world_words(w: Dictionary) -> String:
 	var dug: int = (w["dug"] as Array).size() if w.get("dug") is Array else 0
 	var felled: int = (w["added"] as Array).size() if w.get("added") is Array else 0
 	var words := "Number %d." % int(w.get("seed", 0))
+	if squad_level(w) > 0:
+		words += "  Squad level %d." % squad_level(w)
 	if dug > 0:
 		words += "  %d dug." % dug
 	if felled > 0:
 		words += "  %d felled." % felled
-	if dug == 0 and felled == 0:
+	if dug == 0 and felled == 0 and squad_level(w) == 0:
 		words += "  Untouched."
 	if w.get("restored", false):
 		words += "  (From its backup.)"
 	return words
+
+
+## The squad's level in a saved world (0 in one from before there were levels).
+static func squad_level(w: Dictionary) -> int:
+	return maxi(int(w["level"]), 0) if (w.get("level") is int or w.get("level") is float) else 0
+
+
+## How many perks a saved character has learnt, in words ("" for none).
+static func perk_words(c: Dictionary) -> String:
+	var n: int = (c["perks"] as Array).size() if c.get("perks") is Array else 0
+	return "" if n == 0 else ("1 perk" if n == 1 else "%d perks" % n)
 
 
 ## Was this world saved on a land that this game makes differently now?
@@ -379,7 +392,7 @@ func _draw_screen() -> void:
 	_words(silk, Vector2(32, 38), "WHO IS PLAYING?" if step == 0 else "WHICH WORLD?", 16, AMBER)
 	_words(silk, Vector2(32, 38), "STEP %d OF 2" % (step + 1), 8, DIM, 576.0, HORIZONTAL_ALIGNMENT_RIGHT)
 	if step == 0:
-		_words(pix, Vector2(32, 56), "A character keeps its weapons, runes, tools, bag and coins, and can go into any world.", Art.TEXT_SIZE, INK)
+		_words(pix, Vector2(32, 56), "A character keeps its weapons, runes, tools, bag, coins and perks, and can go into any world.", Art.TEXT_SIZE, INK)
 		var width := 280.0 if count > 1 else 360.0
 		for p in count:
 			var x := 32.0 + float(p) * 296.0 if count > 1 else 140.0
@@ -390,7 +403,7 @@ func _draw_screen() -> void:
 			var row := int(cursor[p])
 			var name := str(characters[row]["name"]) if row < characters.size() else "a new character"
 			who.append(("Player %d: %s" % [p + 1, name]) if count > 1 else "Playing %s" % name)
-		_words(pix, Vector2(32, 56), ".   ".join(who) + ".   A world keeps what is dug and felled in it.", Art.TEXT_SIZE, INK)
+		_words(pix, Vector2(32, 56), ".   ".join(who) + ".   A world keeps its land and the squad's level.", Art.TEXT_SIZE, INK)
 		_draw_worlds(120.0, 400.0, silk, pix)
 
 	# The bottom band: what the buttons do.
@@ -443,6 +456,8 @@ func _draw_characters(p: int, x: float, width: float, silk: Font, pix: Font) -> 
 		elif c.get("restored", false):
 			parts = [weapon_words(c), "(from its backup)"]
 		if not c.get("newer", false):
+			if perk_words(c) != "":
+				parts[0] = "%s, %s" % [parts[0], perk_words(c)]
 			if (c.get("coins") is int or c.get("coins") is float) and int(c["coins"]) > 0:
 				parts.append(["coins", int(c["coins"])])
 			# The bag from its dearest thing to its cheapest, so what is left off a full row is the stone.

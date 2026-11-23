@@ -12,16 +12,20 @@ extends "res://scripts/game_base.gd"
 ## bats, and an elite of each. Nothing lives near the cave. Since version 44
 ## there are chests to find, enemies leave Memory when they fall, and the elites
 ## leave loot and the pieces of the Rusted Warhorn (loot.gd, loot_plan.gd): coins
-## and Memory are counted beside your health, and bars go in the bag.
+## and bars go in the bag. Since version 45 Memory is a bar under your health, the
+## forge down the cave mouth takes it and raises the SQUAD'S LEVEL, every level is
+## a point for each character's role trees, and falling costs something (levels.gd,
+## perks.gd, scripts/ui/forge_hall.gd).
 ##
 ## SAVING (version 42; Darren, 21 November: "It works like terraria, player is
 ## saved"). Every player is a saved CHARACTER and the land is a saved WORLD
 ## (scripts/save.gd): the character keeps its weapons, runes, threads, presets,
-## tool belt, materials bag, coins, Memory and the Warhorn's pieces, and goes
-## into any world; the world keeps its number, what was dug, mined and felled in
-## it, and which of its chests have been opened. There is no save button: the
-## game saves every AUTOSAVE seconds, when the pause menu opens, when the forge
-## screen closes, and when you leave (back to the title, "Quit game", or the
+## tool belt, materials bag, coins, Memory, the Warhorn's pieces and its perks,
+## and goes into any world; the world keeps its number, what was dug, mined and
+## felled in it, which of its chests have been opened, the squad's level, what the
+## forge holds towards the next, and the Memory left lying where somebody fell. There is no save button: the
+## game saves every AUTOSAVE seconds, when the pause menu opens, when the forge's
+## screens close, and when you leave (back to the title, "Quit game", or the
 ## window closing).
 ##
 ## You get here from the title screen by picking a character and a world
@@ -41,6 +45,8 @@ const Foes := preload("res://scripts/highlands/foes.gd")
 const FoePlan := preload("res://scripts/highlands/foe_plan.gd")
 const Loot := preload("res://scripts/highlands/loot.gd")
 const LootPlan := preload("res://scripts/highlands/loot_plan.gd")
+const Levels := preload("res://scripts/highlands/levels.gd")
+const ForgeHall := preload("res://scripts/ui/forge_hall.gd")
 const CaveUi := preload("res://scripts/cave/cave_ui.gd")
 const Music := preload("res://scripts/music.gd")
 const Save := preload("res://scripts/save.gd")
@@ -51,6 +57,7 @@ const Version := preload("res://scripts/version.gd")
 const AUTOSAVE := 60.0
 const SAVE_APART := 30.0        # leaving writes the clock too, unless the same save was written less than this long ago
 const SAVE_NOTE := 2.0          # how long the word "Saved" stays on the screen
+const NOTE_Y := 21.0            # where it is: top middle, under the squad's level
 
 var world_seed := 0             # 0 = a new one every time
 var carry := {}                 # from the cave: {builds: [a weapon each], owned: [part ids each], spirit: [bool each]}
@@ -61,9 +68,11 @@ var foes                        # the land's enemies (foes.gd)
 var with_foes := true           # false: the land is empty of enemies (the tests of other things)
 var loot                        # chests, drops, coins and Memory (loot.gd)
 var chest_plan: Array = []      # where this land's chests stand and what is in them (loot_plan.gd)
+var levels                      # Memory, the squad's level, the role trees' perks, what falling costs (levels.gd)
+var hall                        # the forge's screen: give your Memory, the role trees (scripts/ui/forge_hall.gd)
 var ui
 var owned: Array = []           # per player: the part ids they can use at the forge (null = all of them)
-var interactables: Array = []   # [{at, radius, text, lift, can: Callable(i), use: Callable(i)}]
+var interactables: Array = []   # [{at, radius, text, lift, can: Callable(i), use: Callable(i), words: Callable(i) or none}]
 var was_busy := false
 var welcome := true             # show the arrival card (tests switch it off)
 var music                       # the calm cave tune, standing in until the Highlands have one of their own
@@ -149,6 +158,19 @@ func _ready() -> void:
 	loot.setup(chest_plan)
 	if not world_save.is_empty() and not new_world and not relaid:
 		loot.set_opened(world_save.get("chests"))
+	levels = Levels.new()
+	levels.game = self
+	levels.map = map
+	levels.players = players
+	levels.loot = loot
+	add_child(levels)
+	if not world_save.is_empty() and not new_world:
+		# The squad's level is the world's whatever has become of its land. The Memory that lay where somebody fell
+		# stays only if the land is still the land they fell on.
+		var kept := world_save.duplicate()
+		if relaid:
+			kept.erase("markers")
+		levels.set_world_data(kept)
 	rig.set_limits(Rect2(Vector2(map.region.position) * TILE, Vector2(map.region.size) * TILE), 0.0)
 	rig.snap()
 	land.prime()
@@ -156,9 +178,16 @@ func _ready() -> void:
 	var mouth_feet := Vector2(map.mouth.x * 16 + 8, (map.mouth.y + 1) * 16)
 	land.stand("cave_mouth", mouth_feet)
 	interactables.append({"at": mouth_feet * Art.PIXEL + Vector2(0, 26), "radius": 74.0, "lift": 86.0, "text": "Go down to the forge",
-		"can": func(_i): return true, "use": func(i): _use_forge(i)})
+		"words": func(i): return forge_words(i), "can": func(_i): return true, "use": func(i): _use_forge(i)})
 	_make_ui()
 	hud.mode = "highlands"
+	hud.under_bar = Levels.BAR_DROP           # the Memory bar is right under the health bar
+	hall = ForgeHall.new()
+	hall.levels = levels
+	hall.players = players
+	add_child(hall)
+	hall.weapons.connect(_open_weapons)
+	hall.closed.connect(_hall_closed)
 	music = Music.new()
 	add_child(music)
 	music.play("cave_calm", 4.0)
@@ -199,7 +228,7 @@ func welcome_text() -> String:
 	var kept := "A new land, laid out differently every time."
 	if not world_save.is_empty():
 		kept = "A new land. The game saves by itself: your character, and what you dig and fell here."
-	return "%s\nYou carry a pickaxe, an axe and a mallet. %s uses the one you have picked, on what you aim at. %s picks the next.\nThe hills round the cave are safe. Farther out, hounds and goblins have made the land theirs, and there are chests to find.\nThe cave mouth leads back to your forge.\n\nWorld number %d" \
+	return "%s\nYou carry a pickaxe, an axe and a mallet. %s uses the one you have picked, on what you aim at. %s picks the next.\nThe hills round the cave are safe. Farther out, hounds and goblins have made the land theirs, and there are chests to find.\nWhat you kill, mine and chop gives Memory. Take it down the cave mouth to your forge: it raises the squad's level.\n\nWorld number %d" \
 		% [kept, "The left trigger" if pad else "F", "Select" if pad else "C", world_seed]
 
 
@@ -250,12 +279,13 @@ func swap_weapon(i: int, to := "") -> void:
 		super.swap_weapon(i, to)
 
 
-## Each saved character's tool belt, picked tool and materials bag, and its coins, Memory and kept things.
+## Each saved character's tool belt, picked tool and materials bag, its coins, Memory and kept things, and its perks.
 func _load_hands() -> void:
 	for i in players.size():
 		if not characters[i].is_empty():
 			tools.set_hand_data(i, characters[i])
 			loot.set_purse_data(i, characters[i])
+			levels.set_perks_data(i, characters[i])
 
 
 # --- Saving -----------------------------------------------------------------------
@@ -269,19 +299,21 @@ func _character_now(i: int) -> Dictionary:
 	c["swap"] = bool(swaps[i])
 	c.merge(tools.hand_data(i), true)
 	c.merge(loot.purse_data(i), true)
+	c.merge(levels.perks_data(i), true)
 	if not world_save.is_empty():
 		c["world"] = str(world_save.get("id", ""))
 	c["game"] = Version.NUMBER
 	return c
 
 
-## The world as it is at this moment, for its save: its number, what has been changed on its land, and which of
-## its chests have been opened.
+## The world as it is at this moment, for its save: its number, what has been changed on its land, which of its
+## chests have been opened, the squad's level, what the forge holds, and the Memory lying where somebody fell.
 func _world_now() -> Dictionary:
 	world_save["seed"] = world_seed
 	world_save["land"] = WorldGen.GEN
 	world_save.merge(map.changes(), true)
 	world_save["chests"] = loot.opened_ids()
+	world_save.merge(levels.world_data(), true)
 	world_save["game"] = Version.NUMBER
 	return world_save
 
@@ -312,7 +344,7 @@ static func _meat(d: Dictionary) -> String:
 ## Returns false if something could not be written (the screen then says so, and the file that was there is left
 ## as it was).
 func save_now(leaving := false, tell := true) -> bool:
-	if Net.online() or tools == null or loot == null or map == null:
+	if Net.online() or tools == null or loot == null or levels == null or map == null:
 		return true
 	var now := Time.get_unix_time_from_system()
 	var wrote := false
@@ -371,7 +403,7 @@ func _forge_done(i: int) -> void:
 	save_now()
 
 
-## One word at the top of the screen when the game has saved (or a sentence if it could not).
+## One word at the top of the screen, under the squad's level, when the game has saved (or a sentence if it could not).
 func _make_note() -> void:
 	var layer := CanvasLayer.new()
 	layer.layer = 6
@@ -393,17 +425,51 @@ func _draw_note() -> void:
 	var w := ceilf(f.get_string_size(words, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x)
 	var alpha := clampf(save_note / 0.4, 0.0, 1.0)
 	var x := floorf((640.0 - w) * 0.5)
-	note_panel.draw_rect(Rect2(x - 6.0, 5.0, w + 12.0, 14.0), Color(0.098, 0.078, 0.165, 0.6 * alpha))
-	note_panel.draw_string(f, Vector2(x, 15.0), words, HORIZONTAL_ALIGNMENT_LEFT, -1, size, Color(Color("#f06a40") if save_failed else Color("#8ba688"), alpha))
+	note_panel.draw_rect(Rect2(x - 6.0, NOTE_Y, w + 12.0, 14.0), Color(0.098, 0.078, 0.165, 0.6 * alpha))
+	note_panel.draw_string(f, Vector2(x, NOTE_Y + 10.0), words, HORIZONTAL_ALIGNMENT_LEFT, -1, size, Color(Color("#f06a40") if save_failed else Color("#8ba688"), alpha))
 
 
-## The forge is down the stairs. Until the base is built, using the cave mouth
-## opens the forge screen where you stand.
+## The forge is down the stairs. Until the base is built, using the cave mouth opens the forge's screen where you
+## stand (scripts/ui/forge_hall.gd): give your Memory, the role trees, and the way on to the weapons and runes.
+## (Online, which is on hold, there are no levels yet: the cave mouth opens the weapons as it always did.)
 func _use_forge(i: int) -> void:
+	if Net.online():
+		_open_weapons(i)
+	elif not hall.is_open and not build_menu.is_open:
+		hall.open(i)
+
+
+## The forge screen there has always been: weapons, runes and threads.
+func _open_weapons(i: int) -> void:
 	if not Net.online() or i == Net.me():
 		build_menu.owned = owned[i]
 	players[i].with_spirit = true
 	open_forge(i)
+
+
+## The forge's screen has closed: what was given and learnt there is saved. (If it closed to open the weapons, the
+## save comes when those close.)
+func _hall_closed(_i: int) -> void:
+	_swallow_presses()
+	if not build_menu.is_open:
+		save_now()
+
+
+## What the cave mouth's prompt says to player i: it tells them when they have something to do down there.
+func forge_words(i: int) -> String:
+	if levels == null or Net.online():
+		return "Go down to the forge"
+	if levels.points(i) > 0:
+		return "Go down to the forge: %s to spend" % ("1 point" if levels.points(i) == 1 else "%d points" % levels.points(i))
+	if levels.share(i) >= 1.0:
+		return "Go down to the forge: you carry enough for a level"
+	return "Go down to the forge"
+
+
+## Somebody fell: half the Memory they carried stays where they fell, and some of their coins are gone (levels.gd).
+func _on_player_down(p) -> void:
+	if levels != null and not Net.online():
+		levels.fell(players.find(p), p.fell_at)
 
 
 ## A hound answering its pack leader's howl (scripts/foes/hound.gd asks the game for it).
@@ -439,6 +505,7 @@ func _physics_process(delta: float) -> void:
 	tools.tick(delta, busy)
 	foes.tick(delta)
 	loot.tick(delta)
+	levels.tick(delta)
 	ui.prompts = []
 	for p in players:
 		p.interact_ready = false
@@ -473,7 +540,8 @@ func _update_interactions() -> void:
 		var pad: bool = p.input.using_pad
 		if not shown.has(best) and (not Net.online() or i == Net.me()):
 			shown[best] = true
-			ui.prompts.append({"at": it["at"] - Vector2(0, float(it.get("lift", 0.0))), "text": it["text"], "pad": pad, "side": 0})
+			var words: String = it["words"].call(i) if it.has("words") else it["text"]
+			ui.prompts.append({"at": it["at"] - Vector2(0, float(it.get("lift", 0.0))), "text": words, "pad": pad, "side": 0})
 		if p.input.interact_pressed or (pad and p.input.dash_pressed):
 			it["use"].call(i)
 			return

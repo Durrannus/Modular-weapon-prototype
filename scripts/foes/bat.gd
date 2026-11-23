@@ -83,7 +83,7 @@ func _think(delta: float) -> Vector2:
 				for p in players():
 					if p.global_position.distance_to(global_position) < radius + 16.0 and p.invuln <= 0.0:
 						nipped = true
-						p.take_damage(NIP, global_position - dive_dir * 10.0)
+						p.take_damage(NIP, global_position - dive_dir * 10.0, self)
 						break
 			if dive_left <= 0.0:
 				_set_mode("hover")

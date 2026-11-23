@@ -37,6 +37,7 @@ var bash_dir := Vector2.RIGHT
 var bash_left := 0.0
 var struck := {}
 var swung := false
+var swing_missed := false           # its last swing hit nobody
 var block_anim := 9.0          # seconds since a blow last landed on the shield
 var _blocked_tick := -1
 
@@ -114,12 +115,18 @@ func _fight(delta: float) -> Vector2:
 				swung = true
 				attacks += 1
 				Sfx.play(self, "swing", -6.0, 0.6)
+				swing_missed = true
 				for p in players():
 					var rel: Vector2 = p.global_position - global_position
 					if rel.length() < REACH + 16.0 and absf(facing.angle_to(rel)) <= SWING_ARC:
-						p.take_damage(ELITE_CLUB if elite else CLUB, global_position)
+						if p.invuln <= 0.0:
+							swing_missed = false
+						p.take_damage(ELITE_CLUB if elite else CLUB, global_position, self)
 			if mode_t <= 0.0:
 				_set_mode("open", OPEN)
+				# A swing that hit nobody: it is Open (the Striker's word) for the second its shield is down.
+				if swing_missed:
+					open_for(OPEN)
 		"open":
 			if mode_t <= 0.0:
 				_set_mode("advance")
@@ -142,12 +149,14 @@ func _fight(delta: float) -> Vector2:
 				if p.global_position.distance_to(global_position) < radius + 16.0 + 6.0 and p.invuln <= 0.0:
 					struck[p.get_instance_id()] = true
 					var before: float = p.hp
-					p.take_damage(BASH, global_position - bash_dir * 20.0)
+					p.take_damage(BASH, global_position - bash_dir * 20.0, self)
 					if p.hp < before or p.knocked_out_timer > 0.0:
 						p.hurt_vel = bash_dir * BASH_PUSH
 						Sfx.play(self, "anvil", -12.0, 0.7)
 			if bash_left <= 0.0 or (get_slide_collision_count() > 0 and bash_left < BASH_DIST - 40.0):
 				_set_mode("open", OPEN + 0.2)
+				if struck.is_empty():
+					open_for(OPEN + 0.2)
 				return Vector2.ZERO
 			return bash_dir * BASH_SPEED
 	return Vector2.ZERO

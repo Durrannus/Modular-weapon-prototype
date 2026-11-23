@@ -2,11 +2,15 @@ extends RefCounted
 ## Where the picture of something you carry is. The bag's 16 by 16 pictures ("item_<name>") and the small ones that
 ## lie on the ground ("drop_<name>") are on two sheets: the tool art's (tools-v1: stone, wood and the two ores) and
 ## the loot art's (highlands-loot-v1: bars, coins, the Warhorn's pieces, the Memory mote, the screen's coin). The
-## tool art's is looked in first.
+## tool art's is looked in first. The levelling art's sheet (highlands-levelling-v1: the Memory bar, the level's
+## roundel, the marker left where somebody fell, the level-up) and the role trees' (highlands-roles-v1: the marks
+## for Challenged and Open, the Spark, the shimmer, the four trees' emblems) are in the same form and are found
+## the same way.
 
 const Art := preload("res://scripts/art.gd")
 
-const BOOKS := [["tools/tools.png", "tools/tools.json"], ["loot/loot.png", "loot/loot.json"]]
+const BOOKS := [["tools/tools.png", "tools/tools.json"], ["loot/loot.png", "loot/loot.json"], ["levelling/levelling.png", "levelling/levelling.json"],
+	["roles/roles.png", "roles/roles.json"]]
 
 
 ## [the sheet, what its book says about the picture], or [] if neither sheet has it.
@@ -28,6 +32,16 @@ static func size(name: String) -> Vector2:
 	if info.has("frames") and info.has("frame"):
 		return Vector2(float(info["frame"][0]), float(info["frame"][1]))
 	return Vector2(float(box[2]), float(box[3]))
+
+
+## The point of it that stands on the place it is drawn at, in art pixels from its top left corner (zero if its
+## book names none).
+static func origin(name: String) -> Vector2:
+	var got := find(name)
+	if got.is_empty():
+		return Vector2.ZERO
+	var o = (got[1] as Dictionary).get("origin", [0, 0])
+	return Vector2(float(o[0]), float(o[1])) if o is Array and o.size() == 2 else Vector2.ZERO
 
 
 ## Draws one frame of it with its top left corner at `at`. `px` is the size of one art pixel there. Returns its size

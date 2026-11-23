@@ -24,6 +24,7 @@ var said := ""             # a line for everyone to read, for a few seconds (say
 var said_until := -9.0
 var clock := 0.0
 var trail: Array = []      # per player: the pale bar that trails behind lost health, 0..1
+var under_bar := 0.0       # room kept right under every health bar for something drawn by somebody else (the Highlands' Memory bar)
 
 signal pause_pressed
 signal invincible_pressed
@@ -190,7 +191,8 @@ func _draw_hud() -> void:
 		var side := "a" if i % 2 == 0 else "b"
 		# A staff's mana bar goes between the health bar and the row under it,
 		# which moves down to make room.
-		var drop := 7.0 if _holds(p, "staff") and not p.is_down else 0.0
+		var mana_drop := 7.0 if _holds(p, "staff") and not p.is_down else 0.0
+		var drop := under_bar + mana_drop
 		# A soft dark backing, so the words and pips read over bright floor.
 		panel.draw_rect(Rect2(x - 4, y - 3, lead + BAR.x + 8, 29 + drop), SHADE)
 		if many:
@@ -222,8 +224,8 @@ func _draw_hud() -> void:
 			panel.draw_texture_rect_region(fill, Rect2(bar + FILL_AT, Vector2(fw, FILL.y)), Rect2(0, 0, fw, FILL.y))
 		else:
 			panel.draw_rect(Rect2(bar + FILL_AT, Vector2(fw, FILL.y)), who)
-		if drop > 0.0:
-			_draw_mana(p, bar + Vector2(0, 11))
+		if mana_drop > 0.0:
+			_draw_mana(p, bar + Vector2(0, 11 + under_bar))
 		_head("%d" % roundi(p.hp), Vector2(bar.x + 40, y + 22 + drop), FAINT, 8, 50, HORIZONTAL_ALIGNMENT_RIGHT)
 		# Dodge charges, or the bad news.
 		if p.is_down:

@@ -1,0 +1,209 @@
+{
+ "note": "Role tree art, first drafts (23 Nov). The loot sheet's form: name -> box, with frames left to right. Sizes in px at 640x360. See README.md.",
+ "sprites": {
+  "challenged": {
+   "box": [
+    1,
+    1,
+    96,
+    12
+   ],
+   "frame": [
+    24,
+    12
+   ],
+   "origin": [
+    12,
+    11
+   ],
+   "frames": 4,
+   "fps": 6,
+   "note": "Over the head of a Challenged enemy (origin = the top of its head, plus a pixel or two). Drawn WHITE and grey: multiply it by the challenger's scarf colour (Art.PLAYER_COLORS). The dark outline stays dark."
+  },
+  "open": {
+   "box": [
+    1,
+    14,
+    76,
+    18
+   ],
+   "frame": [
+    19,
+    18
+   ],
+   "origin": [
+    9,
+    17
+   ],
+   "frames": 4,
+   "fps": 10,
+   "note": "Over the head of an Open enemy. A guard cut in two on a slant. Every frame reads on its own, so it can be shown for any length of time."
+  },
+  "spark": {
+   "box": [
+    1,
+    33,
+    84,
+    18
+   ],
+   "frame": [
+    14,
+    18
+   ],
+   "origin": [
+    7,
+    16
+   ],
+   "frames": 6,
+   "fps": 6,
+   "note": "The Mender's Spark, lying on the ground: a green square cross. Origin on the ground under it. No outline, no shadow."
+  },
+  "spark_fade": {
+   "box": [
+    1,
+    52,
+    84,
+    18
+   ],
+   "frame": [
+    14,
+    18
+   ],
+   "origin": [
+    7,
+    16
+   ],
+   "frames": 6,
+   "fps": 6,
+   "note": "The same loop hatched: play it in place of spark for its last 2 s."
+  },
+  "spark_take": {
+   "box": [
+    86,
+    52,
+    56,
+    18
+   ],
+   "frame": [
+    14,
+    18
+   ],
+   "origin": [
+    7,
+    16
+   ],
+   "frames": 4,
+   "fps": 12,
+   "note": "Played once when a Spark is walked over."
+  },
+  "shimmer_tin": {
+   "box": [
+    1,
+    71,
+    96,
+    16
+   ],
+   "frame": [
+    16,
+    16
+   ],
+   "origin": [
+    0,
+    0
+   ],
+   "frames": 6,
+   "fps": 4,
+   "note": "Ore Sense: glints over the undug rock of a hidden tin tile. One tile. A slow loop; start each tile on a different frame so they do not blink together."
+  },
+  "shimmer_copper": {
+   "box": [
+    1,
+    88,
+    96,
+    16
+   ],
+   "frame": [
+    16,
+    16
+   ],
+   "origin": [
+    0,
+    0
+   ],
+   "frames": 6,
+   "fps": 4,
+   "note": "The same for copper, in copper's colours and with the glints in other places."
+  },
+  "shimmer_chest": {
+   "box": [
+    1,
+    105,
+    96,
+    16
+   ],
+   "frame": [
+    16,
+    16
+   ],
+   "origin": [
+    0,
+    0
+   ],
+   "frames": 6,
+   "fps": 4,
+   "note": "Ore Sense: a chest hidden in a sealed place or under the ground. A dotted chest outline with a glint on the latch."
+  },
+  "emblem_warden": {
+   "box": [
+    98,
+    105,
+    16,
+    16
+   ],
+   "size": [
+    16,
+    16
+   ],
+   "note": "Tree emblem for the Warden column head, in the ability glyphs' style."
+  },
+  "emblem_striker": {
+   "box": [
+    115,
+    105,
+    16,
+    16
+   ],
+   "size": [
+    16,
+    16
+   ],
+   "note": "Tree emblem for the Striker column head, in the ability glyphs' style."
+  },
+  "emblem_mender": {
+   "box": [
+    132,
+    105,
+    16,
+    16
+   ],
+   "size": [
+    16,
+    16
+   ],
+   "note": "Tree emblem for the Mender column head, in the ability glyphs' style."
+  },
+  "emblem_delver": {
+   "box": [
+    1,
+    122,
+    16,
+    16
+   ],
+   "size": [
+    16,
+    16
+   ],
+   "note": "Tree emblem for the Delver column head, in the ability glyphs' style."
+  }
+ }
+}
