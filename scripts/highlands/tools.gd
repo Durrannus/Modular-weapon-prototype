@@ -103,6 +103,7 @@ var land                          # land_view.gd
 var players: Array = []
 var hands: Array = []             # a Hand per player
 var wear := {}                    # what has taken blows: key -> {hits, at, need, tile or thing}
+var extras: Array = []            # what else a tool can strike (folk.gd's cage): [{box: Rect2 (world units), can: Callable() -> bool, strike: Callable(i, at)}]
 var clock := 0.0
 var dice := RandomNumberGenerator.new()
 var chips: Array = []             # [{at, vel, life, col, size}] in world units
@@ -309,10 +310,24 @@ func find(p, h: Hand, dir: Vector2) -> Dictionary:
 							best_d = d
 							break
 						d += 3.0
+	# What is not the land's own (Pip's cage): any tool strikes it.
+	for e in extras:
+		if not bool((e["can"] as Callable).call()):
+			continue
+		var box: Rect2 = e["box"]
+		var d := 6.0
+		while d < best_d:
+			if box.has_point(from + dir * d):
+				best = {"extra": e, "at": from + dir * (d + 4.0)}
+				best_d = d
+				break
+			d += 3.0
 	return best
 
 
 func _wear_key(t: Dictionary) -> int:
+	if t.has("extra"):
+		return -2000000000 - extras.find(t["extra"])
 	if t.has("tile"):
 		return int(t["tile"].y) * LandMap.SIZE + int(t["tile"].x)
 	return -1 - LandMap.thing_key(t["thing"])
@@ -325,6 +340,14 @@ func _strike(i: int) -> void:
 	var tool: String = TOOLS[h.tool]
 	var t := find(p, h, h.dir)
 	h.target = t
+	if t.has("extra"):
+		# The blow is the tool's; what comes of it is whoever owns the thing's to say.
+		var where := _tip(p, h, t)
+		_spark(where, 0.8)
+		h.pause = HIT_STOP
+		p.squash = Vector2(1.06, 0.95)
+		(t["extra"]["strike"] as Callable).call(i, where)
+		return
 	if tool == "mallet":
 		_tell(p, h, "Nothing to build yet")
 		Sfx.play(game, "swing", -14.0, 0.8)
@@ -801,6 +824,8 @@ func _draw_jolt(j: Dictionary) -> void:
 func _mark(t: Dictionary) -> Rect2:
 	if t.has("tile"):
 		return Rect2(Vector2(t["tile"]) * TILE, Vector2(TILE, TILE))
+	if t.has("extra"):
+		return t["extra"]["box"]
 	var foot := Vector2(float(t["thing"]["x"]), float(t["thing"]["y"])) * UNIT
 	return Rect2(foot - Vector2(14.0, 18.0), Vector2(28.0, 24.0))
 

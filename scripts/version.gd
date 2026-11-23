@@ -13,8 +13,8 @@ extends RefCounted
 ## picture and didn't stamp) shows "+ changes" after its number, so the number
 ## never claims more than it knows.
 
-const NUMBER := 45
-const FILES := "e7c8a9bf272e"
+const NUMBER := 46
+const FILES := "8b906c4c2830"
 
 ## Everything that makes the game what it is. Not project.godot (the editor
 ## rewrites it), not the tests, and not this file (it holds the answer).

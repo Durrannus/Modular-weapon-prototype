@@ -20,6 +20,7 @@ extends CanvasLayer
 
 signal closed(i: int)         # the screen has closed; player i had it
 signal weapons(i: int)        # player i chose "Weapons and runes": the game opens the forge screen for them
+signal travel(i: int)         # player i chose the waystone: the game sends the squad there
 
 const Art := preload("res://scripts/art.gd")
 const Sfx := preload("res://scripts/sfx.gd")
@@ -40,6 +41,7 @@ const METER_MARK := Color("#3e1c28")
 const POUR_TIME := 0.9
 const HALL := Rect2(140, 34, 360, 286)
 const ROWS := ["Give your Memory", "Role trees", "Weapons and runes", "Leave"]
+const TRAVEL_ROW := "Travel to the Watchpost"     # one more row, above "Leave", once that waystone is lit
 const FIRST_WORDS := "Everything you kill, mine and chop gives Memory. Bring it here and the forge remembers: the whole squad gains a level."
 ## Under the trees' name. While only the signature perks are built, it says so (and not how rows open: none can yet).
 const TREES_WORDS := "One point for every level of the squad. In this version only the top perk of each tree is built."
@@ -54,6 +56,7 @@ const PERK_H := 16.0
 const INFO := Rect2(32, 236, 576, 86)
 
 var levels                    # scripts/highlands/levels.gd
+var folk                      # scripts/highlands/folk.gd, for the waystones (may be null)
 var players: Array = []
 var who := 0                  # the player who has the screen
 var is_open := false
@@ -99,6 +102,14 @@ func open(i: int) -> void:
 	root.visible = true
 	get_tree().paused = true
 	Sfx.play(self, "click", -10.0, 0.8)
+
+
+## The rows of the forge's own screen: what is done here.
+func rows() -> Array:
+	var out: Array = ROWS.duplicate()
+	if folk != null and folk.has_stone() and folk.lit(str(folk.plan["stone"]["id"])):
+		out.insert(out.size() - 1, TRAVEL_ROW)
+	return out
 
 
 func close() -> void:
@@ -221,7 +232,7 @@ func move(dx: int, dy: int) -> void:
 		return
 	if view == "hall":
 		if dy != 0:
-			row = posmod(row + dy, ROWS.size())
+			row = posmod(row + dy, rows().size())
 			Sfx.play(self, "click", -16.0)
 		return
 	tree = posmod(tree + dx, Perks.TREES.size())
@@ -254,18 +265,22 @@ func confirm() -> void:
 			Sfx.play(self, "click", -14.0, 0.7)
 			say(why, 2.5)
 		return
-	match row:
-		0:
+	match str(rows()[clampi(row, 0, rows().size() - 1)]):
+		"Give your Memory":
 			_give()
-		1:
+		"Role trees":
 			view = "trees"
 			note = ""
 			Sfx.play(self, "click", -8.0)
-		2:
+		"Weapons and runes":
 			var i := who
 			close()
 			weapons.emit(i)
-		3:
+		TRAVEL_ROW:
+			var i := who
+			close()
+			travel.emit(i)
+		_:
 			Sfx.play(self, "click", -14.0, 0.7)
 			close()
 
@@ -377,7 +392,11 @@ func _badge(at: Vector2, level: int, silk: Font) -> void:
 
 
 func _draw_hall(silk: Font, pix: Font) -> void:
+	var list := rows()
+	var more := 24.0 * float(list.size() - ROWS.size())      # a row more: the plate is that much taller
 	var r := HALL
+	r.position.y -= floorf(more * 0.5)
+	r.size.y += more
 	if not Art.draw_nine(root, "swing/ui/panel.png", r, 8):
 		root.draw_rect(r, PLATE)
 	var x := r.position.x + 18.0
@@ -434,9 +453,10 @@ func _draw_hall(silk: Font, pix: Font) -> void:
 	# What is done here.
 	var carried: int = levels.carried(who)
 	var points: int = levels.points(who)
-	var rights := ["You carry %d" % carried if carried > 0 else "You carry none",
-		"1 point to spend" if points == 1 else ("%d points to spend" % points if points > 1 else "No points to spend"), "", ""]
-	for k in ROWS.size():
+	var rights := {"Give your Memory": "You carry %d" % carried if carried > 0 else "You carry none",
+		"Role trees": "1 point to spend" if points == 1 else ("%d points to spend" % points if points > 1 else "No points to spend"),
+		TRAVEL_ROW: "By waystone"}
+	for k in list.size():
 		var rr := Rect2(x, y + 112.0 + float(k) * 24.0, w, 21.0)
 		var on := k == row
 		rects.append([rr, "row", k, 0])
@@ -448,13 +468,13 @@ func _draw_hall(silk: Font, pix: Font) -> void:
 			if arrow != null:
 				root.draw_texture(arrow, Vector2(tx + (1.0 if fmod(t, 0.8) < 0.4 else 0.0), rr.position.y + 5.0))
 			tx += 12.0
-		_words(silk, Vector2(tx, rr.position.y + 14.0), str(ROWS[k]).to_upper(), 8, AMBER if on else INK)
-		if rights[k] != "":
+		_words(silk, Vector2(tx, rr.position.y + 14.0), str(list[k]).to_upper(), 8, AMBER if on else INK)
+		if rights.has(list[k]):
 			var lit: bool = (k == 0 and carried > 0 and levels.need(levels.level) > 0.0) or (k == 1 and points > 0)
-			_words(pix, Vector2(rr.position.x + 8.0, rr.position.y + 14.0), rights[k], Art.TEXT_SIZE, AMBER if lit else DIM, rr.size.x - 16.0, HORIZONTAL_ALIGNMENT_RIGHT)
+			_words(pix, Vector2(rr.position.x + 8.0, rr.position.y + 14.0), str(rights[list[k]]), Art.TEXT_SIZE, AMBER if lit else DIM, rr.size.x - 16.0, HORIZONTAL_ALIGNMENT_RIGHT)
 
 	# The forge's own words: the line of the level the squad has reached. And the news.
-	var ly := y + 218.0
+	var ly := y + 218.0 + more
 	if level >= 1:
 		_words(silk, Vector2(x, ly), "THE FORGE", 8, DIM)
 		var lines := lines_of(pix, "\"" + levels.line_for(level) + "\"", Art.TEXT_SIZE, w)

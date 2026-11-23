@@ -60,7 +60,7 @@ const RISE_TIME := 0.8             # the level-up's eight pictures
 const SIZE := Vector2(640, 360)
 const MARGIN := 10.0
 const HP_BAR := Vector2(92, 12)    # the health bar (scripts/ui/hud.gd): the Memory bar sits right under it
-const BAR_DROP := 7.0              # what is under the health bar moves down this far to make room
+const BAR_DROP := 8.0              # what is under the health bar moves down this far to make room
 
 static var FIRST_LEVEL := 100      # Memory the forge needs from each player for the squad's first level ...
 static var LEVEL_STEP := 100       # ... and this much more for every level after it

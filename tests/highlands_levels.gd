@@ -148,7 +148,7 @@ func _art() -> void:
 			"challenged", "open", "spark", "spark_fade", "spark_take", "shimmer_tin", "shimmer_copper", "shimmer_chest",
 			"emblem_warden", "emblem_striker", "emblem_mender", "emblem_delver"]:
 		_check(not ItemArt.find(name).is_empty(), "the art has \"%s\"" % name)
-	_check(ItemArt.size("memory_frame") == Vector2(92, 8) and ItemArt.size("memory_fill") == Vector2(80, 3) and ItemArt.size("level_badge") == Vector2(15, 13), "the Memory bar and the roundel are the sizes the screen is laid out for")
+	_check(ItemArt.size("memory_frame") == Vector2(92, 9) and ItemArt.size("memory_fill") == Vector2(80, 4) and Levels.BAR_DROP == 8.0 and ItemArt.size("level_badge") == Vector2(15, 13), "the Memory bar and the roundel are the sizes the screen is laid out for")
 	_check(ItemArt.size("memory_marker") == Vector2(16, 34) and ItemArt.origin("memory_marker") == Vector2(8, 31), "the marker stands on its origin")
 	_check(ItemArt.size("challenged") == Vector2(24, 12) and ItemArt.origin("challenged") == Vector2(12, 11) and ItemArt.size("open") == Vector2(19, 18), "the marks over an enemy's head are measured a frame at a time")
 	_check(ItemArt.size("no_such_thing") == Vector2.ZERO and ItemArt.origin("no_such_thing") == Vector2.ZERO, "a picture there is not has no size")

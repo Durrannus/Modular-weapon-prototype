@@ -1,0 +1,204 @@
+{
+ "note": "Pip, his cage and Nib, first drafts. The same form as highlands-enemies-v1: everything faces right, strips run left to right, every frame of a strip the same size. See README.md.",
+ "actors": {
+  "pip": {
+   "frame": [
+    32,
+    32
+   ],
+   "origin_feet": [
+    15,
+    28
+   ],
+   "note": "Pip, the goblin tinker, with his pack and lantern. Faces right. 'bare' strips are Pip without the pack (inside the cage, or at his bench).",
+   "strips": {
+    "idle": {
+     "frames": 4,
+     "fps": 4,
+     "box": [
+      0,
+      0,
+      128,
+      32
+     ]
+    },
+    "move": {
+     "frames": 6,
+     "fps": 9,
+     "box": [
+      128,
+      0,
+      192,
+      32
+     ]
+    },
+    "talk": {
+     "frames": 4,
+     "fps": 5,
+     "box": [
+      320,
+      0,
+      128,
+      32
+     ]
+    },
+    "work": {
+     "frames": 4,
+     "fps": 6,
+     "box": [
+      0,
+      32,
+      128,
+      32
+     ]
+    },
+    "cheer": {
+     "frames": 2,
+     "fps": 5,
+     "box": [
+      128,
+      32,
+      64,
+      32
+     ]
+    },
+    "bare_idle": {
+     "frames": 4,
+     "fps": 4,
+     "box": [
+      192,
+      32,
+      128,
+      32
+     ]
+    }
+   }
+  },
+  "pip_cage": {
+   "frame": [
+    48,
+    56
+   ],
+   "origin_feet": [
+    8,
+    52
+   ],
+   "note": "The hanging scrap cage with Pip in it. Feet = the foot of the post. The cage's middle is 20 px right of the feet and 27 px up; Pip lands 20 px right of the feet. 'idle' hangs still with a slow sway, 'hit' when it is struck, 'break' when it gives, 'empty' is what stays.",
+   "strips": {
+    "idle": {
+     "frames": 4,
+     "fps": 3,
+     "box": [
+      320,
+      32,
+      192,
+      56
+     ]
+    },
+    "hit": {
+     "frames": 2,
+     "fps": 10,
+     "box": [
+      0,
+      88,
+      96,
+      56
+     ]
+    },
+    "break": {
+     "frames": 3,
+     "fps": 8,
+     "box": [
+      96,
+      88,
+      144,
+      56
+     ]
+    },
+    "empty": {
+     "frames": 2,
+     "fps": 2,
+     "box": [
+      240,
+      88,
+      96,
+      56
+     ]
+    }
+   }
+  },
+  "nib": {
+   "frame": [
+    24,
+    24
+   ],
+   "origin_feet": [
+    11,
+    20
+   ],
+   "note": "Nib, the hound pup. Faces right. He never fights.",
+   "strips": {
+    "idle": {
+     "frames": 4,
+     "fps": 6,
+     "box": [
+      336,
+      88,
+      96,
+      24
+     ]
+    },
+    "move": {
+     "frames": 6,
+     "fps": 10,
+     "box": [
+      0,
+      144,
+      144,
+      24
+     ]
+    },
+    "sit": {
+     "frames": 2,
+     "fps": 2,
+     "box": [
+      144,
+      144,
+      48,
+      24
+     ]
+    },
+    "bark": {
+     "frames": 2,
+     "fps": 6,
+     "box": [
+      192,
+      144,
+      48,
+      24
+     ]
+    },
+    "dig": {
+     "frames": 4,
+     "fps": 10,
+     "box": [
+      240,
+      144,
+      96,
+      24
+     ]
+    },
+    "sleep": {
+     "frames": 2,
+     "fps": 1,
+     "box": [
+      336,
+      144,
+      48,
+      24
+     ]
+    }
+   }
+  }
+ }
+}

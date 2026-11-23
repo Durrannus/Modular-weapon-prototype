@@ -8,9 +8,9 @@ look and a death marker existed. Darren has asked for none of the details and ha
 
 | Name | Size | Use |
 |---|---|---|
-| `memory_frame` | 92x8 | The bar's frame: the mana bar's size and layout exactly, so it draws the same way. `fill_at` (6, 2). |
-| `memory_fill` | 80x3 | What is carried. Cut it from the left, as the mana fill is. |
-| `memory_empty` | 80x3 | The empty bar, drawn under the fill. |
+| `memory_frame` | 92x9 | The bar's frame: the mana bar's layout, one pixel thicker, with a Memory mote in its left cap (changed 23 Nov after the review of version 45). `fill_at` (6, 2). |
+| `memory_fill` | 80x4 | What is carried. Cut it from the left, as the mana fill is. |
+| `memory_empty` | 80x4 | The empty bar, drawn under the fill. |
 | `level_badge` | 15x13 | A bronze roundel for the squad's level. Write the number on its dark middle (9x7 at (3, 3)) in the HUD's amber. |
 | `memory_marker` | 6 frames of 16x34, origin (8, 31), 6 fps | Left where a player fell. A slow loop. Origin on the ground under it. No shadow: it is a light. |
 | `memory_marker_take` | 4 frames of 16x34, origin (8, 31), 12 fps | Played once when the marker is collected; then fly `memory_mote` to the player as a chest does. |

@@ -6,28 +6,28 @@
     1,
     1,
     92,
-    8
+    9
    ],
    "size": [
     92,
-    8
+    9
    ],
    "fill_at": [
     6,
     2
    ],
-   "note": "The Memory bar's frame: the mana bar's size and layout, with a mote on each cap. Draw memory_empty then memory_fill (cut to the share that is full) at fill_at."
+   "note": "The Memory bar's frame: the mana bar's layout, one pixel thicker, with a Memory mote in its left cap. Draw memory_empty then memory_fill (cut to the share that is full) at fill_at."
   },
   "memory_fill": {
    "box": [
     94,
     1,
     80,
-    3
+    4
    ],
    "size": [
     80,
-    3
+    4
    ],
    "note": "What is carried. Cut it from the left, as the mana fill is. Its quarter marks line up with the empty bar's."
   },
@@ -36,11 +36,11 @@
     175,
     1,
     80,
-    3
+    4
    ],
    "size": [
     80,
-    3
+    4
    ],
    "note": "The empty bar, with quarter marks."
   },

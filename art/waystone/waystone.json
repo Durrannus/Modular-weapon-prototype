@@ -1,0 +1,61 @@
+{
+ "note": "The keepers' waystone, first draft. Every frame is 48x48 with the foot at (13, 46), the middle of the base's bottom edge. The solid part is the base: 18 wide and 5 deep, centred on the foot. The fallen top in waystone_broken is not solid. See README.md.",
+ "frame": [
+  48,
+  48
+ ],
+ "foot": [
+  13,
+  46
+ ],
+ "solid": [
+  18,
+  5
+ ],
+ "sprites": {
+  "waystone_broken": {
+   "box": [
+    0,
+    0,
+    48,
+    48
+   ],
+   "frames": 1,
+   "fps": 0,
+   "note": "As it is found: snapped below the socket, the top lying beside it."
+  },
+  "waystone_repair": {
+   "box": [
+    48,
+    0,
+    192,
+    48
+   ],
+   "frames": 4,
+   "fps": 4,
+   "note": "Played once when the copper bars go in: the top set back, copper run into the break, the ring and the groove filled, the ring catching. Then waystone_lit."
+  },
+  "waystone_repaired": {
+   "box": [
+    240,
+    0,
+    48,
+    48
+   ],
+   "frames": 1,
+   "fps": 0,
+   "note": "Repaired but not lit: copper in the break, the ring and the groove. For a stone that is mended and asleep, if the game ever wants one."
+  },
+  "waystone_lit": {
+   "box": [
+    0,
+    48,
+    192,
+    48
+   ],
+   "frames": 4,
+   "fps": 3,
+   "note": "The slow loop of a working waystone: a small steady ember in the ring, a glint running down the groove."
+  }
+ }
+}

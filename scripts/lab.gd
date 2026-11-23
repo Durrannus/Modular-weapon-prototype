@@ -36,6 +36,7 @@ const SCRIPTS := {
 	"loot": "res://scripts/highlands/loot.gd",
 	"loot_plan": "res://scripts/highlands/loot_plan.gd",
 	"levels": "res://scripts/highlands/levels.gd",
+	"folk": "res://scripts/highlands/folk.gd",
 }
 
 ## How a number is shown and stepped:
@@ -52,7 +53,7 @@ const UNITS := {
 	"": {"step": 1.0, "lo": 0.0, "hi": 100000.0},
 }
 
-const PAGES := ["All weapons", "Sword", "Bow", "Hammer", "Staff", "Sword runes", "Bow runes", "Hammer runes", "Staff runes", "Threads", "Players", "Enemies", "Highlands enemies", "Chests and loot", "Levelling", "Forge guardian"]
+const PAGES := ["All weapons", "Sword", "Bow", "Hammer", "Staff", "Sword runes", "Bow runes", "Hammer runes", "Staff runes", "Threads", "Players", "Enemies", "Highlands enemies", "Chests and loot", "Levelling", "Pip and the waystone", "Forge guardian"]
 
 ## A line under a page's name, where one helps.
 const PAGE_NOTES := {
@@ -71,6 +72,7 @@ const PAGE_NOTES := {
 	"Highlands enemies": "The hounds and goblins of the Highlands. You can also put them in the arena: see Spawn.",
 	"Chests and loot": "What chests hold and what enemies leave. Chest changes take hold when a world is next opened.",
 	"Levelling": "The forge's levels, what falling costs, and the four signature perks of the role trees.",
+	"Pip and the waystone": "Pip's cage and his prices, and what the Watchpost's waystone takes to mend.",
 	"Forge guardian": "The tutorial cave's boss. You can also put him in the arena: see Spawn.",
 }
 
@@ -505,6 +507,14 @@ static func _build_rows() -> void:
 	_add(p, g, "A Spark lasts", "levels:SPARK_LIFE", "s", 0.5, 2.5, 120.0)
 	g = "Ore Sense (Delver)"
 	_add(p, g, "How far it sees, in tiles", "levels:ORE_SENSE_TILES", "", 1.0, 1.0, 40.0)
+
+	p = "Pip and the waystone"
+	g = "Pip"
+	_add(p, g, "Blows to break his cage", "folk:CAGE_BLOWS", "n", 1.0, 1.0, 20.0)
+	_add(p, g, "A tin bar costs, in coins", "folk:TIN_PRICE", "", 1.0, 0.0, 1000.0)
+	_add(p, g, "A copper bar costs, in coins", "folk:COPPER_PRICE", "", 1.0, 0.0, 1000.0)
+	g = "The waystone"
+	_add(p, g, "Copper bars to mend it", "folk:REPAIR_COPPER", "n", 1.0, 1.0, 99.0)
 
 	p = "Forge guardian"
 	g = "Body"

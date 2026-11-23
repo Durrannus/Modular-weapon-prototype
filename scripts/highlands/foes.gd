@@ -34,6 +34,7 @@ var plan: Array = []
 var packs := {}                # plan index -> its Pack, for the groups that are on the land
 var fallen := {}               # plan index -> {member index: seconds until it is back}
 var on := true                 # false: nobody wakes (the tests of other things switch them off)
+var quiet := {}                # plan index -> true: nobody comes to live there any more (a lit waystone keeps its place: folk.gd)
 var _t := 0.0
 
 
@@ -68,7 +69,7 @@ func tick(delta: float) -> void:
 				_sleep(i)
 			elif not pack.alert:
 				_send_off(pack)
-		elif near < wake_d:
+		elif near < wake_d and not quiet.has(i):
 			wake = i
 			wake_d = near
 	# One at a time (waking a group is the dear part), the nearest first: whoever arrives somewhere all at once
@@ -231,7 +232,7 @@ func _back(dt: float) -> void:
 			for p in players:
 				if is_instance_valid(p) and p.global_position.distance_to(pack.home) < BACK_UNSEEN:
 					near = true
-			if near or pack.alert:
+			if near or pack.alert or quiet.has(i):
 				continue
 			gone.erase(k)
 			var spots := _spots(pack, (pack.plan["members"] as Array).size())

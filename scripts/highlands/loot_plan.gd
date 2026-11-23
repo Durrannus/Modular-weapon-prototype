@@ -125,8 +125,10 @@ static func _holds(seed_value: int, id: int, kind: String, far: bool) -> Diction
 ## The tile for a chest in an open place: one that can be walked to from the place's middle, with open ground all
 ## round it (so it never plugs a narrow way, and can always be walked round), clear of everything that stands there,
 ## and not hidden behind a pine. The one nearest to `want`. (-1, -1) if the place has none. `need` is how many of
-## the nine tiles at and round it must be open ground: all of them, unless told otherwise.
-static func _stand(map: LandMap, middle: Vector2, want: Vector2, r: float, need := 9) -> Vector2i:
+## the nine tiles at and round it must be open ground: all of them, unless told otherwise. `avoid` is tiles that
+## are spoken for (other chests, and what folk_plan.gd stands): nothing goes within two tiles of one. `wide` is how
+## much farther to the right than a chest the thing reaches (art pixels): that ground is kept clear as well.
+static func _stand(map: LandMap, middle: Vector2, want: Vector2, r: float, need := 9, avoid: Array = [], wide := 0.0) -> Vector2i:
 	var far := clampi(ceili(r) + 2, 4, 12)
 	var c := Vector2i(floori(middle.x), floori(middle.y))
 	# The place's own ground: what can be walked to from its middle without leaving it.
@@ -172,8 +174,14 @@ static func _stand(map: LandMap, middle: Vector2, want: Vector2, r: float, need 
 					open += 1
 		if open < need:
 			continue
+		var near := false
+		for other: Vector2i in avoid:
+			if maxi(absi(other.x - t.x), absi(other.y - t.y)) <= 2:
+				near = true
+		if near:
+			continue
 		var foot := Vector2(t.x * 16 + 8, t.y * 16 + 12)
-		var box := Rect2(foot.x - 12.0, foot.y - 16.0, 24.0, 20.0)      # the chest and a little room round it
+		var box := Rect2(foot.x - 12.0, foot.y - 16.0, 24.0 + wide, 20.0)      # the chest and a little room round it
 		var clear := true
 		for th in things:
 			var info: Dictionary = Painter.things.get(str(th["n"]), {})
@@ -195,7 +203,8 @@ static func _stand(map: LandMap, middle: Vector2, want: Vector2, r: float, need 
 		if not clear:
 			continue
 		for pl in plants:
-			if absf(float(pl["x"]) - foot.x) < 12.0 and absf(float(pl["y"]) - foot.y) < 9.0:
+			var dx := float(pl["x"]) - foot.x
+			if dx > -12.0 and dx < 12.0 + wide and absf(float(pl["y"]) - foot.y) < 9.0:
 				clear = false
 				break
 		if not clear:

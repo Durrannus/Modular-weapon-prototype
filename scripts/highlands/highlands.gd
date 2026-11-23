@@ -15,7 +15,10 @@ extends "res://scripts/game_base.gd"
 ## and bars go in the bag. Since version 45 Memory is a bar under your health, the
 ## forge down the cave mouth takes it and raises the SQUAD'S LEVEL, every level is
 ## a point for each character's role trees, and falling costs something (levels.gd,
-## perks.gd, scripts/ui/forge_hall.gd).
+## perks.gd, scripts/ui/forge_hall.gd). Since version 46 Pip hangs in a cage at the
+## Slinger Roost, the first quests are listed on the screen, Pip keeps a shop at the
+## cave mouth once he is free, and the Watchpost's waystone can be mended and
+## travelled by (folk.gd, folk_plan.gd, scripts/ui/shop.gd).
 ##
 ## SAVING (version 42; Darren, 21 November: "It works like terraria, player is
 ## saved"). Every player is a saved CHARACTER and the land is a saved WORLD
@@ -23,7 +26,8 @@ extends "res://scripts/game_base.gd"
 ## tool belt, materials bag, coins, Memory, the Warhorn's pieces and its perks,
 ## and goes into any world; the world keeps its number, what was dug, mined and
 ## felled in it, which of its chests have been opened, the squad's level, what the
-## forge holds towards the next, and the Memory left lying where somebody fell. There is no save button: the
+## forge holds towards the next, the Memory left lying where somebody fell, and how
+## things stand with Pip, the quests and the waystones. There is no save button: the
 ## game saves every AUTOSAVE seconds, when the pause menu opens, when the forge's
 ## screens close, and when you leave (back to the title, "Quit game", or the
 ## window closing).
@@ -46,6 +50,8 @@ const FoePlan := preload("res://scripts/highlands/foe_plan.gd")
 const Loot := preload("res://scripts/highlands/loot.gd")
 const LootPlan := preload("res://scripts/highlands/loot_plan.gd")
 const Levels := preload("res://scripts/highlands/levels.gd")
+const Folk := preload("res://scripts/highlands/folk.gd")
+const FolkPlan := preload("res://scripts/highlands/folk_plan.gd")
 const ForgeHall := preload("res://scripts/ui/forge_hall.gd")
 const CaveUi := preload("res://scripts/cave/cave_ui.gd")
 const Music := preload("res://scripts/music.gd")
@@ -70,6 +76,8 @@ var loot                        # chests, drops, coins and Memory (loot.gd)
 var chest_plan: Array = []      # where this land's chests stand and what is in them (loot_plan.gd)
 var levels                      # Memory, the squad's level, the role trees' perks, what falling costs (levels.gd)
 var hall                        # the forge's screen: give your Memory, the role trees (scripts/ui/forge_hall.gd)
+var folk                        # Pip, his cage, the quests and the waystone (folk.gd); null online
+var folk_plan := {}             # where they stand on this land (folk_plan.gd)
 var ui
 var owned: Array = []           # per player: the part ids they can use at the forge (null = all of them)
 var interactables: Array = []   # [{at, radius, text, lift, can: Callable(i), use: Callable(i), words: Callable(i) or none}]
@@ -108,7 +116,9 @@ func _ready() -> void:
 	map = WorldGen.make(world_seed)
 	# Where the chests stand is worked out from the land as it was made, before a save's digging and felling are
 	# done to it again: the same world always has the same chests in the same places.
-	chest_plan = LootPlan.make(map, FoePlan.make(map))
+	var groups := FoePlan.make(map)
+	chest_plan = LootPlan.make(map, groups)
+	folk_plan = FolkPlan.make(map, groups, chest_plan)
 	if not world_save.is_empty() and not new_world:
 		# The land is made again from its number, and then what was dug, mined and felled is done to it again. If
 		# this game makes the land differently from the one that saved it, the old changes would not fit: they are
@@ -171,6 +181,20 @@ func _ready() -> void:
 		if relaid:
 			kept.erase("markers")
 		levels.set_world_data(kept)
+	# Pip, his cage, the quests and the waystone. (Online, which is on hold, has none of them yet.)
+	if not Net.online():
+		folk = Folk.new()
+		folk.game = self
+		folk.map = map
+		folk.world = world
+		folk.players = players
+		folk.tools = tools
+		folk.loot = loot
+		folk.foes = foes
+		add_child(folk)
+		folk.setup(folk_plan)
+		if not world_save.is_empty() and not new_world:
+			folk.set_world_data(world_save)
 	rig.set_limits(Rect2(Vector2(map.region.position) * TILE, Vector2(map.region.size) * TILE), 0.0)
 	rig.snap()
 	land.prime()
@@ -184,10 +208,12 @@ func _ready() -> void:
 	hud.under_bar = Levels.BAR_DROP           # the Memory bar is right under the health bar
 	hall = ForgeHall.new()
 	hall.levels = levels
+	hall.folk = folk
 	hall.players = players
 	add_child(hall)
 	hall.weapons.connect(_open_weapons)
 	hall.closed.connect(_hall_closed)
+	hall.travel.connect(_hall_travel)
 	music = Music.new()
 	add_child(music)
 	music.play("cave_calm", 4.0)
@@ -307,13 +333,16 @@ func _character_now(i: int) -> Dictionary:
 
 
 ## The world as it is at this moment, for its save: its number, what has been changed on its land, which of its
-## chests have been opened, the squad's level, what the forge holds, and the Memory lying where somebody fell.
+## chests have been opened, the squad's level, what the forge holds, the Memory lying where somebody fell, and how
+## things stand with Pip, the quests and the waystone.
 func _world_now() -> Dictionary:
 	world_save["seed"] = world_seed
 	world_save["land"] = WorldGen.GEN
 	world_save.merge(map.changes(), true)
 	world_save["chests"] = loot.opened_ids()
 	world_save.merge(levels.world_data(), true)
+	if folk != null:
+		world_save.merge(folk.world_data(), true)
 	world_save["game"] = Version.NUMBER
 	return world_save
 
@@ -455,6 +484,13 @@ func _hall_closed(_i: int) -> void:
 		save_now()
 
 
+## The forge's screen sent the squad off by waystone (folk.gd does the going).
+func _hall_travel(i: int) -> void:
+	_swallow_presses()
+	if folk != null:
+		folk.go_to_stone(i)
+
+
 ## What the cave mouth's prompt says to player i: it tells them when they have something to do down there.
 func forge_words(i: int) -> String:
 	if levels == null or Net.online():
@@ -498,7 +534,7 @@ func _physics_process(delta: float) -> void:
 	var busy: bool = ui.busy()
 	for i in players.size():
 		var p = players[i]
-		p.frozen = busy or is_forging(i)
+		p.frozen = busy or is_forging(i) or (folk != null and folk.travelling())
 		if was_busy and not busy:
 			p.need_release = true
 	was_busy = busy
@@ -506,6 +542,8 @@ func _physics_process(delta: float) -> void:
 	foes.tick(delta)
 	loot.tick(delta)
 	levels.tick(delta)
+	if folk != null:
+		folk.tick(delta)
 	ui.prompts = []
 	for p in players:
 		p.interact_ready = false
