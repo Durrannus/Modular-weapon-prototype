@@ -1,0 +1,115 @@
+{
+ "note": "The Scrapyard gate and the Throne Room's dressing, first draft (23 Nov). The loot sheet's form. See README.md.",
+ "sprites": {
+  "gate_front_shut": {
+   "box": [
+    1,
+    1,
+    56,
+    64
+   ],
+   "frame": [
+    56,
+    64
+   ],
+   "origin": [
+    28,
+    63
+   ],
+   "frames": 1,
+   "note": "The Scrapyard gate, shut. Solid across the whole 48 px corridor. The corridor's floor runs from x = 4 to x = 51 in the frame: the posts stand 4 px into the rock each side. Origin = the middle of its bottom edge, on the ground."
+  },
+  "gate_front_open": {
+   "box": [
+    58,
+    1,
+    56,
+    64
+   ],
+   "frame": [
+    56,
+    64
+   ],
+   "origin": [
+    28,
+    63
+   ],
+   "frames": 1,
+   "note": "The same, open: each leaf swung back up the corridor against its post. The middle 32 px (x = 12 to 43 in the frame) is clear; the 8 px at each side stay solid."
+  },
+  "gate_front_opening": {
+   "box": [
+    115,
+    1,
+    224,
+    64
+   ],
+   "frame": [
+    56,
+    64
+   ],
+   "origin": [
+    28,
+    63
+   ],
+   "frames": 4,
+   "note": "Shut to open, 4 frames, not a loop: show gate_front_shut, these four, then gate_front_open.",
+   "fps": 8
+  },
+  "scrap_heap_large": {
+   "box": [
+    1,
+    66,
+    48,
+    30
+   ],
+   "frame": [
+    48,
+    30
+   ],
+   "origin": [
+    24,
+    28
+   ],
+   "frames": 1,
+   "note": "A heap of forge scrap for the Throne Room. Solid: about 40 wide and 8 deep. Origin = the middle of its front edge."
+  },
+  "scrap_heap_small": {
+   "box": [
+    50,
+    66,
+    32,
+    20
+   ],
+   "frame": [
+    32,
+    20
+   ],
+   "origin": [
+    16,
+    18
+   ],
+   "frames": 1,
+   "note": "A smaller heap. Solid: about 22 wide and 6 deep."
+  },
+  "brazier": {
+   "box": [
+    83,
+    66,
+    64,
+    36
+   ],
+   "frame": [
+    16,
+    36
+   ],
+   "origin": [
+    8,
+    34
+   ],
+   "frames": 4,
+   "note": "A standing brazier, a loop. Solid: about 10 wide and 4 deep. Use a pair, one each side of the throne; mirror one.",
+   "fps": 5
+  }
+ }
+}

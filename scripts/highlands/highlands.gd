@@ -59,6 +59,8 @@ const Gear := preload("res://scripts/highlands/gear.gd")
 const PackScreen := preload("res://scripts/ui/pack_screen.gd")
 const Folk := preload("res://scripts/highlands/folk.gd")
 const FolkPlan := preload("res://scripts/highlands/folk_plan.gd")
+const Crown := preload("res://scripts/highlands/crown.gd")
+const CrownPlan := preload("res://scripts/highlands/crown_plan.gd")
 const ForgeHall := preload("res://scripts/ui/forge_hall.gd")
 const CaveUi := preload("res://scripts/cave/cave_ui.gd")
 const Music := preload("res://scripts/music.gd")
@@ -87,6 +89,8 @@ var gear                        # the Accessory Satchel and what is worn in it (
 var packs                       # the inventory's screen (scripts/ui/pack_screen.gd); null online
 var folk                        # Pip, his cage, the quests and the waystone (folk.gd); null online
 var folk_plan := {}             # where they stand on this land (folk_plan.gd)
+var crown                       # Rattlecrown's fight, the Scrapyard gate and the Rusted Warhorn (crown.gd); null online
+var crown_plan := {}            # where his Throne Room, the way to it and the gate are on this land (crown_plan.gd)
 var ui
 var owned: Array = []           # per player: the part ids they can use at the forge (null = all of them)
 var interactables: Array = []   # [{at, radius, text, lift, can: Callable(i), use: Callable(i), words: Callable(i) or none}]
@@ -128,6 +132,12 @@ func _ready() -> void:
 	var groups := FoePlan.make(map)
 	chest_plan = LootPlan.make(map, groups)
 	folk_plan = FolkPlan.make(map, groups, chest_plan)
+	# Rattlecrown's Throne Room, the way to it and the Scrapyard gate (a stand-in until the outer ring is built) are
+	# cut into the land here, every time it is opened: after the plans, which read the land as it was made, and
+	# before a save's digging is done to it again. No save holds them. (Online, which is on hold, has no Rattlecrown.)
+	if not Net.online():
+		crown_plan = CrownPlan.make(map)
+		CrownPlan.stamp(map, crown_plan)
 	if not world_save.is_empty() and not new_world:
 		# The land is made again from its number, and then what was dug, mined and felled is done to it again. If
 		# this game makes the land differently from the one that saved it, the old changes would not fit: they are
@@ -215,6 +225,20 @@ func _ready() -> void:
 		folk.setup(folk_plan)
 		if not world_save.is_empty() and not new_world:
 			folk.set_world_data(world_save)
+		# Rattlecrown: his gate, his throne, the horn and the fight.
+		crown = Crown.new()
+		crown.game = self
+		crown.map = map
+		crown.world = world
+		crown.players = players
+		crown.tools = tools
+		crown.loot = loot
+		crown.foes = foes
+		crown.folk = folk
+		add_child(crown)
+		crown.setup(crown_plan)
+		if not world_save.is_empty() and not new_world:
+			crown.set_world_data(world_save)
 	rig.set_limits(Rect2(Vector2(map.region.position) * TILE, Vector2(map.region.size) * TILE), 0.0)
 	rig.snap()
 	land.prime()
@@ -252,6 +276,7 @@ func _ready() -> void:
 	ui = CaveUi.new()
 	add_child(ui)
 	ui.cam = rig.camera
+	ui.hint_w = Crown.TIP_W                   # a tip stays between the corners' bars and the quests
 	_load_hands()
 	_make_note()
 	pause_menu.opened.connect(save_now)
@@ -379,6 +404,8 @@ func _world_now() -> Dictionary:
 		world_save.merge(gear.world_data(), true)
 	if folk != null:
 		world_save.merge(folk.world_data(), true)
+	if crown != null:
+		world_save.merge(crown.world_data(), true)
 	world_save["game"] = Version.NUMBER
 	return world_save
 
@@ -483,6 +510,9 @@ func _make_note() -> void:
 
 func _draw_note() -> void:
 	if save_note <= 0.0 or save_word == "":
+		return
+	# (While Rattlecrown's bar is up, the word "Saved" is left out: the bar has its place. A save that failed is said.)
+	if crown != null and crown.fighting() and not save_failed:
 		return
 	var f := Art.font("Silkscreen-Regular") if not save_failed else Art.font(Art.TEXT)
 	var size := 8 if not save_failed else Art.TEXT_SIZE
@@ -607,6 +637,8 @@ func _physics_process(delta: float) -> void:
 		gear.tick(delta)
 	if folk != null:
 		folk.tick(delta)
+	if crown != null:
+		crown.tick(delta)
 	ui.prompts = []
 	for p in players:
 		p.interact_ready = false

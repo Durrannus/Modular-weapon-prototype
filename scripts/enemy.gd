@@ -167,7 +167,7 @@ func lab_changed() -> void:
 
 ## A boss: too heavy for a chain to drag (the hammer's Hook pulls its player
 ## towards it instead).
-const BOSSES := ["guardian"]
+const BOSSES := ["guardian", "rattlecrown"]
 
 func is_boss() -> bool:
 	return kind in BOSSES

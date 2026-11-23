@@ -148,6 +148,24 @@
     16
    ],
    "note": "Copied unchanged from tools-v1 (it is already on art/tools/tools.png), so all six materials are in one place."
+  },
+  "compass_arrow": {
+   "box": [
+    1,
+    43,
+    72,
+    9
+   ],
+   "frame": [
+    9,
+    9
+   ],
+   "origin": [
+    4,
+    4
+   ],
+   "frames": 8,
+   "note": "The Wayfinder's Compass arrow at the screen's edge (added 23 Nov 18:55Z). NOT an animation: eight directions, clockwise from up: N, NE, E, SE, S, SW, W, NW. Each is lit from the upper left, so use the frame, do not turn one."
   }
  }
 }

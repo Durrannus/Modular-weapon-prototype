@@ -27,6 +27,7 @@ const SHADOW := Color(0.06, 0.04, 0.11, 0.9)
 const BOX := Rect2(140, 38, 360, 284)
 const BARS := ["tin_bar", "copper_bar"]
 const ASK := "Ask about the Scrap Crown"
+const MEND := "Mend the Rusted Warhorn"
 const LEAVE := "Leave"
 
 var folk                      # scripts/highlands/folk.gd
@@ -68,6 +69,9 @@ func rows() -> Array:
 	var out: Array = []
 	for item in items():
 		out.append(Bag.name_of(str(item)))
+	# (Only while he can: the squad has all three pieces, and no horn.)
+	if folk != null and folk.crown() != null and folk.crown().can_mend():
+		out.append(MEND)
 	out.append(ASK)
 	out.append(LEAVE)
 	return out
@@ -195,6 +199,15 @@ func confirm() -> void:
 		else:
 			Sfx.play(self, "click", -14.0, 0.7)
 			say(why, 2.5)
+	elif str(all[row]) == MEND:
+		var why: String = folk.crown().mend(who)
+		if why == "":
+			line = folk.crown_words(who)
+			say("The Rusted Warhorn is mended.", 4.0)
+			row = clampi(row, 0, rows().size() - 1)
+		else:
+			Sfx.play(self, "click", -14.0, 0.7)
+			say(why, 4.0)
 	elif str(all[row]) == ASK:
 		line = folk.crown_words(who)
 		note = ""
@@ -295,6 +308,10 @@ func _draw_screen() -> void:
 			var cost: int = folk.price(item)
 			var have: bool = Accessories.has(item) and folk.loot.owns(who, item)
 			_words(pix, Vector2(rr.position.x + 8.0, rr.position.y + 14.0), "you have it" if have else "%d coins" % cost, Art.TEXT_SIZE, AMBER if int(purse.coins) >= cost and not have else DIM, rr.size.x - 16.0, HORIZONTAL_ALIGNMENT_RIGHT)
+		elif str(all[k]) == MEND:
+			var his = folk.crown()
+			var enough: bool = his.squad("tin_bar") >= int(his.MEND_TIN) and his.squad("copper_bar") >= int(his.MEND_COPPER)
+			_words(pix, Vector2(rr.position.x + 8.0, rr.position.y + 14.0), his.mend_cost(), Art.TEXT_SIZE, AMBER if enough else DIM, rr.size.x - 16.0, HORIZONTAL_ALIGNMENT_RIGHT)
 		_words(silk, Vector2(tx, rr.position.y + 14.0), str(all[k]).to_upper(), 8, AMBER if on else INK)
 
 	# Under the rows: news of the last press, or what the accessory under the cursor does (its picture beside it).

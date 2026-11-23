@@ -18,6 +18,7 @@ is the Art builder's choice.
 | `satchel_hide` | 24x24 | The Hide Satchel, for the lab and Pip's shop. |
 | `item_tin_bar`, `item_copper_bar` | 16x16 | New. |
 | `item_stone`, `item_wood`, `item_tin_ore`, `item_copper_ore` | 16x16 | Copied unchanged from tools-v1 (already on `art/tools/tools.png`). |
+| `compass_arrow` | 8 frames of 9x9 | Added 18:50Z. The Wayfinder's Compass arrow for the screen's edge. See below. |
 
 ## Why the slot is 24 px and not 20 or 22
 
@@ -36,6 +37,13 @@ Turn the pack pictures by quarter turns in code. They are lit from the upper lef
 another corner, but at this size with a dark outline that is hard to see, and it keeps every piece exactly on its
 cells. If it ever looks wrong on a long piece (the bandolier, the dowsing rod), the Art builder can draw turned ones
 for those few.
+
+## The compass arrow (added 23 Nov 18:50Z)
+
+`compass_arrow`, box [1, 43, 72, 9]: eight drawings of 9x9, origin (4, 4), in this order from the left: up, up-right,
+right, down-right, down, down-left, left, up-left (clockwise). It is NOT an animation: show the frame nearest the
+direction, and do not turn one frame in code. Each is lit again from the upper left, which a turned picture would not
+be. Bronze (the cu ramp) with the HUD's dark outline, so it shows on the moor and on rock. No older box has moved.
 
 ## Not drawn
 

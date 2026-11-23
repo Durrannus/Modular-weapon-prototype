@@ -106,6 +106,7 @@ var lying: Array = []              # [{item, i, at}] what did not fit in somebod
 var flies: Array = []              # looks only: [{item, i, from, spot, t, wait, mote}]
 var said := ""                     # a line for everyone to read for a few seconds
 var said_until := -9.0
+var said_y := 42.0                 # where that line is (lower while a boss's bar and tip have the top middle: crown.gd)
 var clock := 0.0
 var dice := RandomNumberGenerator.new()    # looks only
 var sheet: Texture2D
@@ -543,5 +544,5 @@ func _draw_hud() -> void:
 	if clock < said_until:
 		var w := _head_width(said) + 12.0
 		var a := clampf((said_until - clock) / 0.4, 0.0, 1.0)
-		panel.draw_rect(Rect2(floorf((SIZE.x - w) * 0.5), 42, w, 14), Color(SHADE.r, SHADE.g, SHADE.b, SHADE.a * a))
-		_head(said, Vector2(0, 52), Color(AMBER.r, AMBER.g, AMBER.b, a), SIZE.x, HORIZONTAL_ALIGNMENT_CENTER)
+		panel.draw_rect(Rect2(floorf((SIZE.x - w) * 0.5), said_y, w, 14), Color(SHADE.r, SHADE.g, SHADE.b, SHADE.a * a))
+		_head(said, Vector2(0, said_y + 10.0), Color(AMBER.r, AMBER.g, AMBER.b, a), SIZE.x, HORIZONTAL_ALIGNMENT_CENTER)

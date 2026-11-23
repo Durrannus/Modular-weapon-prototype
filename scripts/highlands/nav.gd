@@ -92,6 +92,16 @@ func block(tile: Vector2i) -> void:
 	stamp += 1
 
 
+## And it stands there no longer (the Scrapyard gate, opened).
+func unblock(tile: Vector2i) -> void:
+	if not region.has_point(tile):
+		return
+	var key := tile.y * LandMap.SIZE + tile.x
+	blocked.erase(key)
+	grid.set_point_solid(tile, covered.has(key) or not map.walkable(tile.x, tile.y))
+	stamp += 1
+
+
 ## A tile was dug (or otherwise changed).
 func tile_changed(tile: Vector2i) -> void:
 	if not region.has_point(tile):

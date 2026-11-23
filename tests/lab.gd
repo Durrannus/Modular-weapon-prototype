@@ -166,9 +166,9 @@ func _search() -> void:
 	_check(crabs.size() == 9, "crabs finds the three crabs' numbers (%d)" % crabs.size())
 	var boss: Array = []
 	for row in Lab.rows:
-		if row["page"] == "Forge guardian" or (row["page"] == "Levelling" and str(row["label"]).to_lower().contains("boss")):
+		if row["page"] in ["Forge guardian", "Rattlecrown"] or (row["page"] == "Levelling" and str(row["label"]).to_lower().contains("boss")):
 			boss.append(row["id"])
-	_check(_ids(Lab.find("boss")) == boss and "levels:CHALLENGE_BOSS_TIME" in boss, "boss finds the forge guardian's page, and what Challenge does to a boss")
+	_check(_ids(Lab.find("boss")) == boss and "levels:CHALLENGE_BOSS_TIME" in boss, "boss finds the forge guardian's page, Rattlecrown's, and what Challenge does to a boss")
 	# Every number is found by its own page, group and name, and what is found
 	# comes in the lab's own order.
 	for row in Lab.rows:

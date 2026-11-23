@@ -24,6 +24,8 @@ extends Node
 ##   - The quests are the world's: they are saved with it. "Smoke over the Canyon" is there from the first moment
 ##     (the two quests before it, the smith's, need building). "Light the Watch" shows once the stone has been seen.
 ##   - Pip's words are stand-ins. The story is Darren's to write.
+##   - Since version 48 the horn's quests ("The Scrap Crown", "Mend the Horn", "Blow the Horn") are crown.gd's:
+##     Pip mends the horn in his shop, and what he says of it follows how things stand with Rattlecrown.
 ##   - Smoke (version 47, asked for in the review of version 46: the first quest had nothing to find it by in a
 ##     land 350 tiles out). While Pip is caged the camp's smoke stands over the Roost, half a screen tall, and
 ##     while the Roost is off the screen a small far-off plume stands at the screen's edge on the Roost's side,
@@ -50,7 +52,8 @@ const FADE_OUT := 0.35             # a waystone's journey: the screen goes dark 
 const FADE_IN := 0.5               # ... and comes back somewhere else
 const CAGE_AT := Vector2(20, -27)  # the cage's middle from the foot of its post, in art pixels (the art's README)
 const DROP_AT := Vector2(20, 0)    # where Pip lands
-const SMOKE_AT := Vector2(-15, -2) # where the camp's smoke rises from, from the foot of the cage's post (art pixels): beside it, leaning away from the cage
+const SMOKE_AT := Vector2(-15, -2) # where the camp's smoke rises from, from the foot of the cage's post (art pixels), if the art has no fire for it
+const FIRE_AT := Vector2(-15, 6)   # where the camp's fire stands, from the foot of the cage's post (art pixels): beside it, away from the cage
 const SMOKE_LIFE := 26.0           # seconds a puff of it lasts: twice the art's own 13, so the plume stands about 156 art pixels tall
 const FACE := "folk/pip_portrait.png"
 
@@ -182,6 +185,7 @@ var cage: Actor
 var pip_actor: Actor
 var stone: Actor
 var smoke: Plume
+var fire: Actor                    # the camp fire at the smoke's foot
 var body: StaticBody2D
 var pip_shape: CollisionShape2D
 var layer: CanvasLayer
@@ -229,9 +233,19 @@ func cage_middle() -> Vector2:
 	return cage_feet() + CAGE_AT * UNIT
 
 
-## Where the camp's smoke rises from.
+## Where the camp's fire stands (its foot), and where its smoke rises from: the fire's own picture says how far
+## above its foot (`smoke_from`, in art/smoke).
+func fire_feet() -> Vector2:
+	return cage_feet() + FIRE_AT * UNIT
+
+
 func smoke_feet() -> Vector2:
-	return cage_feet() + SMOKE_AT * UNIT
+	var its: Dictionary = Art.json("smoke/smoke.json").get("sprites", {}).get("roost_fire", {})
+	if not its.has("box"):
+		return cage_feet() + SMOKE_AT * UNIT
+	var o: Array = its.get("origin", [10, 17])
+	var from: Array = its.get("smoke_from", [10, 7])
+	return fire_feet() + Vector2(float(from[0]) - float(o[0]), float(from[1]) - float(o[1])) * UNIT
 
 
 func pip_landing() -> Vector2:
@@ -278,6 +292,12 @@ func setup(plan_: Dictionary) -> void:
 	if has_roost():
 		cage = _actor(sheet, book.get("pip_cage", {}), cage_feet())
 		cage.play("idle")
+		# The camp fire the smoke rises from (the Art builder's, version 48): it stands on the ground among the
+		# land's things, burns while Pip is caged, and is nothing anybody bumps into.
+		var its_fire: Dictionary = Art.json("smoke/smoke.json").get("sprites", {}).get("roost_fire", {})
+		if its_fire.has("box"):
+			fire = _actor(Art.texture("smoke/smoke.png"), {"strips": {"burn": its_fire}, "origin_feet": its_fire.get("origin", [10, 17])}, fire_feet())
+			fire.play("burn")
 		smoke = Plume.new()
 		smoke.folk = self
 		smoke.z_index = 41             # over everything that stands on the land, and over the rock tops
@@ -492,8 +512,18 @@ func pieces() -> int:
 	return n
 
 
-## Pip, asked about the horn by player i: where the pieces they lack are.
+## Rattlecrown's side of things (crown.gd), where the game has it.
+func crown():
+	return game.crown if game != null and "crown" in game and game.crown != null and game.crown.ok() else null
+
+
+## Pip, asked about the horn by player i: where the pieces they lack are, or what to do with the horn.
 func crown_words(i: int) -> String:
+	var his = crown()
+	if his != null and his.horn:
+		if his.gate_open:
+			return "His gate stands open. Blow the horn again in front of his throne. He will send his three best at you first, all at once."
+		return "It is mended, and it is loud. His gate is far to the %s: follow the lanterns up the cut way, and blow it at the gate." % his.side_word()
 	var kept: Dictionary = loot.purses[i].kept if loot != null and i >= 0 and i < loot.purses.size() else {}
 	var lacks: Array = []
 	if not kept.has("horn_body"):
@@ -503,7 +533,17 @@ func crown_words(i: int) -> String:
 	if not kept.has("horn_mouthpiece"):
 		lacks.append("The mouthpiece: the best thrower at the roost. You have met.")
 	if lacks.is_empty():
+		if his != null:
+			return "That is all three! Tin and copper make bronze. Bring me %d tin bars and %d copper bars and I will join them." % [int(his.MEND_TIN), int(his.MEND_COPPER)]
 		return "That is all three! Now it wants bronze and an anvil to join them, and we have neither yet."
+	if his != null and int(his.beaten) > 0:
+		# (Said shorter: by now you know where they are.)
+		var short: Array = []
+		for pair in [["horn_body", "the body from the quarry brute"], ["horn_bell", "the bell from the white hound"], ["horn_mouthpiece", "the mouthpiece from the roost"]]:
+			if not kept.has(pair[0]):
+				short.append(pair[1])
+		var last := str(short.pop_back())
+		return "The horn cracked when he fell. For another go I need %s again." % (last if short.is_empty() else ", ".join(short) + " and " + last)
 	return " ".join(lacks)
 
 
@@ -634,9 +674,11 @@ func _arrive() -> void:
 
 func tick(delta: float) -> void:
 	clock += delta
-	for a in [cage, pip_actor, stone]:
+	for a in [cage, pip_actor, stone, fire]:
 		if a != null:
 			a.step(delta)
+	if fire != null:
+		fire.visible = smoke_until == INF      # (once the cage is broken the fire is left to die)
 	if smoke != null:
 		smoke.visible = smoking()
 		if smoke.visible:
@@ -781,13 +823,22 @@ func draw_plume(ci: CanvasItem) -> void:
 ## own smoke can be seen. It stands at the edge of the screen on the Roost's side, clear of the bars, the quests
 ## and the belts.
 func smoke_sign() -> Array:
-	if int(SMOKE_SIGN) < 1 or pip != 0 or not has_roost() or game == null or not ("rig" in game) or game.rig == null:
+	if int(SMOKE_SIGN) < 1 or pip != 0 or not has_roost():
+		return []
+	# (Not while its foot, or the top of the plume, is on the screen.)
+	return edge_spot(smoke_feet(), sign_height(), Rect2(-40.0, 0.0, SIZE.x + 80.0, SIZE.y + 140.0))
+
+
+## Where a far-off sign for a place on the land stands on the screen (art pixels), or [] when the place is in `seen`
+## (the part of the screen, and round it, where the place itself shows). It stands at the edge of the screen on the
+## place's side, `tall` high, clear of the bars, the quests and the belts.
+func edge_spot(place: Vector2, tall: float, seen: Rect2) -> Array:
+	if game == null or not ("rig" in game) or game.rig == null:
 		return []
 	var mid: Vector2 = game.rig.camera.get_screen_center_position()
-	var to: Vector2 = (smoke_feet() - mid) / UNIT + SIZE * 0.5
-	if Rect2(-40.0, 0.0, SIZE.x + 80.0, SIZE.y + 140.0).has_point(to):
-		return []                  # its foot, or the top of the plume, is on the screen
-	var tall := sign_height()
+	var to: Vector2 = (place - mid) / UNIT + SIZE * 0.5
+	if seen.has_point(to):
+		return []
 	var box := Rect2(18.0, 6.0 + tall, SIZE.x - 36.0, SIZE.y - (6.0 + tall) - 20.0)
 	var from := SIZE * 0.5
 	var dir := (to - from).normalized()
@@ -856,6 +907,11 @@ func quests() -> Array:
 		elif pip >= 1:
 			text = "Pip is on his way to your cave. Meet him at the cave mouth."
 		out.append({"id": "smoke", "name": "Smoke over the Canyon", "text": text})
+	elif crown() != null:
+		# The Scrap Crown, Mend the Horn, Blow the Horn: crown.gd says which it is.
+		var q: Dictionary = crown().quest(pieces())
+		if not q.is_empty():
+			out.append(q)
 	elif pip >= 3:
 		var n := pieces()
 		var text := "Take the Rusted Warhorn's three pieces from the three elites: %d of 3." % n
@@ -931,6 +987,14 @@ func _draw_hud() -> void:
 		if its != null:
 			panel.draw_texture(its, (sign[0] as Vector2) + Vector2(-floorf(its.get_width() * 0.5), 9.0))
 		_draw_puffs(panel, sign[0], 1.0, puffs(clock, float(int(SMOKE_SIGN))))
+	# "Blow the Horn": the quest's mark alone stands at the screen's edge on the side of where the horn is wanted
+	# next (the way in, then the gate, then the throne), until that place is on the screen.
+	var horn_at: Vector2 = crown().sign_target() if crown() != null and pip >= 3 else Vector2.INF
+	if horn_at != Vector2.INF:
+		var spot := edge_spot(horn_at, 0.0, Rect2(Vector2.ZERO, SIZE))
+		var its := Art.texture("hud/objective_mark.png")
+		if not spot.is_empty() and its != null:
+			panel.draw_texture(its, (spot[0] as Vector2) + Vector2(-floorf(its.get_width() * 0.5), 2.0 + roundf(sin(clock * 3.0))))
 	var silk := Art.font("Silkscreen-Regular")
 	var pix := Art.font(Art.TEXT)
 	var at := track_at()

@@ -54,6 +54,11 @@ var dug := {}
 var gone := {}
 var added: Array = []
 
+## Rock that is locked for good by something cut into the land after it was made (the Throne Room's walls,
+## version 48): tiles inside any of these can never be dug. Rect2i, in tiles. Never saved: it is set again on
+## every opening of the world.
+var keeps: Array = []
+
 var _things_by_chunk := {}
 var _decals_by_chunk := {}
 var _plants_by_chunk := {}
@@ -113,6 +118,9 @@ func dig(x: int, y: int) -> int:
 func fixed(x: int, y: int) -> bool:
 	if absi(x - mouth.x) <= 4 and y <= mouth.y and y >= mouth.y - 6:
 		return true
+	for k in keeps:
+		if (k as Rect2i).has_point(Vector2i(x, y)):
+			return true
 	return x < region.position.x + 3 or y < region.position.y + 3 or x >= region.end.x - 3 or y >= region.end.y - 3
 
 
@@ -141,6 +149,25 @@ func add_thing(t: Dictionary) -> void:
 	if not _things_by_chunk.has(key):
 		_things_by_chunk[key] = []
 	(_things_by_chunk[key] as Array).append(t)
+
+
+## A thing that belongs to the land but is put there after it is made, on every opening of the world (the Throne
+## Room's lanterns): it is not a change, so no save holds it.
+func stamp_thing(t: Dictionary) -> void:
+	things.append(t)
+	var key := chunk_key(int(t["x"]) / (CHUNK * TILE_PX), int(t["y"]) / (CHUNK * TILE_PX))
+	if not _things_by_chunk.has(key):
+		_things_by_chunk[key] = []
+	(_things_by_chunk[key] as Array).append(t)
+
+
+## Lantern light put there the same way.
+func stamp_lamp(l: Dictionary) -> void:
+	lamps.append(l)
+	var key := chunk_key(int(l["x"]) / (CHUNK * TILE_PX), int(l["y"]) / (CHUNK * TILE_PX))
+	if not _lamps_by_chunk.has(key):
+		_lamps_by_chunk[key] = []
+	(_lamps_by_chunk[key] as Array).append(l)
 
 
 ## What has changed on this land since it was made, as plain values for the world save: the tiles that were dug or

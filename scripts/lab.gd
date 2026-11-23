@@ -40,6 +40,8 @@ const SCRIPTS := {
 	"bag": "res://scripts/highlands/bag.gd",
 	"gear": "res://scripts/highlands/gear.gd",
 	"accessories": "res://scripts/highlands/accessories.gd",
+	"rattlecrown": "res://scripts/foes/rattlecrown.gd",
+	"crown": "res://scripts/highlands/crown.gd",
 }
 
 ## How a number is shown and stepped:
@@ -56,7 +58,7 @@ const UNITS := {
 	"": {"step": 1.0, "lo": 0.0, "hi": 100000.0},
 }
 
-const PAGES := ["All weapons", "Sword", "Bow", "Hammer", "Staff", "Sword runes", "Bow runes", "Hammer runes", "Staff runes", "Threads", "Players", "Enemies", "Highlands enemies", "Chests and loot", "Levelling", "Pip and the waystone", "Inventory and accessories", "Forge guardian"]
+const PAGES := ["All weapons", "Sword", "Bow", "Hammer", "Staff", "Sword runes", "Bow runes", "Hammer runes", "Staff runes", "Threads", "Players", "Enemies", "Highlands enemies", "Chests and loot", "Levelling", "Pip and the waystone", "Inventory and accessories", "Rattlecrown", "Forge guardian"]
 
 ## A line under a page's name, where one helps.
 const PAGE_NOTES := {
@@ -77,6 +79,7 @@ const PAGE_NOTES := {
 	"Levelling": "The forge's levels, what falling costs, and the four signature perks of the role trees.",
 	"Pip and the waystone": "Pip's cage and his prices, and what the Watchpost's waystone takes to mend.",
 	"Inventory and accessories": "Until backpacks can be sewn, the first three numbers say what everybody carries.",
+	"Rattlecrown": "The Highlands' boss, his Throne Room and his rewards. He is in the arena too: see Spawn.",
 	"Forge guardian": "The tutorial cave's boss. You can also put him in the arena: see Spawn.",
 }
 
@@ -87,7 +90,7 @@ const ALSO := {
 	"cooldown": ["recharge"], "cd": ["recharge"],
 	"damage": ["power", "against", "what its", "one hit"],
 	"dmg": ["damage", "power", "against", "what its", "one hit"],
-	"boss": ["forge guardian"],
+	"boss": ["forge guardian", "rattlecrown"],
 	"range": ["reach", "how far"], "distance": ["how far"], "radius": ["reach"],
 	"duration": ["lasts", "stays"],
 	"windup": ["warning", "time to draw"], "telegraph": ["warning"],
@@ -546,6 +549,43 @@ static func _build_rows() -> void:
 	_add(p, g, "Prospector's Sieve: chance of one more ore", "accessories:SIEVE_CHANCE", "%", 0.05, 0.0, 1.0)
 	_add(p, g, "Bandolier: active runes come back at", "accessories:BANDOLIER_RUNES", "%", 0.05, 1.0, 5.0)
 	_add(p, g, "Field Rations: your health is", "accessories:RATIONS_HEALTH", "%", 0.05, 1.0, 5.0)
+
+	p = "Rattlecrown"
+	g = "The Scrap King"
+	_add(p, g, "Health (one player)", "rattlecrown:HP", "", 5.0, 5.0, 100000.0)
+	_add(p, g, "Each extra player adds", "rattlecrown:HP_PER_PLAYER", "%", 0.05, 0.0, 5.0)
+	_add(p, g, "Walking speed", "rattlecrown:SPEED", "d", 2.0, 0.0, 400.0)
+	_add(p, g, "The crown goes on at this much health", "rattlecrown:CROWN_AT", "%", 0.05, 0.0, 1.0)
+	_add(p, g, "Rest after an attack (your time to hit him)", "rattlecrown:REST", "s", 0.05, 0.1, 10.0)
+	g = "Club Slam"
+	_add(p, g, "What it does", "rattlecrown:SLAM", "", 1.0, 0.0, 1000.0)
+	_add(p, g, "Warning before it lands", "rattlecrown:SLAM_WINDUP", "s", 0.05, 0.3, 5.0)
+	g = "Scrap Toss"
+	_add(p, g, "What it does", "rattlecrown:TOSS", "", 1.0, 0.0, 1000.0)
+	_add(p, g, "Warning before he throws", "rattlecrown:TOSS_WINDUP", "s", 0.05, 0.2, 5.0)
+	_add(p, g, "The scrap is in the air for", "rattlecrown:TOSS_FLIGHT", "s", 0.05, 0.3, 5.0)
+	g = "Charge"
+	_add(p, g, "What it does", "rattlecrown:CHARGE", "", 1.0, 0.0, 1000.0)
+	_add(p, g, "Warning before he runs", "rattlecrown:CHARGE_WINDUP", "s", 0.05, 0.4, 5.0)
+	_add(p, g, "How fast he runs", "rattlecrown:CHARGE_SPEED", "d", 10.0, 100.0, 2000.0)
+	_add(p, g, "How far he runs", "rattlecrown:CHARGE_DIST", "d", 10.0, 100.0, 1000.0)
+	g = "Crowned: every attack twice"
+	_add(p, g, "The wait before the second go", "rattlecrown:AGAIN", "s", 0.05, 0.1, 3.0)
+	_add(p, g, "Second warning, as a share of the first", "rattlecrown:SECOND", "%", 0.05, 0.4, 1.5)
+	g = "The Throne Room"
+	_add(p, g, "The fight ends with nobody in it for", "crown:RESET_AFTER", "s", 0.5, 1.0, 60.0)
+	_add(p, g, "What a spike trap does", "crown:SPIKES", "", 1.0, 0.0, 1000.0)
+	_add(p, g, "A spike trap rattles first for", "crown:SPIKE_WARN", "s", 0.05, 0.1, 5.0)
+	_add(p, g, "Its spikes stay up for", "crown:SPIKE_UP", "s", 0.1, 0.2, 10.0)
+	g = "The horn, and what he gives"
+	_add(p, g, "Tin bars to mend the horn", "crown:MEND_TIN", "n", 1.0, 0.0, 99.0)
+	_add(p, g, "Copper bars to mend the horn", "crown:MEND_COPPER", "n", 1.0, 0.0, 99.0)
+	_add(p, g, "First win: Memory", "crown:FIRST_MEMORY", "", 5.0, 0.0, 100000.0)
+	_add(p, g, "First win: coins", "crown:FIRST_COINS", "", 5.0, 0.0, 100000.0)
+	_add(p, g, "First win: bars of tin, and of copper", "crown:FIRST_BARS", "n", 1.0, 0.0, 99.0)
+	_add(p, g, "A later win: Memory", "crown:AGAIN_MEMORY", "", 5.0, 0.0, 100000.0)
+	_add(p, g, "A later win: coins", "crown:AGAIN_COINS", "", 5.0, 0.0, 100000.0)
+	_add(p, g, "A later win: bars of tin, and of copper", "crown:AGAIN_BARS", "n", 1.0, 0.0, 99.0)
 
 	p = "Forge guardian"
 	g = "Body"

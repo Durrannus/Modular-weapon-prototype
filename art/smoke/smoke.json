@@ -18,6 +18,29 @@
    ],
    "frames": 4,
    "note": "NOT a loop: frame 0 is a fresh puff, 1 opened, 2 wide, 3 breaking up (hatched). Each puff shows frame 0, then 1, 2 and 3 as it ages. No outline."
+  },
+  "roost_fire": {
+   "box": [
+    1,
+    16,
+    80,
+    20
+   ],
+   "frame": [
+    20,
+    20
+   ],
+   "origin": [
+    10,
+    17
+   ],
+   "frames": 4,
+   "fps": 5,
+   "smoke_from": [
+    10,
+    7
+   ],
+   "note": "The camp fire the smoke rises from (added 23 Nov 18:50Z). A loop. Origin on the ground. Start the plume at smoke_from (in the frame). Sort it with the things on the ground."
   }
  },
  "plume": {

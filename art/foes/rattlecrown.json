@@ -1,0 +1,353 @@
+{
+ "note": "Rattlecrown and his throne, first draft. The same form as highlands-enemies-v1: everything faces right, strips run left to right, every frame of a strip the same size. See README.md.",
+ "enemies": {
+  "throne": {
+   "frame": [
+    104,
+    96
+   ],
+   "origin_feet": [
+    52,
+    88
+   ],
+   "note": "Rattlecrown's fixed scrap throne. Feet = the middle of the step's front edge. 'idle' and 'point' have him on it (phase 1). 'kick' is the start of phase 2: he ends standing 6 px below the throne's feet, so put rattlecrown there. 'wreck' is what stays (solid: 50 wide, 14 deep).",
+   "strips": {
+    "idle": {
+     "frames": 4,
+     "fps": 3,
+     "box": [
+      0,
+      0,
+      416,
+      96
+     ]
+    },
+    "point": {
+     "frames": 2,
+     "fps": 4,
+     "box": [
+      0,
+      96,
+      208,
+      96
+     ]
+    },
+    "kick": {
+     "frames": 4,
+     "fps": 7,
+     "box": [
+      0,
+      192,
+      416,
+      96
+     ]
+    },
+    "wreck": {
+     "frames": 1,
+     "fps": 0,
+     "box": [
+      0,
+      288,
+      104,
+      96
+     ]
+    }
+   }
+  },
+  "rattlecrown": {
+   "frame": [
+    72,
+    72
+   ],
+   "origin_feet": [
+    30,
+    64
+   ],
+   "note": "Rattlecrown on foot with his scrap club, the crown still at his belt (phase 2).",
+   "strips": {
+    "idle": {
+     "frames": 4,
+     "fps": 4,
+     "box": [
+      104,
+      288,
+      288,
+      72
+     ]
+    },
+    "move": {
+     "frames": 6,
+     "fps": 7,
+     "box": [
+      0,
+      384,
+      432,
+      72
+     ]
+    },
+    "slam_windup": {
+     "frames": 2,
+     "fps": 5,
+     "box": [
+      0,
+      456,
+      144,
+      72
+     ]
+    },
+    "slam": {
+     "frames": 3,
+     "fps": 10,
+     "box": [
+      144,
+      456,
+      216,
+      72
+     ]
+    },
+    "toss_windup": {
+     "frames": 2,
+     "fps": 5,
+     "box": [
+      360,
+      456,
+      144,
+      72
+     ]
+    },
+    "toss": {
+     "frames": 3,
+     "fps": 10,
+     "box": [
+      0,
+      528,
+      216,
+      72
+     ]
+    },
+    "charge_windup": {
+     "frames": 2,
+     "fps": 5,
+     "box": [
+      216,
+      528,
+      144,
+      72
+     ]
+    },
+    "charge": {
+     "frames": 3,
+     "fps": 10,
+     "box": [
+      0,
+      600,
+      216,
+      72
+     ]
+    },
+    "hit": {
+     "frames": 2,
+     "fps": 12,
+     "box": [
+      216,
+      600,
+      144,
+      72
+     ]
+    },
+    "death": {
+     "frames": 4,
+     "fps": 6,
+     "box": [
+      0,
+      672,
+      288,
+      72
+     ]
+    },
+    "crown_on": {
+     "frames": 4,
+     "fps": 5,
+     "box": [
+      0,
+      744,
+      288,
+      72
+     ]
+    }
+   }
+  },
+  "rattlecrown_crowned": {
+   "frame": [
+    72,
+    72
+   ],
+   "origin_feet": [
+    30,
+    64
+   ],
+   "note": "Rattlecrown with the crown on (phase 3): the same strips, every attack goes off twice.",
+   "strips": {
+    "idle": {
+     "frames": 4,
+     "fps": 4,
+     "box": [
+      0,
+      816,
+      288,
+      72
+     ]
+    },
+    "move": {
+     "frames": 6,
+     "fps": 7,
+     "box": [
+      0,
+      888,
+      432,
+      72
+     ]
+    },
+    "slam_windup": {
+     "frames": 2,
+     "fps": 5,
+     "box": [
+      0,
+      960,
+      144,
+      72
+     ]
+    },
+    "slam": {
+     "frames": 3,
+     "fps": 10,
+     "box": [
+      144,
+      960,
+      216,
+      72
+     ]
+    },
+    "toss_windup": {
+     "frames": 2,
+     "fps": 5,
+     "box": [
+      360,
+      960,
+      144,
+      72
+     ]
+    },
+    "toss": {
+     "frames": 3,
+     "fps": 10,
+     "box": [
+      0,
+      1032,
+      216,
+      72
+     ]
+    },
+    "charge_windup": {
+     "frames": 2,
+     "fps": 5,
+     "box": [
+      216,
+      1032,
+      144,
+      72
+     ]
+    },
+    "charge": {
+     "frames": 3,
+     "fps": 10,
+     "box": [
+      0,
+      1104,
+      216,
+      72
+     ]
+    },
+    "hit": {
+     "frames": 2,
+     "fps": 12,
+     "box": [
+      216,
+      1104,
+      144,
+      72
+     ]
+    },
+    "death": {
+     "frames": 4,
+     "fps": 6,
+     "box": [
+      0,
+      1176,
+      288,
+      72
+     ]
+    }
+   }
+  }
+ },
+ "shots": {
+  "scrap": {
+   "frame": [
+    9,
+    9
+   ],
+   "origin": [
+    4,
+    4
+   ],
+   "frames": 4,
+   "fps": 10,
+   "note": "The lump of scrap he throws, tumbling. Origin at its middle; lob it over a ground shadow.",
+   "box": [
+    288,
+    1176,
+    36,
+    9
+   ]
+  },
+  "slam_mark": {
+   "frame": [
+    56,
+    28
+   ],
+   "origin": [
+    28,
+    14
+   ],
+   "frames": 4,
+   "fps": 6,
+   "note": "Where the Club Slam will land: flat on the floor, no outline, the game's warning colours, as pebble_mark. An orange ring closes in over frames 0 to 2; frame 3 is the blow. The reach is 28 px across and 14 deep from the middle.",
+   "box": [
+    0,
+    1248,
+    224,
+    28
+   ]
+  },
+  "scrap_mark": {
+   "frame": [
+    36,
+    18
+   ],
+   "origin": [
+    18,
+    9
+   ],
+   "frames": 4,
+   "fps": 6,
+   "note": "Where the tossed scrap will land: the same, 18 px across and 9 deep from the middle.",
+   "box": [
+    224,
+    1248,
+    144,
+    18
+   ]
+  }
+ }
+}

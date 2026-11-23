@@ -441,9 +441,10 @@ func _pip_and_shop() -> void:
 	_check(str(_quest(folk, "crown")["text"]).contains("1 of 3"), "the quest counts the pieces: \"%s\"" % str(_quest(folk, "crown")["text"]))
 	purse.kept["horn_bell"] = true
 	purse.kept["horn_mouthpiece"] = true
+	shop.row = shop.rows().find(Shop.ASK)       # (with all three there is a row above it now: to mend the horn)
 	shop.confirm()
 	_check(shop.line.begins_with("That is all three"), "with all three he says so (\"%s\")" % shop.line)
-	_check(str(_quest(folk, "crown")["text"]).contains("not built yet"), "and the quest says that mending the horn is not built yet")
+	_check(_quest(folk, "crown").is_empty() and str(_quest(folk, "mend").get("name", "")) == "Mend the Horn", "and the quest is now to have him mend it (the rest is tests/highlands_crown.gd's)")
 	# Words that fit.
 	var pix := _text_font()
 	var wide: float = Shop.BOX.size.x - 36.0 - 60.0

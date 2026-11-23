@@ -14,6 +14,7 @@ const PLATE := Color(0.098, 0.078, 0.165, 0.86)   # the menu kit's dark plum
 var root: Control
 var objective := ""
 var hint := ""
+var hint_w := 360.0             # how wide the tip may be before it breaks into lines (the Highlands keep it narrower: more sits in its corners)
 var boss = null                 # the guardian, while its bar shows
 var boss_shown := 1.0           # the pale "lost health" bar catches up to this
 var prompts: Array = []         # [{at: world position, text, pad: bool, side: 0 centred on `at`, -1 ending there, 1 starting there}], rebuilt every tick
@@ -477,7 +478,7 @@ func _draw_ui() -> void:
 			root.draw_rect(Rect2(bx + 2, by + 2, 156.0 * frac, 6), Color("#d9483b"))
 		hint_y = 50.0
 	if hint != "" and not busy():
-		var lines_h := _wrap(hint, 360.0)   # narrow enough to clear the health bars in the corners
+		var lines_h := _wrap(hint, hint_w)   # narrow enough to clear the health bars in the corners
 		var pitch := _pitch(lines_h)
 		var widest := 0.0
 		for l in lines_h:

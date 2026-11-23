@@ -46,6 +46,7 @@ const SPAWNABLE := [
 	["slinger_elite", "Elite slinger", "Its rock bursts into shards"],
 	["scrap_brute_elite", "Elite brute", "Every third attack is a shield bash"],
 	["shaman_elite", "Elite shaman", "Wards another goblin"],
+	["rattlecrown", "Rattlecrown", "The Highlands' boss, on his feet"],
 	["dummy", "Training dummy", "Never moves, shows your damage"],
 ]
 var home_dummy = null        # the dummy the room starts with ("Remove every enemy" leaves it)

@@ -470,8 +470,14 @@ func arrow_for(i: int) -> Array:
 	return [(from + dir * far).round(), dir]
 
 
-## A small arrow at the edge of the screen for everyone who wears the compass. A stand-in drawn here until the Art
-## builder draws one: the pale ink of the screen's words on a dark edge, in the wearer's colour with two players.
+## Which of the arrow's drawings shows this way: they go round clockwise from straight up.
+static func arrow_frame(dir: Vector2, frames := 8) -> int:
+	return posmod(roundi((dir.angle() + PI * 0.5) / (TAU / float(maxi(frames, 1)))), maxi(frames, 1))
+
+
+## A small arrow at the edge of the screen for everyone who wears the compass: the Art builder's (version 48:
+## `compass_arrow` in art/inventory, eight drawings, one for each way; the nearest is shown and none is ever
+## turned). With two players a dot of the wearer's colour sits behind it. Without the art, an arrow drawn here.
 func _draw_hud() -> void:
 	var f := Art.font("Silkscreen-Regular")
 	for i in kits.size():
@@ -495,5 +501,19 @@ func _draw_hud() -> void:
 		var col: Color = Art.PLAYER_COLORS[i % Art.PLAYER_COLORS.size()] if players.size() > 1 else INK
 		var nudge := dir * (1.0 if fmod(clock, 1.0) < 0.5 else 0.0)
 		var tip: Vector2 = at + nudge
+		var its: Dictionary = Art.json("inventory/inventory.json").get("sprites", {}).get("compass_arrow", {})
+		var sheet := Art.texture("inventory/inventory.png")
+		if sheet != null and its.has("box"):
+			var box: Array = its["box"]
+			var fr: Array = its.get("frame", [9, 9])
+			var o: Array = its.get("origin", [4, 4])
+			var way := arrow_frame(dir, int(its.get("frames", 8)))
+			var mid := (tip - dir * 5.0).round()
+			if players.size() > 1:
+				var dot := (mid - dir * 8.0).round()
+				panel.draw_rect(Rect2(dot - Vector2(2, 2), Vector2(5, 5)), DARK)
+				panel.draw_rect(Rect2(dot - Vector2(1, 1), Vector2(3, 3)), col)
+			panel.draw_texture_rect_region(sheet, Rect2(mid - Vector2(float(o[0]), float(o[1])), Vector2(float(fr[0]), float(fr[1]))), Rect2(float(box[0]) + float(fr[0]) * float(way), float(box[1]), float(fr[0]), float(fr[1])))
+			continue
 		panel.draw_colored_polygon(PackedVector2Array([tip + dir * 2.0, tip - dir * 9.0 + side * 7.0, tip - dir * 6.0, tip - dir * 9.0 - side * 7.0]), DARK)
 		panel.draw_colored_polygon(PackedVector2Array([tip, tip - dir * 7.0 + side * 4.5, tip - dir * 5.0, tip - dir * 7.0 - side * 4.5]), col)
