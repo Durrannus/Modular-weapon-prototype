@@ -854,15 +854,20 @@ func edge_spot(place: Vector2, tall: float, seen: Rect2) -> Array:
 	if far == INF:
 		return []
 	var at := (from + dir * far).round()
-	# What sits in the corners (the bars, the quests, the belts) keeps its room: the plume slides along its edge of
-	# the screen, towards the middle, until it is clear of them.
+	# What sits in the corners (the bars, the quests, the belts) keeps its room: by a top corner the plume slides
+	# along its edge of the screen, towards the middle, until it is clear of them; by a bottom corner (the belts and
+	# the swing path) it rises above them, so it never stands in their band (version 52, after the project's review).
 	var on_side := absf(at.x - box.position.x) < 0.5 or absf(at.x - box.end.x) < 0.5
 	for again in 2:
 		for r: Rect2 in hud_corners():
+			var low := r.get_center().y > SIZE.y * 0.5
+			if low and at.y + 18.0 >= r.position.y and at.x + 12.0 > r.position.x - 16.0 and at.x - 12.0 < r.end.x + 16.0:
+				at.y = r.position.y - 19.0
+				continue
 			if not Rect2(at.x - 12.0, at.y - tall, 24.0, tall + 18.0).intersects(r):
 				continue
 			if on_side:
-				at.y = r.end.y + tall + 1.0 if r.get_center().y < SIZE.y * 0.5 else r.position.y - 19.0
+				at.y = r.end.y + tall + 1.0
 			else:
 				at.x = r.end.x + 13.0 if r.get_center().x < SIZE.x * 0.5 else r.position.x - 13.0
 	return [at.round()]
@@ -885,10 +890,10 @@ func track_rect() -> Rect2:
 
 ## The corners of the screen that are spoken for: each player's bars above and belt below, and the quests.
 func hud_corners() -> Array:
-	var out: Array = [Rect2(0.0, 0.0, 216.0, 74.0), Rect2(0.0, 280.0, 276.0, 80.0)]
+	var out: Array = [Rect2(0.0, 0.0, 216.0, 74.0), Rect2(0.0, 262.0, 276.0, 98.0)]
 	if players.size() > 1:
 		out.append(Rect2(SIZE.x - 216.0, 0.0, 216.0, 74.0))
-		out.append(Rect2(SIZE.x - 276.0, 280.0, 276.0, 80.0))
+		out.append(Rect2(SIZE.x - 276.0, 262.0, 276.0, 98.0))
 	var track := track_rect()
 	if track.size.y > 0.0:
 		out.append(track.grow(4.0))

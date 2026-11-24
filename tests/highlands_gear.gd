@@ -1220,6 +1220,18 @@ func _smoke() -> void:
 			if Rect2(w.x - 9.0, w.y - folk.sign_height() + 4.0, 18.0, folk.sign_height() + 12.0).intersects(r):
 				clear = false
 	_check(clear, "from every side the far-off plume is on the screen and clear of the bars, the quests and the belts")
+	# Since version 52: beside the belts and the swing path it stands above their band, never level with it.
+	var above_band := true
+	for turn in 72:
+		_put(g, p, folk.smoke_feet() + Vector2.from_angle(float(turn) * TAU / 72.0) * 3000.0)
+		var where: Array = folk.smoke_sign()
+		if where.size() != 1:
+			continue
+		var w: Vector2 = where[0]
+		for r: Rect2 in folk.hud_corners():
+			if r.get_center().y > Folk.SIZE.y * 0.5 and w.x + 12.0 > r.position.x - 16.0 and w.x - 12.0 < r.end.x + 16.0 and w.y + 18.0 >= r.position.y:
+				above_band = false
+	_check(above_band, "beside the belts and the swing path the far-off plume stands above them, not level with them")
 	_put(g, p, folk.pip_landing() + Vector2(0, 22))
 	await _frames(6)
 	# The cage broken: the fire dies.
