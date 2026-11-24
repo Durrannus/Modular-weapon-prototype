@@ -560,10 +560,69 @@ func _plans() -> void:
 		_check(crowd >= 24 and on_stands, "seed %d: %d goblins watch from the stands" % [seed_value, crowd])
 		var pieces: Array = Art.json("scrapyard/throne_floor.json").get("pieces", [])
 		var painted := Rect2i(room.position * 16, room.size * 16).grow(16 * 8)
-		var decals_ok := pieces.size() > 0 and map.floor_decals.size() == pieces.size()
-		for d in map.floor_decals:
+		var throne_decals: Array = map.floor_decals.filter(func(d): return str(d["sheet"]) == "throne_floor")
+		var decals_ok := pieces.size() > 0 and throne_decals.size() == pieces.size()
+		for d in throne_decals:
 			decals_ok = decals_ok and painted.has_point(Vector2i(int(d["x"]), int(d["y"]))) and int((d["rect"] as Array)[2]) <= LandMap.CHUNK * 16
 		_check(decals_ok, "seed %d: the Throne Room's floor is painted into the land there, in %d pieces" % [seed_value, pieces.size()])
+		# Since version 52: every other room dressed its own way, its floor painted in, and the way through still open.
+		var floors: Dictionary = Art.json("scrapyard/rooms_floor.json").get("rooms", {})
+		var room_decals: Array = map.floor_decals.filter(func(d): return str(d["sheet"]) == "rooms_floor")
+		var rooms_ok := floors.size() == CrownPlan.ROOM_DRESS.size()
+		var wanted := 0
+		for name in floors:
+			wanted += (floors[name] as Array).size()
+			var r: Rect2i = rooms[name]
+			var its_floor := Rect2i(r.position * 16, r.size * 16).grow(8)
+			for d in room_decals:
+				if its_floor.has_point(Vector2i(int(d["x"]), int(d["y"]))):
+					rooms_ok = rooms_ok and int((d["rect"] as Array)[2]) <= LandMap.CHUNK * 16
+		rooms_ok = rooms_ok and room_decals.size() == wanted and wanted > 0
+		_check(rooms_ok, "seed %d: the other rooms' floors (soot, trodden scrap, the Gatehouse's paved way) are painted in, %d pieces" % [seed_value, wanted])
+		var looks := {}
+		var dressed_in := true
+		var blocked := {}
+		for d in plan["dress"]:
+			var tiles: Array = CrownPlan.tiles_under(d[1], d[2])
+			for t in tiles:
+				blocked[t] = true
+			var home := ""
+			for name in CrownPlan.ROOM_DRESS:
+				if (rooms[name] as Rect2i).has_point(tiles[0]):
+					home = name
+			if home == "":
+				continue
+			var r: Rect2i = rooms[home]
+			var key := "%s %s" % [str(d[0]), str((d[1] as Vector2) - Vector2(r.position) * 16.0)]
+			looks[home] = (looks.get(home, []) as Array) + [key]
+			for t: Vector2i in tiles:
+				dressed_in = dressed_in and r.has_point(t) and absi(t.x - door.x) > 2
+		var same := 0
+		var fought: Array = ["gatehouse", "crane", "furnace"]
+		for a in fought.size():
+			for b in range(a + 1, fought.size()):
+				var la: Array = looks.get(fought[a], [])
+				var lb: Array = looks.get(fought[b], [])
+				la.sort()
+				lb.sort()
+				same += int(la == lb)
+		_check(looks.size() == CrownPlan.ROOM_DRESS.size() and same == 0 and dressed_in, "seed %d: the Gatehouse, the Crane Yard and the Furnace are each dressed their own way, inside their walls and clear of the way through" % seed_value)
+		var walk := {gate: true}
+		var front: Array = [gate + Vector2i(0, -1)]
+		walk[front[0]] = true
+		var reached_door := false
+		while not front.is_empty():
+			var t: Vector2i = front.pop_back()
+			if t == door + Vector2i(0, -1):
+				reached_door = true
+				break
+			for step in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+				var n: Vector2i = t + step
+				if walk.has(n) or blocked.has(n) or not (plan["yard"] as Rect2i).has_point(n) or LandMap.rocky(map.kind(n.x, n.y)):
+					continue
+				walk[n] = true
+				front.append(n)
+		_check(reached_door, "seed %d: with every brazier and pile standing, the way from the gate to the Throne Room's door is open" % seed_value)
 		if k == 0:
 			# The painter really paints it: a trap's tile with the floor's pieces and without them.
 			var trap: Vector2i = plan["trap_row"]

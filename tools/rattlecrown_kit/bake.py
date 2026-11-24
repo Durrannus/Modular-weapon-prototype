@@ -17,11 +17,13 @@ What it writes (and what reads it):
   art/scrapyard/throne_floor.png, .json  the Throne Room's floor: paving, the traps' sunk slabs, soot, trodden scrap and
                                        the stands' planks, in pieces the land painter paints into the dug floor
                                        (land_painter.gd, CrownPlan.stamp)
+  art/scrapyard/rooms_floor.png, .json   the other rooms' floors (version 52): soot under their braziers, scrap trodden
+                                       in round their piles, the Gatehouse's paved way (the same readers)
 
     python3 tools/rattlecrown_kit/bake.py --godot /path/to/godot
 
-Where things stand in the room comes from the game (CrownPlan.throne_layout, printed by layout.gd), so the floor is
-painted to fit. Needs numpy and Pillow. Nothing here runs in the game.
+Where things stand in the rooms comes from the game (CrownPlan.throne_layout and CrownPlan.room_dress_layout, printed
+by layout.gd), so the floors are painted to fit. Needs numpy and Pillow. Nothing here runs in the game.
 """
 import argparse, json, os, subprocess, sys, tempfile
 import numpy as np
@@ -195,6 +197,7 @@ def main():
     # --- The Throne Room's floor ---------------------------------------------------------------------------------
     lay = _layout(a, again=True)            # (the throne's size, and so where the braziers stand, came from the sheet just written)
     floor(lay, hl3, K3)
+    rooms_floor(lay["rooms"], hl3, K3)
 
 
 def _layout(a, again=False):
@@ -241,10 +244,25 @@ def floor(lay, hl3, K3):
         K3.soot(B, int(bx) + ox, int(by) - 1 + oy, 11, 6, i)
     for i, (name, (hx, hy)) in enumerate(lay["heaps"]):
         K3.debris(B, int(hx) + ox, int(hy) - 2 + oy, PILES[name][0] * 0.62, 7, i)
+    sh = Sheet(1024); pieces = []
+    _cut_pieces(A, B, ox, oy, sh, pieces, "throne")
+    img, boxes = sh.pack()
+    out = {"note": "The Throne Room's floor (version 50): the Art builder's paving, sunk trap slabs, soot, trodden scrap and the stands' planks "
+                   "(hl_king3.py paving, sunk_traps, soot, debris; hl3.py planks), painted on the room's own shape and kept where they differ "
+                   "from plain dug floor. 'at' is a piece's top left from the room's top left corner (art pixels); 'rect' its lit picture, "
+                   "'shade' the same in shadow. Baked by tools/rattlecrown_kit/bake.py.",
+           "pieces": [{"at": [int(p[0]), int(p[1])], "rect": boxes[("lit", k)], "shade": boxes[("shade", k)]} for k, p in enumerate(pieces)]}
+    fpath = os.path.join(GAME, "art/scrapyard/throne_floor")
+    Image.fromarray(img).save(fpath + ".png"); json.dump(out, open(fpath + ".json", "w"), indent=1)
+    print("floor", img.shape[1], img.shape[0], len(pieces), "pieces")
+
+
+def _cut_pieces(A, B, ox, oy, sh, pieces, room):
+    """Keeps what B paints that plain dug floor (A) does not, cut into pieces no bigger than PIECE, lit and in shadow;
+    each piece's top left goes in `pieces` as [x, y, room] from the room's top left corner (art pixels)."""
     diff = (B.mat != A.mat) | (B.step != A.step)
     B.shadow[:] = False; lit = np.array(B.image().convert("RGB"))
     B.shadow[:] = True; dark = np.array(B.image().convert("RGB"))
-    sh = Sheet(1024); pieces = []
     H, W = diff.shape
     for py in range(0, H, PIECE):
         for px in range(0, W, PIECE):
@@ -259,16 +277,44 @@ def floor(lay, hl3, K3):
                 return o
             k = len(pieces)
             sh.add(("lit", k), [rgba(lit)]); sh.add(("shade", k), [rgba(dark)])
-            pieces.append([px + x0 - ox, py + y0 - oy])
+            pieces.append([px + x0 - ox, py + y0 - oy, room])
+
+
+HEAP_WIDE = {"scrap_heap_large": 50, "scrap_heap_small": 34}    # the other rooms' piles (the Scrapyard sheet's frames)
+
+
+def rooms_floor(rooms, hl3, K3):
+    """The Scrapyard's other rooms (version 52): soot under each brazier, scrap trodden in round each pile and the
+    Gatehouse's paved way, painted as the Throne Room's floor is, on a map of each room's own shape."""
+    sh = Sheet(1024); pieces = []
+    for n, (name, r) in enumerate(sorted(rooms.items())):
+        RW, RH = int(r["size"][0]), int(r["size"][1]); M = 2
+        GW, GH = RW + 2 * M, RH + 2 * M
+        def grid():
+            G = hl3.Grid(GW, GH); G.rect(0, 0, GW - 1, GH - 1, "#"); G.rect(M, M, M + RW - 1, M + RH - 1, "o")
+            return G.rows()
+        A = hl3.World(grid(), 23 + n, long_grass=0.0)
+        B = hl3.World(grid(), 23 + n, long_grass=0.0)
+        ox = oy = M * T
+        if r["paving"]:
+            K3.paving(B, [(x + M, y + M, x + M + w - 1, y + M + h - 1) for (x, y, w, h) in r["paving"]], 7 + n)
+        sx, sy = int(r["soot"][0]), int(r["soot"][1])
+        for i, ((bx, by), _flip) in enumerate(r["braziers"]):
+            K3.soot(B, int(bx) + ox, int(by) - 1 + oy, sx, sy, i + 10 * n)
+        for i, (pic, (hx, hy), _flip, _cover) in enumerate(r["heaps"]):
+            K3.debris(B, int(hx) + ox, int(hy) - 2 + oy, HEAP_WIDE.get(pic, 40) * float(r["litter"]), 7, i + 10 * n)
+        _cut_pieces(A, B, ox, oy, sh, pieces, name)
     img, boxes = sh.pack()
-    out = {"note": "The Throne Room's floor (version 50): the Art builder's paving, sunk trap slabs, soot, trodden scrap and the stands' planks "
-                   "(hl_king3.py paving, sunk_traps, soot, debris; hl3.py planks), painted on the room's own shape and kept where they differ "
-                   "from plain dug floor. 'at' is a piece's top left from the room's top left corner (art pixels); 'rect' its lit picture, "
-                   "'shade' the same in shadow. Baked by tools/rattlecrown_kit/bake.py.",
-           "pieces": [{"at": [int(p[0]), int(p[1])], "rect": boxes[("lit", k)], "shade": boxes[("shade", k)]} for k, p in enumerate(pieces)]}
-    fpath = os.path.join(GAME, "art/scrapyard/throne_floor")
+    out = {"note": "The Scrapyard's other rooms' floors (version 52): the Art builder's soot under each brazier, scrap trodden in round "
+                   "each pile and the Gatehouse's paved way (hl_king3.py soot, debris, paving), painted on each room's own shape and kept "
+                   "where they differ from plain dug floor. Per room, 'at' is a piece's top left from the room's top left corner (art "
+                   "pixels); 'rect' its lit picture, 'shade' the same in shadow. Where they lie comes from CrownPlan.room_dress_layout. "
+                   "Baked by tools/rattlecrown_kit/bake.py.", "rooms": {}}
+    for k, p in enumerate(pieces):
+        out["rooms"].setdefault(p[2], []).append({"at": [int(p[0]), int(p[1])], "rect": boxes[("lit", k)], "shade": boxes[("shade", k)]})
+    fpath = os.path.join(GAME, "art/scrapyard/rooms_floor")
     Image.fromarray(img).save(fpath + ".png"); json.dump(out, open(fpath + ".json", "w"), indent=1)
-    print("floor", img.shape[1], img.shape[0], len(pieces), "pieces")
+    print("rooms floor", img.shape[1], img.shape[0], len(pieces), "pieces")
 
 
 def _patches(tiles):

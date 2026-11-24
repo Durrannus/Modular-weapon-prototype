@@ -102,6 +102,26 @@ const POSES := ["cheer", "lean", "fist", "drum", "lean", "cheer", "fist", "lean"
 const YARD_HEAPS := [[Vector2(6, 5), true, false], [Vector2(21, 4), false, true], [Vector2(9, 11), false, false], [Vector2(19, 10), true, true],
 	[Vector2(11, 7), false, false]]
 const BLOW_DOWN := 5               # the horn is blown this many tiles in front of the throne
+## Version 52: each of the Scrapyard's other rooms dressed its own way (the project's review of version 49), with only
+## what the Throne Room already has, until the Art builder's room art is agreed: braziers [foot, mirrored] and piles
+## against the walls [picture, foot, mirrored] (art pixels from the room's top left corner; a negative x is from the
+## right wall, a negative y from the bottom wall), a paved way [tiles], how big the soot under a brazier is and how far
+## trodden scrap spreads round a pile (times the pile's width). The Gatehouse is the way in: a paved way from the gate
+## to the far door between four braziers, piles in its corners. The Crane Yard is open junk: braziers in its four
+## corners, its piles out in the yard (YARD_HEAPS) with scrap trodden wide round them. The Furnace is hot: a row of four
+## braziers along the back wall with heavy soot, a big pile in each front corner. A side room: a brazier and a pile.
+const ROOM_DRESS := {
+	"gatehouse": {"braziers": [[Vector2(132, 30), false], [Vector2(-132, 30), true], [Vector2(132, -18), false], [Vector2(-132, -18), true]],
+		"heaps": [["scrap_heap_large", Vector2(32, 50), false], ["scrap_heap_small", Vector2(-24, 46), true], ["scrap_heap_large", Vector2(-30, -2), true]],
+		"paving": [Rect2i(11, 0, 3, 12)], "soot": Vector2(11, 6), "litter": 0.62},
+	"crane": {"braziers": [[Vector2(26, 30), false], [Vector2(-26, 30), true], [Vector2(26, -18), false], [Vector2(-26, -18), true]],
+		"heaps": [], "paving": [], "soot": Vector2(11, 6), "litter": 1.0},
+	"furnace": {"braziers": [[Vector2(40, 30), false], [Vector2(100, 30), false], [Vector2(-100, 30), true], [Vector2(-40, 30), true]],
+		"heaps": [["scrap_heap_large", Vector2(30, -2), false], ["scrap_heap_large", Vector2(-30, -2), true]],
+		"paving": [], "soot": Vector2(18, 9), "litter": 0.62},
+	"side_a": {"braziers": [[Vector2(80, 30), false]], "heaps": [["scrap_heap_small", Vector2(-22, -2), true]], "paving": [], "soot": Vector2(11, 6), "litter": 0.62},
+	"side_b": {"braziers": [[Vector2(80, 30), true]], "heaps": [["scrap_heap_small", Vector2(22, -2), false]], "paving": [], "soot": Vector2(11, 6), "litter": 0.62},
+}
 
 
 static func make(map: LandMap) -> Dictionary:
@@ -171,41 +191,28 @@ static func make(map: LandMap) -> Dictionary:
 		var t := Vector2i(cx, r.position.y - 1)
 		bars.append({"room": name, "tile": t, "foot": Vector2(t.x * 16 + 8, t.y * 16 + 16)})
 	plan["bars"] = bars
-	# Braziers in every room but the Throne Room (which has its own four): two by the top wall, and in a big room two
-	# more by the bottom one. Lanterns in the linking rooms.
+	# Every other room's braziers and piles (ROOM_DRESS; the Crane Yard's piles out in the yard are the slingers' cover),
+	# and lanterns in the linking rooms.
 	var dress: Array = plan["dress"]
-	var lamps: Array = []
-	for name in ["gatehouse", "crane", "furnace", "side_a", "side_b"]:
+	var cover: Array = []
+	var dressed := room_dress_layout()
+	for name in dressed:
 		var r: Rect2i = rooms[name]
 		var corner := Vector2(r.position) * 16.0
-		var wide := float(r.size.x) * 16.0
-		var spots: Array = [[Vector2(wide * 0.5 - 56.0, 30.0), false], [Vector2(wide * 0.5 + 56.0, 30.0), true]]
-		if name.begins_with("side"):
-			spots = [[Vector2(wide * 0.5, 30.0), false]]
-		elif r.size.y >= 12:
-			spots.append([Vector2(26.0, float(r.size.y) * 16.0 - 18.0), false])
-			spots.append([Vector2(wide - 26.0, float(r.size.y) * 16.0 - 18.0), true])
-		for sp in spots:
-			dress.append(["brazier", corner + (sp[0] as Vector2), Vector2(10, 4), bool(sp[1])])
+		for b in dressed[name]["braziers"]:
+			dress.append(["brazier", corner + (b[0] as Vector2), Vector2(10, 4), bool(b[1])])
+		for h in dressed[name]["heaps"]:
+			var its := heap_named(str(h[0]))
+			var foot := corner + (h[1] as Vector2)
+			dress.append([its["name"], foot, its["solid"], bool(h[2])])
+			if bool(h[3]):
+				cover.append([foot, (its["solid"] as Vector2).x * 0.5])
+	var lamps: Array = []
 	for name in ["link_a", "link_b", "link_c"]:
 		var r: Rect2i = rooms[name]
 		lamps.append(Vector2i(r.position.x + 1, r.position.y + 1))
 		lamps.append(Vector2i(r.end.x - 2, r.position.y + 1))
 	plan["lamps"] = lamps
-	# The Crane Yard's scrap piles, out in the yard: what its slingers hide behind. A pile against a wall in the
-	# Gatehouse and the Furnace.
-	var cover: Array = []
-	var crane: Rect2i = rooms["crane"]
-	for h in YARD_HEAPS:
-		var its := heap(bool(h[1]))
-		var foot := Vector2(crane.position) * 16.0 + (h[0] as Vector2) * 16.0 + Vector2(8, 12)
-		dress.append([its["name"], foot, its["solid"], bool(h[2])])
-		cover.append([foot, (its["solid"] as Vector2).x * 0.5])
-	for pair in [["gatehouse", 1], ["furnace", -1]]:
-		var r: Rect2i = rooms[str(pair[0])]
-		var its := heap(true)
-		var x := float(r.end.x) * 16.0 - float(its["wide"]) * 0.5 - 2.0 if int(pair[1]) > 0 else float(r.position.x) * 16.0 + float(its["wide"]) * 0.5 + 2.0
-		dress.append([its["name"], Vector2(x, float(r.end.y) * 16.0 - 2.0), its["solid"], int(pair[1]) < 0])
 	plan["cover"] = cover
 	plan["groups"] = groups(rooms)
 	plan["chests"] = chests(map, rooms)
@@ -243,6 +250,41 @@ static func chests(map: LandMap, rooms: Dictionary) -> Array:
 		out.append(c)
 		n += 1
 	return out
+
+
+## Where every other room's braziers and piles stand, in its own art pixels from its top left corner (ROOM_DRESS with
+## the corners worked out, and the Crane Yard's piles out in the yard): {name: {size (tiles), braziers: [[foot,
+## mirrored]], heaps: [[picture, foot, mirrored, cover]], paving: [Rect2i tiles], soot, litter}}. tools/rattlecrown_kit
+## paints each room's floor from it.
+static func room_dress_layout() -> Dictionary:
+	var out := {}
+	for name in ROOM_DRESS:
+		var size := room_size(str(name))
+		var px := Vector2(size) * 16.0
+		var d: Dictionary = ROOM_DRESS[name]
+		var braziers: Array = []
+		for b in d["braziers"]:
+			braziers.append([_from_corner(b[0], px), b[1]])
+		var heaps: Array = []
+		for h in d["heaps"]:
+			heaps.append([h[0], _from_corner(h[1], px), h[2], false])
+		if name == "crane":
+			for h in YARD_HEAPS:
+				heaps.append([heap(bool(h[1]))["name"], (h[0] as Vector2) * 16.0 + Vector2(8, 12), h[2], true])
+		out[name] = {"size": size, "braziers": braziers, "heaps": heaps, "paving": d["paving"], "soot": d["soot"], "litter": d["litter"]}
+	return out
+
+
+## A room's size in tiles, by its name.
+static func room_size(name: String) -> Vector2i:
+	for row in STACK:
+		if str(row[0]) == name:
+			return Vector2i(int(row[1]), int(row[2]))
+	return SIDE
+
+
+static func _from_corner(at: Vector2, px: Vector2) -> Vector2:
+	return Vector2(at.x if at.x >= 0.0 else px.x + at.x, at.y if at.y >= 0.0 else px.y + at.y)
 
 
 ## The Throne Room itself: version 48's room with version 50's stands (positions from throne_layout, which is in the
@@ -431,6 +473,18 @@ static func stamp(map: LandMap, plan: Dictionary) -> int:
 		var at: Array = piece["at"]
 		map.stamp_floor_decal({"sheet": "throne_floor", "rect": piece["rect"], "shade": piece["shade"],
 			"x": room.position.x * 16 + int(at[0]), "y": room.position.y * 16 + int(at[1])})
+	# The other rooms' floors (version 52): soot under their braziers, scrap trodden in round their piles and the
+	# Gatehouse's paved way.
+	var rooms: Dictionary = plan["rooms"]
+	var floors: Dictionary = Art.json("scrapyard/rooms_floor.json").get("rooms", {})
+	for name in floors:
+		if not rooms.has(name):
+			continue
+		var r: Rect2i = rooms[name]
+		for piece in floors[name]:
+			var at: Array = piece["at"]
+			map.stamp_floor_decal({"sheet": "rooms_floor", "rect": piece["rect"], "shade": piece["shade"],
+				"x": r.position.x * 16 + int(at[0]), "y": r.position.y * 16 + int(at[1])})
 	map.stamp_lamp({"x": int((plan["hoard"] as Vector2).x), "y": int((plan["hoard"] as Vector2).y) - 4, "r": HOARD_LIGHT})
 	for at in plan["lamps"]:
 		map.stamp_lamp({"x": at.x * 16 + 8, "y": at.y * 16 + 6, "r": 46})

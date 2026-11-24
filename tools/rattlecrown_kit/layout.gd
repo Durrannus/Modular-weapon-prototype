@@ -1,5 +1,6 @@
 extends SceneTree
-## Prints where everything in the Throne Room is (CrownPlan.throne_layout), as JSON, for tools/rattlecrown_kit/bake.py:
+## Prints where everything in the Throne Room is (CrownPlan.throne_layout), and under "rooms" the other rooms'
+## braziers and piles (CrownPlan.room_dress_layout), as JSON, for tools/rattlecrown_kit/bake.py:
 ##
 ##   godot --headless --path . -s tools/rattlecrown_kit/layout.gd -- out=/tmp/throne_layout.json
 
@@ -11,7 +12,9 @@ func _init() -> void:
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("out="):
 			out = a.substr(4)
-	var text := JSON.stringify(_plain(CrownPlan.throne_layout()), "  ")
+	var lay := CrownPlan.throne_layout()
+	lay["rooms"] = CrownPlan.room_dress_layout()      # the other rooms (version 52)
+	var text := JSON.stringify(_plain(lay), "  ")
 	if out == "":
 		print(text)
 	else:

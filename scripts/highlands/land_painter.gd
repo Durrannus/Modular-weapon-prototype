@@ -96,6 +96,10 @@ static func load_kit() -> void:
 	var floor_art: Image = Art.image(Art.ART_DIR + "scrapyard/throne_floor.png")
 	if floor_art != null:
 		sheets["throne_floor"] = _rgba(floor_art)
+	# And the Scrapyard's other rooms' floors (version 52).
+	var rooms_art: Image = Art.image(Art.ART_DIR + "scrapyard/rooms_floor.png")
+	if rooms_art != null:
+		sheets["rooms_floor"] = _rgba(rooms_art)
 	# How big each heather and scrub bush really is (its picture has room round it), for standing them apart.
 	for name in things:
 		if not (str(name).begins_with("heath_") or str(name).begins_with("scrub_")) or str(name).ends_with("~"):
