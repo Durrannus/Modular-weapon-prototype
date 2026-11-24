@@ -26,6 +26,7 @@ const Nav := preload("res://scripts/highlands/nav.gd")
 const Sim := preload("res://scripts/sim.gd")
 const Art := preload("res://scripts/art.gd")
 const SwingBuild := preload("res://scripts/weapon/swing_build.gd")
+const PlayerScript := preload("res://scripts/player.gd")
 const TILE := 32.0
 const ROOT := "user://test_crown_saves"
 const SEEDS := [424242, 515151, 123456, 777777, 31337, 202611]
@@ -880,7 +881,7 @@ func _gate() -> void:
 	await _frames(60)
 	var hp0: float = p.hp
 	p.input.move = Vector2.UP
-	await _frames(36)
+	await _frames(48)
 	p.input.move = Vector2.ZERO
 	_check(tr.state != "down" and p.global_position.y < mid.y - 40.0, "stepping on a trap sets it rattling")
 	await _wait(func(): return tr.state == "up", 120)
@@ -891,7 +892,7 @@ func _gate() -> void:
 	var n: int = await _wait(func(): return tr.state == "warn", 10)
 	_check(n >= 0 and p.hp == hp0, "standing on one: it rattles first, and does not hurt yet")
 	n = await _wait(func(): return p.hp < hp0, 120)
-	_check(n >= 0 and absf(float(n) / 60.0 - Crown.SPIKE_WARN) < 0.1 and absf(hp0 - p.hp - Crown.SPIKES) < 0.01, "after its warning the spikes come up and hurt whoever is on it (%.0f, after %.2f s)" % [hp0 - p.hp, float(n) / 60.0])
+	_check(n >= 0 and absf(float(n) / 60.0 - Crown.SPIKE_WARN) < 0.1 and absf(hp0 - p.hp - Crown.SPIKES * PlayerScript.HURT_SHARE) < 0.01, "after its warning the spikes come up and hurt whoever is on it (%.0f, after %.2f s)" % [hp0 - p.hp, float(n) / 60.0])
 	var hp1: float = p.hp
 	_put(g, p, mid)
 	await _wait(func(): return tr.state == "lower", 200)
@@ -1149,7 +1150,7 @@ func _fight() -> void:
 	_check(n >= 0 and g.ui.hint == Crown.TIPS["slam"] and p.hp == hp0, "his first attack is the Club Slam, and the tip line names it")
 	n = await _wait(func(): return p.hp < hp0, 200)
 	_check(n >= 0 and absf(float(n) / 60.0 - (Rattlecrown.SLAM_WINDUP + Rattlecrown.SLAM_AT)) < 0.12, "its ring is on the floor for the whole warning before the club lands (%.2f s)" % (float(n) / 60.0))
-	_check(absf(hp0 - p.hp - Rattlecrown.SLAM) < 0.01 and not boss.is_open(), "whoever stands in the ring is hurt (%.0f)" % (hp0 - p.hp))
+	_check(absf(hp0 - p.hp - Rattlecrown.SLAM * PlayerScript.HURT_SHARE) < 0.01 and not boss.is_open(), "whoever stands in the ring is hurt (%.0f)" % (hp0 - p.hp))
 	# Scrap Toss.
 	await _wait(func(): return boss.mode == "rest", 100)
 	p.hp = p.max_hp
@@ -1160,7 +1161,7 @@ func _fight() -> void:
 	if shots.size() == 1:
 		_check(shots[0].to.distance_to(p.global_position) < 6.0 and absf(shots[0].wait - Rattlecrown.TOSS_WINDUP) < 0.03 and not shots[0].thrown, "the ring is where you stand, while the lump is still in his hand")
 	n = await _wait(func(): return p.hp < hp0, 200)
-	_check(n >= 0 and absf(float(n) / 60.0 - (Rattlecrown.TOSS_WINDUP + Rattlecrown.TOSS_FLIGHT)) < 0.12 and absf(hp0 - p.hp - Rattlecrown.TOSS) < 0.01, "it lands after its warning and its flight, on whoever stands on the ring (%.0f, after %.2f s)" % [hp0 - p.hp, float(n) / 60.0])
+	_check(n >= 0 and absf(float(n) / 60.0 - (Rattlecrown.TOSS_WINDUP + Rattlecrown.TOSS_FLIGHT)) < 0.12 and absf(hp0 - p.hp - Rattlecrown.TOSS * PlayerScript.HURT_SHARE) < 0.01, "it lands after its warning and its flight, on whoever stands on the ring (%.0f, after %.2f s)" % [hp0 - p.hp, float(n) / 60.0])
 	# Charge.
 	await _wait(func(): return boss.mode == "rest", 200)
 	p.hp = p.max_hp
@@ -1170,7 +1171,7 @@ func _fight() -> void:
 	n = await _wait(func(): return boss.mode == "charge", 200)
 	_check(n >= 0 and absf(float(n) / 60.0 - Rattlecrown.CHARGE_WINDUP) < 0.12 and p.hp == hp0, "its lane lies on the floor for the whole warning before he runs (%.2f s)" % (float(n) / 60.0))
 	n = await _wait(func(): return p.hp < hp0, 60)
-	_check(n >= 0 and absf(hp0 - p.hp - Rattlecrown.CHARGE) < 0.01, "and whoever is in the lane is hurt (%.0f)" % (hp0 - p.hp))
+	_check(n >= 0 and absf(hp0 - p.hp - Rattlecrown.CHARGE * PlayerScript.HURT_SHARE) < 0.01, "and whoever is in the lane is hurt (%.0f)" % (hp0 - p.hp))
 	_check(boss.done.size() == 3 and boss.attacks == 3, "his first three attacks are one of each")
 	# Out of the way in time: nothing hurts, and he is Open.
 	await _wait(func(): return boss.mode == "rest", 200)
@@ -1426,7 +1427,7 @@ func _two_players() -> void:
 	_put(g, b, mid + Vector2(6, -8))
 	await _wait(func(): return tr.state == "up", 120)
 	await _frames(4)
-	_check(absf(a.max_hp - a.hp - Crown.SPIKES) < 0.01 and absf(b.max_hp - b.hp - Crown.SPIKES) < 0.01, "a trap hurts everybody who is on it, once each")
+	_check(absf(a.max_hp - a.hp - Crown.SPIKES * PlayerScript.HURT_SHARE) < 0.01 and absf(b.max_hp - b.hp - Crown.SPIKES * PlayerScript.HURT_SHARE) < 0.01, "a trap hurts everybody who is on it, once each")
 	a.unhurt = true
 	b.unhurt = true
 	_put(g, a, crown.blow_spot() + Vector2(-24, 60))

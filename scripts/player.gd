@@ -28,6 +28,13 @@ const PlayerInput := preload("res://scripts/player_input.gd")
 const Sim := preload("res://scripts/sim.gd")
 
 static var MOVE_SPEED := 220.0      # about 3.7 body heights a second, like Core Keeper
+## Version 56 (Darren, 24 November, after playing the Highlands: "player is far too big, bigger than the walls atm",
+## "damage is also too high across the board and character speed seems quite fast so kiting is easy"). The
+## Highlands set these while they are open and put them back after; the cave and the arena keep 1.
+static var SIZE := 1.0              # how big the player is drawn, and how far their swing reaches and their body takes up
+static var PACE := 1.0              # how fast they walk, as a share of MOVE_SPEED
+static var HURT_SHARE := 1.0        # how much of every blow, trap and fall they take
+var body_circle: CircleShape2D
 const ACCEL := 3000.0          # full speed in about 4 frames
 const DECEL := 4200.0          # stops in about 3
 const TURN := 5200.0           # reversing is quicker than starting
@@ -337,8 +344,9 @@ func _ready() -> void:
 	collision_mask = 4
 	var shape := CollisionShape2D.new()
 	var circle := CircleShape2D.new()
-	circle.radius = RADIUS
+	circle.radius = RADIUS * SIZE
 	shape.shape = circle
+	body_circle = circle
 	add_child(shape)
 	if input == null:
 		input = PlayerInput.new()
@@ -426,6 +434,26 @@ func _ready() -> void:
 	light.color = Color(0.85, 0.92, 1.0)
 	light.position = Vector2(0, -10)
 	add_child(light)
+	_size_look()
+
+
+## SIZE: everything the player is drawn with is drawn that much smaller round their middle (the body in _draw, the
+## rest on its layers), and their swing reaches that much less (_hit_reach), so what is seen and what hits agree.
+## Drawn smaller than one art pixel to one screen pixel, the pictures are smoothed rather than stepped, so they do
+## not shimmer as the player walks. (A stand-in until the Art builder draws the player at the new size.)
+func _size_look() -> void:
+	if body_circle != null:
+		body_circle.radius = RADIUS * SIZE
+	texture_filter = CanvasItem.TEXTURE_FILTER_PARENT_NODE if is_equal_approx(SIZE, 1.0) else CanvasItem.TEXTURE_FILTER_LINEAR
+	for n in [under_lit, under_bright, staff_back, spectre_group, rim, trail_layer, ghost_trail, ghost_group, weapon_group, staff_front, spirit]:
+		if n != null:
+			n.scale = Vector2(SIZE, SIZE)
+	queue_redraw()
+
+
+## SIZE was changed (the lab): the body and the look follow.
+func resized() -> void:
+	_size_look()
 
 
 ## A layer of your own that glows: added on top of the picture and never dimmed.
@@ -539,7 +567,7 @@ func _physics_process(delta: float) -> void:
 	_update_lance()
 
 	# Walking: a few frames to get going and to stop, so it has weight without lag.
-	var speed := MOVE_SPEED * (1.0 + float(weapon.get("move_speed", 0.0)))
+	var speed := MOVE_SPEED * PACE * (1.0 + float(weapon.get("move_speed", 0.0)))
 	var target := move * speed
 	if hold_button >= 0:
 		target *= SwingBuild.LANCE_MOVE if _beaming() else HOLD_MOVE
@@ -3967,7 +3995,7 @@ func _run_leap() -> void:
 
 ## How far a swing reaches from the player's centre (see _do_move).
 func _hit_reach() -> float:
-	return _reach_px() + REACH_MARGIN
+	return (_reach_px() + REACH_MARGIN) * SIZE
 
 
 # --- Weak Point -------------------------------------------------------------------
@@ -4104,7 +4132,7 @@ func _label(text: String, col: Color) -> void:
 	l.color = col
 	l.life = 0.7
 	_fx_root().add_child(l)
-	l.global_position = global_position + Vector2(randf_range(-20, 20), -70)
+	l.global_position = global_position + Vector2(randf_range(-20, 20), -70.0 * SIZE)
 
 
 # --- Elements ---------------------------------------------------------------
@@ -4217,6 +4245,7 @@ func take_damage(amount: float, from: Vector2 = Vector2.INF, by = null) -> void:
 		return
 	if unhurt:
 		return
+	amount *= HURT_SHARE
 	# (The Warden's Plate soaks the whole hit; a short moment untouchable after, as after any hit, but shorter.)
 	if roles != null and roles.plate_soaks(self):
 		invuln = 0.4
@@ -4392,7 +4421,7 @@ func _draw() -> void:
 			tint = Color(3.0, 1.2, 1.2)
 		elif blink:
 			tint = Color(2.0, 2.0, 2.0)
-		draw_set_transform(b["at"], b["angle"], b["scale"])
+		draw_set_transform(b["at"] * SIZE, b["angle"], b["scale"] * SIZE)
 		draw_texture_rect_region(b["tex"], Rect2(-_body_origin(), b["src"].size), b["src"], tint)
 		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 		return

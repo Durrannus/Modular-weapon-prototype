@@ -172,6 +172,7 @@ var pip := 0                       # 0 caged, 1 freed and still at the Roost, 2 
 var cage_hits := 0
 var stones := {}                   # waystone id -> true: mended and lit
 var found := {}                    # "roost", "watch" -> true: somebody has been there
+var chart = null                   # the small map in the corner (charts.gd), which the quests go under
 var travel := {}                   # a journey by waystone: {to, t, moved}
 var clock := 0.0
 var cheer_left := 0.0
@@ -894,6 +895,8 @@ func hud_corners() -> Array:
 	if players.size() > 1:
 		out.append(Rect2(SIZE.x - 216.0, 0.0, 216.0, 74.0))
 		out.append(Rect2(SIZE.x - 276.0, 262.0, 276.0, 98.0))
+	if chart != null and is_instance_valid(chart):
+		out.append((chart.rect() as Rect2).grow(5.0))
 	var track := track_rect()
 	if track.size.y > 0.0:
 		out.append(track.grow(4.0))
@@ -977,8 +980,12 @@ func _redraw() -> void:
 		panel.queue_redraw()
 
 
-## Where the quests are listed: the top right corner, or under the second player's bars.
+## Where the quests are listed: the top right corner, or under the second player's bars; under the small map
+## when there is one (version 56).
 func track_at() -> Vector2:
+	if chart != null and is_instance_valid(chart):
+		var r: Rect2 = chart.rect()
+		return Vector2(SIZE.x - MARGIN - TRACK_W, r.end.y + 9.0)
 	return Vector2(SIZE.x - MARGIN - TRACK_W, 10.0 if players.size() < 2 else 78.0)
 
 

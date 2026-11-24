@@ -42,6 +42,7 @@ const SCRIPTS := {
 	"accessories": "res://scripts/highlands/accessories.gd",
 	"rattlecrown": "res://scripts/foes/rattlecrown.gd",
 	"crown": "res://scripts/highlands/crown.gd",
+	"highlands": "res://scripts/highlands/highlands.gd",
 }
 
 ## How a number is shown and stepped:
@@ -371,6 +372,11 @@ static func _build_rows() -> void:
 	_add(p, g, "A dodge lasts", "player:DODGE_TIME", "s", 0.01, 0.05, 1.0)
 	_add(p, g, "Dodges in a row", "player:DODGE_MAX_CHARGES", "n", 1.0, 1.0, 6.0)
 	_add(p, g, "A dodge comes back in", "player:DODGE_REFILL", "s", 0.05, 0.05, 10.0)
+	g = "In the Highlands"
+	_add(p, g, "How big the player is drawn (and their reach)", "highlands:PLAYER_SIZE", "%", 0.05, 0.4, 1.5)
+	_add(p, g, "Walking speed, as a share of the above", "highlands:PLAYER_PACE", "%", 0.05, 0.3, 2.0)
+	_add(p, g, "The squad's blows do", "highlands:DAMAGE_DEALT", "%", 0.05, 0.1, 3.0)
+	_add(p, g, "Enemies' blows, traps and falls do", "highlands:DAMAGE_TAKEN", "%", 0.05, 0.1, 3.0)
 
 	p = "Enemies"
 	g = "The arena"

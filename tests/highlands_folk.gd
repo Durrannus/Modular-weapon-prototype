@@ -299,7 +299,7 @@ func _cage() -> void:
 	_check(not folk.pip_actor.visible, "(and nowhere else)")
 	var q := _quest(folk, "smoke")
 	_check(folk.quests().size() == 1 and str(q.get("name", "")) == "Smoke over the Canyon" and str(q.get("text", "")).begins_with("Follow the smoke to the stone-throwers' roost"), "the first quest is on the screen from the start: \"%s\"" % str(q.get("text", "")))
-	_check(folk.track_at() == Vector2(640.0 - 10.0 - Folk.TRACK_W, 10.0), "in the top right corner")
+	_check(folk.track_at() == Vector2(640.0 - 10.0 - Folk.TRACK_W, g.charts.rect().end.y + 9.0), "in the top right corner, under the small map (version 56)")
 	_check(not _prompt(g, "Talk to Pip"), "(nobody to talk to at the cave mouth yet)")
 	_put(g, p, folk.pip_home() + Vector2(0, 30))
 	await _frames(4)

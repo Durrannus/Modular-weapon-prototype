@@ -57,8 +57,13 @@ const TREE_X := 32.0
 const TREE_STEP := 146.0
 const TREE_W := 138.0
 const HEAD_Y := 62.0
-const PERK_Y := [90.0, 109.0, 125.0, 144.0, 160.0, 179.0, 195.0, 214.0]
-const PERK_H := 16.0
+## Version 56 (Darren, 24 November: "a better visual for the level up tree is required. something like borderlands
+## trees with icons and connectors"): each tree is drawn as a tree. The signature on top, three rows of two, the
+## capstone at the bottom; every perk is a square with its icon, and lines join each row to the next.
+const NODE := 20.0                 # a perk's square
+const ROW_Y := [90.0, 120.0, 150.0, 180.0, 210.0]    # the top of each row's squares: signature, rows 2 to 4, capstone
+const PAIR := 24.0                 # how far a row's two squares stand either side of the tree's middle
+const ICONS := "roles/perk_icons.png"     # 16 x 16 stand-ins drawn by Claude (tools/perk_icons/) until the art thread draws them
 const INFO := Rect2(32, 236, 576, 86)
 
 var levels                    # scripts/highlands/levels.gd
@@ -294,8 +299,19 @@ func move(dx: int, dy: int) -> void:
 			give_to = to
 			Sfx.play(self, "click", -16.0)
 		return
-	tree = posmod(tree + dx, Perks.TREES.size())
-	place = clampi(place + dy, 0, 7)
+	# The trees are drawn as trees (version 56): up and down go row to row, keeping to the side you are on; left and
+	# right go square to square along the row, on into the next tree.
+	var r: int = Perks.ROWS[place]
+	var side := (place - 1) % 2 if r > 0 and r < Perks.CAPSTONE else 0
+	if dx != 0:
+		if r > 0 and r < Perks.CAPSTONE:
+			var along := posmod(tree * 2 + side + dx, Perks.TREES.size() * 2)
+			tree = along / 2
+			side = along % 2
+		else:
+			tree = posmod(tree + dx, Perks.TREES.size())
+	r = clampi(r + dy, 0, Perks.CAPSTONE)
+	place = 0 if r == 0 else (7 if r == Perks.CAPSTONE else 1 + (r - 1) * 2 + side)
 	if dx != 0 or dy != 0:
 		Sfx.play(self, "click", -16.0)
 
@@ -679,6 +695,8 @@ func _draw_trees(silk: Font, pix: Font) -> void:
 	if players.size() > 1:
 		_words(silk, Vector2(32, 26), "PLAYER %d" % (who + 1), 8, Art.PLAYER_COLORS[who % Art.PLAYER_COLORS.size()], 576.0, HORIZONTAL_ALIGNMENT_RIGHT)
 
+	var icons := Art.texture(ICONS)
+	var order: Array = Art.json(ICONS.replace(".png", ".json")).get("order", [])
 	for c in Perks.TREES.size():
 		var tree_id := str(Perks.TREES[c])
 		var x := TREE_X + float(c) * TREE_STEP
@@ -686,29 +704,44 @@ func _draw_trees(silk: Font, pix: Font) -> void:
 		var lead := 20.0 if ItemArt.draw(root, "emblem_" + tree_id, Vector2(x, HEAD_Y)) != Vector2.ZERO else 0.0
 		_words(silk, Vector2(x + lead, HEAD_Y + 8.0), str(Perks.TREE_NAMES[tree_id]).to_upper(), 8, AMBER if c == tree else INK)
 		_words(pix, Vector2(x + lead, HEAD_Y + 19.0), str(Perks.TREE_DOES[tree_id]), Art.TEXT_SIZE, DIM)
+		# The lines first, under the squares: each row to the next, lit where the way is open to you.
+		var mid := x + TREE_W * 0.5
+		var in_tree := Perks.in_tree(mine, tree_id)
+		for r in Perks.CAPSTONE:
+			var from := [0] if r == 0 else [1 + (r - 1) * 2, 2 + (r - 1) * 2]
+			var open := false
+			for k in from:
+				if str(Perks.TREE[tree_id][k]) in mine:
+					open = true
+			if r + 1 == Perks.CAPSTONE:
+				open = in_tree >= Perks.CAPSTONE_NEEDS
+			_draw_link(r, mid, from, mine, tree_id, open)
 		for k in 8:
 			var id := str(Perks.TREE[tree_id][k])
-			var rr := Rect2(x, PERK_Y[k], TREE_W, PERK_H)
+			var rr := node_rect(c, k)
 			var on := c == tree and k == place
-			rects.append([rr, "perk", c, k])
+			rects.append([rr.grow(3.0), "perk", c, k])
 			var have := id in mine
 			var up := id in awake
 			var can := Perks.why_not(id, mine, points) == ""
 			var built := Perks.built(id)
-			var a := 1.0 if (have or can) else (0.8 if built else 0.5)
-			if not Art.draw_nine(root, "swing/ui/well_selected.png" if on else "swing/ui/well.png", rr, 3, Color(1, 1, 1, maxf(a, 0.75) if not on else 1.0)):
-				root.draw_rect(rr, Color(AMBER if on else FAINT, a), false, 1.0)
-			# A pip: full for a perk that is yours and awake, an open one for a perk that is yours and asleep here or
-			# that a press would learn, none for the rest.
-			var pip := Rect2(rr.position.x + 6.0, rr.position.y + 5.0, 6, 6)
-			if up:
-				root.draw_rect(pip, PLATE)
-				root.draw_rect(pip.grow(-1.0), AMBER)
-			elif have or can:
-				root.draw_rect(pip, PLATE)
-				root.draw_rect(pip.grow(-1.0), DIM if have else AMBER, false, 1.0)
-			var col := AMBER if up else (DIM if have else (INK if can else (DIM if built else FAINT)))
-			_words(silk, Vector2(rr.position.x + 17.0, rr.position.y + 11.0), Perks.name_of(id).to_upper(), 8, Color(col, a))
+			# Yours and awake: amber. Yours and asleep in this world: dim. Yours to learn now: pale, with an amber
+			# corner. Not open yet: faint. Not built yet: fainter still.
+			var col := AMBER if up else (DIM if have else (INK if can else FAINT))
+			var a := 1.0 if (have or can or built) else 0.45
+			root.draw_rect(rr, Color("#232238") if (have or can) else PLATE)
+			root.draw_rect(rr, Color(col, a), false, 1.0)
+			var n := order.find(id)
+			if icons != null and n >= 0:
+				root.draw_texture_rect_region(icons, Rect2(rr.position + Vector2(2, 2), Vector2(16, 16)), Rect2(float(n % 8) * 16.0, float(n / 8) * 16.0, 16, 16), Color(col, a))
+			if can and not have:
+				root.draw_rect(Rect2(rr.end.x - 4.0, rr.position.y + 1.0, 3, 3), AMBER)
+			if on:
+				var f := rr.grow(2.0)
+				root.draw_rect(f, AMBER, false, 1.0)
+				var arrow := Art.texture("swing/ui/cursor.png")
+				if arrow != null:
+					root.draw_texture(arrow, Vector2(f.position.x - float(arrow.get_width()) - 2.0 + (1.0 if fmod(t, 0.8) < 0.4 else 0.0), rr.position.y + 6.0))
 
 	# The perk the cursor is on, in words.
 	if not Art.draw_nine(root, "swing/ui/well.png", INFO, 3):
@@ -738,6 +771,40 @@ func _draw_trees(silk: Font, pix: Font) -> void:
 	var lines := lines_of(pix, Perks.text_of(on_id), Art.TEXT_SIZE, INFO.size.x - 20.0)
 	for n in mini(lines.size(), 5):
 		_words(pix, Vector2(ix, iy + 30.0 + 12.0 * float(n)), str(lines[n]), Art.TEXT_SIZE, INK)
+
+
+## Where perk k of tree column c is drawn (version 56): the signature on top, three rows of two, the capstone.
+func node_rect(c: int, k: int) -> Rect2:
+	var mid := TREE_X + float(c) * TREE_STEP + TREE_W * 0.5
+	var r: int = Perks.ROWS[k]
+	var cx := mid
+	if r > 0 and r < Perks.CAPSTONE:
+		cx = mid - PAIR if (k - 1) % 2 == 0 else mid + PAIR
+	return Rect2(roundf(cx - NODE * 0.5), ROW_Y[r], NODE, NODE)
+
+
+## The lines from row r (the squares `from`) down to the next row: a short line out of each square, a bar across,
+## and a short line into each square below. Lit amber when the row below is open to you, faint while it is not.
+func _draw_link(r: int, mid: float, from: Array, mine: Array, tree_id: String, open: bool) -> void:
+	var lit := Color(AMBER, 0.85)
+	var dark := Color(FAINT, 0.8)
+	var top: float = ROW_Y[r] + NODE
+	var bottom: float = ROW_Y[r + 1]
+	var bar := roundf((top + bottom) * 0.5)
+	var to := [mid] if r + 1 == Perks.CAPSTONE else [mid - PAIR, mid + PAIR]
+	var xs: Array = []
+	for k in from:
+		var x := roundf(mid if r == 0 else (mid - PAIR if (int(k) - 1) % 2 == 0 else mid + PAIR))
+		xs.append(x)
+		root.draw_rect(Rect2(x - 1.0, top, 2.0, bar - top), lit if str(Perks.TREE[tree_id][k]) in mine else dark)
+	for x in to:
+		xs.append(roundf(x))
+	var lo: float = xs.min()
+	var hi: float = xs.max()
+	if hi > lo:
+		root.draw_rect(Rect2(lo - 1.0, bar - 1.0, hi - lo + 2.0, 2.0), lit if open else dark)
+	for x in to:
+		root.draw_rect(Rect2(roundf(x) - 1.0, bar, 2.0, bottom - bar), lit if open else dark)
 
 
 ## "Forget your perks?", over everything else.

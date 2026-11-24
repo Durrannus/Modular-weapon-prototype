@@ -58,6 +58,7 @@ const Levels := preload("res://scripts/highlands/levels.gd")
 const Gear := preload("res://scripts/highlands/gear.gd")
 const PackScreen := preload("res://scripts/ui/pack_screen.gd")
 const Folk := preload("res://scripts/highlands/folk.gd")
+const Charts := preload("res://scripts/highlands/charts.gd")
 const FolkPlan := preload("res://scripts/highlands/folk_plan.gd")
 const Crown := preload("res://scripts/highlands/crown.gd")
 const CrownPlan := preload("res://scripts/highlands/crown_plan.gd")
@@ -88,6 +89,7 @@ var hall                        # the forge's screen: give your Memory, the role
 var gear                        # the Accessory Satchel and what is worn in it (gear.gd); null online
 var packs                       # the inventory's screen (scripts/ui/pack_screen.gd); null online
 var folk                        # Pip, his cage, the quests and the waystone (folk.gd); null online
+var charts                      # the small map in the corner and the whole map on M (charts.gd); null online
 var folk_plan := {}             # where they stand on this land (folk_plan.gd)
 var crown                       # Rattlecrown's fight, the Scrapyard gate and the Rusted Warhorn (crown.gd); null online
 var crown_plan := {}            # where his Throne Room, the way to it and the gate are on this land (crown_plan.gd)
@@ -114,6 +116,7 @@ var _saved_at := {}             # a save's name -> when
 
 
 func _ready() -> void:
+	_rules()
 	randomize()
 	if not Net.online():
 		Sim.shuffle()
@@ -260,6 +263,19 @@ func _ready() -> void:
 	# a second on a land this big).
 	if not foes.nav.labels_ok:
 		foes.nav.labels()
+	# The map: the small one in the corner, the whole one on M (version 56). (Online, on hold, has none yet.)
+	if not Net.online():
+		charts = Charts.new()
+		charts.game = self
+		charts.map = map
+		charts.players = players
+		charts.rig = rig
+		charts.can_swap = can_swap
+		if not world_save.is_empty() and not new_world and not relaid:
+			charts.set_world_data(world_save)
+		add_child(charts)
+		if folk != null:
+			folk.chart = charts
 	rig.set_limits(Rect2(Vector2(map.region.position) * TILE, Vector2(map.region.size) * TILE), 0.0)
 	rig.snap()
 	land.prime()
@@ -337,7 +353,30 @@ func welcome_text() -> String:
 
 ## Leaving, whichever way (back to the title, or the game closing): everything is saved. And the players' controls
 ## go on to other places (back down to the cave): there, F and the left trigger are not tools.
+## Version 56, after Darren's first long play (24 November): "player is far too big, bigger than the walls atm",
+## "damage is also too high across the board and character speed seems quite fast so kiting is easy". Claude's
+## reading and numbers: the player drawn three quarters the size (their swing reaches as much less, their body
+## takes up as much less room), walking three quarters as fast (a hound running at you now catches you), and
+## every blow doing 70% of what it did, the squad's and the enemies' alike (traps and falls too), so fights last
+## longer both ways. Here only: the cave and the arena keep what they had.
+static var PLAYER_SIZE := 0.75
+static var PLAYER_PACE := 0.75
+static var DAMAGE_DEALT := 0.7
+static var DAMAGE_TAKEN := 0.7
+
+
+func _rules() -> void:
+	PlayerScript.SIZE = PLAYER_SIZE
+	PlayerScript.PACE = PLAYER_PACE
+	PlayerScript.HURT_SHARE = DAMAGE_TAKEN
+	SwingBuild.DAMAGE_SHARE = DAMAGE_DEALT
+
+
 func _exit_tree() -> void:
+	PlayerScript.SIZE = 1.0
+	PlayerScript.PACE = 1.0
+	PlayerScript.HURT_SHARE = 1.0
+	SwingBuild.DAMAGE_SHARE = 1.0
 	save_now(true, false)
 	for p in players:
 		if is_instance_valid(p) and p.input != null:
@@ -431,6 +470,8 @@ func _world_now() -> Dictionary:
 		world_save.merge(folk.world_data(), true)
 	if crown != null:
 		world_save.merge(crown.world_data(), true)
+	if charts != null:
+		world_save.merge(charts.world_data(), true)
 	world_save["game"] = Version.NUMBER
 	return world_save
 
@@ -591,6 +632,10 @@ func _packs_closed(_i: int) -> void:
 
 ## Numbers were changed in the lab: what the accessories do and how big everything is follow at once.
 func lab_changed() -> void:
+	_rules()           # (the Highlands' own: the player's size and pace, and how hard every blow lands)
+	for p in players:
+		if is_instance_valid(p):
+			p.resized()
 	super.lab_changed()
 	if gear != null:
 		for i in players.size():
@@ -656,6 +701,9 @@ func _physics_process(delta: float) -> void:
 	was_busy = busy
 	if packs != null:
 		packs.allowed = not busy and not (folk != null and folk.travelling()) and not hall.is_open and not build_menu.is_open
+	if charts != null:
+		charts.allowed = not busy and not (folk != null and folk.travelling()) and not hall.is_open and not build_menu.is_open
+		charts.tick(delta)
 	tools.tick(delta, busy)
 	foes.tick(delta)
 	loot.tick(delta)

@@ -27,6 +27,7 @@ const SavePick := preload("res://scripts/ui/save_pick.gd")
 const Make := preload("res://scripts/foes/make.gd")
 const Save := preload("res://scripts/save.gd")
 const Sim := preload("res://scripts/sim.gd")
+const PlayerScript := preload("res://scripts/player.gd")     # (since version 56 the Highlands soften every blow by HURT_SHARE)
 const Art := preload("res://scripts/art.gd")
 const Lab := preload("res://scripts/lab.gd")
 const TILE := 32.0
@@ -574,7 +575,7 @@ func _effects() -> void:
 	var was: float = p.hp
 	p.take_damage(5.0)
 	await _frames(60)
-	_check(is_equal_approx(p.hp, was - 5.0), "a hit puts it out again")
+	_check(is_equal_approx(p.hp, was - 5.0 * PlayerScript.HURT_SHARE), "a hit puts it out again")
 	p.invuln = 0.0
 	gear.kits[0].calm = 10.0
 	gear.dealt(p)
@@ -606,12 +607,12 @@ func _effects() -> void:
 	p.hp = p.max_hp
 	p.invuln = 0.0
 	p.take_damage(20.0)
-	_check(is_equal_approx(p.hp, p.max_hp - 20.0), "(no Banner Pin: a hit of 20 is 20)")
+	_check(is_equal_approx(p.hp, p.max_hp - 20.0 * PlayerScript.HURT_SHARE), "(no Banner Pin: a hit of 20 is 20, softened as every blow in the Highlands)")
 	_check(_wear(g, 0, "banner_pin"), "(the Pin on)")
 	p.hp = p.max_hp
 	p.invuln = 0.0
 	p.take_damage(20.0)
-	_check(is_equal_approx(p.hp, p.max_hp - 20.0 * (1.0 - float(Accessories.PIN_SOFTEN))), "Banner Pin: you take 5%% less (%.1f)" % (p.max_hp - p.hp))
+	_check(is_equal_approx(p.hp, p.max_hp - 20.0 * PlayerScript.HURT_SHARE * (1.0 - float(Accessories.PIN_SOFTEN))), "Banner Pin: you take 5%% less (%.1f)" % (p.max_hp - p.hp))
 	_strip(g, 0)
 	# Iron Bracer.
 	p.hp = p.max_hp
@@ -691,18 +692,18 @@ func _two_effects() -> void:
 	a.hp = a.max_hp
 	a.invuln = 0.0
 	a.take_damage(20.0)
-	_check(is_equal_approx(a.hp, a.max_hp - 19.0), "Banner Pin: a teammate near the wearer takes 5% less too")
+	_check(is_equal_approx(a.hp, a.max_hp - 19.0 * PlayerScript.HURT_SHARE), "Banner Pin: a teammate near the wearer takes 5% less too")
 	_put(g, a, b.global_position + Vector2(float(Accessories.PIN_REACH) + 30.0, 0))
 	a.hp = a.max_hp
 	a.invuln = 0.0
 	a.take_damage(20.0)
-	_check(is_equal_approx(a.hp, a.max_hp - 20.0), "one farther off does not")
+	_check(is_equal_approx(a.hp, a.max_hp - 20.0 * PlayerScript.HURT_SHARE), "one farther off does not")
 	_check(_wear(g, 0, "banner_pin"), "(both wear one)")
 	_put(g, a, b.global_position + Vector2(40, 0))
 	a.hp = a.max_hp
 	a.invuln = 0.0
 	a.take_damage(20.0)
-	_check(is_equal_approx(a.hp, a.max_hp - 19.0), "two pins do no more than one")
+	_check(is_equal_approx(a.hp, a.max_hp - 19.0 * PlayerScript.HURT_SHARE), "two pins do no more than one")
 	# What one wears is theirs alone.
 	_check(_wear(g, 0, "tinkers_thimble") and gear.dodge_speed(a) > 1.0 and gear.dodge_speed(b) == 1.0, "what one player wears does nothing for the other")
 	_check(_wear(g, 1, "field_rations") and b.max_hp > a.max_hp, "(nor does their health)")

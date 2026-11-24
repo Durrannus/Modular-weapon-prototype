@@ -1939,6 +1939,10 @@ static func abilities(effects: Array) -> Array:
 ## same things ("blade" is its head, "pommel" its butt); a bow and a staff also
 ## give "arrows" (the arrows or the crystal), "range" and "flight", a hammer its
 ## "impact" and a staff its spell "size".
+## Version 56: every weapon's damage, as a share (Darren, 24 November: "damage is also too high across the board").
+## The Highlands set it while they are open and put it back after; the cave and the arena keep 1.
+static var DAMAGE_SHARE := 1.0
+
 func compute() -> Dictionary:
 	var kind := weapon()
 	var b: Dictionary
@@ -1971,7 +1975,7 @@ func compute() -> Dictionary:
 		"abilities": abilities(r["effects"]),
 		"slot_info": r["slots"],
 		"steps": steps,
-		"damage": float(b["damage"]),
+		"damage": float(b["damage"]) * DAMAGE_SHARE,
 		"pommel": pommel,
 		"speed": float(b["speed"]) * (1.0 + float(butt.get("speed", 0.0))),
 		"reach": float(b["reach"]),

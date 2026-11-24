@@ -31,6 +31,7 @@ const Enemy := preload("res://scripts/enemy.gd")
 const Save := preload("res://scripts/save.gd")
 const Sim := preload("res://scripts/sim.gd")
 const SavePick := preload("res://scripts/ui/save_pick.gd")
+const PlayerScript := preload("res://scripts/player.gd")     # since version 56 the Highlands soften every blow by HURT_SHARE
 const TILE := 32.0
 const ROOT := "user://test_levels_saves"
 
@@ -456,12 +457,12 @@ func _challenge() -> void:
 	_still(b)
 	a.take_damage(20.0, Vector2.INF, e)
 	b.take_damage(20.0, Vector2.INF, e)
-	_check(is_equal_approx(a.max_hp - a.hp, 15.0) and is_equal_approx(b.max_hp - b.hp, 20.0), "its hits on the challenger do a quarter less (15), on anybody else what they did (20)")
+	_check(is_equal_approx(a.max_hp - a.hp, 15.0 * PlayerScript.HURT_SHARE) and is_equal_approx(b.max_hp - b.hp, 20.0 * PlayerScript.HURT_SHARE), "its hits on the challenger do a quarter less (15), on anybody else what they did (20)")
 	var other = _foe(g, "hound", b.global_position + Vector2(300, 0))
 	other.stun_time = 99.0
 	_still(a)
 	a.take_damage(20.0, Vector2.INF, other)
-	_check(is_equal_approx(a.max_hp - a.hp, 20.0), "an enemy that is not Challenged does the Warden what it always did")
+	_check(is_equal_approx(a.max_hp - a.hp, 20.0 * PlayerScript.HURT_SHARE), "an enemy that is not Challenged does the Warden what it always did")
 	a.unhurt = true
 	b.unhurt = true
 	# It wears off.
@@ -471,7 +472,7 @@ func _challenge() -> void:
 	_still(a)
 	a.unhurt = false
 	a.take_damage(20.0, Vector2.INF, e)
-	_check(is_equal_approx(a.max_hp - a.hp, 20.0), "and hits as hard as ever")
+	_check(is_equal_approx(a.max_hp - a.hp, 20.0 * PlayerScript.HURT_SHARE), "and hits as hard as ever")
 	a.unhurt = true
 	# A fallen challenger is no target.
 	e.challenge(a, 5.0)
@@ -1185,7 +1186,7 @@ func _warden() -> void:
 	_check(is_equal_approx(p.hp, p.max_hp * (1.0 - Levels.TEMPERED_MOST)), "Tempered: a hit of nine tenths of your health takes a third (%.0f left of %.0f)" % [p.hp, p.max_hp])
 	_still(p)
 	p.take_damage(5.0, from)
-	_check(is_equal_approx(p.hp, p.max_hp - 5.0), "a small hit is as ever")
+	_check(is_equal_approx(p.hp, p.max_hp - 5.0 * PlayerScript.HURT_SHARE), "a small hit is as ever")
 
 	# Plate: soaks the next hit whole, and grows back 8 s after it breaks.
 	lv.perks[0] = ["challenge", "plate"]
@@ -1196,7 +1197,7 @@ func _warden() -> void:
 	_check(p.hp == p.max_hp and not lv.plate_up(0) and is_equal_approx(lv.plate_wait[0], Levels.PLATE_BACK), "it soaks the next hit whole and breaks")
 	p.invuln = 0.0
 	p.take_damage(30.0, from)
-	_check(is_equal_approx(p.hp, p.max_hp - 30.0), "the hit after that lands")
+	_check(is_equal_approx(p.hp, p.max_hp - 30.0 * PlayerScript.HURT_SHARE), "the hit after that lands")
 	lv.plate_wait[0] = 0.1
 	await _frames(10)
 	_check(lv.plate_up(0), "%.0f s after it broke it is back" % Levels.PLATE_BACK)
@@ -1224,7 +1225,7 @@ func _warden() -> void:
 	lv.payback[0] = 0.0
 	_still(p)
 	p.take_damage(20.0, from)
-	_check(is_equal_approx(lv.payback[0], 20.0), "Payback: a hit fills the meter by what it took")
+	_check(is_equal_approx(lv.payback[0], 20.0 * PlayerScript.HURT_SHARE), "Payback: a hit fills the meter by what it took")
 	var e = _foe(g, "hound", p.global_position + Vector2(60, 0))
 	var near = _foe(g, "hound", p.global_position + Vector2(60, 30))
 	var far = _foe(g, "hound", p.global_position + Vector2(60, 140))
@@ -1233,7 +1234,7 @@ func _warden() -> void:
 		x.knock_resist = 0.0
 	await _frames(2)
 	lv.finisher(p, [e])
-	_check(is_equal_approx(99999.0 - e.hp, 20.0) and is_equal_approx(99999.0 - near.hp, 20.0) and far.hp == 99999.0, "the finisher spends it as a burst: on what it hit and what stands near, not farther off")
+	_check(is_equal_approx(99999.0 - e.hp, 20.0 * PlayerScript.HURT_SHARE) and is_equal_approx(99999.0 - near.hp, 20.0 * PlayerScript.HURT_SHARE) and far.hp == 99999.0, "the finisher spends it as a burst: on what it hit and what stands near, not farther off")
 	_check(lv.payback[0] == 0.0, "all of it")
 	e.hp = 99999.0
 	lv.finisher(p, [e])
@@ -1327,17 +1328,17 @@ func _warden_coop() -> void:
 	_still(t)
 	_check(lv.shows_ring(0) and not lv.shows_ring(1), "in co-op the Warden's ring shows")
 	t.take_damage(30.0, from)
-	_check(is_equal_approx(t.hp, t.max_hp - 20.0) and is_equal_approx(w.hp, w.max_hp - 10.0), "Bodyguard: a teammate in your ring takes a third less, and that third lands on you (%.0f, %.0f)" % [t.max_hp - t.hp, w.max_hp - w.hp])
+	_check(is_equal_approx(t.hp, t.max_hp - 20.0 * PlayerScript.HURT_SHARE) and is_equal_approx(w.hp, w.max_hp - 10.0 * PlayerScript.HURT_SHARE), "Bodyguard: a teammate in your ring takes a third less, and that third lands on you (%.0f, %.0f)" % [t.max_hp - t.hp, w.max_hp - w.hp])
 	_check(w.hurt_vel == Vector2.ZERO, "(it knocks the Warden nowhere)")
 	_still(w)
 	_still(t)
 	w.take_damage(30.0, w.global_position + Vector2(30, 0))
-	_check(is_equal_approx(w.hp, w.max_hp - 30.0) and t.hp == t.max_hp, "the Warden's own hits are their own")
+	_check(is_equal_approx(w.hp, w.max_hp - 30.0 * PlayerScript.HURT_SHARE) and t.hp == t.max_hp, "the Warden's own hits are their own")
 	_still(w)
 	_still(t)
 	t.global_position = home + Vector2(0, 60 + Levels.RING + 40.0)
 	t.take_damage(30.0, t.global_position + Vector2(30, 0))
-	_check(is_equal_approx(t.hp, t.max_hp - 30.0) and w.hp == w.max_hp, "outside the ring a hit is as ever")
+	_check(is_equal_approx(t.hp, t.max_hp - 30.0 * PlayerScript.HURT_SHARE) and w.hp == w.max_hp, "outside the ring a hit is as ever")
 	# Unbroken saves a teammate in the ring.
 	lv.perks[0] = ["challenge", "unbroken"]
 	lv.unbroken_wait[0] = 0.0
@@ -1590,7 +1591,7 @@ func _screens() -> void:
 	_check(hall.place == 1 and hall.perk_on() == "close_call", "down is the next perk of it")
 	hall.confirm()
 	_check((lv.perks[0] as Array).is_empty() and hall.note == "Needs Punish first.", "a perk you cannot learn yet says why (\"%s\")" % hall.note)
-	hall.move(1, 0)
+	hall.move(2, 0)
 	hall.confirm()
 	_check(hall.perk_on() == "helping_hand" and (lv.perks[0] as Array).is_empty() and hall.note.begins_with("Not built yet"), "a perk that is not built cannot be bought (\"%s\")" % hall.note)
 	hall.move(-1, 0)

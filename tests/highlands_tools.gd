@@ -310,7 +310,8 @@ func _digging() -> void:
 	p.input.move = dir
 	await _frames(20)
 	p.input.move = Vector2.ZERO
-	_check(m.is_rock(tile.x, tile.y) and p.global_position.distance_to(stood) < 6.0, "rock stops you until it is dug")
+	# (Since version 56 the player is smaller, so there is a little room before the rock.)
+	_check(m.is_rock(tile.x, tile.y) and p.global_position.distance_to(stood) < 12.0 and Vector2i((p.global_position / TILE).floor()) != tile, "rock stops you until it is dug")
 	await _stand(g, p, tile, dir)
 	# One blow marks it; it is not dug yet. While the tool swings, the tool is in the hand and you walk slowly.
 	p.input.work_held = true
