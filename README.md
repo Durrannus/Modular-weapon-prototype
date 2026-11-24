@@ -669,6 +669,7 @@ The project's review of version 49 found every Scrapyard room dressed from the s
 - **The Crane Yard** is open junk: its braziers stand in its four corners, and scrap is trodden in wide round the five piles out in the yard that its slingers throw from behind.
 - **The Furnace** is hot: a row of four braziers along the back wall, with heavy soot under them, and a big pile in each front corner.
 - **The side rooms**: a brazier at the back and a small pile in the corner across from the chest.
+- **The far-off plume** that points to the Roost (and the quest's mark at the screen's edge) no longer stands level with the tool belt and the swing path at the bottom of the screen: beside them it rises above their band (asked for by the project's review of this version).
 
 Where everything stands is `ROOM_DRESS` in `scripts/highlands/crown_plan.gd`; `tools/rattlecrown_kit/bake.py` paints each room's floor from it (`art/scrapyard/rooms_floor.png`). The checks: every room's floor is painted in, the three rooms that fight are each dressed differently, everything stands inside its room and clear of the way through, and with every brazier and pile standing the way from the gate to the Throne Room is open. All of it is Claude's choice. Worlds are not laid out again.
 
