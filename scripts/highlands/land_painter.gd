@@ -92,6 +92,10 @@ static func load_kit() -> void:
 		for file in group:
 			sheets[str(file).get_basename()] = _rgba(Art.image(KIT + str(file)))
 	sheets["things"] = _rgba(Art.image(KIT + "things.png"))
+	# The Throne Room's floor, painted into the dug floor where the map says (version 50; tools/rattlecrown_kit).
+	var floor_art: Image = Art.image(Art.ART_DIR + "scrapyard/throne_floor.png")
+	if floor_art != null:
+		sheets["throne_floor"] = _rgba(floor_art)
 	# How big each heather and scrub bush really is (its picture has room round it), for standing them apart.
 	for name in things:
 		if not (str(name).begins_with("heath_") or str(name).begins_with("scrub_")) or str(name).ends_with("~"):
@@ -305,6 +309,19 @@ static func paint(m: LandMap, cx: int, cy: int) -> Image:
 	_lay(lit, shade, "floor", K, FLOOR, x0, y0)
 	if floored != null:
 		_lay(floored, null, "floor", K, FLOOR, x0, y0)
+	# Pictures painted into the dug floor (the Throne Room's paving, sunk traps and stands, version 50), so the rock's
+	# shadow and the lamplight fall on them as on the floor itself.
+	for dj in range(-1, 2):
+		for di in range(-1, 2):
+			for d in m.floor_decals_in(cx + di, cy + dj):
+				var art: Image = sheets.get(str(d["sheet"]))
+				if art == null:
+					continue
+				var r: Array = d["rect"]
+				var r2: Array = d["shade"]
+				var dst := Vector2i(int(d["x"]) - ox, int(d["y"]) - oy)
+				lit.blend_rect(art, Rect2i(r[0], r[1], r[2], r[3]), dst)
+				shade.blend_rect(art, Rect2i(r2[0], r2[1], r2[2], r2[3]), dst)
 	# 2. Tufts in the grass. Nearly every tile has one; long grass stands in clumps in the hollows, against the rock and
 	# in patches of its own; the rises are grazed short; and flowers grow in drifts, each drift one colour.
 	var world := int(m.seed_value & 0xffff) * 31

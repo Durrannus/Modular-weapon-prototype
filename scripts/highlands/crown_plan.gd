@@ -16,9 +16,11 @@ extends RefCounted
 ##
 ##   - The rooms stand one above the other, so each is come into at the bottom and left by a door three tiles wide
 ##     in the middle of its top wall, and the throne is seen from the front as it is drawn. From the gate up: the
-##     GATEHOUSE (24 by 12 tiles), a linking room, the CRANE YARD (28 by 15), a linking room, the SHAMAN'S FURNACE
-##     (22 by 12), a linking room, and the THRONE ROOM (38 by 26, with the hoard's alcove in its back wall). Walls
-##     between them are two tiles thick. Two side rooms (10 by 5) open off two of the linking rooms, each with a
+##     GATEHOUSE (24 by 12 tiles), a linking room, the CRANE YARD (28 by 15), a short linking room (10 by 3), the
+##     SHAMAN'S FURNACE (22 by 12), a linking room, and the THRONE ROOM (38 by 26, with stands two tiles deep round its
+##     back and both sides for the goblins who watch the fight, and the hoard's alcove through the back stand into the
+##     wall behind it: version 50, after the Art builder's still of the hall, hall_final.png). Walls between them are
+##     two tiles thick. Two side rooms (10 by 5) open off two of the linking rooms, each with a
 ##     chest and a few goblins.
 ##   - The SCRAPYARD GATE is in the Gatehouse's bottom wall: the horn opens it for good. The Throne Room's own door
 ##     has a gate as well, which stands open and shuts behind the squad when the horn is blown in front of the
@@ -31,9 +33,10 @@ extends RefCounted
 ##     scrap piles (the crane and its cab wait for their art); the Furnace two Shamans and two Brutes, each Shaman
 ##     keeping one Brute warded while it lives; each side room two slingers and a Brute.
 ##   - Lights: braziers in every room, as in the Throne Room.
-##   - The Throne Room is as version 48 made it: the throne against its top wall, patches of spike traps to either
-##     side of the middle and a row of them inside its door, scrap piles round it, the hoard behind bars in an alcove
-##     right of the throne.
+##   - The Throne Room is as version 48 made it, with version 50's stands: the throne at the back, in a gap in the
+##     back stand, patches of spike traps to either side of the middle and a row of them inside its door, scrap piles
+##     round its edge, the hoard behind bars in an alcove right of the throne. The stands are cut out of the rock as
+##     floor (the planks are painted into it) and nobody of the squad or the enemies can step onto them.
 ##   - What is scrap-themed art is the Art builder's; until it lands the rooms are dug floor with the first try's
 ##     braziers and scrap piles (placeholders).
 ##
@@ -61,12 +64,19 @@ const Art := preload("res://scripts/art.gd")
 const ROOM := Vector2i(38, 26)     # the Throne Room, in tiles: wide and deep (the screen is 40 by 22 and a half)
 const HALL := 3                    # every door is this many tiles wide
 const WALL := 2                    # the rock between two rooms is this thick
-const ALCOVE := Vector2i(3, 2)     # the hoard's alcove in the back wall: wide and deep (tiles)
+const ALCOVE := Vector2i(3, 3)     # the hoard's alcove: wide, and how deep it goes into the wall behind the back stand (tiles)
+const ABOVE := 4                   # the rock above the back stand, before the alcove is cut into it (tiles)
 const ALCOVE_OUT := 11             # its middle is this many tiles to the right of the throne's
 ## The rooms from the top of the block down: [name, wide, deep]. The walls between them are WALL thick; above the
-## Throne Room are the block's top wall and the hoard's alcove (WALL + ALCOVE.y), below the Gatehouse the block's
+## Throne Room are the block's top wall and the back stand (ABOVE + STANDS; the hoard's alcove is cut into them), below the Gatehouse the block's
 ## bottom wall with the gate in it.
-const STACK := [["room", 38, 26], ["link_c", 10, 5], ["furnace", 22, 12], ["link_b", 10, 5], ["crane", 28, 15], ["link_a", 10, 5], ["gatehouse", 24, 12]]
+const STACK := [["room", 38, 26], ["link_c", 10, 5], ["furnace", 22, 12], ["link_b", 10, 3], ["crane", 28, 15], ["link_a", 10, 5], ["gatehouse", 24, 12]]
+## Version 50: the watching goblins' stands, this many tiles deep round the back and both sides of the Throne Room
+## (the room takes them from the block: link_b, which has no side room, is two tiles shorter than the others).
+const STANDS := 2
+## How many tiles below the room's top edge the front of the throne's step is: the throne stands in a gap in the back
+## stand and its back rises over the stand and the wall behind it, as in the Art builder's still of the hall.
+const THRONE_DOWN := 3
 const SIDES := [["side_a", "link_a", 1], ["side_b", "link_c", -1]]     # [name, off which linking room, which side]
 const SIDE := Vector2i(10, 5)
 const BARRED := ["gatehouse", "crane", "furnace"]                       # the rooms whose far door is barred until they are beaten
@@ -76,15 +86,17 @@ const TRAP_ROW_WIDE := 7           # (so many tiles wide)
 const HOARD_LIGHT := 30            # the chest's own pool of light (art pixels)
 const BRAZIER_LIGHT := 58          # a brazier lights the floor this far round it (art pixels)
 const CHEST_ID := 100000           # the side rooms' chests are numbered from here (the land's are numbered by their place)
-## The scrap piles round the arena: [which wall (0 the back, 1 the right, 2 the front, 3 the left), how far along it
-## (art pixels from the hall's top left corner), a large one, mirrored]. Not the same on both sides, so that it
-## does not look laid out with a ruler.
+## The scrap piles round the arena's edge, where the Art builder's still of the hall has them (version 50): [the
+## pile's picture, where its foot is (art pixels from the hall's top left corner; a negative x is from the right wall,
+## a negative y from the bottom wall), mirrored]. Two big heaps in the low corners, smaller ones along the walls.
 const HEAPS := [
-	[0, 120, true, false], [0, 188, false, true], [0, 424, true, true], [0, 540, false, false],
-	[1, 120, false, true], [1, 232, true, false], [1, 330, false, false],
-	[2, 112, true, true], [2, 200, false, false], [2, 408, false, true], [2, 480, true, false],
-	[3, 144, true, false], [3, 248, false, true], [3, 336, true, true],
+	["scrap_pile_big", Vector2(46, -3), false], ["scrap_pile_big", Vector2(-46, -3), true],
+	["scrap_pile_mid", Vector2(32, 58), false], ["scrap_pile_mid", Vector2(-32, 58), true],
+	["scrap_pile_side", Vector2(26, 344), false], ["scrap_pile_side", Vector2(-26, 344), true],
+	["scrap_pile_small", Vector2(128, -3), false], ["scrap_pile_small", Vector2(-122, -3), true],
 ]
+## The watching goblins on the stands, after the Art builder's still: [pose, a cap], taken in turn.
+const POSES := ["cheer", "lean", "fist", "drum", "lean", "cheer", "fist", "lean"]
 ## The Crane Yard's scrap piles, out in the yard for the slingers to throw from behind: [tiles from the room's top left
 ## corner (the middle of the pile's foot), a large one, mirrored].
 const YARD_HEAPS := [[Vector2(6, 5), true, false], [Vector2(21, 4), false, true], [Vector2(9, 11), false, false], [Vector2(19, 10), true, true],
@@ -99,7 +111,7 @@ static func make(map: LandMap) -> Dictionary:
 	var yard: Rect2i = site["rect"]
 	var cx: int = (site["gate"] as Vector2i).x
 	var rooms := {}
-	var y := yard.position.y + WALL + ALCOVE.y
+	var y := yard.position.y + ABOVE + STANDS
 	for row in STACK:
 		var w := int(row[1])
 		rooms[str(row[0])] = Rect2i(cx - w / 2, y, w, int(row[2]))
@@ -123,7 +135,13 @@ static func make(map: LandMap) -> Dictionary:
 		var link: Rect2i = rooms[str(row[1])]
 		var x := link.end.x if int(row[2]) > 0 else link.position.x - WALL
 		cut.append(Rect2i(x, link.position.y + 1, WALL, HALL))
-	var alcove := Rect2i(room.position.x + ROOM.x / 2 + ALCOVE_OUT - ALCOVE.x / 2, room.position.y - ALCOVE.y, ALCOVE.x, ALCOVE.y)
+	# The stands round the back and both sides of the Throne Room (cut as floor, for the planks; nobody steps on them),
+	# and the hoard's alcove: through the back stand and into the wall behind it.
+	var lay := throne_layout()
+	for r: Rect2i in lay["stands"]:
+		cut.append(Rect2i(room.position + r.position, r.size))
+	var al: Rect2i = lay["alcove"]
+	var alcove := Rect2i(room.position + al.position, al.size)
 	cut.append(alcove)
 	var gate := Vector2i(cx, gatehouse.end.y)
 	var door := Vector2i(cx, room.end.y)
@@ -227,64 +245,131 @@ static func chests(map: LandMap, rooms: Dictionary) -> Array:
 	return out
 
 
-## The Throne Room itself, as version 48 made it.
+## The Throne Room itself: version 48's room with version 50's stands (positions from throne_layout, which is in the
+## room's own tiles and art pixels).
 static func _throne_room(room: Rect2i, door: Vector2i, alcove: Rect2i) -> Dictionary:
-	var lamps: Array = []
-	var down := throne_down()
-	var throne := Vector2((room.position.x + ROOM.x / 2) * 16, (room.position.y + down) * 16)
-	# Four standing braziers, two beside the throne and two lower down: [name, where its foot is (art pixels), how
-	# wide and how deep it is solid, mirrored].
+	var lay := throne_layout()
 	var corner := Vector2(room.position) * 16.0
-	var out := throne_size().x * 0.5 + 12.0
-	var dress: Array = [
-		["brazier", throne + Vector2(-out, -2), Vector2(10, 4), false],
-		["brazier", throne + Vector2(out, -2), Vector2(10, 4), true],
-		["brazier", corner + Vector2((ROOM.x / 2 - 7) * 16, 17 * 16 + 8), Vector2(10, 4), false],
-		["brazier", corner + Vector2((ROOM.x / 2 + 7) * 16, 17 * 16 + 8), Vector2(10, 4), true],
-	]
-	# The scrap piles, each against its wall. One against the back wall is solid all the way to the wall (it hides
-	# whatever is behind it); the others are solid as wide and as deep as their foot.
-	for h in HEAPS:
-		var its := heap(bool(h[2]))
-		var along := float(h[1])
-		var solid: Vector2 = its["solid"]
-		var foot := Vector2(float(its["wide"]) * 0.5 + 2.0, along)
-		match int(h[0]):
-			0:
-				foot = Vector2(along, float(its["tall"]))
-				solid = Vector2(solid.x, float(its["tall"]))
-			1:
-				foot = Vector2(float(ROOM.x) * 16.0 - float(its["wide"]) * 0.5 - 2.0, along)
-			2:
-				foot = Vector2(along, float(ROOM.y) * 16.0 - 2.0)
-		dress.append([its["name"], corner + foot, solid, bool(h[3])])
-	# The spike traps: a tile each.
+	var throne: Vector2 = corner + (lay["throne"] as Vector2)
+	var dress: Array = []
+	for d in lay["dress"]:
+		dress.append([d[0], corner + (d[1] as Vector2), d[2], d[3]])
 	var traps: Array = []
-	for r: Rect2i in TRAPS:
-		for ty in range(r.position.y, r.end.y):
-			for tx in range(r.position.x, r.end.x):
-				traps.append(room.position + Vector2i(tx, ty))
-	var trap_row := Vector2i(door.x, room.end.y - TRAP_ROW)
-	for dx in range(-(TRAP_ROW_WIDE / 2), TRAP_ROW_WIDE / 2 + 1):
-		traps.append(trap_row + Vector2i(dx, 0))
-	# His hoard: the chest in the middle of the alcove, bars across its mouth.
-	var mouth := Vector2((float(alcove.position.x) + float(ALCOVE.x) * 0.5) * 16.0, float(room.position.y) * 16.0)
+	for t: Vector2i in lay["traps"]:
+		traps.append(room.position + t)
+	var trap_row: Vector2i = room.position + (lay["trap_row"] as Vector2i)
+	var stands: Array = []
+	for r: Rect2i in lay["stands"]:
+		stands.append(Rect2i(room.position + r.position, r.size))
+	var scenery: Array = []
+	for d in lay["scenery"]:
+		scenery.append([d[0], corner + (d[1] as Vector2), d[2], d[3], d[4]])
+	var spots: Array = []
+	for t: Vector2i in lay["spots"]:
+		spots.append(room.position + t)
+	var mouth: Vector2 = corner + (lay["hoard_bars"] as Vector2)
 	return {
 		"room": room, "door": door,
 		"throne": throne, "throne_solid": throne_size(),
 		"blow": throne + Vector2(0, BLOW_DOWN * 16),
-		"spots": [room.position + Vector2i(ROOM.x / 2, down + 3), room.position + Vector2i(7, 17), room.position + Vector2i(ROOM.x - 8, down + 1)],
-		"dress": dress, "traps": traps, "trap_row": trap_row, "alcove": alcove, "hoard": mouth + Vector2(0, -12), "hoard_bars": mouth,
-		"lamps": lamps,
+		"spots": spots, "dress": dress, "traps": traps, "trap_row": trap_row, "alcove": alcove,
+		"hoard": corner + (lay["hoard"] as Vector2), "hoard_bars": mouth,
+		"stands": stands, "scenery": scenery, "lamps": [],
 	}
 
 
-## How many tiles below the top wall the front of the throne's step is: as far as the throne's picture is tall, so
-## that its back stands against the wall whichever throne the art has.
+## Where everything in the Throne Room is, in the room's own tiles (Vector2i, Rect2i: from its top left tile) and art
+## pixels (Vector2: from its top left corner). The game and tools/rattlecrown_kit (which paints the room's floor and
+## draws the stands to fit) both read it:
+##   throne: the middle of the front of its step; dress: [[name, foot, solid, mirrored]] (the braziers and the scrap
+##   piles, each solid); traps: [Vector2i]; trap_row: Vector2i (the middle of the row inside the door); stands:
+##   [Rect2i] (the back stand left and right of the alcove, the left one, the right one); alcove: Rect2i; hoard: the chest's foot; hoard_bars: the middle of the alcove's
+##   mouth; scenery: [[name, foot, mirrored, how far above its foot it sorts (art pixels), z]] (the stands' fronts and
+##   rails and the watching goblins, not solid: the stands are); spots: [Vector2i] (where the three elites come in);
+##   paving: [Rect2i] (the flagstones: before the throne, down the middle, through the door, in the alcove); heaps:
+##   [[name, foot]] (for the debris round each pile); braziers: [Vector2] (for the soot under each).
+static func throne_layout() -> Dictionary:
+	var W := float(ROOM.x) * 16.0
+	var H := float(ROOM.y) * 16.0
+	var mid := ROOM.x / 2                                    # the middle column (the throne's and the door's)
+	var throne := Vector2(float(mid) * 16.0 + 8.0, float(THRONE_DOWN) * 16.0)
+	# Two standing braziers beside the throne, two lower down.
+	var out := throne_size().x * 0.5 + 40.0
+	var braziers: Array = [throne + Vector2(-out, 10), throne + Vector2(out, 10),
+		Vector2(float(mid - 7) * 16.0, 17.0 * 16.0 + 8.0), Vector2(float(mid + 7) * 16.0, 17.0 * 16.0 + 8.0)]
+	var dress: Array = []
+	for k in braziers.size():
+		dress.append(["brazier", braziers[k], Vector2(10, 4), k % 2 == 1])
+	var heaps: Array = []
+	for h in HEAPS:
+		var at: Vector2 = h[1]
+		var foot := Vector2(W + at.x if at.x < 0.0 else at.x, H + at.y if at.y < 0.0 else at.y)
+		dress.append([h[0], foot, heap_named(str(h[0]))["solid"], bool(h[2])])
+		heaps.append([h[0], foot])
+	var traps: Array = []
+	for r: Rect2i in TRAPS:
+		for ty in range(r.position.y, r.end.y):
+			for tx in range(r.position.x, r.end.x):
+				traps.append(Vector2i(tx, ty))
+	var trap_row := Vector2i(mid, ROOM.y - TRAP_ROW)
+	for dx in range(-(TRAP_ROW_WIDE / 2), TRAP_ROW_WIDE / 2 + 1):
+		traps.append(trap_row + Vector2i(dx, 0))
+	var ax := mid + ALCOVE_OUT                               # the alcove's middle column
+	var alcove := Rect2i(ax - ALCOVE.x / 2, -STANDS - ALCOVE.y, ALCOVE.x, ALCOVE.y + STANDS)
+	# The back stand stops either side of the alcove (the way to the hoard), and runs on behind the throne.
+	var stands: Array = [Rect2i(-STANDS, -STANDS, alcove.position.x + STANDS, STANDS), Rect2i(alcove.end.x, -STANDS, ROOM.x + STANDS - alcove.end.x, STANDS),
+		Rect2i(-STANDS, 0, STANDS, ROOM.y), Rect2i(ROOM.x, 0, STANDS, ROOM.y)]
+	var mouth := Vector2(float(ax) * 16.0 + 8.0, 0.0)
+	# The back stand's timber front runs along the room's top edge in three runs: left of the throne, between the
+	# throne and the hoard, right of the hoard. Its foot is 14 pixels into the room, but it sorts at the edge, so that
+	# whoever stands in the room's top row is in front of it. The rails run down both sides, under everyone.
+	var scenery: Array = []
+	var runs: Array = [[0, mid - 5], [mid + 5, alcove.position.x - 1], [alcove.end.x, ROOM.x - 1]]
+	for k in runs.size():
+		scenery.append(["stand_front_%d" % k, Vector2(float(runs[k][0]) * 16.0, 14.0), false, 14.0, 0])
+	scenery.append(["stand_rail", Vector2(0.0, H), false, H, -1])
+	scenery.append(["stand_rail", Vector2(W - 1.0, H), true, H, -1])
+	# The crowd, where the Art builder's still has it: a row along the back stand's fence, a few behind them, and a
+	# line down each side.
+	var back: Array = []
+	var x := 30.0
+	while x < float(mid - 5) * 16.0:
+		back.append(Vector2(x, -19.0))
+		x += 68.0
+	back.append(Vector2(float(alcove.end.x) * 16.0 + 34.0, -19.0))
+	var front: Array = []
+	x = 12.0
+	while x < float(mid - 4) * 16.0 - 8.0:
+		front.append(Vector2(x, -3.0))
+		x += 34.0
+	for fx in [float(mid + 5) * 16.0 + 14.0, float(mid + 5) * 16.0 + 48.0, float(alcove.end.x) * 16.0 + 16.0, float(alcove.end.x) * 16.0 + 50.0]:
+		front.append(Vector2(fx, -3.0))
+	var sides: Array = []
+	var y := 34.0
+	while y < H:
+		sides.append(Vector2(-15.0, y))
+		y += 46.0
+	y = 52.0
+	while y < H:
+		sides.append(Vector2(W + 15.0, y))
+		y += 46.0
+	var i := 0
+	for at: Vector2 in back + front + sides:
+		var name := "goblin_%s%s" % [POSES[(i * 3 + 1) % POSES.size()], "_cap" if i % 4 == 1 else ""]
+		scenery.append([name, at, at.x > W, 0.0, -1 if at.y < 0.0 else 0])
+		i += 1
+	return {
+		"room": ROOM, "stands_deep": STANDS, "throne": throne, "dress": dress, "traps": traps, "trap_row": trap_row,
+		"stands": stands, "alcove": alcove, "hoard": mouth + Vector2(0, -44), "hoard_bars": mouth, "scenery": scenery,
+		"spots": [Vector2i(mid, THRONE_DOWN + 3), Vector2i(7, 17), Vector2i(ROOM.x - 8, THRONE_DOWN + 1)],
+		"paving": [Rect2i(mid - 6, 1, 13, 5), Rect2i(mid - 2, 6, 5, ROOM.y - 6), Rect2i(mid - 1, ROOM.y, 3, WALL), alcove],
+		"heaps": heaps, "braziers": braziers, "door": mid,
+	}
+
+
+## Kept for the tests and older callers: how many tiles below the top edge the front of the throne's step is.
 static func throne_down() -> int:
-	var his: Dictionary = Art.json("foes/rattlecrown.json").get("enemies", {}).get("throne", {})
-	var o: Array = his.get("origin_feet", [52, 88])
-	return clampi(ceili(float(o[1]) / 16.0), 5, ROOM.y - 14)
+	return THRONE_DOWN
 
 
 ## How wide and how deep the throne (and its wreck) is solid, in art pixels: the art's own word for it ("solid"),
@@ -300,8 +385,12 @@ static func throne_size() -> Vector2:
 ## A scrap pile: its picture's name, how wide and tall the picture is and how much of its foot is solid, read from
 ## the Scrapyard's sheet so that a redrawn pile of another size still stands against its wall.
 static func heap(large: bool) -> Dictionary:
-	var name := "scrap_heap_large" if large else "scrap_heap_small"
+	return heap_named("scrap_heap_large" if large else "scrap_heap_small")
+
+
+static func heap_named(name: String) -> Dictionary:
 	var info: Dictionary = Art.json("scrapyard/scrapyard.json").get("sprites", {}).get(name, {})
+	var large := name != "scrap_heap_small" and name != "scrap_pile_small"
 	var frame: Array = info.get("frame", [48, 30] if large else [32, 20])
 	var solid: Array = info.get("solid", [40, 8] if large else [22, 6])
 	return {"name": name, "wide": float(frame[0]), "tall": float(frame[1]), "solid": Vector2(float(solid[0]), float(solid[1]))}
@@ -335,6 +424,13 @@ static func stamp(map: LandMap, plan: Dictionary) -> int:
 			if LandMap.rocky(map.kind(x, y)):
 				map.set_kind(x, y, LandMap.YARD if x == way.position.x + way.size.x / 2 else LandMap.GRASS)
 				cut += 1
+	# The Throne Room's floor (version 50): the paving, the sunk slabs of the spike traps, the soot under the braziers,
+	# the scrap trodden in round the piles and the stands' planks, painted into the dug floor (tools/rattlecrown_kit).
+	var room: Rect2i = plan["room"]
+	for piece in Art.json("scrapyard/throne_floor.json").get("pieces", []):
+		var at: Array = piece["at"]
+		map.stamp_floor_decal({"sheet": "throne_floor", "rect": piece["rect"], "shade": piece["shade"],
+			"x": room.position.x * 16 + int(at[0]), "y": room.position.y * 16 + int(at[1])})
 	map.stamp_lamp({"x": int((plan["hoard"] as Vector2).x), "y": int((plan["hoard"] as Vector2).y) - 4, "r": HOARD_LIGHT})
 	for at in plan["lamps"]:
 		map.stamp_lamp({"x": at.x * 16 + 8, "y": at.y * 16 + 6, "r": 46})

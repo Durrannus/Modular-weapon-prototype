@@ -28,6 +28,7 @@ var tones := PackedByteArray()   # 0 = a hollow (darker, long grass), 1 = plain,
 var things: Array = []           # what stands on the land: [{n: name in the kit, x, y: its foot in art pixels, f: flipped}]
 var plants: Array = []           # the heather and scrub bushes, each one its own plant that never overlaps another: [{n, x, y}] (foot, art pixels)
 var decals: Array = []           # flat pieces painted into the ground (scraps of the keepers' road): [{n, x, y}]
+var floor_decals: Array = []     # pictures painted into dug floor (the Throne Room's paving, version 50): [{sheet, rect, shade, x, y}] (x, y: the top left, art pixels; no wider or deeper than a chunk)
 var lamps: Array = []            # lantern light on dug floor: [{x, y, r}] in art pixels
 var animals: Array = []          # [{kind, x, y, f}]
 var pockets: Array = []          # the open places: [{at: Vector2 (tiles), rx, ry, sealed, gate, site, glen}]
@@ -76,6 +77,7 @@ var keeps: Array = []
 
 var _things_by_chunk := {}
 var _decals_by_chunk := {}
+var _floor_decals_by_chunk := {}
 var _plants_by_chunk := {}
 var _lamps_by_chunk := {}
 var _lumps: Array = []           # every cluster of ore tiles, tin before copper, each in reading order: {kind, cells, v: its entry in `veins` (null until worked out, or if it has no seam), done}
@@ -188,6 +190,15 @@ func stamp_lamp(l: Dictionary) -> void:
 	(_lamps_by_chunk[key] as Array).append(l)
 
 
+## A picture painted into dug floor, put there the same way (CrownPlan.stamp).
+func stamp_floor_decal(d: Dictionary) -> void:
+	floor_decals.append(d)
+	var key := chunk_key(int(d["x"]) / (CHUNK * TILE_PX), int(d["y"]) / (CHUNK * TILE_PX))
+	if not _floor_decals_by_chunk.has(key):
+		_floor_decals_by_chunk[key] = []
+	(_floor_decals_by_chunk[key] as Array).append(d)
+
+
 ## What has changed on this land since it was made, as plain values for the world save: the tiles that were dug or
 ## mined, the things that were taken away and the things that were put there. Always in the same order, so the same
 ## land gives the same save.
@@ -271,9 +282,10 @@ static func chunk_key(cx: int, cy: int) -> int:
 func index() -> void:
 	_things_by_chunk.clear()
 	_decals_by_chunk.clear()
+	_floor_decals_by_chunk.clear()
 	_plants_by_chunk.clear()
 	_lamps_by_chunk.clear()
-	for pair in [[things, _things_by_chunk], [decals, _decals_by_chunk], [lamps, _lamps_by_chunk], [plants, _plants_by_chunk]]:
+	for pair in [[things, _things_by_chunk], [decals, _decals_by_chunk], [floor_decals, _floor_decals_by_chunk], [lamps, _lamps_by_chunk], [plants, _plants_by_chunk]]:
 		for it in pair[0]:
 			var key := chunk_key(int(it["x"]) / (CHUNK * TILE_PX), int(it["y"]) / (CHUNK * TILE_PX))
 			if not pair[1].has(key):
@@ -389,6 +401,10 @@ func plants_in(cx: int, cy: int) -> Array:
 
 func decals_in(cx: int, cy: int) -> Array:
 	return _decals_by_chunk.get(chunk_key(cx, cy), [])
+
+
+func floor_decals_in(cx: int, cy: int) -> Array:
+	return _floor_decals_by_chunk.get(chunk_key(cx, cy), [])
 
 
 func lamps_in(cx: int, cy: int) -> Array:

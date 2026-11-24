@@ -60,8 +60,9 @@ extends Node
 ##   - Only the squad sets them off, and only the squad is hurt: the goblins know where they laid them.
 ##   - They lie in patches to either side of the middle of the room, and in a row just inside the gate: the
 ##     first thing you cross, and the place to learn what they do.
-##   - Their pictures are a stand-in drawn by the code until the Art builder's land (spike_trap_down, _warn, _rise
-##     and _up, in the Scrapyard's sheet).
+##   - Since version 50 the slabs are painted into the floor from the Art builder's still of the hall (the floor's
+##     own paving, sunk below a kerb, three collared holes), and the spikes are its pictures (spike_trap_warn, _rise
+##     and _up in the Scrapyard's sheet); while a trap rattles its rim is drawn in warning orange.
 ##
 ## Claude's other choices here:
 ##   - The mended horn is the squad's (the world's), not one player's. Beating him cracks it again: for another
@@ -180,7 +181,9 @@ var bars: Bars
 var bars_shape: CollisionShape2D
 var yard: Texture2D                # the Scrapyard's sheet, and its book
 var yard_book := {}
+var _chest_texs := {}              # the hoard chest's pictures, made once
 var dress: Array = []
+var scenery: Array = []            # the stands' fronts and rails, and the goblins who watch (still pictures)
 var traps: Array = []              # every spike trap (Trap)
 var trap_at := {}                  # tile -> its Trap
 var body: StaticBody2D
@@ -289,6 +292,13 @@ class Trap extends Node2D:
 			elif state == "lower":
 				k = maxi(n - 1 - int(t * float(info.get("fps", 12))), 0)
 			var o: Array = info.get("origin", [8, 27])
+			if state == "warn":
+				# The slab itself is painted into the floor (CrownPlan.stamp); while it rattles its rim is warning
+				# orange, so the warning is seen round the feet of whoever set it off.
+				draw_rect(Rect2(-16, -16, 32, 2), WARN)
+				draw_rect(Rect2(-16, 14, 32, 2), WARN)
+				draw_rect(Rect2(-16, -16, 2, 32), WARN)
+				draw_rect(Rect2(14, -16, 2, 32), WARN)
 			draw_set_transform(Vector2(0, 16), 0.0, Vector2(PX, PX))
 			draw_texture_rect_region(sheet, Rect2(-float(o[0]), -float(o[1]), fw, float(box[3])), Rect2(float(box[0]) + fw * float(k), float(box[1]), fw, float(box[3])))
 			draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
@@ -571,7 +581,7 @@ func setup(plan_: Dictionary) -> void:
 		for ty in range(al.position.y, al.end.y):
 			for tx in range(al.position.x, al.end.x):
 				foes.nav.block(Vector2i(tx, ty))
-	its.append({"at": hoard_feet() - Vector2(0, 10), "radius": HOARD_REACH, "lift": 46.0, "text": "Open Rattlecrown's hoard",
+	its.append({"at": bars_feet() - Vector2(0, 40), "radius": HOARD_REACH, "lift": 104.0, "text": "Open Rattlecrown's hoard",
 		"can": func(_i): return hoard != "" and not fighting(), "use": func(i): open_hoard(i)})
 	# The braziers and the scrap piles round the arena.
 	for d in plan["dress"]:
@@ -582,6 +592,18 @@ func setup(plan_: Dictionary) -> void:
 		dress.append(a)
 		_solid((d[1] as Vector2) * UNIT, (d[2] as Vector2) * UNIT)
 		_block_under(d[1], d[2])
+	# The stands round the arena (version 50): nobody steps onto them, and on them the goblins watch. (The planks are
+	# painted into the floor: CrownPlan.stamp.)
+	for r: Rect2i in plan.get("stands", []):
+		_solid((Vector2(r.position.x + r.size.x * 0.5, r.end.y)) * TILE, Vector2(r.size) * TILE)
+		if foes != null and foes.nav != null:
+			for ty in range(r.position.y, r.end.y):
+				for tx in range(r.position.x, r.end.x):
+					foes.nav.block(Vector2i(tx, ty))
+	for d in plan.get("scenery", []):
+		var still := _still(str(d[0]), d[1], bool(d[2]), float(d[3]), int(d[4]))
+		if still != null:
+			scenery.append(still)
 	if game != null and "ui" in game and game.ui != null:
 		game.ui.hint_w = TIP_W
 	_show(true)
@@ -597,13 +619,43 @@ func _chest_info() -> Dictionary:
 func _chest_tex(name: String, frame := 0) -> Texture2D:
 	var own: Dictionary = yard_book.get("hoard_" + name, {})
 	if yard != null and own.has("box"):
+		var key := "%s:%d" % [name, frame]
+		if _chest_texs.has(key):
+			return _chest_texs[key]
 		var box: Array = own["box"]
 		var w := int(own["frame"][0]) if own.has("frame") else int(box[2])
 		var t := AtlasTexture.new()
 		t.atlas = yard
 		t.region = Rect2(int(box[0]) + frame * w, int(box[1]), w, int(box[3]))
+		_chest_texs[key] = t
 		return t
 	return loot._frame(name, frame) if loot != null else null
+
+
+## A still picture off the Scrapyard's sheet: its foot at `foot` (art pixels), sorting `up` art pixels above it.
+func _still(name: String, foot: Vector2, mirrored: bool, up: float, z: int) -> Sprite2D:
+	var info: Dictionary = yard_book.get(name, {})
+	if yard == null or not info.has("box"):
+		return null
+	var box: Array = info["box"]
+	var o: Array = info.get("origin", [0, 0])
+	var t := AtlasTexture.new()
+	t.atlas = yard
+	t.region = Rect2(float(box[0]), float(box[1]), float(box[2]), float(box[3]))
+	var sp := Sprite2D.new()
+	sp.texture = t
+	sp.centered = false
+	sp.flip_h = mirrored
+	var ox := float(box[2]) - float(o[0]) if mirrored else float(o[0])
+	sp.offset = Vector2(-ox, -float(o[1]) + up)
+	sp.scale = Vector2(UNIT, UNIT)
+	sp.position = (foot - Vector2(0, up)) * UNIT
+	sp.z_index = z
+	if world != null:
+		world.add_child(sp)
+	else:
+		add_child(sp)
+	return sp
 
 
 func _actor(sheet: Texture2D, strips: Dictionary, origin: Array, feet: Vector2) -> Folk.Actor:

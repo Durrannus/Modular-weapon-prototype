@@ -482,15 +482,16 @@ func _plans() -> void:
 		_check(traps.all(func(t): return room.has_point(t) and not stood.has(t)) and traps.has(plan["trap_row"]), "seed %d: the %d spike traps lie on the Throne Room's floor, clear of the throne, the braziers and where anyone is put" % [seed_value, traps.size()])
 		var alcove: Rect2i = plan["alcove"]
 		var hoard: Vector2 = plan["hoard"]
-		# The scrap piles stand round the arena against its walls, apart from each other, clear of the door, the
-		# hoard's mouth, the throne and where anyone is put.
+		# The scrap piles stand round the arena against its walls (the sides and the front: the back has the stand
+		# since version 50), apart from each other, clear of the door, the hoard's mouth, the throne and where anyone
+		# is put.
 		var piled := {}
 		var piles := 0
 		var walls := {}
 		var against := true
 		var heaps_apart := true
 		for d in plan["dress"]:
-			if not str(d[0]).begins_with("scrap_heap"):
+			if not str(d[0]).begins_with("scrap_"):
 				continue
 			var tiles: Array = CrownPlan.tiles_under(d[1], d[2])
 			if not room.has_point(tiles[0]):
@@ -505,7 +506,7 @@ func _plans() -> void:
 				walls[gaps.find(least)] = true
 				if not room.has_point(t) or least > 2:
 					against = false
-		_check(piles >= 8 and walls.size() == 4 and against and heaps_apart, "seed %d: %d scrap piles stand round the arena, against all four walls and apart from each other" % [seed_value, piles])
+		_check(piles >= 8 and walls.has(1) and walls.has(2) and walls.has(3) and against and heaps_apart, "seed %d: %d scrap piles stand round the arena, against both sides and the front, and apart from each other" % [seed_value, piles])
 		var in_the_way := 0
 		for dx in range(-3, 4):
 			for dy in [1, 2, 3]:
@@ -533,6 +534,48 @@ func _plans() -> void:
 		_check(yard_piles >= 4 and clear_way, "seed %d: %d scrap piles out in the Crane Yard, clear of the way through it" % [seed_value, yard_piles])
 		_check(alcove.end.y == room.position.y and alcove.position.x > tx + 4 and alcove.end.x < room.end.x - 2, "seed %d: the hoard's alcove is in the back wall, to the right of the throne" % seed_value)
 		_check(alcove.has_point(Vector2i(floori(hoard.x / 16.0), floori((hoard.y - 1.0) / 16.0))) and map.kind(alcove.position.x, alcove.position.y) == LandMap.FLOOR and map.reached(after, alcove.position.x + 1, alcove.position.y), "seed %d: with the chest standing in it" % seed_value)
+		# Since version 50: the goblins' stands round the arena, the crowd on them, and the room's floor painted in.
+		var stands: Array = plan["stands"]
+		var stands_ok := stands.size() == 4
+		for r: Rect2i in stands:
+			stands_ok = stands_ok and not r.intersects(room) and not r.intersects(alcove) and r.grow(1).intersects(room)
+			for sy in range(r.position.y, r.end.y):
+				for sx in range(r.position.x, r.end.x):
+					stands_ok = stands_ok and map.kind(sx, sy) == LandMap.FLOOR
+		_check(stands_ok, "seed %d: the goblins' stands run along the back and both sides of the arena, outside it and clear of the hoard's alcove" % seed_value)
+		var crowd := 0
+		var on_stands := true
+		for d in plan["scenery"]:
+			if str(d[0]).begins_with("goblin_"):
+				crowd += 1
+				var f: Vector2 = d[1]
+				var ft := Vector2i(floori(f.x / 16.0), floori((f.y - 1.0) / 16.0))
+				on_stands = on_stands and stands.any(func(r): return (r as Rect2i).has_point(ft))
+		_check(crowd >= 24 and on_stands, "seed %d: %d goblins watch from the stands" % [seed_value, crowd])
+		var pieces: Array = Art.json("scrapyard/throne_floor.json").get("pieces", [])
+		var painted := Rect2i(room.position * 16, room.size * 16).grow(16 * 8)
+		var decals_ok := pieces.size() > 0 and map.floor_decals.size() == pieces.size()
+		for d in map.floor_decals:
+			decals_ok = decals_ok and painted.has_point(Vector2i(int(d["x"]), int(d["y"]))) and int((d["rect"] as Array)[2]) <= LandMap.CHUNK * 16
+		_check(decals_ok, "seed %d: the Throne Room's floor is painted into the land there, in %d pieces" % [seed_value, pieces.size()])
+		if k == 0:
+			# The painter really paints it: a trap's tile with the floor's pieces and without them.
+			var trap: Vector2i = plan["trap_row"]
+			var cx := floori(trap.x / float(LandMap.CHUNK))
+			var cy := floori(trap.y / float(LandMap.CHUNK))
+			var px := Vector2i(trap.x * 16 - cx * LandMap.CHUNK * 16 + 8, trap.y * 16 - cy * LandMap.CHUNK * 16 + 8)
+			var with_it: Image = Painter.paint(map, cx, cy)
+			var keep: Array = map.floor_decals
+			map.floor_decals = []
+			map.index()
+			var without: Image = Painter.paint(map, cx, cy)
+			map.floor_decals = keep
+			map.index()
+			var differ := 0
+			for dy in range(-6, 7):
+				for dx in range(-6, 7):
+					differ += int(with_it.get_pixel(px.x + dx, px.y + dy) != without.get_pixel(px.x + dx, px.y + dy))
+			_check(differ > 40, "and the painter paints it: a trap's sunk slab differs from the plain dug floor (%d of 169 pixels)" % differ)
 		# Nothing sealed was opened.
 		var opened := 0
 		for p in map.pockets:

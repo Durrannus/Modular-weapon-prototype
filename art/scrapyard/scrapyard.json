@@ -1,13 +1,7 @@
 {
- "note": "The Scrapyard gate and the Throne Room's dressing, first draft (23 Nov). The loot sheet's form. See README.md.",
+ "note": "The Scrapyard's gate, Rattlecrown's hoard, the scrap piles, the spike traps' spikes, the stands and the watching goblins: round 2 (the Art builder's hl_king3.py), baked by tools/rattlecrown_kit/bake.py. Stills; the open gate is the shut one with its leaves swung in against its posts, until an open gate is drawn.",
  "sprites": {
   "gate_front_shut": {
-   "box": [
-    1,
-    1,
-    56,
-    64
-   ],
    "frame": [
     56,
     64
@@ -17,33 +11,14 @@
     63
    ],
    "frames": 1,
-   "note": "The Scrapyard gate, shut. Solid across the whole 48 px corridor. The corridor's floor runs from x = 4 to x = 51 in the frame: the posts stand 4 px into the rock each side. Origin = the middle of its bottom edge, on the ground."
-  },
-  "gate_front_open": {
    "box": [
-    58,
-    1,
+    17,
+    0,
     56,
     64
-   ],
-   "frame": [
-    56,
-    64
-   ],
-   "origin": [
-    28,
-    63
-   ],
-   "frames": 1,
-   "note": "The same, open: each leaf swung back up the corridor against its post. The middle 32 px (x = 12 to 43 in the frame) is clear; the 8 px at each side stay solid."
+   ]
   },
   "gate_front_opening": {
-   "box": [
-    115,
-    1,
-    224,
-    64
-   ],
    "frame": [
     56,
     64
@@ -52,53 +27,159 @@
     28,
     63
    ],
-   "frames": 4,
-   "note": "Shut to open, 4 frames, not a loop: show gate_front_shut, these four, then gate_front_open.",
-   "fps": 8
-  },
-  "scrap_heap_large": {
+   "frames": 3,
+   "fps": 6,
    "box": [
-    1,
-    66,
-    48,
-    30
+    74,
+    0,
+    168,
+    64
+   ]
+  },
+  "gate_front_open": {
+   "frame": [
+    56,
+    64
    ],
+   "origin": [
+    28,
+    63
+   ],
+   "frames": 1,
+   "box": [
+    243,
+    0,
+    56,
+    64
+   ]
+  },
+  "scrap_pile_big": {
+   "frame": [
+    66,
+    52
+   ],
+   "origin": [
+    33,
+    51
+   ],
+   "frames": 1,
+   "solid": [
+    46,
+    8
+   ],
+   "box": [
+    300,
+    0,
+    66,
+    52
+   ]
+  },
+  "scrap_pile_mid": {
    "frame": [
     48,
-    30
+    42
    ],
    "origin": [
     24,
-    28
+    41
    ],
    "frames": 1,
-   "note": "A heap of forge scrap for the Throne Room. Solid: about 40 wide and 8 deep. Origin = the middle of its front edge."
-  },
-  "scrap_heap_small": {
-   "box": [
-    50,
-    66,
-    32,
-    20
+   "solid": [
+    33,
+    8
    ],
+   "box": [
+    418,
+    0,
+    48,
+    42
+   ]
+  },
+  "scrap_pile_side": {
    "frame": [
-    32,
-    20
+    46,
+    40
    ],
    "origin": [
-    16,
-    18
+    23,
+    39
    ],
    "frames": 1,
-   "note": "A smaller heap. Solid: about 22 wide and 6 deep."
+   "solid": [
+    31,
+    8
+   ],
+   "box": [
+    740,
+    0,
+    46,
+    40
+   ]
+  },
+  "scrap_pile_small": {
+   "frame": [
+    34,
+    32
+   ],
+   "origin": [
+    17,
+    31
+   ],
+   "frames": 1,
+   "solid": [
+    23,
+    8
+   ],
+   "box": [
+    887,
+    0,
+    34,
+    32
+   ]
+  },
+  "scrap_heap_large": {
+   "frame": [
+    50,
+    44
+   ],
+   "origin": [
+    25,
+    43
+   ],
+   "frames": 1,
+   "solid": [
+    34,
+    8
+   ],
+   "box": [
+    367,
+    0,
+    50,
+    44
+   ]
+  },
+  "scrap_heap_small": {
+   "frame": [
+    34,
+    34
+   ],
+   "origin": [
+    17,
+    33
+   ],
+   "frames": 1,
+   "solid": [
+    23,
+    8
+   ],
+   "box": [
+    852,
+    0,
+    34,
+    34
+   ]
   },
   "brazier": {
-   "box": [
-    83,
-    66,
-    64,
-    36
-   ],
    "frame": [
     16,
     36
@@ -108,8 +189,389 @@
     34
    ],
    "frames": 4,
-   "note": "A standing brazier, a loop. Solid: about 10 wide and 4 deep. Use a pair, one each side of the throne; mirror one.",
-   "fps": 5
+   "fps": 5,
+   "box": [
+    787,
+    0,
+    64,
+    36
+   ]
+  },
+  "hoard_chest": {
+   "frame": [
+    32,
+    28
+   ],
+   "origin": [
+    16,
+    27
+   ],
+   "frames": 5,
+   "foot": [
+    16,
+    27
+   ],
+   "solid": [
+    26,
+    6
+   ],
+   "box": [
+    781,
+    419,
+    160,
+    28
+   ]
+  },
+  "hoard_chest_empty": {
+   "frame": [
+    32,
+    28
+   ],
+   "origin": [
+    16,
+    27
+   ],
+   "frames": 1,
+   "foot": [
+    16,
+    27
+   ],
+   "solid": [
+    26,
+    6
+   ],
+   "box": [
+    942,
+    419,
+    32,
+    28
+   ]
+  },
+  "hoard_gate_shut": {
+   "frame": [
+    54,
+    42
+   ],
+   "origin": [
+    27,
+    41
+   ],
+   "frames": 1,
+   "box": [
+    467,
+    0,
+    54,
+    42
+   ]
+  },
+  "hoard_gate_opening": {
+   "frame": [
+    54,
+    42
+   ],
+   "origin": [
+    27,
+    41
+   ],
+   "frames": 3,
+   "fps": 6,
+   "box": [
+    522,
+    0,
+    162,
+    42
+   ]
+  },
+  "hoard_gate_open": {
+   "frame": [
+    54,
+    42
+   ],
+   "origin": [
+    27,
+    41
+   ],
+   "frames": 1,
+   "box": [
+    685,
+    0,
+    54,
+    42
+   ]
+  },
+  "spike_trap_down": {
+   "frame": [
+    18,
+    30
+   ],
+   "origin": [
+    9,
+    29
+   ],
+   "frames": 1,
+   "box": [
+    922,
+    0,
+    18,
+    30
+   ]
+  },
+  "spike_trap_warn": {
+   "frame": [
+    18,
+    30
+   ],
+   "origin": [
+    9,
+    29
+   ],
+   "frames": 2,
+   "fps": 12,
+   "box": [
+    941,
+    0,
+    36,
+    30
+   ]
+  },
+  "spike_trap_rise": {
+   "frame": [
+    18,
+    30
+   ],
+   "origin": [
+    9,
+    29
+   ],
+   "frames": 4,
+   "fps": 24,
+   "box": [
+    0,
+    419,
+    72,
+    30
+   ]
+  },
+  "spike_trap_up": {
+   "frame": [
+    18,
+    30
+   ],
+   "origin": [
+    9,
+    29
+   ],
+   "frames": 1,
+   "box": [
+    73,
+    419,
+    18,
+    30
+   ]
+  },
+  "stand_front_0": {
+   "frame": [
+    242,
+    30
+   ],
+   "origin": [
+    1,
+    29
+   ],
+   "frames": 1,
+   "box": [
+    92,
+    419,
+    242,
+    30
+   ]
+  },
+  "stand_front_1": {
+   "frame": [
+    82,
+    30
+   ],
+   "origin": [
+    1,
+    29
+   ],
+   "frames": 1,
+   "box": [
+    335,
+    419,
+    82,
+    30
+   ]
+  },
+  "stand_front_2": {
+   "frame": [
+    98,
+    30
+   ],
+   "origin": [
+    1,
+    29
+   ],
+   "frames": 1,
+   "box": [
+    418,
+    419,
+    98,
+    30
+   ]
+  },
+  "stand_rail": {
+   "frame": [
+    16,
+    418
+   ],
+   "origin": [
+    3,
+    417
+   ],
+   "frames": 1,
+   "box": [
+    0,
+    0,
+    16,
+    418
+   ]
+  },
+  "goblin_lean": {
+   "frame": [
+    32,
+    30
+   ],
+   "origin": [
+    16,
+    27
+   ],
+   "frames": 1,
+   "box": [
+    517,
+    419,
+    32,
+    30
+   ]
+  },
+  "goblin_lean_cap": {
+   "frame": [
+    32,
+    30
+   ],
+   "origin": [
+    16,
+    27
+   ],
+   "frames": 1,
+   "box": [
+    550,
+    419,
+    32,
+    30
+   ]
+  },
+  "goblin_cheer": {
+   "frame": [
+    32,
+    30
+   ],
+   "origin": [
+    16,
+    27
+   ],
+   "frames": 1,
+   "box": [
+    583,
+    419,
+    32,
+    30
+   ]
+  },
+  "goblin_cheer_cap": {
+   "frame": [
+    32,
+    30
+   ],
+   "origin": [
+    16,
+    27
+   ],
+   "frames": 1,
+   "box": [
+    616,
+    419,
+    32,
+    30
+   ]
+  },
+  "goblin_fist": {
+   "frame": [
+    32,
+    30
+   ],
+   "origin": [
+    16,
+    27
+   ],
+   "frames": 1,
+   "box": [
+    649,
+    419,
+    32,
+    30
+   ]
+  },
+  "goblin_fist_cap": {
+   "frame": [
+    32,
+    30
+   ],
+   "origin": [
+    16,
+    27
+   ],
+   "frames": 1,
+   "box": [
+    682,
+    419,
+    32,
+    30
+   ]
+  },
+  "goblin_drum": {
+   "frame": [
+    32,
+    30
+   ],
+   "origin": [
+    16,
+    27
+   ],
+   "frames": 1,
+   "box": [
+    715,
+    419,
+    32,
+    30
+   ]
+  },
+  "goblin_drum_cap": {
+   "frame": [
+    32,
+    30
+   ],
+   "origin": [
+    16,
+    27
+   ],
+   "frames": 1,
+   "box": [
+    748,
+    419,
+    32,
+    30
+   ]
   }
  }
 }
