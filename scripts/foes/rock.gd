@@ -79,7 +79,7 @@ func _land() -> void:
 	var missed := true
 	for p in _players():
 		if p.global_position.distance_to(to) <= splash + 10.0:
-			if p.invuln <= 0.0:
+			if p.can_be_hit(_thrower()):
 				missed = false
 			p.take_damage(damage, to, _thrower())
 	if missed and _thrower() != null and by.has_method("rock_missed"):
@@ -114,7 +114,7 @@ func _fly_shard(delta: float) -> void:
 	global_position += dir * step
 	left -= step
 	for p in _players():
-		if p.global_position.distance_to(global_position) <= 16.0 + 6.0 and p.invuln <= 0.0:
+		if p.global_position.distance_to(global_position) <= 16.0 + 6.0 and p.can_be_hit(_thrower()):
 			p.take_damage(damage, global_position - dir * 12.0, _thrower())
 			queue_free()
 			return

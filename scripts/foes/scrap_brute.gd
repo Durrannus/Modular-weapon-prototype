@@ -119,7 +119,7 @@ func _fight(delta: float) -> Vector2:
 				for p in players():
 					var rel: Vector2 = p.global_position - global_position
 					if rel.length() < REACH + 16.0 and absf(facing.angle_to(rel)) <= SWING_ARC:
-						if p.invuln <= 0.0:
+						if p.can_be_hit(self):
 							swing_missed = false
 						p.take_damage(ELITE_CLUB if elite else CLUB, global_position, self)
 			if mode_t <= 0.0:
@@ -146,7 +146,7 @@ func _fight(delta: float) -> Vector2:
 			for p in players():
 				if struck.has(p.get_instance_id()):
 					continue
-				if p.global_position.distance_to(global_position) < radius + 16.0 + 6.0 and p.invuln <= 0.0:
+				if p.global_position.distance_to(global_position) < radius + 16.0 + 6.0 and p.can_be_hit(self):
 					struck[p.get_instance_id()] = true
 					var before: float = p.hp
 					p.take_damage(BASH, global_position - bash_dir * 20.0, self)

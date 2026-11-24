@@ -19,6 +19,7 @@ const Loot := preload("res://scripts/highlands/loot.gd")
 const ItemArt := preload("res://scripts/highlands/item_art.gd")
 const Make := preload("res://scripts/foes/make.gd")
 const Rock := preload("res://scripts/foes/rock.gd")
+const Arrow := preload("res://scripts/arrow.gd")
 const Hound := preload("res://scripts/foes/hound.gd")
 const ScrapBrute := preload("res://scripts/foes/scrap_brute.gd")
 const Slinger := preload("res://scripts/foes/slinger.gd")
@@ -80,6 +81,8 @@ func _run() -> void:
 	await _falling()
 	await _challenge()
 	await _punish()
+	await _striker()
+	await _kill_credit()
 	await _kindle()
 	await _ore_sense()
 	await _screens()
@@ -171,9 +174,14 @@ func _the_trees() -> void:
 			_check(Perks.tree_of(id) == tree and Perks.row_of(id) == int(Perks.ROWS[k]), "%s is in its tree, in row %d" % [id, int(Perks.ROWS[k])])
 			all[id] = true
 	_check(all.size() == 32 and Perks.PERKS.size() == 32, "32 perks in all")
-	_check(Perks.BUILT == ["challenge", "punish", "kindle", "ore_sense"], "the four signature perks are built")
+	_check(Perks.BUILT.slice(0, 4) == ["challenge", "punish", "kindle", "ore_sense"], "the four signature perks are built")
+	for id in Perks.TREE["striker"]:
+		_check(Perks.built(str(id)), "since version 53, every Striker perk is built: %s" % id)
 	for id in Perks.BUILT:
-		_check(Perks.row_of(str(id)) == 0, "%s is its tree's signature" % id)
+		_check(Perks.row_of(str(id)) == 0 or Perks.tree_of(str(id)) == "striker", "%s is a signature or the Striker's" % id)
+	_check(Perks.BUILT.size() == 11, "and nothing else yet (%d built)" % Perks.BUILT.size())
+	_check(Perks.why_not("close_call", [], 3) == "Needs Punish first." and Perks.why_not("close_call", ["punish"], 3) == "", "a built row-2 perk needs its signature first, and opens with it")
+	_check(Perks.why_not("execution", ["punish", "close_call", "flank", "keep_the_chain", "sharp"], 3).begins_with("Needs 6 points") and Perks.why_not("execution", ["punish", "close_call", "flank", "keep_the_chain", "sharp", "expose"], 3) == "", "the Striker's capstone, Execution, after 6 Striker points")
 	_check(Perks.row_of("forge_prophet") == Perks.CAPSTONE and Perks.row_of("unbroken") == Perks.CAPSTONE and Perks.row_of("execution") == Perks.CAPSTONE and Perks.row_of("rekindle") == Perks.CAPSTONE, "each tree ends in its capstone")
 	_check(Perks.text_of("forge_prophet").begins_with("Darren's idea."), "the Delver's capstone is Darren's own")
 	# What can be learnt, and why not.
@@ -296,7 +304,7 @@ func _learning() -> void:
 	lv.level = 2
 	_check(lv.points(0) == 2 and lv.learn(0, "punish") == "" and lv.perks[0] == ["punish"] and lv.points(0) == 1, "a point buys a signature perk")
 	_check(lv.has(0, "punish") and lv.has_p(g.players[0], "punish") and lv.any_has("punish") and not lv.has(0, "kindle"), "and it is awake")
-	_check(lv.learn(0, "punish") == "You have learnt this." and lv.learn(0, "close_call").begins_with("Not built yet") and lv.points(0) == 1, "what cannot be learnt costs nothing")
+	_check(lv.learn(0, "punish") == "You have learnt this." and lv.learn(0, "unmoved").begins_with("Not built yet") and lv.points(0) == 1, "what cannot be learnt costs nothing")
 	_check(lv.learn(0, "kindle") == "" and lv.points(0) == 0 and lv.learn(0, "ore_sense").begins_with("No point"), "you can take the signatures of two trees, a point each, until the points are spent")
 	_check(g._character_now(0).get("perks") == ["punish", "kindle"], "the character knows its perks")
 	# Forgetting costs Memory you carry.
@@ -582,6 +590,431 @@ func _punish() -> void:
 	await _frames(2)
 
 
+# --- The Striker's other perks (version 53) -----------------------------------------------
+
+## The damage of each blow of one whole chain on this enemy (its health is watched every tick), from a standing start.
+func _chain_hits(p, e, n: int) -> Array:
+	var hits: Array = []
+	_still(p)
+	p.unhurt = true
+	p._reset_combo()
+	await _frames(40)
+	p._clear_marks()               # (the last chain's finisher left a Weak Point mark: no head start from it)
+	e.hp = 99999.0
+	var last := [99999.0]          # (an Array: a lambda keeps its own copy of a plain number)
+	var watch := func():
+		p.global_position = e.global_position + Vector2(-40, 0)      # (a blow's step forward would leave it behind)
+		if e.hp < float(last[0]):
+			hits.append(float(last[0]) - e.hp)
+			last[0] = e.hp
+		return hits.size() >= n
+	await _fight(p, e, watch, 240)
+	return hits
+
+
+func _striker() -> void:
+	var g = _game(424242)
+	await _frames(5)
+	var lv = g.levels
+	var p = g.players[0]
+	var home: Vector2 = p.spawn_point
+	p.global_position = home + Vector2(0, 60)
+	p.unhurt = true
+	lv.level = 8
+	await _frames(3)
+	var crit_times := float(p.weapon.get("crit_damage", 1.5))
+	var luck := float(p.weapon.get("crit", 0.05))
+	p.weapon["crit"] = 0.0           # (no luck in these checks: a crit is only what a perk makes one)
+
+	# Close Call: an attack that finds you mid-dodge leaves that enemy Open for 2 s.
+	lv.perks[0] = ["punish", "close_call"]
+	var h = _foe(g, "hound", p.global_position + Vector2(80, 0))
+	h.rest = 99.0
+	await _frames(2)
+	p.dodge_started = p.game_time
+	p.invuln = p.DODGE_TIME + 0.06
+	_check(not p.can_be_hit(h) and h.is_open() and is_equal_approx(h.open_left, Levels.CLOSE_CALL_OPEN), "Close Call: an attack that finds you mid-dodge leaves that enemy Open for %.1f s" % Levels.CLOSE_CALL_OPEN)
+	h.open_left = 0.0
+	p.take_damage(5.0, h.global_position, h)
+	_check(h.is_open() and p.hp == p.max_hp, "a blow that lands on you mid-dodge too, and does nothing to you")
+	h.open_left = 0.0
+	p.invuln = 0.8
+	p.dodge_started = p.game_time - 1.0
+	_check(not p.can_be_hit(h) and not h.is_open(), "being untouchable after a hit is no Close Call")
+	p.dodge_started = p.game_time
+	lv.perks[0] = ["punish"]
+	_check(not p.can_be_hit(h) and not h.is_open(), "without Close Call a dodge only dodges")
+	p.invuln = 0.0
+	_check(p.can_be_hit(h), "(and out of the dodge the attack hurts)")
+	# A real lunge, dodged through.
+	lv.perks[0] = ["punish", "close_call"]
+	_still(p)
+	p.unhurt = false
+	h.global_position = p.global_position + Vector2(90, 0)
+	h.rest = 0.0
+	await _wait(func(): return h.mode == "lunge", 240)
+	p.input.move = (h.global_position - p.global_position).normalized()
+	p.input.dash_pressed = true
+	await _frames(1)
+	p.input.dash_pressed = false
+	p.input.move = Vector2.ZERO
+	await _wait(func(): return h.mode == "recover", 120)
+	_check(p.hp == p.max_hp and h.open_left > Hound.RECOVER_TIME + 0.4, "a hound's lunge dodged through: unhurt, and it stays Open longer than a plain miss (%.2f s left)" % h.open_left)
+	p.unhurt = true
+	h.queue_free()
+
+	# Flank: a hit from behind counts as a hit on an Open enemy.
+	lv.perks[0] = ["punish", "flank"]
+	var e = _foe(g, "hound", p.global_position + Vector2(60, 0))
+	e.rest = 99.0
+	e.knock_resist = 0.0
+	await _frames(2)
+	e.facing = Vector2.RIGHT
+	_check(e.behind(e.global_position + Vector2(-40, 0)) and e.behind(e.global_position + Vector2(-40, 30)), "behind an enemy is the side its back is drawn on")
+	_check(not e.behind(e.global_position + Vector2(40, 0)) and not e.behind(e.global_position + Vector2(0, 40)) and not e.behind(e.global_position + Vector2(-10, 40)), "not in front of it, nor beside it")
+	p.global_position = e.global_position + Vector2(-40, 0)
+	_check(not e.is_open() and lv.hits_open(p, e) and lv.punishes(p, e), "with Flank, your hit from behind counts as a hit on an Open enemy")
+	e.hp = 99999.0
+	p._hit_enemy(e, 10.0, Vector2.RIGHT, 0.0, 0.0, 0.0)
+	_check(is_equal_approx(99999.0 - e.hp, 10.0 * crit_times), "and Punish makes it a crit (%.1f)" % (99999.0 - e.hp))
+	p.global_position = e.global_position + Vector2(40, 0)
+	e.facing = Vector2.RIGHT
+	_check(not lv.hits_open(p, e) and not lv.punishes(p, e), "from in front it is a hit as ever")
+	p.global_position = e.global_position + Vector2(-40, 0)
+	lv.perks[0] = ["punish"]
+	_check(not lv.hits_open(p, e), "without Flank, behind is no opening")
+	p.global_position = home + Vector2(0, 60)
+	e.global_position = p.global_position + Vector2(60, 0)
+
+	# Keep the Chain: a dodge leaves the combo where it was.
+	for keep in [false, true]:
+		lv.perks[0] = ["punish", "keep_the_chain"] if keep else ["punish"]
+		_still(p)
+		p._reset_combo()
+		await _frames(40)
+		p.input.stick_aim = Vector2.RIGHT
+		p.input.attack_held = true
+		await _wait(func(): return p.current_step == 0 and p.hit_time < 0.0, 120)
+		p.input.attack_held = false
+		p.dodge_charges = p.DODGE_MAX_CHARGES
+		p.input.dash_pressed = true
+		await _frames(1)
+		p.input.dash_pressed = false
+		await _wait(func(): return p.dodge_timer <= 0.0, 30)
+		await _frames(2)
+		p.input.attack_pressed = true
+		await _frames(1)
+		p.input.attack_pressed = false
+		await _wait(func(): return p.current_step >= 0, 20)
+		var after: int = p.current_step
+		if keep:
+			_check(after == 1, "Keep the Chain: after a dodge the next swing carries on where you left off (step %d)" % after)
+		else:
+			_check(after == 0, "without it, a dodge starts the chain again (step %d)" % after)
+	# Cut short before its blow, a swing is swung again; and the chain waits only so long.
+	lv.perks[0] = ["punish", "keep_the_chain"]
+	await _wait(func(): return p.current_step == 1 and p.hit_time >= 0.0, 60)
+	p.dodge_charges = p.DODGE_MAX_CHARGES
+	p.input.dash_pressed = true
+	await _frames(1)
+	p.input.dash_pressed = false
+	_check(p.current_step == -1 and p.step_index == 1, "a swing cut short before its blow is swung again after the dodge")
+	await _frames(70)
+	p.input.attack_pressed = true
+	await _frames(1)
+	p.input.attack_pressed = false
+	await _wait(func(): return p.current_step >= 0, 20)
+	_check(p.current_step == 0, "but wait too long after the dodge and the chain starts again")
+	await _frames(60)
+
+	# Sharp: 6 s without being hit and the weapon glints; the next finisher hits twice as hard.
+	lv.perks[0] = ["punish", "sharp"]
+	lv.calm[0] = 0.0
+	await _frames(2)
+	_check(not lv.glinting(0), "Sharp: no glint just after a hit")
+	lv.calm[0] = Levels.SHARP_TIME - 0.1
+	await _frames(10)
+	_check(lv.glinting(0), "%.0f s without being hit and the weapon glints" % Levels.SHARP_TIME)
+	p.unhurt = false
+	p.invuln = 0.0
+	p.take_damage(1.0, p.global_position + Vector2(20, 0))
+	_check(not lv.glinting(0) and float(lv.calm[0]) < 0.1, "taking a hit loses the glint")
+	p.unhurt = true
+	p.invuln = 0.0
+	p.hp = p.max_hp
+	lv.calm[0] = Levels.SHARP_TIME
+	e.hp = 99999.0
+	p._hit_enemy(e, 10.0, Vector2.RIGHT, 0.0, 0.0, 0.0)
+	_check(is_equal_approx(99999.0 - e.hp, 10.0) and lv.glinting(0), "a blow that is no finisher leaves the glint alone")
+	e.hp = 99999.0
+	var e2 = _foe(g, "hound", p.global_position + Vector2(60, 30))
+	e2.rest = 99.0
+	p.finishing = true
+	p._hit_enemy(e, 10.0, Vector2.RIGHT, 0.0, 0.0, 0.0)
+	p._hit_enemy(e2, 10.0, Vector2.RIGHT, 0.0, 0.0, 0.0)
+	p.finishing = false
+	_check(is_equal_approx(99999.0 - e.hp, 10.0 * Levels.SHARP_TIMES) and is_equal_approx(99999.0 - e2.hp, 10.0 * Levels.SHARP_TIMES), "a glinting finisher hits twice as hard, every enemy it hits")
+	await _frames(2)
+	_check(not lv.glinting(0) and float(lv.calm[0]) < 0.1, "and the glint is spent")
+	e.hp = 99999.0
+	p.finishing = true
+	p._hit_enemy(e, 10.0, Vector2.RIGHT, 0.0, 0.0, 0.0)
+	p.finishing = false
+	_check(is_equal_approx(99999.0 - e.hp, 10.0), "the finisher after it is a plain one")
+	lv.calm[0] = Levels.SHARP_TIME
+	e.hp = 99999.0
+	p._hit_enemy(e, 10.0, Vector2.RIGHT, 0.0, 0.0, 0.0, {}, true)
+	var heavy := Arrow.new()
+	heavy.finisher = true
+	heavy.crit = 0.0
+	_check(lv.glinting(0), "a ghost's copy of a finisher is not yours: the glint stays")
+	e.hp = 99999.0
+	p._hit_enemy(e, 10.0, Vector2.RIGHT, 0.0, 0.0, 0.0, {}, false, heavy)
+	_check(is_equal_approx(99999.0 - e.hp, 10.0 * Levels.SHARP_TIMES), "a bow's heavy last shot is a finisher too")
+	heavy.free()
+	await _frames(2)
+	e2.queue_free()
+
+	# Kill Rush: a kill gives a dodge charge back.
+	lv.perks[0] = ["punish", "kill_rush"]
+	p.dodge_charges = 0
+	p.dodge_refill = 0.3
+	p.on_kill(e.global_position)
+	_check(p.dodge_charges == 1 and p.dodge_refill == 0.0, "Kill Rush: a kill gives you a dodge back")
+	p.on_kill(e.global_position)
+	_check(p.dodge_charges == p.DODGE_MAX_CHARGES, "never more than you can hold")
+	lv.perks[0] = ["punish"]
+	p.dodge_charges = 0
+	p.on_kill(e.global_position)
+	_check(p.dodge_charges == 0, "without it a kill is only a kill")
+	p.dodge_charges = p.DODGE_MAX_CHARGES
+
+	# Expose: your crit on a boss or an elite Exposes it for 4 s; everyone's hits on it do 15% more.
+	lv.perks[0] = ["punish", "expose"]
+	var el = _foe(g, "hound", p.global_position + Vector2(60, -30), true)
+	el.rest = 99.0
+	el.knock_resist = 0.0
+	await _frames(2)
+	p._hit_enemy(el, 10.0, Vector2.RIGHT, 0.0, 0.0, 0.0)
+	_check(el.exposed_left == 0.0, "Expose: a hit that is no crit Exposes nothing")
+	el.stun_time = 99.0
+	el.hp = 99999.0
+	p._hit_enemy(el, 10.0, Vector2.RIGHT, 0.0, 0.0, 0.0)
+	_check(is_equal_approx(el.exposed_left, Levels.EXPOSE_TIME) and is_equal_approx(99999.0 - el.hp, 10.0 * crit_times), "a crit on an elite leaves it Exposed for %.0f s (the crit itself is plain)" % Levels.EXPOSE_TIME)
+	el.stun_time = 0.0
+	await _frames(2)
+	el.hp = 99999.0
+	el.take_hit(10.0, Vector2.RIGHT, 0.0, false, Color.WHITE)
+	_check(is_equal_approx(99999.0 - el.hp, 10.0 * (1.0 + Levels.EXPOSE_MORE)), "every hit on it does %d%% more, whoever's (%.2f)" % [roundi(Levels.EXPOSE_MORE * 100.0), 99999.0 - el.hp])
+	el.exposed_left = 1.0
+	el.stun_time = 99.0
+	p._hit_enemy(el, 10.0, Vector2.RIGHT, 0.0, 0.0, 0.0)
+	el.stun_time = 0.0
+	el.hp = 99999.0
+	el.take_hit(10.0, Vector2.RIGHT, 0.0, false, Color.WHITE)
+	_check(is_equal_approx(el.exposed_left, Levels.EXPOSE_TIME) or el.exposed_left > Levels.EXPOSE_TIME - 0.1, "another crit starts its time again")
+	_check(is_equal_approx(99999.0 - el.hp, 10.0 * (1.0 + Levels.EXPOSE_MORE)), "and never stacks")
+	el.exposed_left = 0.0
+	e.stun_time = 99.0
+	p._hit_enemy(e, 10.0, Vector2.RIGHT, 0.0, 0.0, 0.0)
+	_check(e.exposed_left == 0.0, "a crit on a normal enemy Exposes nothing")
+	e.stun_time = 0.0
+	await _frames(int(Levels.EXPOSE_TIME * 60.0) + 2)
+	_check(el.exposed_left == 0.0 or not is_equal_approx(el.exposed_left, Levels.EXPOSE_TIME), "(and it wears off)")
+	el.exposed_left = 0.0
+	el.hp = 99999.0
+	el.take_hit(10.0, Vector2.RIGHT, 0.0, false, Color.WHITE)
+	_check(is_equal_approx(99999.0 - el.hp, 10.0), "once it has worn off, a hit is as ever")
+
+	# Execution: your finisher on an Open enemy hits three times as hard, and a normal enemy left below a third of
+	# its health dies outright.
+	lv.perks[0] = ["punish", "execution"]
+	e.stun_time = 99.0
+	e.hp = 99999.0
+	p.finishing = true
+	p._hit_enemy(e, 10.0, Vector2.RIGHT, 0.0, 0.0, 0.0)
+	p.finishing = false
+	_check(is_equal_approx(99999.0 - e.hp, 10.0 * crit_times * Levels.EXECUTION_TIMES), "Execution: a finisher on an Open enemy hits three times as hard (and Punish's crit: %.1f)" % (99999.0 - e.hp))
+	e.hp = 99999.0
+	p._hit_enemy(e, 10.0, Vector2.RIGHT, 0.0, 0.0, 0.0)
+	_check(is_equal_approx(99999.0 - e.hp, 10.0 * crit_times), "a blow that is no finisher is no Execution")
+	e.stun_time = 0.0
+	await _frames(2)
+	e.hp = 99999.0
+	p.finishing = true
+	p._hit_enemy(e, 10.0, Vector2.RIGHT, 0.0, 0.0, 0.0)
+	p.finishing = false
+	_check(is_equal_approx(99999.0 - e.hp, 10.0), "nor a finisher on an enemy that is not Open")
+	e.stun_time = 99.0
+	e.max_hp = 300.0
+	e.hp = 300.0
+	p.finishing = true
+	p._hit_enemy(e, 10.0, Vector2.RIGHT, 0.0, 0.0, 0.0)
+	p.finishing = false
+	_check(not e.dead and e.hp > 100.0, "an enemy it leaves above a third of its health lives")
+	e.hp = 140.0
+	p.finishing = true
+	p._hit_enemy(e, 10.0, Vector2.RIGHT, 0.0, 0.0, 0.0)
+	p.finishing = false
+	_check(e.dead, "one it leaves below a third dies outright")
+	el.stun_time = 99.0
+	el.max_hp = 300.0
+	el.hp = 140.0
+	p.finishing = true
+	p._hit_enemy(el, 10.0, Vector2.RIGHT, 0.0, 0.0, 0.0)
+	p.finishing = false
+	_check(not el.dead and el.hp < 100.0, "an elite does not (%.0f left)" % el.hp)
+	el.queue_free()
+
+	# A whole chain, as it is played: the finisher, and only the finisher, is the Execution, and Sharp doubles it.
+	var f = _foe(g, "hound", p.global_position + Vector2(44, 0))
+	f.rest = 99.0
+	f.stun_time = 9999.0
+	f.knock_resist = 0.0
+	await _frames(2)
+	var n: int = p._steps().size()
+	lv.perks[0] = ["punish"]
+	var plain: Array = await _chain_hits(p, f, n)
+	lv.perks[0] = ["punish", "execution"]
+	var exe: Array = await _chain_hits(p, f, n)
+	lv.perks[0] = ["punish", "execution", "sharp"]
+	lv.calm[0] = Levels.SHARP_TIME + 1.0
+	var both: Array = await _chain_hits(p, f, n)
+	var same := plain.size() == n and exe.size() == n and both.size() == n
+	for k in n - 1:
+		same = same and is_equal_approx(float(exe[k]), float(plain[k])) and is_equal_approx(float(both[k]), float(plain[k]))
+	_check(n > 1 and same, "a chain's first blows are untouched (%s, %s, %s)" % [str(plain), str(exe), str(both)])
+	_check(same and is_equal_approx(float(exe[n - 1]), float(plain[n - 1]) * Levels.EXECUTION_TIMES), "its finisher on an Open enemy is an Execution")
+	_check(same and is_equal_approx(float(both[n - 1]), float(plain[n - 1]) * Levels.EXECUTION_TIMES * Levels.SHARP_TIMES), "and with a glint it is twice that again")
+	_check(not lv.glinting(0), "(the glint went into it)")
+	if not same:
+		print("  chain hits: plain %s, execution %s, both %s" % [str(plain), str(exe), str(both)])
+	f.queue_free()
+	p.weapon["crit"] = luck
+	await _leave(g)
+	await _frames(2)
+
+
+## Whose kill it is in the Highlands: the player whose blow last landed, or the nearest one. Their kill runes go off,
+## and Kill Rush hears of it.
+func _kill_credit() -> void:
+	var g = _game(424242, 2)
+	await _frames(5)
+	var lv = g.levels
+	var a = g.players[0]
+	var b = g.players[1]
+	var home: Vector2 = a.spawn_point
+	a.global_position = home + Vector2(0, 60)
+	b.global_position = home + Vector2(0, 260)
+	lv.level = 4
+	lv.perks[1] = ["punish", "kill_rush"]
+	await _frames(2)
+	var e = _foe(g, "hound", a.global_position + Vector2(40, 0))
+	e.rest = 99.0
+	await _frames(2)
+	a.last_kill_pos = Vector2.INF
+	b.last_kill_pos = Vector2.INF
+	b.dodge_charges = 0
+	b._hit_enemy(e, 5.0, Vector2.RIGHT, 0.0, 0.0, 0.0)
+	_check(e.last_hit_by == b, "an enemy knows whose blow last landed on it")
+	g.foes._on_died(e, 0, 0)
+	_check(b.last_kill_pos == e.global_position and a.last_kill_pos == Vector2.INF, "its kill is that player's, though another stands nearer")
+	_check(b.dodge_charges == 1, "and their Kill Rush gives a dodge back")
+	e.last_hit_by = null
+	g.foes._on_died(e, 0, 0)
+	_check(a.last_kill_pos == e.global_position, "a kill nobody's blow made (a burn) is the nearest player's")
+	e.queue_free()
+	await _leave(g)
+	await _frames(2)
+
+
+## The Striker's tree (version 53): the glint, an Exposed elite, a Close Call, an Execution and the whole tree.
+func _striker_shots(g, lv, p) -> void:
+	var home: Vector2 = p.spawn_point
+	lv.level = 8
+	lv.perks[0] = ["punish", "close_call", "flank", "keep_the_chain", "sharp", "kill_rush", "expose", "execution"]
+	p.global_position = home + Vector2(0, 70)
+	p.reset_physics_interpolation()
+	p.weapon["crit"] = 0.0
+	lv.calm[0] = 0.0
+	await _frames(30)
+	g.land.settle()
+	await _snap("36_sharp_no_glint_yet")
+	lv.calm[0] = Levels.SHARP_TIME - 0.05
+	for n in 3:
+		await _frames([4, 8, 30][n])
+		await _snap("36_sharp_glint_%d" % n)
+	# Exposed: an elite with the plate over it; one that is Exposed, Open and Challenged at once.
+	var el = _foe(g, "hound", p.global_position + Vector2(80, -10), true)
+	var br = _foe(g, "scrap_brute", p.global_position + Vector2(-90, 0), true)
+	for e in [el, br]:
+		e.set_physics_process(false)
+	await _frames(10)
+	el.expose(Levels.EXPOSE_TIME)
+	br.expose(Levels.EXPOSE_TIME)
+	br.open_for(9.0)
+	br.challenge(p, 5.0)
+	await _frames(10)
+	await _snap("37_exposed_elites")
+	el.queue_free()
+	br.queue_free()
+	await _frames(4)
+	# Close Call: a hound's lunge, dodged through.
+	lv.calm[0] = 0.0
+	var h = _foe(g, "hound", p.global_position + Vector2(90, 0))
+	h.rest = 0.0
+	await _wait(func(): return h.mode == "lunge", 300)
+	p.input.move = (h.global_position - p.global_position).normalized()
+	p.input.dash_pressed = true
+	await _frames(1)
+	p.input.dash_pressed = false
+	p.input.move = Vector2.ZERO
+	await _frames(6)
+	await _snap("38_close_call")
+	await _wait(func(): return h.mode == "recover", 120)
+	await _frames(4)
+	await _snap("38b_close_call_open")
+	h.queue_free()
+	await _frames(30)
+	# An Execution: a finisher on an Open hound left below a third of its health.
+	var x = _foe(g, "hound", p.global_position + Vector2(44, 0))
+	x.rest = 99.0
+	x.max_hp = 300.0
+	x.hp = 300.0
+	x.stun_time = 99.0
+	x.knock_resist = 0.0
+	await _frames(4)
+	p._reset_combo()
+	p._clear_marks()
+	p.input.stick_aim = Vector2.RIGHT
+	p.input.attack_held = true
+	await _wait(func(): return p.current_step == p._steps().size() - 1 and p.hit_time >= 0.0, 200)
+	x.hp = 100.0
+	await _wait(func(): return p.hit_time < 0.0, 60)
+	p.input.attack_held = false
+	await _frames(4)
+	await _snap("39_execution")
+	await _frames(40)
+	if is_instance_valid(x):
+		x.queue_free()
+	# The whole tree on the forge's screen.
+	p.global_position = home
+	await _frames(10)
+	g._use_forge(0)
+	await _idle(10)
+	g.hall.view = "trees"
+	g.hall.tree = 1
+	g.hall.place = 7
+	await _idle(10)
+	await _snap("40_trees_striker_whole")
+	g.hall.go_back()
+	g.hall.go_back()
+	await _idle(4)
+	lv.perks[0] = ["challenge", "punish", "kindle", "ore_sense"]
+	lv.level = 4
+	p.weapon["crit"] = 0.05
+
+
 # --- Kindle (Mender) ----------------------------------------------------------------------
 
 func _kindle() -> void:
@@ -751,7 +1184,11 @@ func _screens() -> void:
 	await _key(KEY_S)
 	_check(hall.place == 1 and hall.perk_on() == "close_call", "down is the next perk of it")
 	hall.confirm()
-	_check((lv.perks[0] as Array).is_empty() and hall.note.begins_with("Not built yet"), "a perk that is not built cannot be bought (\"%s\")" % hall.note)
+	_check((lv.perks[0] as Array).is_empty() and hall.note == "Needs Punish first.", "a perk you cannot learn yet says why (\"%s\")" % hall.note)
+	hall.move(-1, 0)
+	hall.confirm()
+	_check(hall.perk_on() == "unmoved" and (lv.perks[0] as Array).is_empty() and hall.note.begins_with("Not built yet"), "a perk that is not built cannot be bought (\"%s\")" % hall.note)
+	hall.move(1, 0)
 	hall.move(0, -1)
 	hall.confirm()
 	_check(lv.perks[0] == ["punish"] and lv.points(0) == 0 and hall.note == "Punish learnt.", "Enter learns the perk the cursor is on")
@@ -999,9 +1436,13 @@ func _shots() -> void:
 	hall.confirm()
 	await _idle(10)
 	await _snap("09_trees_punish_learnt")
-	hall.move(0, 3)
+	hall.move(0, 1)
 	await _idle(300)
-	await _snap("10_trees_not_built_yet")
+	await _snap("10_trees_close_call_built")
+	hall.move(-1, 0)
+	await _idle(10)
+	await _snap("10b_trees_warden_not_built_yet")
+	hall.move(1, 2)
 	hall.move(2, 4)
 	await _idle(10)
 	await _snap("11_trees_delver_capstone")
@@ -1090,6 +1531,7 @@ func _shots() -> void:
 	await _frames(8)
 	await _snap("22_hound_missed_open")
 	h.queue_free()
+	await _striker_shots(g, lv, p)
 	# Ore Sense.
 	var map: LandMap = g.map
 	var best := Vector2i(-1, -1)

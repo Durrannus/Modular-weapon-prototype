@@ -256,6 +256,20 @@ func _on_died(e, i: int, k: int) -> void:
 	# What it leaves behind (loot.gd): Memory, and an elite's loot. Those called into a fight never come this way.
 	if game != null and "loot" in game and game.loot != null:
 		game.loot.foe_died(e)
+	credit(e)
+
+
+## Whose kill it is: the player whose blow last landed on it, or if nobody's did (a burn, a rune's hit), the nearest
+## one standing. Their kill runes go off, and the role trees hear of it (Kill Rush). Version 53: before it, a kill in
+## the Highlands was nobody's.
+func credit(e) -> void:
+	var best = e.last_hit_by if "last_hit_by" in e and is_instance_valid(e.last_hit_by) and not e.last_hit_by.is_down else null
+	if best == null:
+		for p in players:
+			if is_instance_valid(p) and not p.is_down and (best == null or p.global_position.distance_to(e.global_position) < best.global_position.distance_to(e.global_position)):
+				best = p
+	if best != null and best.has_method("on_kill"):
+		best.on_kill(e.global_position)
 
 
 ## The dead come back, at home, when their time is up and nobody is near.

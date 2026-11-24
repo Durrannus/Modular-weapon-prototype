@@ -83,7 +83,7 @@ func _think(delta: float) -> Vector2:
 			dive_left -= DIVE_SPEED * delta
 			if not nipped:
 				for p in players():
-					if p.global_position.distance_to(global_position) < radius + 16.0 and p.invuln <= 0.0:
+					if p.global_position.distance_to(global_position) < radius + 16.0 and p.can_be_hit(self):
 						nipped = true
 						p.take_damage(NIP, global_position - dive_dir * 10.0, self)
 						break

@@ -132,7 +132,7 @@ func _fight(delta: float) -> Vector2:
 			for p in players():
 				if struck.has(p.get_instance_id()):
 					continue
-				if p.global_position.distance_to(global_position) < radius + 16.0 + 4.0 and p.invuln <= 0.0:
+				if p.global_position.distance_to(global_position) < radius + 16.0 + 4.0 and p.can_be_hit(self):
 					struck[p.get_instance_id()] = true
 					p.take_damage(_bite(), global_position - lunge_dir * 20.0, self)
 			if lunge_left <= 0.0 or (get_slide_collision_count() > 0 and lunge_left < LUNGE_DIST - 40.0):

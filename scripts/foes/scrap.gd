@@ -81,7 +81,7 @@ func _land() -> void:
 		if not is_instance_valid(p) or p.is_down:
 			continue
 		if on_mark(p.global_position, to, reach):
-			if p.invuln <= 0.0:
+			if p.can_be_hit(_thrower()):
 				missed = false
 			p.take_damage(damage, to, _thrower())
 		if p.rig != null:

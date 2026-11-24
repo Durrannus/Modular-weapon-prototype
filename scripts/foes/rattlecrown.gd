@@ -375,7 +375,7 @@ func _fight(delta: float) -> Vector2:
 				if struck.has(int(p.index)):
 					continue
 				var rel: Vector2 = p.global_position - global_position
-				if rel.length() < radius + 16.0 + 6.0 and p.invuln <= 0.0:
+				if rel.length() < radius + 16.0 + 6.0 and p.can_be_hit(self):
 					struck[int(p.index)] = true
 					var before: float = p.hp
 					p.take_damage(CHARGE, global_position - aim * 20.0, self)

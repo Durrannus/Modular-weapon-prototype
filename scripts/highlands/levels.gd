@@ -79,6 +79,14 @@ static var SPARK_EVERY := 4.0
 static var SPARK_HEAL := 0.1
 static var SPARK_LIFE := 10.0
 static var ORE_SENSE_TILES := 9.0
+# The Striker's other perks (version 53). The Bible gives these numbers; how far behind is "behind" is enemy.gd's.
+static var CLOSE_CALL_OPEN := 2.0  # Close Call: an enemy whose attack you dodged through is Open this long
+static var SHARP_TIME := 6.0       # Sharp: this long without being hit and your weapon glints ...
+static var SHARP_TIMES := 2.0      # ... and your next finisher hits this many times as hard
+static var EXPOSE_TIME := 4.0      # Expose: a boss or an elite you crit is Exposed this long ...
+static var EXPOSE_MORE := 0.15     # ... and everyone's hits on it do this much more
+static var EXECUTION_TIMES := 3.0  # Execution: a finisher on an Open enemy hits this many times as hard ...
+static var EXECUTION_BELOW := 1.0 / 3.0   # ... and a normal enemy left below this share of its health dies outright
 
 ## What the forge says as the squad reaches each level, from level 1. Stand-ins: see the top of this file.
 const FORGE_LINES := [
@@ -95,6 +103,7 @@ const INK := Color("#e8e4bc")
 const AMBER := Color("#ffc850")
 const PLATE := Color("#19142a")
 const PALE := Color("#7fe0c0")     # the Spark's verdigris, for the number it heals
+const GLINT := Color("#fff0b4")    # the Striker's pale gold (the Open mark's): Sharp's glint, Close Call, Execution
 
 
 class Layer extends Node2D:
@@ -119,6 +128,9 @@ var rises: Array = []              # looks only: [{i, t}] the level-up playing o
 var takes: Array = []              # looks only: [{at, t}] a marker going as it is taken
 var spark_takes: Array = []        # looks only: [{at, t}] a Spark going as it is taken
 var was_full: Array = []           # per player: their bar was full on the last tick
+var calm: Array = []               # per player: seconds since they were last hit (Sharp glints at SHARP_TIME)
+var sharp_spent: Array = []        # per player: their glint went into a finisher this tick (it goes at the tick's end)
+var close_called: Array = []       # per player: the dodge (when it began) that last made a Close Call: one word a dodge
 var sensed: Array = []             # looks only: what Ore Sense shows now, [[tile, "tin" | "copper"]]
 var sensed_t := 0.0
 var clock := 0.0
@@ -149,6 +161,9 @@ func _ready() -> void:
 		perks.append([])
 		spark_wait.append(0.0)
 		was_full.append(false)
+		calm.append(0.0)
+		sharp_spent.append(false)
+		close_called.append(-99.0)
 		if is_instance_valid(players[i]):
 			players[i].roles = self
 
@@ -349,9 +364,98 @@ func softened(p, amount: float, by) -> float:
 	return amount
 
 
-## Does player p's own hit on this enemy crit for certain? (Punish: it does while the enemy is Open.)
+## Does player p's own hit on this enemy crit for certain? (Punish: it does while the enemy is Open, or what counts
+## as Open for p.)
 func punishes(p, e) -> bool:
-	return has_p(p, "punish") and is_instance_valid(e) and e.has_method("is_open") and e.is_open()
+	return has_p(p, "punish") and hits_open(p, e)
+
+
+# --- The Striker's other perks (version 53) -------------------------------------------------
+# Close Call, Flank, Keep the Chain, Sharp, Kill Rush, Expose and Execution. Each is told here by the place in
+# player.gd it hangs on: dodged() by an attack that found p mid-dodge, boost() and landed() by p's own hit,
+# was_hit() by a hit p took, killed() by a kill credited to p, keeps_chain() by p's dodge.
+
+## Does player p's hit on this enemy count as a hit on an Open enemy? It does while the enemy is Open, and with Flank
+## when p hits it from behind (enemy.gd's behind(): its back is the side it is drawn facing away from).
+func hits_open(p, e) -> bool:
+	if not is_instance_valid(e) or not e.has_method("is_open"):
+		return false
+	if e.is_open():
+		return true
+	return has_p(p, "flank") and e.has_method("behind") and is_instance_valid(p) and e.behind(p.global_position)
+
+
+## An attack of this enemy's found player p while p's dodge made them untouchable. Close Call: it is Open for
+## CLOSE_CALL_OPEN. (The word over p shows once a dodge, however many times the attack finds them in it.)
+func dodged(p, by) -> void:
+	var i := players.find(p)
+	if not has(i, "close_call") or by == null or not is_instance_valid(by) or not by.has_method("open_for") or by.dead:
+		return
+	by.open_for(CLOSE_CALL_OPEN)
+	if float(close_called[i]) != float(p.dodge_started):
+		close_called[i] = p.dodge_started
+		p._label("CLOSE CALL", GLINT)
+		Sfx.play(game, "click", -8.0, 1.8)
+
+
+## Keep the Chain: does p's dodge leave their combo where it was?
+func keeps_chain(p) -> bool:
+	return has_p(p, "keep_the_chain")
+
+
+## Player p was hit (it hurt them). Sharp's clock starts again, and a glint is lost.
+func was_hit(p) -> void:
+	var i := players.find(p)
+	if i >= 0 and i < calm.size():
+		calm[i] = 0.0
+
+
+## Is player p's weapon glinting (Sharp: they have gone SHARP_TIME without being hit)?
+func glinting(i: int) -> bool:
+	return _sharp(i) and not bool(sharp_spent[i])
+
+
+## Sharp is ready: a finisher that lands this tick is doubled (every enemy it hits, though the first spends it).
+func _sharp(i: int) -> bool:
+	return has(i, "sharp") and i < calm.size() and float(calm[i]) >= SHARP_TIME
+
+
+## A kill is credited to player p (the Highlands' foes.gd tells them, then us). Kill Rush: a dodge charge back.
+func killed(p) -> void:
+	if has_p(p, "kill_rush") and is_instance_valid(p) and p.has_method("dodge_back"):
+		p.dodge_back()
+
+
+## What player p's own hit on enemy e is worth, before it lands: {times, execution}. `fin` says it is p's finisher.
+## Sharp: a glinting finisher hits SHARP_TIMES as hard (the glint goes once the swing is done: every enemy one
+## finisher hits has it). Execution: a finisher on an Open enemy hits EXECUTION_TIMES as hard. Exposed (somebody's
+## Expose) is in enemy.gd's take_hit(), since it is everyone's hits, runes too.
+func boost(p, e, fin: bool) -> Dictionary:
+	var out := {"times": 1.0, "execution": false}
+	var i := players.find(p)
+	if i < 0 or not fin:
+		return out
+	if _sharp(i):
+		out["times"] = float(out["times"]) * SHARP_TIMES
+		sharp_spent[i] = true
+	if has(i, "execution") and hits_open(p, e):
+		out["times"] = float(out["times"]) * EXECUTION_TIMES
+		out["execution"] = true
+	return out
+
+
+## Player p's own hit on enemy e has landed (`crit`: it was a crit; `was`: e's health before it). Expose: a crit on a
+## boss or an elite Exposes it. Execution: a normal enemy left below EXECUTION_BELOW of its health dies outright.
+func landed(p, e, crit: bool, boosted: Dictionary, was: float) -> void:
+	var i := players.find(p)
+	if i < 0 or not is_instance_valid(e):
+		return
+	if crit and has(i, "expose") and not e.dead and (e.is_boss() or bool(e.elite)) and e.has_method("expose"):
+		e.expose(EXPOSE_TIME)
+	if bool(boosted.get("execution", false)):
+		p._label("EXECUTION", GLINT)
+		if not e.dead and float(e.hp) < was and not e.is_boss() and not bool(e.elite) and float(e.hp) < float(e.max_hp) * EXECUTION_BELOW:
+			e._apply_damage(float(e.hp), true, GLINT)
 
 
 # --- Once a tick --------------------------------------------------------------------------
@@ -360,11 +464,20 @@ func tick(delta: float) -> void:
 	clock += delta
 	# Enemies show that they are Open only where somebody can use it.
 	Enemy.show_open = any_has("punish")
+	Enemy.exposed_more = EXPOSE_MORE
 	for i in players.size():
 		spark_wait[i] = maxf(float(spark_wait[i]) - delta, 0.0)
+		# Sharp: a glint that went into a finisher is gone, and the clock starts again.
+		if bool(sharp_spent[i]):
+			sharp_spent[i] = false
+			calm[i] = 0.0
+		var glinted := glinting(i)
+		calm[i] = float(calm[i]) + delta
 		var p = players[i]
 		if not is_instance_valid(p):
 			continue
+		if glinting(i) and not glinted:
+			Sfx.play(game, "click", -12.0, 2.2)
 		var full := share(i) >= 1.0
 		if full and not bool(was_full[i]):
 			p._label("ENOUGH FOR A LEVEL", AMBER)
@@ -527,6 +640,23 @@ func _draw_over(ci: Node2D) -> void:
 			continue
 		var feet: Vector2 = players[i].global_position + Vector2(0, FEET)
 		ItemArt.draw(ci, "level_up", ((feet / UNIT).floor() - ItemArt.origin("level_up")) * UNIT, UNIT, Color.WHITE, clampi(int(float(r["t"]) * 10.0), 0, 7))
+	# Sharp: the tip of a glinting weapon twinkles, a pale gold cross that flares about once a second. A stand-in
+	# drawn here until the Art builder's picture ("sharp_glint" in art/roles) comes.
+	for i in players.size():
+		var p = players[i]
+		if not glinting(i) or not is_instance_valid(p) or p.is_down or not p.armed() or not p.has_method("_tip_world"):
+			continue
+		var at: Vector2 = (p._tip_world() / UNIT).floor()
+		var beat := fmod(clock * 1.1 + float(i) * 0.37, 1.0)
+		if ItemArt.draw(ci, "sharp_glint", (at - ItemArt.origin("sharp_glint")) * UNIT, UNIT, Color.WHITE, int(clock * 8.0)) != Vector2.ZERO:
+			continue
+		var arm := 3 if beat < 0.14 else (2 if beat < 0.3 else 1)
+		for d in [Vector2(1, 1), Vector2(-1, 1), Vector2(1, -1), Vector2(-1, -1)]:
+			ci.draw_rect(Rect2((at + d) * UNIT, Vector2(UNIT, UNIT)), Color(PLATE, 0.7))
+		for k in range(1, arm + 1):
+			for d in [Vector2.RIGHT, Vector2.LEFT, Vector2.UP, Vector2.DOWN]:
+				ci.draw_rect(Rect2((at + d * float(k)) * UNIT, Vector2(UNIT, UNIT)), GLINT)
+		ci.draw_rect(Rect2(at * UNIT, Vector2(UNIT, UNIT)), Color.WHITE)
 
 
 ## Where player i's Memory bar is: right under their health bar.

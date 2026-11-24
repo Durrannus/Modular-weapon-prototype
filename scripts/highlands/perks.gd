@@ -14,8 +14,9 @@ extends RefCounted
 ## than the perks they have learnt keeps them all, but only the first so many are AWAKE there, in the order they
 ## were learnt (Darren, 21 November, of threads and parts: "the world's forge decides what is awake").
 ##
-## NOT EVERYTHING IS BUILT. Version 45 builds the four signature perks (BUILT below). The others are in the tree to
-## be read, and say that they are not built yet: nobody can spend a point on a perk that does nothing.
+## NOT EVERYTHING IS BUILT. Version 45 builds the four signature perks, version 53 the rest of the Striker's tree
+## (BUILT below). The others are in the tree to be read, and say that they are not built yet: nobody can spend a
+## point on a perk that does nothing.
 
 const TREES := ["warden", "striker", "mender", "delver"]
 const TREE_NAMES := {"warden": "Warden", "striker": "Striker", "mender": "Mender", "delver": "Delver"}
@@ -36,7 +37,8 @@ const TREE := {
 }
 
 ## The perks that do something in this version of the game.
-const BUILT := ["challenge", "punish", "kindle", "ore_sense"]
+const BUILT := ["challenge", "punish", "kindle", "ore_sense",
+		"close_call", "flank", "keep_the_chain", "sharp", "kill_rush", "expose", "execution"]
 
 const PERKS := {
 	"challenge": {"name": "Challenge", "text": "Your finisher Challenges every enemy it hits for 5 s. They turn on you, and their hits on you do a quarter less. Bosses turn for 3 s, then can't be Challenged again for 10 s."},

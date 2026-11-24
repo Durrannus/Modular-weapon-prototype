@@ -1002,7 +1002,9 @@ func _on_crown() -> void:
 	Sfx.play(game, "forged", -10.0, 0.7)
 
 
-func _on_boss_died(_e) -> void:
+func _on_boss_died(e) -> void:
+	if foes != null:
+		foes.credit(e)      # (the killing blow's kill runes; Kill Rush)
 	_won()
 
 

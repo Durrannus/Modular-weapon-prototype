@@ -152,6 +152,7 @@ var max_hp := MAX_HP
 var hp := MAX_HP
 var spawn_point := Vector2.ZERO
 var fell_at := Vector2.ZERO     # where they last fell (set as they fall, before they wake at spawn_point)
+var finishing := false          # a melee finisher's blow is landing (the Striker's Sharp and Execution ask)
 var roles = null                # the Highlands' role trees (scripts/highlands/levels.gd): their perks hook in here. Null anywhere else
 var gear = null                 # the Highlands' Accessory Satchel (scripts/highlands/gear.gd): what is worn hooks in here. Null anywhere else
 var aim_dir := Vector2.RIGHT   # where an attack goes: the mouse, the right stick, or the way you face
@@ -470,6 +471,21 @@ func set_weapon(stats: Dictionary) -> void:
 	_reset_combo()
 
 
+## A dodge with Keep the Chain (version 53): the swing it cuts short is over, but the combo is not. A swing whose
+## blow had landed counts, and the next swing is the one after it; a swing cut short before its blow is swung again.
+## The chain waits out the dodge and then the usual moment for the next press.
+func _keep_chain() -> void:
+	if current_step >= 0:
+		var landed := hit_time < 0.0
+		step_index = (current_step + 1 if landed else current_step) % maxi(_steps().size(), 1)
+	cast_weak = false
+	current_step = -1
+	hit_time = -1.0
+	queued = false
+	lunge_timer = 0.0
+	combo_timer = COMBO_WINDOW + DODGE_TIME
+
+
 func _reset_combo() -> void:
 	cast_weak = false
 	step_index = 0
@@ -635,7 +651,11 @@ func _update_dodge(delta: float, move: Vector2) -> void:
 		invuln = maxf(invuln, DODGE_TIME + 0.06)
 		hit_pause = 0.0
 		face_linger = 0.0
-		_reset_combo()
+		# (Keep the Chain, a Striker's perk: the combo carries on after the dodge.)
+		if roles != null and roles.keeps_chain(self):
+			_keep_chain()
+		else:
+			_reset_combo()
 		dodge_started = game_time
 		dodge_from = global_position
 		dodge_arrow = true
@@ -819,10 +839,12 @@ func _do_move(move: String) -> void:
 	# Where it lands: an Aftershock rumbles there.
 	last_impact = global_position + dir * reach * (IMPACT_AT if shape == "impact" else 0.7)
 	var found := _swing_hits(info, dir, reach)
+	finishing = current_step == _steps().size() - 1 and _steps().size() > 1
 	for f in found:
 		_hit_enemy(f[1], dmg, f[2], knock, stun, freeze, swing)
 		hit_list.append(f[1])
 		_add_stagger(f[1], float(info["power"]))
+	finishing = false
 	var hits := hit_list.size()
 	_add_momentum(hits)
 
@@ -2971,6 +2993,16 @@ func _swing_hits(info: Dictionary, dir: Vector2, reach: float) -> Array:
 func _hit_enemy(e, dmg: float, kdir: Vector2, knock: float, stun := 0.12, freeze := 0.05, swing := {}, ghost := false, shot = null) -> void:
 	if gear != null:
 		gear.dealt(self)      # (the Hearthstone Pebble warms only out of the fight)
+	if "last_hit_by" in e:
+		e.last_hit_by = self      # (whose kill it is, if this is the blow that kills it)
+	# The Striker's perks that change what this hit is worth (Sharp, Execution): only your own finisher's. A melee
+	# finisher is told by `finishing`; an arrow or a bolt carries whether it is one.
+	var boosted := {"times": 1.0, "execution": false}
+	if roles != null and not ghost:
+		var fin: bool = finishing if shot == null else (bool(shot.finisher) and str(shot.rune) == "" and not ("quiet" in shot and bool(shot.quiet)))
+		boosted = roles.boost(self, e, fin)
+		dmg *= float(boosted["times"])
+	var was_hp: float = float(e.hp) if "hp" in e else 0.0
 	# A Weak Point mark turns this hit into a big crit, whoever's mark it is.
 	var mark: Dictionary = {}
 	if not swing.is_empty() and not e.weak_marks.is_empty():
@@ -2992,6 +3024,8 @@ func _hit_enemy(e, dmg: float, kdir: Vector2, knock: float, stun := 0.12, freeze
 			Sfx.play(self, "finisher", -3.0, 1.5)
 			_label("WEAK POINT!", col)
 			_apply_elements(e, dmg * (1.0 + bonus))
+			if roles != null and not ghost:
+				roles.landed(self, e, true, boosted, was_hp)
 			return
 	# An arrow carries its bow's luck with it (`shot` is the arrow): the weapon in
 	# the hand may have changed while it flew.
@@ -3003,6 +3037,9 @@ func _hit_enemy(e, dmg: float, kdir: Vector2, knock: float, stun := 0.12, freeze
 		crit = true
 	var final := dmg * (crit_times if crit else 1.0)
 	e.take_hit(final, kdir, knock, crit, GHOST_COLOR if ghost else weapon.get("hit_color", Color.WHITE), stun, freeze)
+	# (Expose and Execution, once it has landed.)
+	if roles != null and not ghost:
+		roles.landed(self, e, crit, boosted, was_hp)
 	# A spark where the blade lands, thrown the way the hit goes.
 	var spark_at: Vector2 = e.global_position - kdir * float(e.radius) * 0.4
 	var spark: Node2D = null
@@ -3115,6 +3152,15 @@ func lab_changed() -> void:
 func on_kill(where: Vector2 = Vector2.INF) -> void:
 	last_kill_pos = where if where != Vector2.INF else global_position
 	_trigger("kill", [])
+	if roles != null:
+		roles.killed(self)      # (Kill Rush)
+
+
+## A dodge charge back now, if one is spent (Kill Rush, a Striker's perk).
+func dodge_back() -> void:
+	if dodge_charges < DODGE_MAX_CHARGES:
+		dodge_charges += 1
+		dodge_refill = 0.0
 
 
 func _flash_effect(effect: int) -> void:
@@ -4135,10 +4181,28 @@ func _dealt() -> void:
 		gear.dealt(self)
 
 
+## Can an attack hurt this player now? Not while they are untouchable (enemies ask before they strike). An attack
+## that finds them in the middle of a dodge has been dodged through: `by`, the enemy whose attack it is, may be
+## Open for it (Close Call, a Striker's perk).
+func can_be_hit(by = null) -> bool:
+	if invuln <= 0.0:
+		return true
+	_dodged_through(by)
+	return false
+
+
+func _dodged_through(by) -> void:
+	if roles != null and by != null and game_time - dodge_started <= DODGE_TIME + 0.06:
+		roles.dodged(self, by)
+
+
 ## from: where the hit came from (you're knocked away from it).
 ## by: the enemy whose hit it is, where that is known (a Challenged enemy does less to whoever Challenged it).
 func take_damage(amount: float, from: Vector2 = Vector2.INF, by = null) -> void:
-	if invuln > 0.0 or is_down:
+	if is_down:
+		return
+	if invuln > 0.0:
+		_dodged_through(by)
 		return
 	# Bulwark stops a hit that comes from somewhere. Enough of them break it.
 	# (Also with the arena's Invincible switch on, so the rune can be tried there.)
@@ -4152,6 +4216,8 @@ func take_damage(amount: float, from: Vector2 = Vector2.INF, by = null) -> void:
 	if gear != null:
 		amount = gear.softened(self, amount)      # (the Banner Pin)
 	hp -= amount
+	if roles != null:
+		roles.was_hit(self)      # (Sharp loses its glint)
 	invuln = 0.8
 	hurt_flash = 0.12
 	shake = maxf(shake, 7.0)

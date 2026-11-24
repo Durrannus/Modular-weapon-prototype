@@ -84,7 +84,11 @@ var challenged_by = null        # the player who Challenged it
 var challenge_left := 0.0       # seconds of the Challenge left
 var challenge_rest := 0.0       # a boss: seconds before it can be Challenged again
 var open_left := 0.0            # seconds it is still Open after an attack of its own that hit nobody
+var exposed_left := 0.0         # seconds it is still Exposed: a Striker's crit on a boss or elite (version 53)
+var last_hit_by = null          # the player whose hit last landed on it: who the kill is credited to (version 53)
 static var show_open := false   # somebody playing can use an Open enemy: only then is the mark drawn
+static var exposed_more := 0.15 # an Exposed enemy takes this much more from every hit (levels.gd's EXPOSE_MORE, set each tick)
+const FLANK_BEHIND := 0.34      # Flank: behind is within about 70 degrees of straight behind it
 
 
 func _ready() -> void:
@@ -237,6 +241,7 @@ func _physics_process(delta: float) -> void:
 	challenge_left = maxf(challenge_left - delta, 0.0)
 	challenge_rest = maxf(challenge_rest - delta, 0.0)
 	open_left = maxf(open_left - delta, 0.0)
+	exposed_left = maxf(exposed_left - delta, 0.0)
 	_update_burn(delta)
 	if kind == "dummy":
 		return
@@ -281,7 +286,7 @@ func touch_damage(amount := -1.0, extra_reach := 0.0) -> bool:
 		return false
 	var any := false
 	for p in players():
-		if p.global_position.distance_to(global_position) < radius + 16.0 + 2.0 + extra_reach and p.invuln <= 0.0:
+		if p.global_position.distance_to(global_position) < radius + 16.0 + 2.0 + extra_reach and p.can_be_hit(self):
 			p.take_damage(dmg, global_position, self)
 			any = true
 	return any
@@ -308,6 +313,23 @@ func challenge(by, time: float, rest := 0.0) -> bool:
 func open_for(time: float) -> void:
 	if not dead:
 		open_left = maxf(open_left, time)
+
+
+## A Striker's crit on a boss or an elite leaves it Exposed for this long (Expose: everyone's hits on it do more). A
+## second Striker's Expose only starts the time again: two never stack.
+func expose(time: float) -> void:
+	if not dead and kind != "dummy":
+		exposed_left = maxf(exposed_left, time)
+
+
+## Is this place behind it (Flank, version 53)? Every enemy is drawn side-on, facing left or right, so behind is the
+## side its back is drawn on: within about 70 degrees of straight behind, as the player sees it.
+func behind(at: Vector2) -> bool:
+	var to := at - global_position
+	if dead or kind == "dummy" or to.length() < 1.0:
+		return false
+	var back := Vector2.RIGHT if _flip("idle") else Vector2.LEFT
+	return to.normalized().dot(back) > FLANK_BEHIND
 
 
 ## Open: recovering from a missed attack, stunned, or reeling from a Stagger break.
@@ -500,7 +522,8 @@ func take_hit(dmg: float, dir: Vector2, knockback: float, crit: bool, num_color:
 	hit_stun = maxf(hit_stun, stun * minf(knock_resist * 1.5, 1.0))
 	freeze = maxf(freeze, freeze_time)
 	_on_hit()
-	_apply_damage(dmg, crit, num_color)
+	# Exposed (a Striker's Expose): every hit on it does more, whoever's.
+	_apply_damage(dmg * (1.0 + exposed_more if exposed_left > 0.0 else 1.0), crit, num_color)
 
 
 ## Called on every hit that lands. A good hit interrupts a charger's wind-up.
@@ -801,7 +824,7 @@ func _draw_over(ci: CanvasItem) -> void:
 		_draw_stagger(ci)
 	if held and not dead:
 		_draw_held_mark(ci, _bar_y() - 4.0 if bar else _head_y() - 6.0)
-	if not dead and (challenge_left > 0.0 or (show_open and is_open())):
+	if not dead and (challenge_left > 0.0 or (show_open and is_open()) or exposed_left > 0.0):
 		_draw_role_marks(ci, _bar_y() - 3.0 if (bar or stagger > 0.0) else _head_y() - 5.0 - (22.0 if _starry() else 0.0))
 
 
@@ -831,6 +854,16 @@ func _draw_role_marks(ci: CanvasItem, y: float) -> void:
 				var half := float(3 - row)
 				ci.draw_rect(Rect2(-(half + 1.0) * px, y - lift - float(6 - row) * px, px * 2.0, px), Color("#fff0b4"))
 				ci.draw_rect(Rect2((half - 1.0) * px, y - lift - float(6 - row) * px, px * 2.0, px), Color("#fff0b4"))
+	# EXPOSED (version 53): a cracked plate, above the others. A stand-in drawn here until the Art builder's picture
+	# ("exposed" in art/roles) comes; it blinks in its last half second.
+	if exposed_left > 0.0 and not (exposed_left < 0.5 and int(exposed_left * 12.0) % 2 == 0):
+		var up := y - (9.0 * px if ring else 0.0) - (8.0 * px if open else 0.0)
+		if ItemArt.draw(ci, "exposed", Vector2(0, up) - ItemArt.origin("exposed") * px, px, Color.WHITE, int(now * 6.0)) == Vector2.ZERO:
+			var bone := Color("#e8e4bc")
+			ci.draw_rect(Rect2(-4.0 * px, up - 8.0 * px, 8.0 * px, 8.0 * px), dark)
+			ci.draw_rect(Rect2(-3.0 * px, up - 7.0 * px, 6.0 * px, 6.0 * px), bone)
+			for k in 3:
+				ci.draw_rect(Rect2(float(k - 1) * px, up - float(6 - k * 2) * px, px, px * 2.0), dark)
 
 
 ## The "paused" mark over a held enemy: two small bars, its bottom edge at y.
