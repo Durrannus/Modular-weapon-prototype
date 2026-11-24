@@ -11,6 +11,13 @@ extends RefCounted
 ## When a tile is dug or a thing is broken the grid is told (tile_changed, thing_changed), and `stamp` goes up so
 ## that anybody walking an old way asks again.
 ##
+## Since version 49 the land is six times as big, and looking for a way to somewhere that cannot be reached would go
+## over every open tile of it (a sixtieth of a second, for every enemy that asks). So the grid also knows which
+## stretch of free ground every tile belongs to (`label`): two tiles in different stretches have no way between
+## them, and that is answered at once. The stretches are worked out once (labels()) and kept right as tiles are dug
+## and things are put down: ground that opens joins its neighbours' stretches; where ground is shut, the stretch is
+## looked over nearby to see whether it has come apart.
+##
 ## It asks for no random numbers and changes nothing: the same land gives the same answers.
 
 const LandMap := preload("res://scripts/highlands/land_map.gd")
@@ -26,6 +33,11 @@ var stamp := 0
 var made_ms := 0.0               # how long the grid took to make (the tests print it)
 var covered := {}                # tile index -> how many broad things stand on it
 var blocked := {}                # tile index -> true: something that is not one of the map's things stands there (a chest)
+var label := PackedInt32Array()  # for every tile of the region: the stretch of free ground it is part of (0 for none)
+var parent := PackedInt32Array() # stretches that have grown together: each points at an older one it is joined to, or at itself
+var labels_ok := false           # false: not worked out yet, or no longer to be trusted (they are worked out again when next asked for)
+var labelled_ms := 0.0
+const LOOK := 6000               # when ground is shut, how many tiles are looked over to see whether a stretch came apart
 
 
 func setup(map_: LandMap) -> void:
@@ -80,7 +92,7 @@ func _cover(t: Dictionary, by: int) -> void:
 	covered[key] = int(covered.get(key, 0)) + by
 	if int(covered[key]) <= 0:
 		covered.erase(key)
-	grid.set_point_solid(at, covered.has(key) or blocked.has(key) or not map.walkable(at.x, at.y))
+	_shut(at, covered.has(key) or blocked.has(key) or not map.walkable(at.x, at.y))
 
 
 ## Something that is not one of the map's things stands on this tile from now on (a chest): nobody walks through it.
@@ -88,7 +100,7 @@ func block(tile: Vector2i) -> void:
 	if not region.has_point(tile):
 		return
 	blocked[tile.y * LandMap.SIZE + tile.x] = true
-	grid.set_point_solid(tile, true)
+	_shut(tile, true)
 	stamp += 1
 
 
@@ -98,7 +110,7 @@ func unblock(tile: Vector2i) -> void:
 		return
 	var key := tile.y * LandMap.SIZE + tile.x
 	blocked.erase(key)
-	grid.set_point_solid(tile, covered.has(key) or not map.walkable(tile.x, tile.y))
+	_shut(tile, covered.has(key) or not map.walkable(tile.x, tile.y))
 	stamp += 1
 
 
@@ -107,7 +119,7 @@ func tile_changed(tile: Vector2i) -> void:
 	if not region.has_point(tile):
 		return
 	var key := tile.y * LandMap.SIZE + tile.x
-	grid.set_point_solid(tile, covered.has(key) or blocked.has(key) or not map.walkable(tile.x, tile.y))
+	_shut(tile, covered.has(key) or blocked.has(key) or not map.walkable(tile.x, tile.y))
 	stamp += 1
 
 
@@ -133,8 +145,157 @@ func things_changed(foot_px: Vector2) -> void:
 			var at := c + Vector2i(i, j)
 			if region.has_point(at):
 				var key := at.y * LandMap.SIZE + at.x
-				grid.set_point_solid(at, covered.has(key) or blocked.has(key) or not map.walkable(at.x, at.y))
+				_shut(at, covered.has(key) or blocked.has(key) or not map.walkable(at.x, at.y))
 	stamp += 1
+
+
+# --- Which stretch of free ground a tile is part of ---------------------------------------
+
+## Shuts or frees one tile of the grid, and keeps the stretches right.
+func _shut(at: Vector2i, solid: bool) -> void:
+	if grid.is_point_solid(at) == solid:
+		return
+	grid.set_point_solid(at, solid)
+	if not labels_ok:
+		return
+	if solid:
+		_part(at)
+	else:
+		_join(at)
+
+
+func _find(l: int) -> int:
+	var root := l
+	while parent[root] != root:
+		root = parent[root]
+	while parent[l] != root:
+		var up := parent[l]
+		parent[l] = root
+		l = up
+	return root
+
+
+## Works out the stretches of free ground for the whole land, a row at a time: a free tile takes the stretch of the
+## free tile to its left or above it, and where those two differ they are one stretch from now on. (What stands on
+## the land is left out here: a boulder never closes a way. What was put down since, a chest or a shut gate, is
+## shut afterwards, one tile at a time.)
+func labels() -> void:
+	var t0 := Time.get_ticks_usec()
+	var w := region.size.x
+	var h := region.size.y
+	label = PackedInt32Array()
+	label.resize(w * h)
+	parent = PackedInt32Array([0])
+	var kinds := map.kinds
+	for y in h:
+		var row_k := (y + region.position.y) * LandMap.SIZE + region.position.x
+		var row_l := y * w
+		var left := 0
+		for x in w:
+			var k := kinds[row_k + x]
+			if k >= LandMap.WATER and k <= LandMap.COPPER:      # water, rock, tin and copper stop you
+				left = 0
+				continue
+			var up := label[row_l - w + x] if y > 0 else 0
+			if left == 0:
+				if up != 0:
+					left = up
+				else:
+					left = parent.size()
+					parent.append(left)
+			elif up != 0 and up != left:
+				var a := _find(left)
+				var b := _find(up)
+				if a != b:
+					parent[maxi(a, b)] = mini(a, b)
+			label[row_l + x] = left
+	labels_ok = true
+	for key: int in blocked:
+		var at := Vector2i(key % LandMap.SIZE, key / LandMap.SIZE)
+		if region.has_point(at) and labels_ok:
+			_part(at)
+	labelled_ms = float(Time.get_ticks_usec() - t0) / 1000.0
+
+
+func _at(tile: Vector2i) -> int:
+	return (tile.y - region.position.y) * region.size.x + (tile.x - region.position.x)
+
+
+## A tile was freed: it is part of whatever free ground lies beside it, and joins those stretches into one.
+func _join(tile: Vector2i) -> void:
+	var mine := parent.size()
+	parent.append(mine)
+	label[_at(tile)] = mine
+	for step in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+		var n: Vector2i = tile + step
+		if not region.has_point(n) or grid.is_point_solid(n):
+			continue
+		var other := label[_at(n)]
+		if other == 0:
+			labels_ok = false          # (free ground with no stretch: something was missed; work them all out again)
+			return
+		var a := _find(mine)
+		var b := _find(other)
+		if a != b:
+			parent[maxi(a, b)] = mini(a, b)
+
+
+## A tile was shut: if the free ground beside it no longer hangs together, the part that was cut off becomes a
+## stretch of its own. Only so many tiles are looked over; if that is not enough to tell, the stretches are no
+## longer trusted, and are all worked out again when next asked for.
+func _part(tile: Vector2i) -> void:
+	label[_at(tile)] = 0
+	var sides: Array = []
+	for step in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+		var n: Vector2i = tile + step
+		if region.has_point(n) and not grid.is_point_solid(n):
+			sides.append(n)
+	var big := 0
+	while sides.size() > 1:
+		var from: Vector2i = sides.pop_front()
+		var seen := {from: true}
+		var queue: Array = [from]
+		var at := 0
+		var left := sides.size()
+		while at < queue.size() and left > 0 and queue.size() < LOOK:
+			var c: Vector2i = queue[at]
+			at += 1
+			for step in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+				var n: Vector2i = c + step
+				if seen.has(n) or not region.has_point(n) or grid.is_point_solid(n):
+					continue
+				seen[n] = true
+				queue.append(n)
+				if sides.has(n):
+					left -= 1
+		if left == 0:
+			return                     # everything beside the tile still hangs together
+		if at >= queue.size():
+			# All of this side was looked over, and it does not reach every other side: it is a stretch of its own now.
+			var mine := parent.size()
+			parent.append(mine)
+			for c: Vector2i in queue:
+				label[_at(c)] = mine
+			sides = sides.filter(func(n): return not seen.has(n))
+		else:
+			big += 1                   # too big to look over
+			if big >= 2:
+				labels_ok = false
+				return
+			sides.append(from)         # (look at it again last: the others may be small)
+			if sides.size() == 1 + big - 1:
+				break
+
+
+## Is there a way between these two free tiles at all?
+func joined(a: Vector2i, b: Vector2i) -> bool:
+	if not labels_ok:
+		labels()
+	var la := label[_at(a)]
+	var lb := label[_at(b)]
+	if la == 0 or lb == 0:
+		return true                    # (not known: let the grid look)
+	return _find(la) == _find(lb)
 
 
 static func tile_of(at: Vector2) -> Vector2i:
@@ -173,20 +334,44 @@ func nearest_free(tile: Vector2i, far := 4) -> Vector2i:
 
 
 ## The way from one place to another, as the middles of the tiles to walk through (world units), the first being
-## the tile you stand on. Empty if there is no way. If the far end cannot be stood on, the way goes as near as it can.
+## the tile you stand on. If the far end cannot be stood on, or cannot be got to, the way goes to the nearest tile
+## round it that can (within ten tiles); empty if there is none.
 func path(from: Vector2, to: Vector2) -> PackedVector2Array:
 	var a := nearest_free(tile_of(from))
 	var b := nearest_free(tile_of(to))
 	if a.x < 0 or b.x < 0:
 		return PackedVector2Array()
+	if not joined(a, b):
+		# No way there: the way goes to the nearest tile round it that can be got to, if one is near.
+		b = _nearest_joined(a, b, 10)
+		if b.x < 0:
+			return PackedVector2Array()
 	return grid.get_point_path(a, b, true)
+
+
+## The free tile nearest to `to`, within `far` tiles of it, that can be walked to from `from`. (-1, -1) if none.
+func _nearest_joined(from: Vector2i, to: Vector2i, far: int) -> Vector2i:
+	for r in range(1, far + 1):
+		var best := Vector2i(-1, -1)
+		var best_d := INF
+		for j in range(-r, r + 1):
+			for i in range(-r, r + 1):
+				if maxi(absi(i), absi(j)) != r:
+					continue
+				var at := to + Vector2i(i, j)
+				if is_free(at) and float(i * i + j * j) < best_d and joined(from, at):
+					best_d = float(i * i + j * j)
+					best = at
+		if best.x >= 0:
+			return best
+	return Vector2i(-1, -1)
 
 
 ## How many tiles the way from one place to another is (-1 if there is none).
 func steps(from: Vector2, to: Vector2) -> int:
 	var a := nearest_free(tile_of(from))
 	var b := nearest_free(tile_of(to))
-	if a.x < 0 or b.x < 0:
+	if a.x < 0 or b.x < 0 or not joined(a, b):
 		return -1
 	var p := grid.get_id_path(a, b, false)
 	return p.size() - 1 if not p.is_empty() else -1

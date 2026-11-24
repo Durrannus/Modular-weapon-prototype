@@ -16,6 +16,9 @@ extends RefCounted
 ##   - The Keeper's Watchpost and the Old Quarry each have a richer one.
 ##   - The open place nearest the cave always has a small one, so the first chest is met in the safe hills.
 ##   - Nearer the cave the bars are mostly tin; farther out mostly copper. A richer chest holds both.
+##   - Since version 49 a chest in the middle ring holds about half as much again as one at the inner ring's edge,
+##     and one in the outer ring about twice as much, with more copper (RING_SHARE, RING_COPPER). The Slinger Roost,
+##     the Hound Den, Cairn Field, Echo Gorge and the Fault's mouth each have a richer one, like the Quarry's.
 ##   - ACCESSORIES are in some chests since version 47 (the Bible: "sometimes a tier 1 accessory"): the first chest
 ##     always holds one, so the satchel is met in the safe hills; a richer chest holds one about half the time
 ##     and any other about one time in seven. Which one is the chest's own roll (`gift`).
@@ -39,6 +42,8 @@ static var BARS_MAX := 3
 static var MEMORY := 15
 static var RICH := 2.5             # a sealed place's chest and a named place's hold this many times the coins and Memory
 static var FIRST := 0.6            # and the first one, by the cave, this share
+static var RING_SHARE := [1.0, 1.0, 1.25, 1.55]    # in the middle and outer ring, coins and Memory this many times the inner ring's far chests'
+static var RING_COPPER := [0.0, 0.0, 0.75, 0.9]    # and the chance that a plain chest's bars are copper
 static var GIFT := 0.15            # how often a chest holds an accessory ...
 static var RICH_GIFT := 0.5        # ... and a richer one (the first chest always does)
 const FIRST_FROM := 12.0           # tiles from the cave: the first chest is in the nearest place at least this far out
@@ -73,8 +78,10 @@ static func make(map: LandMap, groups: Array) -> Array:
 		var at: Vector2 = p["at"]
 		var d := at.distance_to(cave)
 		var kind := ""
-		if str(p.get("site", "")) in ["watchpost", "quarry"]:
+		if str(p.get("site", "")) in ["watchpost", "quarry", "roost", "den", "cairns", "gorge", "fault"]:
 			kind = "site"
+		elif str(p.get("site", "")) == "scrapyard":
+			continue               # (the Scrapyard's chests are in its own rooms)
 		elif bool(p.get("sealed", false)):
 			kind = "sealed"
 		elif i == first:
@@ -101,20 +108,21 @@ static func make(map: LandMap, groups: Array) -> Array:
 		if tile.x < 0:
 			continue
 		var c := {"id": i, "pocket": i, "kind": kind, "tile": tile, "foot": Vector2(tile.x * 16 + 8, tile.y * 16 + 12)}
-		c.merge(_holds(map.seed_value, i, kind, d >= FoePlan.NEAR))
+		c.merge(_holds(map.seed_value, i, kind, d >= FoePlan.NEAR, int(p.get("ring", 1))))
 		out.append(c)
 	return out
 
 
 ## What one chest holds: {coins, memory, items}. Each chest has dice of its own, so one chest's roll never moves
 ## another's.
-static func _holds(seed_value: int, id: int, kind: String, far: bool) -> Dictionary:
+static func _holds(seed_value: int, id: int, kind: String, far: bool, ring := 1) -> Dictionary:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = WorldGen._mix(seed_value & 0xffffffff, id, 4401)
 	var share := RICH if kind in ["sealed", "site"] else (FIRST if kind == "first" else 1.0)
-	var coins := roundi(float(rng.randi_range(COINS_MIN, COINS_MAX)) * share * (1.3 if far else 1.0))
-	var memory := roundi(float(MEMORY) * share * (1.3 if far else 1.0))
-	var copper := rng.randf() < (0.6 if far else 0.3)
+	var out_there := float(RING_SHARE[ring]) if ring >= 2 else 1.0
+	var coins := roundi(float(rng.randi_range(COINS_MIN, COINS_MAX)) * share * (1.3 if far else 1.0) * out_there)
+	var memory := roundi(float(MEMORY) * share * (1.3 if far else 1.0) * out_there)
+	var copper := rng.randf() < (float(RING_COPPER[ring]) if ring >= 2 else (0.6 if far else 0.3))
 	var bars := rng.randi_range(BARS_MIN, BARS_MAX)
 	var more := rng.randi_range(BARS_MIN, BARS_MAX)
 	var items: Array = []

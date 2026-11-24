@@ -237,9 +237,10 @@ func _plans() -> void:
 				var plain_most := roundi(float(LootPlan.COINS_MAX) * 1.3)
 				_check(int(by_pocket[pocket]["coins"]) >= roundi(float(LootPlan.COINS_MIN) * LootPlan.RICH) and (by_pocket[pocket]["items"] as Array).size() == 2 and int(by_pocket[pocket]["memory"]) > roundi(float(LootPlan.MEMORY) * 1.3) and plain_most > 0,
 					"world %d: and it is a richer one (%s)" % [seed_value, str(by_pocket[pocket])])
-		_check(plan.size() >= 10 and plan.size() <= 70, "world %d: a sensible number of chests (%d)" % [seed_value, plan.size()])
+		var inner := plan.filter(func(c): return int(m.pockets[int(c["pocket"])].get("ring", 1)) == 1).size()
+		_check(inner >= 10 and inner <= 70 and plan.size() <= roundi(float(m.pockets.size()) * 0.6), "world %d: a sensible number of chests (%d in the inner ring, %d in all, for %d open places)" % [seed_value, inner, plan.size(), m.pockets.size()])
 	print("      %d lands: %.1f chests a land (%s), %d of them in a tight spot; the slowest plan took %.1f ms" % [seeds, float(total) / float(seeds), str(kinds), tight, slowest])
-	_check(slowest < 150.0, "the chests of a land are worked out quickly (%.1f ms at most)" % slowest)
+	_check(slowest < 300.0, "the chests of a land are worked out quickly (%.1f ms at most, while the land is forged)" % slowest)
 
 
 # --- A chest ---------------------------------------------------------------------------------
@@ -250,7 +251,9 @@ func _chest() -> void:
 	var loot = g.loot
 	var p = g.players[0]
 	_check(loot.chests.size() == g.chest_plan.size() and loot.chests.size() > 5, "the land's chests stand on it (%d)" % loot.chests.size())
-	_check(str(g.chest_plan) == str(LootPlan.make(WorldGen.make(424242), FoePlan.make(g.map))), "and they are the plan's")
+	var planned := LootPlan.make(WorldGen.make(424242), FoePlan.make(g.map))
+	planned.append_array(g.crown_plan.get("chests", []))
+	_check(str(g.chest_plan) == str(planned), "and they are the plan's (with the Scrapyard's two side rooms')")
 	var purse = loot.purses[0]
 	_check(purse.coins == 0 and purse.memory == 0 and purse.kept.is_empty(), "somebody new has no coins, no Memory and none of the Warhorn")
 	var k := _kind(g, "first")
@@ -451,6 +454,8 @@ func _drops() -> void:
 	p.unhurt = true
 	Sim.seed_with(7)
 	var pieces := 0
+	var gift_coins := int(Loot.GIFT_COINS)
+	Loot.GIFT_COINS = 0               # (an accessory the dice give twice would be coins too; that is tested in highlands_gear.gd)
 	for kind in ["hound", "slinger", "scrap_brute"]:
 		var pair: Array = await _wake(g, kind)
 		_check(pair.size() == 2 and pair[0] != null and pair[1] != null, "(the elite %s and its group are on the land)" % kind)
@@ -471,12 +476,16 @@ func _drops() -> void:
 		await _frames(2)
 		pieces += 1
 		_check(purse.memory - memory == int(Loot.ELITE_MEMORY), "the elite %s leaves an elite's Memory (%d)" % [kind, purse.memory - memory])
-		_check(purse.coins - coins >= int(Loot.ELITE_COINS_MIN) and purse.coins - coins <= int(Loot.ELITE_COINS_MAX), "coins as a chest would (%d)" % (purse.coins - coins))
+		var lo: int = g.gear.coins(0, int(Loot.ELITE_COINS_MIN)) if g.gear != null else int(Loot.ELITE_COINS_MIN)
+		var hi: int = g.gear.coins(0, int(Loot.ELITE_COINS_MAX)) if g.gear != null else int(Loot.ELITE_COINS_MAX)
+		var got_coins: int = purse.coins - coins
+		_check(got_coins >= lo and got_coins <= hi, "coins as a chest would (%d; %d to %d, with a Lucky Copper worn or not)" % [got_coins, lo, hi])
 		var got: int = g.tools.bag_of(0).count("tin_bar") + g.tools.bag_of(0).count("copper_bar") - bars
 		_check(got >= int(Loot.ELITE_BARS_MIN) and got <= int(Loot.ELITE_BARS_MAX), "a few bars (%d)" % got)
 		_check(purse.kept.has(piece) and purse.kept.size() == pieces, "and its piece of the Warhorn: %s" % piece)
 		_check(loot.clock < loot.said_until and loot.said.contains("(%d of 3)" % pieces), "and the screen says so (\"%s\")" % loot.said)
 		_check(g._character_now(0).get("kept").size() == pieces, "the character keeps it")
+	Loot.GIFT_COINS = gift_coins
 	# The same elite again (it comes back in time): no second piece. One that was called in: nothing at all.
 	var again = Make.make("hound", true)
 	g.world.add_child(again)

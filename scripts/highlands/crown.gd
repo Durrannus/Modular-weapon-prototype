@@ -1,7 +1,8 @@
 extends Node
-## Rattlecrown's fight, and the way to it (version 48): the Scrapyard gate, the Throne Room, the Rusted Warhorn,
-## the three phases, what beating him gives, and what the world save keeps. Where everything stands is
-## crown_plan.gd's; Rattlecrown on his feet is scripts/foes/rattlecrown.gd.
+## Rattlecrown's fight, and the way to it (version 48; his Scrapyard since version 49): the Scrapyard gate, its rooms'
+## barred doors and rules, the Throne Room, the Rusted Warhorn, the three phases, what beating him gives, and what
+## the world save keeps. Where everything stands is crown_plan.gd's; Rattlecrown on his feet is
+## scripts/foes/rattlecrown.gd.
 ##
 ## The rules, from the Game Bible:
 ##   - "The Rusted Warhorn. Body from the Elite Scrap Brute, bell from the Elite Cliff Hound, mouthpiece from the
@@ -15,10 +16,18 @@ extends Node
 ##   - "First kill: Twice, an active blank, a seat, a big chunk of Memory; the forge's beam points to the Greenwood.
 ##     Repeat kills: coins, bronze, scrap."
 ##
-## STAND-INS, all Claude's choices until the outer ring and the anvil are built (version 49 on):
-##   1. The Throne Room is cut into the rock of a top corner of the land that is laid out so far, not in the
-##      Scrapyard's outer ring (crown_plan.gd).
-##   2. The Scrapyard gate stands in the Throne Room's own door (the Scrapyard's four rooms are not built).
+## THE SCRAPYARD (version 49; how it works is Claude's choice until Darren says):
+##   - The Scrapyard gate is in the Gatehouse's bottom wall; the horn opens it, for good.
+##   - The far door of the Gatehouse, the Crane Yard and the Shaman's Furnace is barred until everybody in that room
+##     is beaten; then the bars go up. The rooms fill again (and their doors are barred again) only while nobody of
+##     the squad is inside the Scrapyard's walls (foes.gd).
+##   - In the Furnace each Shaman keeps one Brute warded while it lives ("kill the Shamans first").
+##   - The Gatehouse's "elite handler" is an elite slinger for now: elite loot, but no piece of the horn.
+##   - The crane and its cab, the kennels and the watching goblins wait for their art.
+##
+## STAND-INS, all Claude's choices until the anvil is built:
+##   1. (Until version 49 the Throne Room stood in a corner of the land, with the Scrapyard gate in its own door.)
+##   2. (Gone with it.)
 ##   3. Pip mends the horn himself, by his cave-mouth camp, for MEND_TIN tin bars and MEND_COPPER copper bars (tin
 ##      and copper make the bronze; there is no anvil yet). It takes every player's pieces.
 ##   4. The first kill's hoard gives the Twice thread to everyone, Memory, coins and bars. The active blank, the
@@ -28,8 +37,8 @@ extends Node
 ## THE GATE SHUTS BEHIND YOU, AND HIS HOARD. Darren, 23 November, of the Art builder's ideas for the bigger hall:
 ## "Make the chest golden and the gate better as it's special loot, quite like the idea of goblins watching on the
 ## fight and the gate closing behind". How they work is Claude's choice until he says:
-##   - When the horn is blown in front of the throne the Scrapyard gate shuts. It opens again when he falls, and
-##     when the fight is called off. Whoever of the squad is outside it then is left outside until it opens.
+##   - When the horn is blown in front of the throne the Throne Room's own gate shuts. It opens again when he falls,
+##     and when the fight is called off. Whoever of the squad is outside it then is left outside until it opens.
 ##   - What beating him gives is not thrown on the floor: it is HIS HOARD, a chest that stands in view in an alcove
 ##     in the back wall to the right of the throne, behind bars of its own. The bars go up when he falls. Whoever
 ##     opens the chest, everybody gets their own full share (as every chest). An unopened hoard is kept with the
@@ -159,7 +168,11 @@ var tip_left := 0.0
 var tip_next := ""             # the tip that follows the one showing, and in how long
 var tip_next_in := 0.0
 
-var gate: Folk.Actor
+var gate: Folk.Actor               # the Scrapyard gate
+var inner: Folk.Actor              # the Throne Room's own gate
+var inner_shape: CollisionShape2D
+var doors: Array = []              # the rooms' barred far doors: [{room, group (its index in the enemies' plan), bars: Bars, shape, open}]
+var ward_group := -1               # the Furnace's group in the enemies' plan
 var throne: Folk.Actor
 var chest: Sprite2D                # the hoard's
 var chest_t := -1.0                # seconds since its lid started up (under 0: it is not moving)
@@ -415,7 +428,17 @@ func hoard_feet() -> Vector2:
 
 
 func bars_feet() -> Vector2:
-	return (plan["bars"] as Vector2) * UNIT
+	return (plan["hoard_bars"] as Vector2) * UNIT
+
+
+## The foot of the Throne Room's own gate.
+func inner_feet() -> Vector2:
+	return (plan["inner_foot"] as Vector2) * UNIT
+
+
+func yard_rect() -> Rect2:
+	var r: Rect2i = plan["yard"]
+	return Rect2(Vector2(r.position) * TILE, Vector2(r.size) * TILE)
 
 
 func alcove_rect() -> Rect2:
@@ -428,14 +451,14 @@ func room_rect() -> Rect2:
 	return Rect2(Vector2(r.position) * TILE, Vector2(r.size) * TILE)
 
 
-## The mouth of the way in: where it meets ground you can walk to from the cave.
+## The ground in front of the Scrapyard gate.
 func mouth() -> Vector2:
 	return (Vector2(plan["meet"]) + Vector2(0.5, 0.5)) * TILE
 
 
 ## Which way from the cave the Scrapyard gate lies, in words.
 func side_word() -> String:
-	return "north-west" if int(plan.get("side", -1)) < 0 else "north-east"
+	return str(plan.get("compass", "east"))
 
 
 # --- Setting up -----------------------------------------------------------------------------
@@ -457,6 +480,34 @@ func setup(plan_: Dictionary) -> void:
 	# (Open or shut, its posts and its leaves take the 8 pixels of the way at each side.)
 	for side in [-1.0, 1.0]:
 		_solid(gate_feet() + Vector2(side * 20.0 * UNIT, 0.0), Vector2(8, 10) * UNIT)
+	# The Throne Room's own gate, in the door below it: the same gate, standing open until the fight.
+	inner = _actor(yard, {"shut": front, "opening": book.get("gate_front_opening", {}), "open": book.get("gate_front_open", {})},
+		front.get("origin", [28, 63]), inner_feet())
+	inner_shape = _solid(inner_feet(), Vector2(48, 10) * UNIT)
+	for side in [-1.0, 1.0]:
+		_solid(inner_feet() + Vector2(side * 20.0 * UNIT, 0.0), Vector2(8, 10) * UNIT)
+	# The rooms' barred far doors. (Which group is in which room: the game added the rooms' groups to the enemies'
+	# plan.)
+	var group_of := {}
+	if foes != null:
+		for gi in foes.plan.size():
+			if (foes.plan[gi] as Dictionary).has("room"):
+				group_of[str(foes.plan[gi]["room"])] = gi
+	ward_group = int(group_of.get("furnace", -1))
+	for d in plan["bars"]:
+		var b := Bars.new()
+		b.wide = 48.0
+		b.sheet = yard
+		b.book = {}                # (the hoard's own gate is golden: these are plain bars, drawn by the code until their art)
+		var foot: Vector2 = (d["foot"] as Vector2) * UNIT
+		b.position = foot - Vector2(0, SORT_BIAS)
+		if world != null:
+			world.add_child(b)
+		else:
+			add_child(b)
+		doors.append({"room": str(d["room"]), "group": int(group_of.get(str(d["room"]), -1)), "bars": b, "tile": d["tile"],
+			"shape": _solid(foot, Vector2(48, 6) * UNIT), "open": false})
+		_bar(doors[doors.size() - 1], false, true)
 	its.append({"at": gate_feet() + Vector2(0, 22), "radius": REACH, "lift": 112.0, "text": "The Scrapyard gate",
 		"words": func(_i): return gate_words(), "can": func(_i): return not gate_open, "use": func(i): use_gate(i)})
 	# The throne, with him on it.
@@ -590,17 +641,20 @@ func _block_under(foot: Vector2, size: Vector2) -> void:
 func _show(at_once := false) -> void:
 	if not ok() or gate == null:
 		return
-	var way: bool = gate_open and not shut_in
+	var way: bool = gate_open
 	gate.play("open" if way else "shut")
 	gate_shape.set_deferred("disabled", way)
+	inner.play("shut" if shut_in else "open")
+	inner_shape.set_deferred("disabled", not shut_in)
 	# The enemies' way-finding: shut, nobody passes; open, the middle of the way is clear.
 	if foes != null and foes.nav != null:
-		var at: Vector2i = plan["gate"]
-		for dx in [-1, 0, 1]:
-			if way and dx == 0:
-				foes.nav.unblock(at + Vector2i(dx, 0))
-			else:
-				foes.nav.block(at + Vector2i(dx, 0))
+		for pair in [[plan["gate"], way], [plan["inner"], not shut_in]]:
+			var at: Vector2i = pair[0]
+			for dx in [-1, 0, 1]:
+				if bool(pair[1]) and dx == 0:
+					foes.nav.unblock(at + Vector2i(dx, 0))
+				else:
+					foes.nav.block(at + Vector2i(dx, 0))
 	# He sits on his throne whenever the horn could call him; once he has been beaten, its wreck stands empty until
 	# the horn is mended again.
 	throne.play("idle" if horn or beaten == 0 else "wreck")
@@ -618,9 +672,50 @@ func _let_out() -> void:
 	var was := shut_in
 	shut_in = false
 	_show()
-	if was and gate_open:
-		gate.play("opening", false, true)
+	if was:
+		inner.play("opening", false, true)
 		Sfx.play(game, "gate", -8.0, 0.9)
+
+
+## A room's barred door: up (open) or down.
+func _bar(d: Dictionary, open: bool, at_once := false) -> void:
+	d["open"] = open
+	(d["bars"] as Bars).raise(open, at_once)
+	(d["shape"] as CollisionShape2D).set_deferred("disabled", open)
+	if foes != null and foes.nav != null:
+		var at: Vector2i = d["tile"]
+		for dx in [-1, 0, 1]:
+			if open:
+				foes.nav.unblock(at + Vector2i(dx, 0))
+			else:
+				foes.nav.block(at + Vector2i(dx, 0))
+
+
+## Is everybody in this group of the enemies' plan beaten (and not back yet)?
+func beaten_all(g: int) -> bool:
+	if foes == null or g < 0 or g >= foes.plan.size():
+		return true
+	return (foes.fallen.get(g, {}) as Dictionary).size() >= (foes.plan[g]["members"] as Array).size()
+
+
+## The Scrapyard's rooms: a door's bars go up when its room is beaten and come down if the room fills again; in the
+## Furnace, a Shaman that stands keeps its Brute warded.
+func _tick_rooms(_delta: float) -> void:
+	for d in doors:
+		var open := beaten_all(int(d["group"]))
+		if open != bool(d["open"]):
+			_bar(d, open)
+			if open:
+				Sfx.play(game, "gate", -12.0, 1.3)
+		(d["bars"] as Bars).step(_delta)
+	if foes != null and foes.packs.has(ward_group):
+		var shamans := {}
+		for e in (foes.packs[ward_group] as Pack).members:
+			if is_instance_valid(e) and not e.dead and str(e.kind) == "shaman":
+				shamans[int(e.get_meta("member", -1))] = true
+		for e in (foes.packs[ward_group] as Pack).members:
+			if is_instance_valid(e) and not e.dead and str(e.kind) == "scrap_brute" and shamans.has(int(e.get_meta("member", -1)) - 2):
+				e.warded = maxf(e.warded, 0.6)
 
 
 # --- The horn and the gate --------------------------------------------------------------------
@@ -742,8 +837,8 @@ func start() -> bool:
 	for p in players:
 		if not is_instance_valid(p):
 			continue
-		if Rect2(gate_feet() + Vector2(-56, -44), Vector2(112, 64)).has_point(p.global_position):
-			p.global_position.y = gate_feet().y - 52.0
+		if Rect2(inner_feet() + Vector2(-56, -44), Vector2(112, 64)).has_point(p.global_position):
+			p.global_position.y = inner_feet().y - 52.0
 		if alcove_rect().grow(6.0).has_point(p.global_position):
 			p.global_position = bars_feet() + Vector2(0, 26)
 	Sfx.play(game, "gate", -8.0, 0.7)
@@ -966,12 +1061,16 @@ func tick(delta: float) -> void:
 		return
 	clock += delta
 	gate.step(delta)
+	inner.step(delta)
 	throne.step(delta)
+	_tick_rooms(delta)
 	for a in dress:
 		a.step(delta)
 	bars.step(delta)
 	if gate.anim == "opening" and gate.done():
 		gate.play("open")
+	if inner.anim == "opening" and inner.done():
+		inner.play("open")
 	# The hoard's lid goes up, and what the first one held is told.
 	if chest_t >= 0.0:
 		chest_t += delta
@@ -1099,9 +1198,9 @@ func quest(pieces: int) -> Dictionary:
 	if hoard != "":
 		return {"id": "hoard", "name": "The King's Hoard", "text": "Open the chest in the back wall of the Throne Room, right of the throne."}
 	if horn:
-		var text := "Blow the Rusted Warhorn at the Scrapyard gate, far to the %s. Lanterns mark the way in." % side_word()
+		var text := "Blow the Rusted Warhorn at the Scrapyard gate, far to the %s in the outer ring." % side_word()
 		if gate_open:
-			text = "Blow the Rusted Warhorn in the Throne Room, in front of Rattlecrown."
+			text = "Fight through the Scrapyard to the Throne Room, and blow the Rusted Warhorn in front of Rattlecrown."
 		return {"id": "horn", "name": "Blow the Horn", "text": text}
 	if pieces >= 3:
 		return {"id": "mend", "name": "Mend the Horn", "text": "Take the three pieces to Pip. He joins them for %d tin bars and %d copper bars." % [int(MEND_TIN), int(MEND_COPPER)]}
@@ -1110,9 +1209,9 @@ func quest(pieces: int) -> Dictionary:
 	return {"id": "crown", "name": "The Scrap Crown", "text": "Take the Rusted Warhorn's three pieces from the three elites: %d of 3." % pieces}
 
 
-## Where the quest's mark at the screen's edge points (world units), or INF when it points nowhere: to the mouth
-## of the way in until somebody has found it, then to the gate, then to the throne; and to his hoard while it
-## waits to be opened.
+## Where the quest's mark at the screen's edge points (world units), or INF when it points nowhere: to the ground in
+## front of the Scrapyard gate until somebody has been there, then to the gate, then to the throne; and to his hoard
+## while it waits to be opened.
 func sign_target() -> Vector2:
 	if not ok() or fighting():
 		return Vector2.INF

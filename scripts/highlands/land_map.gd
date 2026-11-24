@@ -46,7 +46,22 @@ var region := Rect2i()           # the part of the map that has anything but sol
 ## tiles -> the tile of the cluster it belongs to}}. Worked out by index() from the ore tiles the map was MADE with
 ## and the seed, and never again: mining a tile takes that tile's own part of the seam away and leaves the rest of
 ## the seam exactly where it was (vein_shows()). A save holds the tiles that changed, never this.
-var veins: Array = []
+##
+## The clusters are found when the map is made (index_veins()), but the seams of one are only worked out when they
+## are first asked for: by the painter, for the clusters near a piece of land it paints (veins_in()), or all of them
+## at once by whoever reads this list. They come out the same either way, whenever it is done: a cluster's seams come
+## from its tiles as the land was made, and the seed.
+var veins: Array:
+	get:
+		if not _veins_whole:
+			_veins_done = []
+			for lump: Dictionary in _lumps:
+				if not bool(lump["done"]):
+					_lump_finish(lump)
+				if lump["v"] != null:
+					_veins_done.append(lump["v"])
+			_veins_whole = true
+		return _veins_done
 
 ## What has changed since the map was made, for the world save: tiles that were dug or mined (tile index -> what it
 ## is now), things that were taken away (thing_key -> true) and things that were put there (a felled pine's stump).
@@ -63,7 +78,10 @@ var _things_by_chunk := {}
 var _decals_by_chunk := {}
 var _plants_by_chunk := {}
 var _lamps_by_chunk := {}
-var _veins_by_chunk := {}
+var _lumps: Array = []           # every cluster of ore tiles, tin before copper, each in reading order: {kind, cells, v: its entry in `veins` (null until worked out, or if it has no seam), done}
+var _lumps_by_chunk := {}        # chunk -> [the numbers of the clusters whose seams could reach into it]
+var _veins_done: Array = []
+var _veins_whole := false
 var _indexed := false
 
 
@@ -265,12 +283,19 @@ func index() -> void:
 	_indexed = true
 
 
-## Finds every cluster of ore tiles and the seams that run through it. A cluster is tiles of one ore that touch,
-## corners included; its seams come from the tiles and the seed alone (veins.gd), so they are the same every time.
+## Finds every cluster of ore tiles. A cluster is tiles of one ore that touch, corners included. Its seams come from
+## the tiles and the seed alone (veins.gd), so they are the same every time; they are worked out when first asked for
+## (_lump_finish()). No pixel of a seam lies more than 12 pixels outside its cluster's own tiles (veins.gd), which is
+## how a cluster knows which pieces of land its seams could reach.
+const SEAM_STRAY := 12
+
 func index_veins() -> void:
-	var found: Array = []
-	var by_chunk := {}
+	_lumps = []
+	_lumps_by_chunk = {}
+	_veins_done = []
+	_veins_whole = false
 	var seen := {}
+	var side := CHUNK * TILE_PX
 	for pair in [[TIN, Veins.TIN], [COPPER, Veins.COPPER]]:
 		var k: int = pair[0]
 		var i := kinds.find(k)
@@ -280,62 +305,77 @@ func index_veins() -> void:
 				var cells: Array = []
 				var stack: Array = [start]
 				seen[start] = true
+				var lo := start
+				var hi := start
 				while not stack.is_empty():
 					var at: Vector2i = stack.pop_back()
 					cells.append(at)
+					lo = lo.min(at)
+					hi = hi.max(at)
 					for dy in range(-1, 2):
 						for dx in range(-1, 2):
 							var to := at + Vector2i(dx, dy)
 							if to.x >= 1 and to.y >= 1 and not seen.has(to) and kind(to.x, to.y) == k:
 								seen[to] = true
 								stack.append(to)
-				var seams := Veins.paths(cells, int(pair[1]), seed_value)
-				var px: Dictionary = seams["px"]
-				if not px.is_empty():
-					var lo := Vector2i(1 << 30, 1 << 30)
-					var hi := Vector2i(-1, -1)
-					for p: Vector2i in px:
-						lo = lo.min(p)
-						hi = hi.max(p)
-					var box := Rect2i(lo, hi - lo + Vector2i.ONE)
-					# Which of the cluster's tiles each pixel belongs to: its own, or for a pixel that strays into plain
-					# rock, the nearest (the first of them in the cluster's order, if two are as near).
-					var cell_set := {}
-					for c: Vector2i in cells:
-						cell_set[c] = true
-					var own := {}
-					for p: Vector2i in px:
-						if cell_set.has(Vector2i(p.x >> 4, p.y >> 4)):
-							continue
-						var best := Vector2i.ZERO
-						var best_d := 1 << 30
-						for c: Vector2i in cells:
-							var ddx := maxi(maxi(c.x * TILE_PX - p.x, p.x - (c.x * TILE_PX + TILE_PX - 1)), 0)
-							var ddy := maxi(maxi(c.y * TILE_PX - p.y, p.y - (c.y * TILE_PX + TILE_PX - 1)), 0)
-							if ddx * ddx + ddy * ddy < best_d:
-								best_d = ddx * ddx + ddy * ddy
-								best = c
-						own[p] = best
-					found.append({"kind": int(pair[1]), "cells": cells, "px": px, "pockets": seams["pockets"], "box": box, "set": cell_set, "own": own})
-					var side := CHUNK * TILE_PX
-					for cy in range(lo.y / side, hi.y / side + 1):
-						for cx in range(lo.x / side, hi.x / side + 1):
-							var key := chunk_key(cx, cy)
-							if not by_chunk.has(key):
-								by_chunk[key] = []
-							by_chunk[key].append(found.size() - 1)
+				_lumps.append({"kind": int(pair[1]), "cells": cells, "v": null, "done": false})
+				for cy in range(maxi(lo.y * TILE_PX - SEAM_STRAY, 0) / side, (hi.y * TILE_PX + TILE_PX - 1 + SEAM_STRAY) / side + 1):
+					for cx in range(maxi(lo.x * TILE_PX - SEAM_STRAY, 0) / side, (hi.x * TILE_PX + TILE_PX - 1 + SEAM_STRAY) / side + 1):
+						var key := chunk_key(cx, cy)
+						if not _lumps_by_chunk.has(key):
+							_lumps_by_chunk[key] = []
+						_lumps_by_chunk[key].append(_lumps.size() - 1)
 			i = kinds.find(k, i + 1)
-	veins = found
-	_veins_by_chunk = by_chunk
+
+
+## Works out one cluster's seams: where its metal is, pixel by pixel.
+func _lump_finish(lump: Dictionary) -> void:
+	lump["done"] = true
+	var cells: Array = lump["cells"]
+	var seams := Veins.paths(cells, int(lump["kind"]), seed_value)
+	var px: Dictionary = seams["px"]
+	if px.is_empty():
+		return
+	var lo := Vector2i(1 << 30, 1 << 30)
+	var hi := Vector2i(-1, -1)
+	for p: Vector2i in px:
+		lo = lo.min(p)
+		hi = hi.max(p)
+	var box := Rect2i(lo, hi - lo + Vector2i.ONE)
+	# Which of the cluster's tiles each pixel belongs to: its own, or for a pixel that strays into plain
+	# rock, the nearest (the first of them in the cluster's order, if two are as near).
+	var cell_set := {}
+	for c: Vector2i in cells:
+		cell_set[c] = true
+	var own := {}
+	for p: Vector2i in px:
+		if cell_set.has(Vector2i(p.x >> 4, p.y >> 4)):
+			continue
+		var best := Vector2i.ZERO
+		var best_d := 1 << 30
+		for c: Vector2i in cells:
+			var ddx := maxi(maxi(c.x * TILE_PX - p.x, p.x - (c.x * TILE_PX + TILE_PX - 1)), 0)
+			var ddy := maxi(maxi(c.y * TILE_PX - p.y, p.y - (c.y * TILE_PX + TILE_PX - 1)), 0)
+			if ddx * ddx + ddy * ddy < best_d:
+				best_d = ddx * ddx + ddy * ddy
+				best = c
+		own[p] = best
+	lump["v"] = {"kind": int(lump["kind"]), "cells": cells, "px": px, "pockets": seams["pockets"], "box": box, "set": cell_set, "own": own}
 
 
 ## The ore clusters with a seam pixel in chunk (cx, cy), tin before copper, each in reading order.
 func veins_in(cx: int, cy: int) -> Array:
 	var out: Array = []
-	var all := veins
-	for n: int in _veins_by_chunk.get(chunk_key(cx, cy), []):
-		if n < all.size():
-			out.append(all[n])
+	var side := CHUNK * TILE_PX
+	for n: int in _lumps_by_chunk.get(chunk_key(cx, cy), []):
+		var lump: Dictionary = _lumps[n]
+		if not bool(lump["done"]):
+			_lump_finish(lump)
+		if lump["v"] == null:
+			continue
+		var box: Rect2i = lump["v"]["box"]
+		if cx >= box.position.x / side and cx <= (box.end.x - 1) / side and cy >= box.position.y / side and cy <= (box.end.y - 1) / side:
+			out.append(lump["v"])
 	return out
 
 
@@ -357,6 +397,9 @@ func lamps_in(cx: int, cy: int) -> Array:
 
 ## Every tile somebody could walk to from `from` without digging, as a byte per
 ## tile of the region (1 = reached). Used by the generator's checks and the tests.
+##
+## It goes a run of tiles at a time: from a tile it marks the whole stretch of walkable ground to its left and right,
+## then looks along the rows above and below that stretch for ground it has not been to.
 func reach(from: Vector2i) -> PackedByteArray:
 	var w := region.size.x
 	var h := region.size.y
@@ -364,22 +407,52 @@ func reach(from: Vector2i) -> PackedByteArray:
 	seen.resize(w * h)
 	if not region.has_point(from) or not walkable(from.x, from.y):
 		return seen
-	var stack := PackedInt32Array([(from.y - region.position.y) * w + (from.x - region.position.x)])
-	seen[stack[0]] = 1
-	while not stack.is_empty():
-		var at := stack[stack.size() - 1]
-		stack.remove_at(stack.size() - 1)
-		var x := at % w
+	var k := kinds
+	var x0 := region.position.x
+	var y0 := region.position.y
+	var stack := PackedInt32Array([(from.y - y0) * w + (from.x - x0)])
+	var top := 1
+	while top > 0:
+		top -= 1
+		var at := stack[top]
+		if seen[at] == 1:
+			continue
 		var y := at / w
-		for d in 4:
-			var nx := x + (1 if d == 0 else (-1 if d == 1 else 0))
-			var ny := y + (1 if d == 2 else (-1 if d == 3 else 0))
-			if nx < 0 or ny < 0 or nx >= w or ny >= h:
+		var x := at - y * w
+		var row_s := y * w
+		var row_k := (y + y0) * SIZE + x0
+		var l := x
+		while l > 0:
+			var kk := k[row_k + l - 1]
+			if (kk >= WATER and kk <= COPPER) or seen[row_s + l - 1] == 1:
+				break
+			l -= 1
+		var r := x
+		while r < w - 1:
+			var kk := k[row_k + r + 1]
+			if (kk >= WATER and kk <= COPPER) or seen[row_s + r + 1] == 1:
+				break
+			r += 1
+		for i in range(row_s + l, row_s + r + 1):
+			seen[i] = 1
+		for dy in [-1, 1]:
+			var ny: int = y + dy
+			if ny < 0 or ny >= h:
 				continue
-			var n := ny * w + nx
-			if seen[n] == 0 and walkable(nx + region.position.x, ny + region.position.y):
-				seen[n] = 1
-				stack.append(n)
+			var n_s := ny * w
+			var n_k := (ny + y0) * SIZE + x0
+			var in_run := false
+			for i in range(l, r + 1):
+				var kk := k[n_k + i]
+				if (kk >= WATER and kk <= COPPER) or seen[n_s + i] == 1:
+					in_run = false
+				elif not in_run:
+					in_run = true
+					if top < stack.size():
+						stack[top] = n_s + i
+					else:
+						stack.append(n_s + i)
+					top += 1
 	return seen
 
 
@@ -393,12 +466,19 @@ func reached(seen: PackedByteArray, x: int, y: int) -> bool:
 func open_share(r0: float, r1: float) -> float:
 	var open := 0
 	var all := 0
-	for y in range(region.position.y, region.end.y):
-		for x in range(region.position.x, region.end.x):
-			var d := Vector2(x - MID, y - MID).length()
-			if d < r0 or d > r1:
+	var lo := r0 * r0
+	var hi := r1 * r1
+	var far := ceili(r1)
+	var k := kinds
+	for y in range(maxi(region.position.y, maxi(MID - far, 0)), mini(region.end.y, mini(MID + far + 1, SIZE))):
+		var dy := (y - MID) * (y - MID)
+		var row := y * SIZE
+		for x in range(maxi(region.position.x, maxi(MID - far, 0)), mini(region.end.x, mini(MID + far + 1, SIZE))):
+			var d2 := float((x - MID) * (x - MID) + dy)
+			if d2 < lo or d2 > hi:
 				continue
 			all += 1
-			if not is_rock(x, y):
+			var kk := k[row + x]
+			if kk != ROCK and kk != TIN and kk != COPPER:
 				open += 1
 	return float(open) / float(maxi(all, 1))

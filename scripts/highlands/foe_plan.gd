@@ -12,8 +12,12 @@ extends RefCounted
 ##   - A Goblin Shaman "stays at the back of goblin groups": only ever with other goblins.
 ##   - The Keeper's Watchpost: "A few Cliff Hounds use it as a den."
 ##   - The Old Quarry: "A goblin scrap camp guarded by the Elite Scrap Brute."
-##   - Elites are rare. The Hound Den and the Slinger Roost are not on the land yet, so until they are, the white
-##     pack leader, the elite slinger and the elite shaman each hold one far open place (Claude's choice).
+##   - Elites are rare. Since version 49 the Hound Den is "a pack fight led by the Elite Cliff Hound", and the Slinger
+##     Roost is "led by the Elite Pebble Slinger". The elite shaman has no place of its own yet, so it holds one open
+##     place in the outer ring (Claude's choice).
+##   - Farther out is harder (the research's rings; the numbers are Claude's): in the middle ring hound packs are
+##     three or four and more goblin groups have a Brute or a Shaman; in the outer ring packs are up to five,
+##     goblin groups are bigger still, and fewer places are empty. See RINGS.
 ##
 ## A group: {id, pocket, home (tiles), r (tiles), members: [[kind, elite]], what: "hounds" or "goblins", site}.
 
@@ -28,6 +32,11 @@ static var EMPTY_NEAR := 0.5   # the share of open places with nothing in them, 
 static var EMPTY_FAR := 0.3
 static var BRUTE_SHARE := 0.3  # of goblin groups, how many a Scrap Brute leads
 static var SHAMAN_SHARE := 0.3 # and how many have a Shaman at the back
+## The middle and the outer ring: the share of empty places; how many hounds a pack has at least and at most; of goblin
+## groups, how many a Brute leads and how many have a Shaman; how many slingers at least and at most.
+static var RINGS := [{}, {},
+	{"empty": 0.30, "hounds": [3, 4], "brute": 0.45, "shaman": 0.40, "slingers": [2, 3]},
+	{"empty": 0.25, "hounds": [3, 5], "brute": 0.60, "shaman": 0.50, "slingers": [3, 4]}]
 
 
 static func make(map: LandMap) -> Array:
@@ -48,7 +57,47 @@ static func make(map: LandMap) -> Array:
 			continue
 		var small := float(p["rx"]) < 4.3 and not bool(p.get("glen", false))
 		var g := {"id": out.size(), "pocket": i, "home": at, "r": maxf(float(p["rx"]), float(p["ry"])), "members": [], "what": "", "site": str(p.get("site", ""))}
-		if g["site"] == "watchpost":
+		var ring := int(p.get("ring", 1))
+		if g["site"] == "roost":
+			g["what"] = "goblins"
+			g["members"] = [["slinger", true], ["slinger", false], ["slinger", false], ["slinger", false], ["scrap_brute", false]]
+		elif g["site"] == "den":
+			g["what"] = "hounds"
+			g["members"] = [["hound", true], ["hound", false], ["hound", false], ["hound", false]]
+		elif g["site"] == "scrapyard":
+			# The ground in front of the gate: a few goblins on watch.
+			g["what"] = "goblins"
+			g["members"] = [["scrap_brute", false], ["slinger", false], ["slinger", false]]
+		elif ring >= 2:
+			var rule: Dictionary = RINGS[ring]
+			if roll < float(rule["empty"]):
+				continue
+			var spare := 1.0 - float(rule["empty"])
+			if roll < float(rule["empty"]) + spare * 0.4:
+				g["what"] = "hounds"
+				var lo: int = rule["hounds"][0]
+				var hi: int = rule["hounds"][1]
+				var n := lo + mini(int(size_roll * float(hi - lo + 1)), hi - lo)
+				if small:
+					n = lo - 1
+				for k in n:
+					g["members"].append(["hound", false])
+			else:
+				g["what"] = "goblins"
+				var brute := brute_roll < float(rule["brute"]) and not small
+				var shaman := shaman_roll < float(rule["shaman"]) and not small
+				var lo: int = rule["slingers"][0]
+				var hi: int = rule["slingers"][1]
+				var slingers := lo + mini(int(size_roll * float(hi - lo + 1)), hi - lo)
+				if small:
+					slingers = 2
+				if brute:
+					g["members"].append(["scrap_brute", false])
+				for k in slingers:
+					g["members"].append(["slinger", false])
+				if shaman:
+					g["members"].append(["shaman", false])
+		elif g["site"] == "watchpost":
 			g["what"] = "hounds"
 			g["members"] = [["hound", false], ["hound", false], ["hound", false]]
 		elif g["site"] == "quarry":
@@ -91,24 +140,30 @@ static func make(map: LandMap) -> Array:
 	return out
 
 
-## The three elites with no place of their own yet each take over one far group (or an empty far place).
+## The elites with no place of their own each take over one far group: since version 49 only the elite shaman, in
+## the outer ring. (A land made without its outer rings, by one of the tools, has no Den or Roost: there all three
+## take far groups as they did before.)
 static func _elites(map: LandMap, out: Array, rng: RandomNumberGenerator, cave: Vector2) -> void:
 	var held: Array = []
 	for g in out:
-		if str(g["site"]) == "quarry":
+		if str(g["site"]) in ["quarry", "roost", "den"]:
 			held.append(g["home"])
-	var bands := [
-		[["hound", true], ["hound", false], ["hound", false]],
-		[["slinger", true], ["slinger", false], ["slinger", false]],
-		[["shaman", true], ["scrap_brute", false], ["slinger", false], ["slinger", false]],
-	]
+	var bands: Array = []
+	var from := ELITE_FAR
+	if not map.sites.has("den"):
+		bands.append([["hound", true], ["hound", false], ["hound", false]])
+	if not map.sites.has("roost"):
+		bands.append([["slinger", true], ["slinger", false], ["slinger", false]])
+	if map.sites.has("scrapyard"):
+		from = WorldGen.RINGS[2] + 10.0
+	bands.append([["shaman", true], ["scrap_brute", false], ["slinger", false], ["slinger", false]])
 	for band in bands:
 		var start := rng.randi()
 		var best := -1
 		for step in out.size():
 			var k := (start + step) % maxi(out.size(), 1)
 			var g: Dictionary = out[k]
-			if str(g["site"]) != "" or (g["home"] as Vector2).distance_to(cave) < ELITE_FAR or float(g["r"]) < 4.3:
+			if str(g["site"]) != "" or (g["home"] as Vector2).distance_to(cave) < from or float(g["r"]) < 4.3:
 				continue
 			if (g["members"] as Array).any(func(m): return bool(m[1])):
 				continue

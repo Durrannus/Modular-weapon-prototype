@@ -132,12 +132,15 @@ func _ready() -> void:
 	var groups := FoePlan.make(map)
 	chest_plan = LootPlan.make(map, groups)
 	folk_plan = FolkPlan.make(map, groups, chest_plan)
-	# Rattlecrown's Throne Room, the way to it and the Scrapyard gate (a stand-in until the outer ring is built) are
-	# cut into the land here, every time it is opened: after the plans, which read the land as it was made, and
-	# before a save's digging is done to it again. No save holds them. (Online, which is on hold, has no Rattlecrown.)
+	# The Scrapyard in the outer ring, its four rooms and Rattlecrown's Throne Room at the top, are cut into the land
+	# here, every time it is opened: after the plans, which read the land as it was made, and before a save's digging
+	# is done to it again. No save holds them. Its two side rooms' chests join the land's. (Online, which is on hold,
+	# has no Rattlecrown.)
 	if not Net.online():
 		crown_plan = CrownPlan.make(map)
 		CrownPlan.stamp(map, crown_plan)
+		if crown_plan.get("ok", false):
+			chest_plan.append_array(crown_plan["chests"])
 	if not world_save.is_empty() and not new_world:
 		# The land is made again from its number, and then what was dug, mined and felled is done to it again. If
 		# this game makes the land differently from the one that saved it, the old changes would not fit: they are
@@ -176,6 +179,17 @@ func _ready() -> void:
 	foes.on = with_foes
 	add_child(foes)
 	foes.setup()
+	if crown_plan.get("ok", false):
+		# Who lives in the Scrapyard's rooms joins the land's groups. They wake only while somebody is inside its walls.
+		for g in crown_plan["groups"]:
+			var its: Dictionary = (g as Dictionary).duplicate()
+			its["id"] = foes.plan.size()
+			foes.plan.append(its)
+		var yard: Rect2i = crown_plan["yard"]
+		foes.yard = Rect2(Vector2(yard.position) * TILE, Vector2(yard.size) * TILE)
+		# The Crane Yard's scrap piles, for its slingers to throw from behind: [their middle (world units), half wide].
+		for c in crown_plan["cover"]:
+			foes.cover_extra.append([((c[0] as Vector2) - Vector2(0, 6)) * Art.PIXEL, float(c[1]) * Art.PIXEL])
 	loot = Loot.new()
 	loot.game = self
 	loot.map = map
@@ -239,6 +253,11 @@ func _ready() -> void:
 		crown.setup(crown_plan)
 		if not world_save.is_empty() and not new_world:
 			crown.set_world_data(world_save)
+	# Which free ground hangs together, for the enemies' way-finding: worked out now, with every gate and barred door
+	# in place, while the world is still being opened, and not in the middle of the first fight (it takes a tenth of
+	# a second on a land this big).
+	if not foes.nav.labels_ok:
+		foes.nav.labels()
 	rig.set_limits(Rect2(Vector2(map.region.position) * TILE, Vector2(map.region.size) * TILE), 0.0)
 	rig.snap()
 	land.prime()
@@ -286,7 +305,7 @@ func _ready() -> void:
 		ui.fade_color = Color(1.0, 0.98, 0.9)
 		ui.fade_in(1.2)
 		if relaid:
-			ui.card(str(world_save.get("name", "This world")), "This world was saved by an older version of the game, which made the land differently.\nIts land has been laid out again from its number: what was dug and felled in it before is gone.\nYour character has kept everything.\n\nWorld number %d" % world_seed)
+			ui.card(str(world_save.get("name", "This world")), "This world was saved by an older version of the game, which made the land differently. %s\nIts land has been laid out again from its number: what was dug and felled in it before is gone, and its chests are full again.\nYour character has kept everything: inventory, satchel, threads and coins. So has the squad's level.\n\nWorld number %d" % [WorldGen.NEWS, world_seed])
 		elif world_save.is_empty() or new_world:
 			ui.card("The Greystone Highlands", welcome_text())
 	# A new character and a new world are on the disk from the first moment, not from the first autosave. A save

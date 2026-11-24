@@ -237,7 +237,7 @@ func _plans() -> void:
 			var t: Vector2i = roost["tile"]
 			var pocket: Dictionary = map.pockets[int(roost["pocket"])]
 			_check(_open_round(map, t) == 9 and map.walkable(t.x + 2, t.y), "world %d: the cage stands on open ground with room all round it, and under where it hangs" % seed_value)
-			_check(not bool(pocket.get("sealed", false)) and str(pocket.get("site", "")) == "", "world %d: in an open place that is not a named one" % seed_value)
+			_check(not bool(pocket.get("sealed", false)) and str(pocket.get("site", "")) == ("roost" if map.sites.has("roost") else ""), "world %d: in the Slinger Roost, out in the middle ring (version 49)" % seed_value)
 			_check(chests.all(func(c): return _apart(c["tile"], t) > 2), "world %d: clear of every chest" % seed_value)
 			_check(Vector2(t).distance_to(pocket["at"]) <= maxf(float(pocket["rx"]), float(pocket["ry"])) + 3.0, "world %d: inside its place" % seed_value)
 			_check(roost["foot"] == Vector2(t.x * 16 + 8, t.y * 16 + 12), "(its foot is on its tile)")

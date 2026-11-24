@@ -35,6 +35,10 @@ var packs := {}                # plan index -> its Pack, for the groups that are
 var fallen := {}               # plan index -> {member index: seconds until it is back}
 var on := true                 # false: nobody wakes (the tests of other things switch them off)
 var quiet := {}                # plan index -> true: nobody comes to live there any more (a lit waystone keeps its place: folk.gd)
+## The Scrapyard (version 49): its rooms' groups are added to the plan by the game, each with a "room". They are only
+## on the land while somebody is inside its walls (`yard`, world units), and they come back only while nobody is.
+var yard := Rect2()
+var cover_extra: Array = []    # more for a slinger to stand behind than the land's things: [[its middle (world units), how wide (art pixels)]]
 var _t := 0.0
 
 
@@ -69,7 +73,7 @@ func tick(delta: float) -> void:
 				_sleep(i)
 			elif not pack.alert:
 				_send_off(pack)
-		elif near < wake_d and not quiet.has(i):
+		elif near < wake_d and not quiet.has(i) and (not g.has("room") or inside_yard()):
 			wake = i
 			wake_d = near
 	# One at a time (waking a group is the dear part), the nearest first: whoever arrives somewhere all at once
@@ -101,6 +105,9 @@ func _wake(i: int) -> Pack:
 func _put(pack: Pack, i: int, k: int, at: Vector2) -> void:
 	var m: Array = pack.plan["members"][k]
 	var e = Make.make(str(m[0]), bool(m[1]))
+	e.set_meta("member", k)
+	if m.size() > 2:
+		e.set_meta("stands_for", str(m[2]))      # (the Gatehouse's elite handler, played by an elite slinger: no piece of the horn)
 	at = _apart(at, pack)
 	e.pack = pack
 	e.nav = nav
@@ -129,16 +136,17 @@ func _apart(at: Vector2, pack: Pack) -> Vector2:
 	return out
 
 
-## Places to stand round a group's home: free tiles near it, a tile and a half apart at least, always the same
-## ones for the same group.
+## Places to stand round a group's home: free tiles near it that can be walked to from it without going far round,
+## a tile and a half apart at least, always the same ones for the same group.
 func _spots(pack: Pack, n: int) -> Array:
 	var c := Nav.tile_of(pack.home)
 	var far := clampi(int(pack.reach / TILE * 0.6), 2, 5)
+	var near := _near_reach(c, far + 3)
 	var tiles: Array = []
 	for j in range(-far, far + 1):
 		for i in range(-far, far + 1):
 			var at := c + Vector2i(i, j)
-			if nav.is_free(at) and Vector2(i, j).length() <= float(far) + 0.5:
+			if near.has(at) and Vector2(i, j).length() <= float(far) + 0.5:
 				tiles.append(at)
 	tiles.sort_custom(func(a, b): return _mix(a, pack.id) < _mix(b, pack.id))
 	var out: Array = []
@@ -147,13 +155,34 @@ func _spots(pack: Pack, n: int) -> Array:
 		for o in out:
 			if (Nav.middle_of(at) as Vector2).distance_to(o) < TILE * 1.6:
 				ok = false
-		if ok and nav.steps(pack.home, Nav.middle_of(at)) >= 0:
+		if ok:
 			out.append(Nav.middle_of(at))
 		if out.size() >= n:
 			break
 	if out.is_empty():
 		out.append(pack.home)
 	return out
+
+
+## The free tiles that can be walked to from this one without leaving the square `box` tiles round it. (Asking the
+## way-finding instead is slow where a tile beyond a wall is joined to this one only by a long way round.)
+func _near_reach(c: Vector2i, box: int) -> Dictionary:
+	var seen := {}
+	if not nav.is_free(c):
+		return seen
+	seen[c] = true
+	var todo: Array[Vector2i] = [c]
+	var k := 0
+	while k < todo.size():
+		var at: Vector2i = todo[k]
+		k += 1
+		for d in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+			var to: Vector2i = at + d
+			if seen.has(to) or absi(to.x - c.x) > box or absi(to.y - c.y) > box or not nav.is_free(to):
+				continue
+			seen[to] = true
+			todo.append(to)
+	return seen
 
 
 static func _mix(at: Vector2i, salt: int) -> int:
@@ -180,7 +209,20 @@ func _cover(home: Vector2, far: float) -> Array:
 				var middle := Vector2(float(t["x"]), float(t["y"]) - float(solid[1]) * 0.5) * 2.0
 				if middle.distance_to(home) <= far:
 					out.append([middle, float(solid[0])])
+	for extra in cover_extra:
+		if (extra[0] as Vector2).distance_to(home) <= far:
+			out.append(extra)
 	return out
+
+
+## Is anybody of the squad inside the Scrapyard's walls?
+func inside_yard() -> bool:
+	if yard.size.x <= 0.0:
+		return false
+	for p in players:
+		if is_instance_valid(p) and yard.has_point(p.global_position):
+			return true
+	return false
 
 
 ## Takes a calm group off the land. Whoever was hurt is whole when it wakes again.
@@ -218,12 +260,16 @@ func _on_died(e, i: int, k: int) -> void:
 
 ## The dead come back, at home, when their time is up and nobody is near.
 func _back(dt: float) -> void:
+	var in_yard := inside_yard()
 	for i in fallen.keys():
 		var gone: Dictionary = fallen[i]
+		var walled: bool = i < plan.size() and (plan[i] as Dictionary).has("room")
 		for k in gone.keys():
 			gone[k] = float(gone[k]) - dt
 			if float(gone[k]) > 0.0:
 				continue
+			if walled and in_yard:
+				continue           # the Scrapyard's rooms fill again only while nobody is inside its walls
 			if not packs.has(i):
 				gone.erase(k)
 				continue

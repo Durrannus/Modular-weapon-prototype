@@ -492,7 +492,8 @@ func _face(m: LandMap, kind: int, skip := 0) -> Array:
 					continue
 				for d: Vector2i in [Vector2i.LEFT, Vector2i.RIGHT, Vector2i.DOWN, Vector2i.UP]:
 					var s := t + d
-					if m.walkable(s.x, s.y) and m.kind(s.x, s.y) != LandMap.WATER and _clear(m, (Vector2(s) + Vector2(0.5, 0.5)) * TILE):
+					var side := Vector2i(d.y, d.x)          # (the ground to either side of where you stand is open too, so nothing pushes you off it)
+					if m.walkable(s.x, s.y) and m.walkable(s.x + side.x, s.y + side.y) and m.walkable(s.x - side.x, s.y - side.y) and m.kind(s.x, s.y) != LandMap.WATER and _clear(m, (Vector2(s) + Vector2(0.5, 0.5)) * TILE):
 						if skip > 0:
 							skip -= 1
 							continue

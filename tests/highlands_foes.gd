@@ -162,7 +162,10 @@ func _plans() -> void:
 			_check(at.distance_to(cave) >= FoePlan.SAFE, "seed %d: nothing lives within %d tiles of the cave" % [seed_value, int(FoePlan.SAFE)])
 			_check(not bool(map.pockets[int(g["pocket"])].get("sealed", false)), "seed %d: nothing lives in a sealed place" % seed_value)
 			_check(kinds.count("scrap_brute") <= 1, "seed %d: never two Scrap Brutes together" % seed_value)
-			_check(kinds.size() >= 2 and kinds.size() <= 4, "seed %d: a group is two to four" % seed_value)
+			# Two to four in the inner ring; out in the middle and outer rings the groups are bigger (version 49).
+			var ring := int(map.pockets[int(g["pocket"])].get("ring", 1))
+			var most: int = [0, 4, 5, 6][ring]
+			_check(kinds.size() >= 2 and kinds.size() <= most, "seed %d: a group is two to %d in ring %d" % [seed_value, most, ring])
 			if "shaman" in kinds:
 				_check(kinds.count("shaman") == 1 and ("slinger" in kinds or "scrap_brute" in kinds), "seed %d: a shaman is with other goblins" % seed_value)
 			if "hound" in kinds:
@@ -715,9 +718,11 @@ func _land() -> void:
 	_check(quiet, "at the cave mouth no enemy is near and none has seen you")
 	var walk := true
 	for gr in foes.plan:
+		if gr.has("room"):
+			continue                  # (the Scrapyard's rooms are behind its gate and their barred doors)
 		if foes.nav.steps(q.global_position, (gr["home"] as Vector2) * TILE) < 0:
 			walk = false
-	_check(walk, "every group's home can be walked to from the cave")
+	_check(walk, "every group's home out on the land can be walked to from the cave")
 	# The nearest group of hounds: come near and it is there, at home, calm.
 	var hounds: Dictionary = _nearest(foes, q.global_position, "hounds")
 	var home: Vector2 = (hounds["home"] as Vector2) * TILE

@@ -1,6 +1,6 @@
 extends SceneTree
-## Rattlecrown: the Throne Room and the way to it, the Scrapyard gate, the horn, the fight and what it gives
-## (version 48). Prints PASS / FAIL lines.
+## Rattlecrown: his Scrapyard (its gate, rooms and barred doors), the Throne Room, the horn, the fight and what it
+## gives (versions 48 and 49). Prints PASS / FAIL lines.
 ##
 ##   godot --headless --path . --fixed-fps 60 -s tests/highlands_crown.gd
 ##
@@ -80,6 +80,8 @@ func _run() -> void:
 		_plans()
 	if only == "" or only == "gate":
 		await _gate()
+	if only == "" or only == "yard":
+		await _yard()
 	if only == "" or only == "fight":
 		await _fight()
 	if only == "" or only == "two":
@@ -201,12 +203,12 @@ func _shots() -> void:
 	await _snap("07_the_gate_open")
 	_put(g, p, crown.gate_feet() + Vector2(0, -90))
 	await _frames(20)
-	await _snap("08_through_the_gate")
+	await _snap("08_into_the_gatehouse")
 	# The row of spike traps just inside it.
 	var row: Vector2 = (Vector2(crown.plan["trap_row"]) + Vector2(0.5, 0.5)) * TILE
 	_put(g, p, row + Vector2(0, 44))
 	await _frames(20)
-	await _snap("08a_spike_traps_inside_the_gate")
+	await _snap("08a_spike_traps_inside_the_throne_room_door")
 	_put(g, p, row + Vector2(0, -8))
 	await _frames(22)
 	await _snap("08b_a_trap_rattles")
@@ -297,72 +299,175 @@ func _shots() -> void:
 	await _frames(20)
 	await _snap("29_what_it_held")
 	await _leave(g)
+	# The Scrapyard's rooms, with who lives in them (version 49).
+	g = _game(shot_seed, 1, true)
+	await _frames(10)
+	crown = g.crown
+	p = g.players[0]
+	p.unhurt = true
+	crown.gate_open = true
+	crown._show(true)
+	var foes = g.foes
+	var groups := {}
+	for i in foes.plan.size():
+		if (foes.plan[i] as Dictionary).has("room"):
+			groups[str(foes.plan[i]["room"])] = i
+		elif str(foes.plan[i].get("site", "")) == "scrapyard":
+			foes.quiet[i] = true
+	_put(g, p, crown.mouth() + Vector2(0, 40))
+	g.land.settle()
+	await _frames(40)
+	await _snap("30_the_ground_in_front_of_the_gate")
+	var gh := _room_rect(crown, "gatehouse")
+	_put(g, p, Vector2(gh.get_center().x, gh.end.y - 40.0))
+	g.land.settle()
+	await _frames(50)
+	await _snap("31_the_gatehouse_its_hounds_and_handler")
+	_put(g, p, Vector2(gh.get_center().x, gh.position.y + 70.0))
+	await _frames(20)
+	await _snap("32_its_far_door_barred")
+	_beat(foes.packs[groups["gatehouse"]])
+	await _frames(60)
+	await _snap("33_beaten_the_bars_go_up")
+	var la := _room_rect(crown, "link_a")
+	_put(g, p, la.get_center())
+	g.land.settle()
+	await _frames(30)
+	await _snap("34_a_linking_room_and_a_side_room")
+	var sa := _room_rect(crown, "side_a")
+	_put(g, p, sa.get_center())
+	await _frames(30)
+	await _snap("35_a_side_room_and_its_chest")
+	var cy := _room_rect(crown, "crane")
+	_put(g, p, Vector2(cy.get_center().x, cy.end.y - 40.0))
+	g.land.settle()
+	await _frames(50)
+	await _snap("36_the_crane_yard_slingers_behind_scrap")
+	_beat(foes.packs[groups["crane"]])
+	var fu := _room_rect(crown, "furnace")
+	_put(g, p, Vector2(fu.get_center().x, fu.end.y - 40.0))
+	g.land.settle()
+	await _frames(50)
+	await _snap("37_the_furnace_two_shamans_ward_two_brutes")
+	_beat(foes.packs[groups["furnace"]])
+	await _frames(60)
+	_put(g, p, Vector2(fu.get_center().x, fu.position.y + 60.0))
+	await _frames(20)
+	await _snap("38_up_to_the_throne_room")
+	await _leave(g)
 
 
 # --- The Throne Room, the way in and the gate, on many lands -----------------------------------
 
 func _plans() -> void:
 	var slowest := 0.0
-	var longest := 0
-	var sides := {-1: 0, 1: 0}
+	var ways := {}
 	for k in 24:
 		var seed_value: int = SEEDS[k] if k < SEEDS.size() else 9000 + k * 7919
 		var map: LandMap = WorldGen.make(seed_value)
-		var before := map.reach(Vector2i(floori(map.spawn.x), floori(map.spawn.y)))
-		var open_before := 0
-		for b in before:
-			open_before += int(b)
+		var from := Vector2i(floori(map.spawn.x), floori(map.spawn.y))
+		var before := map.reach(from)
 		var t0 := Time.get_ticks_usec()
 		var plan := CrownPlan.make(map)
 		slowest = maxf(slowest, float(Time.get_ticks_usec() - t0) / 1000.0)
-		_check(bool(plan.get("ok", false)), "seed %d: the land has a place for the Throne Room" % seed_value)
+		_check(bool(plan.get("ok", false)), "seed %d: the land has its Scrapyard" % seed_value)
 		if not bool(plan.get("ok", false)):
 			continue
 		var again := CrownPlan.make(map)
 		_check(str(again) == str(plan), "seed %d: the same land gives the same plan" % seed_value)
+		var yard: Rect2i = plan["yard"]
+		var rooms: Dictionary = plan["rooms"]
 		var room: Rect2i = plan["room"]
-		var hall: Array = plan["hall"]
-		sides[int(plan["side"])] += 1
-		longest = maxi(longest, hall.size() / CrownPlan.HALL)
-		# Before anything is cut: the room is solid rock that nobody could dig into from the ring, clear of the rim.
+		var gate: Vector2i = plan["gate"]
+		var door: Vector2i = plan["door"]
+		var meet: Vector2i = plan["meet"]
+		ways[str(plan["compass"])] = int(ways.get(str(plan["compass"]), 0)) + 1
+		# Before anything is cut: the whole block is solid rock, in the outer ring, inside the land that is laid out.
 		var solid := true
-		for y in range(room.position.y - 3, room.end.y + 3):
-			for x in range(room.position.x - 3, room.end.x + 3):
+		for y in range(yard.position.y, yard.end.y):
+			for x in range(yard.position.x, yard.end.x):
 				if not LandMap.rocky(map.kind(x, y)):
 					solid = false
-		_check(solid, "seed %d: the room is cut into solid rock" % seed_value)
-		_check(map.region.grow(-4).encloses(room), "seed %d: and it lies inside the land that is laid out" % seed_value)
+		_check(solid, "seed %d: the Scrapyard's block is solid rock before it is cut" % seed_value)
 		var cave := Vector2(LandMap.MID, LandMap.MID)
 		var near := INF
-		for c in [room.position, Vector2i(room.end.x, room.position.y), Vector2i(room.position.x, room.end.y), room.end]:
+		for c in [yard.position, Vector2i(yard.end.x, yard.position.y), Vector2i(yard.position.x, yard.end.y), yard.end]:
 			near = minf(near, Vector2(c).distance_to(cave))
-		_check(near > WorldGen.RINGS[1] + 12.0, "seed %d: well outside the inner ring (%.0f tiles from the cave at its nearest)" % [seed_value, near])
-		var meet: Vector2i = plan["meet"]
-		_check(map.reached(before, meet.x, meet.y), "seed %d: the way meets ground you can walk to from the cave" % seed_value)
-		var wet := 0
-		for t in hall:
-			if map.kind(t.x, t.y) == LandMap.WATER:
-				wet += 1
-		_check(wet == 0, "seed %d: the way crosses no water" % seed_value)
+		var middle := Vector2(yard.get_center()).distance_to(cave)
+		_check(near >= WorldGen.RINGS[2] and middle <= WorldGen.RINGS[3] and map.region.grow(-4).encloses(yard), "seed %d: in the outer ring (%.0f tiles from the cave at its nearest, %.0f to its middle)" % [seed_value, near, middle])
+		# The rooms: inside the block, walls between them, the Throne Room at the top and the Gatehouse at the bottom.
+		var inside := true
+		var apart := true
+		var names: Array = rooms.keys()
+		for a in names.size():
+			var ra: Rect2i = rooms[names[a]]
+			inside = inside and yard.grow(-2).encloses(ra)
+			for b in range(a + 1, names.size()):
+				apart = apart and not ra.grow(CrownPlan.WALL - 1).intersects(rooms[names[b]])
+		_check(names.size() == 9 and inside and apart, "seed %d: its nine rooms are inside the block, with rock between every two" % seed_value)
+		_check(room == rooms["room"] and room.position.y < (rooms["furnace"] as Rect2i).position.y and (rooms["furnace"] as Rect2i).position.y < (rooms["crane"] as Rect2i).position.y and (rooms["crane"] as Rect2i).position.y < (rooms["gatehouse"] as Rect2i).position.y, "seed %d: from the gate up: the Gatehouse, the Crane Yard, the Furnace and the Throne Room" % seed_value)
+		var sizes := [[rooms["gatehouse"], Vector2i(24, 12)], [rooms["crane"], Vector2i(28, 15)], [rooms["furnace"], Vector2i(22, 12)], [room, CrownPlan.ROOM]]
+		_check(sizes.all(func(s): return (s[0] as Rect2i).size == s[1]), "seed %d: each the size of its still (the Gatehouse 24 by 12, the Crane Yard 28 by 15, the Furnace 22 by 12, the Throne Room %d by %d)" % [seed_value, CrownPlan.ROOM.x, CrownPlan.ROOM.y])
+		_check(gate.y == (rooms["gatehouse"] as Rect2i).end.y and gate.x == door.x and door.y == room.end.y, "seed %d: the Scrapyard gate is in the block's bottom wall, under the Gatehouse; the Throne Room has its own gate in its door" % seed_value)
+		_check(map.reached(before, meet.x, meet.y) and meet.y > yard.end.y and absi(meet.x - gate.x) <= 2, "seed %d: the ground in front of the gate can be walked to from the cave" % seed_value)
 		# Cut it.
 		var things_before := map.things.size()
 		var cut := CrownPlan.stamp(map, plan)
-		_check(cut >= ROOM_TILES, "seed %d: the room and the way are cut (%d tiles of rock)" % [seed_value, cut])
+		var room_tiles := 0
+		for name in rooms:
+			room_tiles += (rooms[name] as Rect2i).get_area()
+		_check(cut >= room_tiles, "seed %d: the rooms and their doors are cut (%d tiles of rock)" % [seed_value, cut])
 		_check(map.dug.is_empty() and map.added.is_empty() and map.gone.is_empty(), "seed %d: and none of it is a change a save would hold" % seed_value)
-		_check(map.things.size() == things_before + (plan["lamps"] as Array).size(), "seed %d: its lanterns stand" % seed_value)
-		var after := map.reach(Vector2i(floori(map.spawn.x), floori(map.spawn.y)))
+		_check(map.things.size() == things_before + (plan["lamps"] as Array).size(), "seed %d: the linking rooms' lanterns stand" % seed_value)
+		var after := map.reach(from)
 		var throne: Vector2 = plan["throne"]
-		_check(map.reached(after, int(throne.x / 16.0), int(throne.y / 16.0) + 2), "seed %d: you can walk from the cave to the foot of the throne" % seed_value)
-		var gate: Vector2i = plan["gate"]
-		_check(map.reached(after, gate.x, gate.y), "seed %d: through the gate's tile" % seed_value)
-		# Shut the gate (its three tiles) and the room cannot be reached: the gate is the only way.
-		for dx in [-1, 0, 1]:
-			map.set_kind(gate.x + dx, gate.y, LandMap.ROCK)
-		var shut := map.reach(Vector2i(floori(map.spawn.x), floori(map.spawn.y)))
-		_check(not map.reached(shut, int(throne.x / 16.0), int(throne.y / 16.0) + 2), "seed %d: with the gate shut nobody reaches the throne" % seed_value)
-		for dx in [-1, 0, 1]:
-			map.set_kind(gate.x + dx, gate.y, LandMap.FLOOR)
-		_check(gate == Vector2i(plan["door"]) and gate.y == room.end.y, "seed %d: the gate stands in the room's own door" % seed_value)
+		var tx := int(throne.x / 16.0)
+		var ty := int(throne.y / 16.0) + 2
+		var every := true
+		for name in rooms:
+			var c: Vector2i = (rooms[name] as Rect2i).get_center()
+			every = every and map.reached(after, c.x, c.y)
+		_check(every and map.reached(after, tx, ty) and map.reached(after, gate.x, yard.end.y), "seed %d: you can walk from the cave through the gate into every room, and to the foot of the throne" % seed_value)
+		# Shut a door (its three tiles) and nobody gets past it: the gate, each barred door, the Throne Room's gate.
+		var shut_ok := true
+		var tests := [[gate, "gatehouse", ""]]
+		for b in plan["bars"]:
+			var above := ""
+			for s in CrownPlan.STACK.size():
+				if str(CrownPlan.STACK[s][0]) == str(b["room"]):
+					above = str(CrownPlan.STACK[s - 1][0])
+			tests.append([b["tile"], above, str(b["room"])])
+		tests.append([door, "room", "furnace"])
+		for t in tests:
+			var at: Vector2i = t[0]
+			for dx in [-1, 0, 1]:
+				map.set_kind(at.x + dx, at.y, LandMap.ROCK)
+			var shut := map.reach(from)
+			var beyond: Vector2i = (rooms[str(t[1])] as Rect2i).get_center()
+			if map.reached(shut, beyond.x, beyond.y):
+				shut_ok = false
+			if str(t[2]) != "":
+				var here: Vector2i = (rooms[str(t[2])] as Rect2i).get_center()
+				if not map.reached(shut, here.x, here.y):
+					shut_ok = false
+			for dx in [-1, 0, 1]:
+				map.set_kind(at.x + dx, at.y, LandMap.FLOOR)
+		_check(shut_ok and (plan["bars"] as Array).map(func(b): return str(b["room"])) == CrownPlan.BARRED, "seed %d: each door is the only way on: the gate, the Gatehouse's, the Crane Yard's and the Furnace's far doors, and the Throne Room's gate" % seed_value)
+		# Who lives there, and the side rooms' chests.
+		var groups: Array = plan["groups"]
+		var homes := groups.all(func(g): return rooms.has(str(g["room"])) and (rooms[str(g["room"])] as Rect2i).has_point(Vector2i(g["home"])) and int(g["pocket"]) == -1)
+		var handler := (groups[0]["members"] as Array).filter(func(m): return m.size() > 2 and str(m[2]) == "handler").size()
+		var furnace: Array = groups.filter(func(g): return str(g["room"]) == "furnace")
+		var kinds: Array = (furnace[0]["members"] as Array).map(func(m): return str(m[0])) if furnace.size() == 1 else []
+		_check(groups.size() == 5 and homes and handler == 1 and kinds == ["shaman", "shaman", "scrap_brute", "scrap_brute"], "seed %d: a group in each of the five rooms that fight (the Gatehouse's with its handler, the Furnace's two Shamans and two Brutes)" % seed_value)
+		var chests: Array = plan["chests"]
+		var ids := {}
+		var placed := true
+		for c in chests:
+			ids[int(c["id"])] = true
+			var t: Vector2i = c["tile"]
+			placed = placed and int(c["id"]) >= CrownPlan.CHEST_ID and ((rooms["side_a"] as Rect2i).has_point(t) or (rooms["side_b"] as Rect2i).has_point(t)) and map.reached(after, t.x, t.y)
+		_check(chests.size() == 2 and ids.size() == 2 and placed, "seed %d: a chest at the back of each side room, each with its own number" % seed_value)
 		# The traps lie on the room's floor, clear of where anything stands; the hoard's alcove is in the back wall.
 		var traps: Array = plan["traps"]
 		var stood := {}
@@ -374,7 +479,7 @@ func _plans() -> void:
 		for t in CrownPlan.tiles_under(plan["throne"], plan["throne_solid"]):
 			stood[t] = true
 		stood[Vector2i(int((plan["blow"] as Vector2).x / 16.0), int((plan["blow"] as Vector2).y / 16.0))] = true
-		_check(traps.all(func(t): return room.has_point(t) and not stood.has(t)) and traps.has(plan["trap_row"]), "seed %d: the %d spike traps lie on the room's floor, clear of the throne, the braziers and where anyone is put" % [seed_value, traps.size()])
+		_check(traps.all(func(t): return room.has_point(t) and not stood.has(t)) and traps.has(plan["trap_row"]), "seed %d: the %d spike traps lie on the Throne Room's floor, clear of the throne, the braziers and where anyone is put" % [seed_value, traps.size()])
 		var alcove: Rect2i = plan["alcove"]
 		var hoard: Vector2 = plan["hoard"]
 		# The scrap piles stand round the arena against its walls, apart from each other, clear of the door, the
@@ -383,25 +488,28 @@ func _plans() -> void:
 		var piles := 0
 		var walls := {}
 		var against := true
-		var apart := true
+		var heaps_apart := true
 		for d in plan["dress"]:
 			if not str(d[0]).begins_with("scrap_heap"):
 				continue
+			var tiles: Array = CrownPlan.tiles_under(d[1], d[2])
+			if not room.has_point(tiles[0]):
+				continue                # (the other rooms' piles)
 			piles += 1
-			for t: Vector2i in CrownPlan.tiles_under(d[1], d[2]):
+			for t: Vector2i in tiles:
 				if piled.has(t):
-					apart = false
+					heaps_apart = false
 				piled[t] = true
 				var gaps := [t.y - room.position.y, room.end.x - 1 - t.x, room.end.y - 1 - t.y, t.x - room.position.x]
 				var least: int = gaps.min()
 				walls[gaps.find(least)] = true
 				if not room.has_point(t) or least > 2:
 					against = false
-		_check(piles >= 8 and walls.size() == 4 and against and apart, "seed %d: %d scrap piles stand round the arena, against all four walls and apart from each other" % [seed_value, piles])
+		_check(piles >= 8 and walls.size() == 4 and against and heaps_apart, "seed %d: %d scrap piles stand round the arena, against all four walls and apart from each other" % [seed_value, piles])
 		var in_the_way := 0
 		for dx in range(-3, 4):
 			for dy in [1, 2, 3]:
-				in_the_way += int(piled.has(Vector2i(gate.x + dx, room.end.y - dy)))
+				in_the_way += int(piled.has(Vector2i(door.x + dx, room.end.y - dy)))
 		for x in range(alcove.position.x - 1, alcove.end.x + 1):
 			for dy in [0, 1, 2]:
 				in_the_way += int(piled.has(Vector2i(x, room.position.y + dy)))
@@ -414,7 +522,16 @@ func _plans() -> void:
 				for t in CrownPlan.tiles_under(d[1], d[2]):
 					in_the_way += int(piled.has(t))
 		_check(in_the_way == 0, "seed %d: none of them in the door, before the hoard, on the throne, on a brazier or where an elite comes in" % seed_value)
-		_check(alcove.end.y == room.position.y and alcove.position.x > int(throne.x / 16.0) + 4 and alcove.end.x < room.end.x - 2, "seed %d: the hoard's alcove is in the back wall, to the right of the throne" % seed_value)
+		# The Crane Yard's piles stand out in the yard, clear of the way through it, for its slingers to hide behind.
+		var crane: Rect2i = rooms["crane"]
+		var yard_piles := 0
+		var clear_way := true
+		for c in plan["cover"]:
+			var t := Vector2i(floori((c[0] as Vector2).x / 16.0), floori((c[0] as Vector2).y / 16.0))
+			yard_piles += int(crane.has_point(t))
+			clear_way = clear_way and absi(t.x - door.x) > 2
+		_check(yard_piles >= 4 and clear_way, "seed %d: %d scrap piles out in the Crane Yard, clear of the way through it" % [seed_value, yard_piles])
+		_check(alcove.end.y == room.position.y and alcove.position.x > tx + 4 and alcove.end.x < room.end.x - 2, "seed %d: the hoard's alcove is in the back wall, to the right of the throne" % seed_value)
 		_check(alcove.has_point(Vector2i(floori(hoard.x / 16.0), floori((hoard.y - 1.0) / 16.0))) and map.kind(alcove.position.x, alcove.position.y) == LandMap.FLOOR and map.reached(after, alcove.position.x + 1, alcove.position.y), "seed %d: with the chest standing in it" % seed_value)
 		# Nothing sealed was opened.
 		var opened := 0
@@ -423,24 +540,16 @@ func _plans() -> void:
 				var at: Vector2 = p["at"]
 				if map.reached(after, floori(at.x), floori(at.y)):
 					opened += 1
-		_check(opened == 0, "seed %d: no sealed place was opened by the way" % seed_value)
-		# The rock round the room and the gate's end of the way can never be dug; the rest of the land still can.
+		_check(opened == 0, "seed %d: no sealed place was opened by it" % seed_value)
+		# The rock of the whole block can never be dug (nobody digs round a barred door); the rest of the land can.
 		var soft := 0
-		for y in range(room.position.y - 1, room.end.y + 1):
-			for x in [room.position.x - 1, room.end.x]:
-				if not map.fixed(x, y):
-					soft += 1
-		for x in range(room.position.x - 1, room.end.x + 1):
-			for y in [room.position.y - 1, room.end.y]:
+		for y in range(yard.position.y, yard.end.y):
+			for x in range(yard.position.x, yard.end.x):
 				if LandMap.rocky(map.kind(x, y)) and not map.fixed(x, y):
 					soft += 1
-		for y in range(room.end.y, gate.y + 2):
-			for x in [gate.x - 2, gate.x + 2]:
-				if not map.fixed(x, y):
-					soft += 1
-		_check(soft == 0, "seed %d: the walls of the room and of the gate's end of the way cannot be dug (%d can)" % [seed_value, soft])
+		_check(soft == 0, "seed %d: none of the Scrapyard's rock can be dug (%d tiles can)" % [seed_value, soft])
 		_check(not map.fixed(meet.x, meet.y) and not map.fixed(LandMap.MID + 30, LandMap.MID + 30), "seed %d: the rest of the land still can" % seed_value)
-	print("      24 lands: the longest way in is %d tiles, %d rooms in the top left corner and %d in the top right; the slowest plan took %.1f ms" % [longest, sides[-1], sides[1], slowest])
+	print("      24 lands: the Scrapyard lies %s; the slowest plan took %.1f ms" % [str(ways), slowest])
 	_check(slowest < 250.0, "the plan is made quickly (%.0f ms at the slowest)" % slowest)
 
 
@@ -595,7 +704,7 @@ func _gate() -> void:
 	p.input.move = Vector2.UP
 	await _frames(45)
 	p.input.move = Vector2.ZERO
-	_check(p.global_position.y < crown.gate_feet().y - 60.0 and crown.room_rect().has_point(p.global_position), "and you walk through it, into the Throne Room")
+	_check(p.global_position.y < crown.gate_feet().y - 60.0 and _room_rect(crown, "gatehouse").has_point(p.global_position), "and you walk through it, into the Gatehouse")
 	q = _quest(folk, "horn")
 	_check(str(q.get("text", "")).contains("Throne Room") and crown.sign_target() == crown.blow_spot(), "now the quest, and its mark, send you to the throne: \"%s\"" % str(q.get("text", "")))
 	_check(folk.crown_words(0).contains("throne"), "(and Pip: \"%s\")" % folk.crown_words(0))
@@ -646,6 +755,107 @@ func _gate() -> void:
 	_put(g, p, mid)
 	await _frames(3)
 	_check(p.hp < hp1, "stepping onto raised spikes hurts")
+	await _leave(g)
+
+
+# --- The Scrapyard's rooms: who lives there, the barred doors, the Furnace's wards -----------------
+
+func _room_rect(crown, name: String) -> Rect2:
+	var r: Rect2i = crown.plan["rooms"][name]
+	return Rect2(Vector2(r.position) * TILE, Vector2(r.size) * TILE)
+
+
+func _door_of(crown, room: String) -> Dictionary:
+	for d in crown.doors:
+		if str(d["room"]) == room:
+			return d
+	return {}
+
+
+func _beat(pack) -> void:
+	for e in pack.living():
+		e.warded = 0.0
+		e.take_hit(99999.0, Vector2.RIGHT, 0.0, false, Color.WHITE)
+
+
+func _yard() -> void:
+	var g = _game(424242, 1, true)
+	await _frames(5)
+	var crown = g.crown
+	var foes = g.foes
+	var p = g.players[0]
+	var purse = g.loot.purses[0]
+	p.unhurt = true
+	var groups := {}
+	for i in foes.plan.size():
+		if (foes.plan[i] as Dictionary).has("room"):
+			groups[str(foes.plan[i]["room"])] = i
+		elif str(foes.plan[i].get("site", "")) == "scrapyard":
+			foes.quiet[i] = true          # (the goblins in front of the gate would knock you about)
+	_check(groups.size() == 5 and ["gatehouse", "crane", "furnace", "side_a", "side_b"].all(func(n): return groups.has(n)), "the five rooms' groups are on the enemies' plan")
+	_check(crown.doors.size() == 3 and crown.doors.all(func(d): return not bool(d["open"]) and not (d["shape"] as CollisionShape2D).disabled and not foes.nav.is_free(d["tile"])), "the far doors of the Gatehouse, the Crane Yard and the Furnace are barred")
+	var ids: Array = g.loot.chests.map(func(c): return int(c["plan"]["id"]))
+	_check(ids.has(CrownPlan.CHEST_ID) and ids.has(CrownPlan.CHEST_ID + 1), "the side rooms' chests stand with the land's")
+	crown.gate_open = true
+	crown._show(true)
+	_put(g, p, crown.gate_feet() + Vector2(0, 48))
+	await _frames(40)
+	_check(not foes.packs.has(groups["gatehouse"]) and not foes.inside_yard(), "at the gate, outside the walls, nobody in the Gatehouse is up")
+	# Into the Gatehouse.
+	var gh := _room_rect(crown, "gatehouse")
+	_put(g, p, Vector2(gh.get_center().x, gh.end.y - 48.0))
+	await _wait(func(): return foes.packs.has(groups["gatehouse"]), 60)
+	var pack = foes.packs.get(groups["gatehouse"])
+	var handler = null
+	if pack != null:
+		for e in pack.living():
+			if e.has_meta("stands_for"):
+				handler = e
+	_check(pack != null and pack.living().size() == 5 and handler != null and handler.elite and str(handler.kind) == "slinger", "inside the walls the Gatehouse's four hounds and their handler (an elite) are there")
+	await _wait(func(): return foes.packs.has(groups["crane"]), 60)
+	_check(foes.packs.has(groups["crane"]) and (foes.packs[groups["crane"]] as Object).living().size() == 4, "and the Crane Yard's four slingers, behind the Gatehouse's barred door")
+	var d := _door_of(crown, "gatehouse")
+	var bar_y: float = (float((d["tile"] as Vector2i).y) + 1.0) * TILE
+	_put(g, p, Vector2(gh.get_center().x, bar_y + 40.0))
+	p.input.move = Vector2.UP
+	await _frames(50)
+	p.input.move = Vector2.ZERO
+	_check(p.global_position.y > bar_y - 4.0, "nobody walks through the bars while the room is not beaten")
+	# Beat the Gatehouse.
+	_beat(pack)
+	await _frames(70)
+	_check(bool(d["open"]) and (d["shape"] as CollisionShape2D).disabled and foes.nav.is_free(d["tile"]), "everybody in it beaten: its far door's bars go up")
+	_check(purse.kept.is_empty(), "the handler leaves elite loot, but no piece of the horn")
+	p.input.move = Vector2.UP
+	await _frames(60)
+	p.input.move = Vector2.ZERO
+	_check(p.global_position.y < bar_y - 40.0, "and you walk on through it")
+	# The Furnace: each Shaman keeps a Brute warded.
+	var fu := _room_rect(crown, "furnace")
+	_put(g, p, Vector2(fu.get_center().x, fu.end.y - 48.0))
+	await _wait(func(): return foes.packs.has(groups["furnace"]), 90)
+	await _frames(10)
+	var fp = foes.packs.get(groups["furnace"])
+	var by := {}
+	if fp != null:
+		for e in fp.living():
+			by[int(e.get_meta("member", -1))] = e
+	_check(by.size() == 4 and by[2].warded > 0.0 and by[3].warded > 0.0, "in the Furnace, both Brutes are warded while the Shamans stand")
+	if by.size() == 4:
+		by[0].take_hit(99999.0, Vector2.RIGHT, 0.0, false, Color.WHITE)
+		await _frames(50)
+		_check(by[2].warded <= 0.0 and by[3].warded > 0.0, "one Shaman down: its Brute can be hurt, the other's cannot")
+		var hp0: float = by[3].hp
+		by[3].take_hit(5.0, Vector2.RIGHT, 0.0, false, Color.WHITE)
+		_check(by[3].hp == hp0, "(a warded Brute takes no harm)")
+	# Out of the walls and far away, and the rooms fill again: the Gatehouse's door is barred once more.
+	for k in foes.fallen.get(groups["gatehouse"], {}):
+		foes.fallen[groups["gatehouse"]][k] = 0.0
+	await _frames(30)
+	_check(bool(d["open"]), "while somebody is inside the walls, nobody comes back")
+	_put(g, p, g.map.spawn * TILE)
+	await _frames(40)
+	_check(not foes.fallen.has(groups["gatehouse"]) and not bool(d["open"]) and not (d["shape"] as CollisionShape2D).disabled, "once nobody is, the rooms fill again, and their doors are barred")
 	await _leave(g)
 
 
@@ -707,10 +917,10 @@ func _fight() -> void:
 	var memory0: int = purse.memory
 	await _press(p, "interact_pressed")
 	_check(crown.stage == "call" and crown.fighting() and crown.phase() == 1 and crown.throne.anim == "point", "the horn is blown: he points")
-	_check(crown.shut_in and crown.gate.anim == "shut" and g.ui.hint == Crown.SAYS["shut"] and g.loot.said != Crown.SAYS["shut"], "the gate shuts behind you, and the tip line says so (one line at a time: nothing else is printed)")
+	_check(crown.shut_in and crown.inner.anim == "shut" and g.ui.hint == Crown.SAYS["shut"] and g.loot.said != Crown.SAYS["shut"], "the gate shuts behind you, and the tip line says so (one line at a time: nothing else is printed)")
 	_check(crown.tip_next == Crown.SAYS["call"] and g.loot.said_y == Crown.NEWS_Y, "what is coming waits its turn in the same line, and the line of news moves down out of its way")
 	await _frames(3)
-	_check(not crown.gate_shape.disabled and not g.foes.nav.is_free(crown.plan["gate"]), "(nobody passes it now)")
+	_check(not crown.inner_shape.disabled and not g.foes.nav.is_free(crown.plan["inner"]) and crown.gate.anim == "open", "(nobody passes it now; the Scrapyard gate stays open)")
 	_check(str(_quest(folk, "horn").get("text", "")) == "Beat Rattlecrown, the Scrap King." and crown.sign_target() == Vector2.INF and not _prompt(g, "Blow the Rusted Warhorn"), "the quest is to beat him; the horn is not offered twice")
 	await _wait(func(): return crown.stage == "elites", 120)
 	var kinds: Array = crown.elites.map(func(e): return str(e.kind))
@@ -869,7 +1079,7 @@ func _fight() -> void:
 	await _frames(3)
 	_check(crown.boss == null and (not is_instance_valid(boss) or boss.is_queued_for_deletion()) and crown.horn and crown.throne.anim == "idle" and g.ui.boss == null and g.ui.hint == "", "he sits back down, and the horn is still good")
 	_check(g.loot.said == "Rattlecrown sits back down" and g.loot.said_y == 42.0 and get_nodes_in_group("crown_shots").is_empty(), "the screen says so")
-	_check(not crown.shut_in and crown.gate.anim in ["opening", "open"] and crown.gate_shape.disabled, "and the gate opens again")
+	_check(not crown.shut_in and crown.inner.anim in ["opening", "open"] and crown.inner_shape.disabled, "and the gate opens again")
 	# Again, and he falls.
 	p.unhurt = true
 	p.hp = p.max_hp
@@ -890,7 +1100,7 @@ func _fight() -> void:
 	await _frames(3)
 	_check(crown.stage == "won" and crown.beaten == 1 and not crown.horn and crown.hoard == "first", "he falls: the horn cracks, and his hoard is the squad's")
 	_check(g.loot.said == "Quest done: Blow the Horn" and g.ui.boss == null and g.ui.hint == Crown.HOARD_TIP, "the screen says the quest is done, and where his hoard is")
-	_check(not crown.shut_in and crown.gate.anim in ["opening", "open"] and crown.bars.up, "the gate opens, and the bars of his hoard go up")
+	_check(not crown.shut_in and crown.inner.anim in ["opening", "open"] and crown.bars.up, "the gate opens, and the bars of his hoard go up")
 	_check(purse.coins == coins0 and purse.memory == memory0 and bag.count("tin_bar") == tin0, "(nothing is thrown on the floor: it is all in the chest)")
 	var q := _quest(folk, "hoard")
 	_check(str(q.get("name", "")) == "The King's Hoard" and crown.sign_target().distance_to(crown.hoard_feet()) < 40.0, "the quest sends you to it: \"%s\"" % str(q.get("text", "")))

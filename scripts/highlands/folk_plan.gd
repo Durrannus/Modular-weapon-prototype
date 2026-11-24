@@ -9,9 +9,10 @@ extends RefCounted
 ##   - The Keeper's Watchpost: "A broken waystone outside to repair."
 ##   - Freed, Pip "moves to the base".
 ## And Claude's choices, until Darren says otherwise:
-##   - The land has no Slinger Roost of its own yet (no hollow, no barricades). Until it has, the Roost IS the far
-##     open place the elite slinger's band holds (foe_plan.gd): the cage hangs in its middle. A land with no such
-##     band (it is rare) hangs the cage in its farthest goblin camp, and failing that in its farthest open place.
+##   - Since version 49 the land has its Slinger Roost (world_gen.gd: a rocky hollow in a canyon in the middle ring,
+##     east), and the elite slinger's band holds it (foe_plan.gd): the cage hangs in its middle. A land with no such
+##     band (one of the tools makes the inner ring alone) hangs the cage in its farthest goblin camp, and failing that
+##     in its farthest open place.
 ##   - The waystone stands on the cave's side of the Watchpost, clear of its chest.
 ##   - Rooms cannot be built yet, so Pip camps beside the cave mouth.
 ##

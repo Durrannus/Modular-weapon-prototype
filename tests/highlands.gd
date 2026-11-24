@@ -91,11 +91,13 @@ func _rules() -> void:
 	# The size Darren chose on 22 November: about 350 tiles from the cave to the edge, in rings.
 	_check(WorldGen.RINGS == [24.0, 125.0, 240.0, 350.0], "the rings end 24, 125, 240 and 350 tiles from the cave")
 	_check(LandMap.MID >= int(WorldGen.RINGS[3]) + 16 and LandMap.SIZE - LandMap.MID >= int(WorldGen.RINGS[3]) + 16, "the map has room for the whole Highlands, 350 tiles out and its edge")
-	_check(WorldGen.REACH >= int(WorldGen.RINGS[1]) + 12 and a.region.size == Vector2i(WorldGen.REACH * 2, WorldGen.REACH * 2), "this version lays out the base and the inner ring")
+	_check(WorldGen.REACH >= int(WorldGen.RINGS[3]) + 12 and a.region.size == Vector2i(WorldGen.REACH * 2, WorldGen.REACH * 2), "this version lays out the base and all three rings (version 49)")
 	var slowest := 0
 	var total_tries := 0
 	var places := 0
 	var lively := 0
+	var far_places := 0
+	var far_lively := 0
 	var scree_worlds := 0
 	for s in n_seeds:
 		var seed_value := 1000 + s * 7919
@@ -146,14 +148,54 @@ func _rules() -> void:
 		# Mostly rock: about two thirds, with the open land in small places.
 		var share := m.open_share(28.0, WorldGen.RING_INNER - 4.0)
 		_check(share >= 0.20 and share <= 0.42, "%s: open land is %d%% of the inner ring" % [who, int(share * 100.0)])
-		# The inner ring is the size Darren chose on 22 November (the Game Bible's "Highlands size": it ends about
-		# 125 tiles from the cave), and it is used right out to there. Beyond it everything is rock for now.
+		# The land is the size Darren chose on 22 November (the Game Bible's "Highlands size": the inner ring ends about
+		# 125 tiles from the cave, the outer about 350), and it is used right out to there. The inner ring's own places
+		# stop at its edge.
 		var furthest := 0.0
 		for y in range(m.region.position.y, m.region.end.y):
 			for x in range(m.region.position.x, m.region.end.x):
 				if not m.is_rock(x, y):
 					furthest = maxf(furthest, Vector2(x - LandMap.MID, y - LandMap.MID).length())
-		_check(furthest >= 105.0 and furthest <= 131.0, "%s: open land reaches about 125 tiles from the cave (%d)" % [who, int(furthest)])
+		var inner_far := 0.0
+		for p in m.pockets:
+			if int(p.get("ring", 1)) == 1:
+				inner_far = maxf(inner_far, (p["at"] as Vector2).distance_to(Vector2(LandMap.MID, LandMap.MID)) + float(p.get("reach", p["rx"])))
+		_check(furthest >= 330.0 and furthest <= float(WorldGen.REACH) and inner_far <= WorldGen.RINGS[1] + 8.0, "%s: open land reaches about 350 tiles from the cave (%d), the inner ring's places about 125 (%d)" % [who, int(furthest), int(inner_far)])
+		# Three rings, each its own: a belt of rock between two, a few passes through it, and the named places
+		# where the Game Bible puts them, far apart.
+		var cave := Vector2(LandMap.MID, LandMap.MID)
+		var per := {1: 0, 2: 0, 3: 0}
+		var wrong_ring := 0
+		for p in m.pockets:
+			var r := int(p.get("ring", 0))
+			per[r] = int(per.get(r, 0)) + 1
+			var d := (p["at"] as Vector2).distance_to(cave)
+			if r >= 2 and str(p["site"]) == "" and (d < WorldGen.RINGS[r - 1] or d > WorldGen.RINGS[r] + 6.0):
+				wrong_ring += 1
+		_check(per[1] >= 60 and per[2] >= 120 and per[3] >= 180 and wrong_ring == 0, "%s: open places in each ring (%d, %d, %d), each inside its own ring" % [who, per[1], per[2], per[3]])
+		var cross := {}
+		for l in m.links:
+			var ra := int(m.pockets[int(l["a"])].get("ring", 0))
+			var rb := int(m.pockets[int(l["b"])].get("ring", 0))
+			if ra != rb:
+				var key := mini(ra, rb) * 10 + maxi(ra, rb)
+				cross[key] = int(cross.get(key, 0)) + 1
+		_check(cross.get(12, 0) == WorldGen.PASSES[1] and cross.get(23, 0) == WorldGen.PASSES[2] and cross.size() == 2, "%s: %d passes from the inner ring to the middle, %d from the middle to the outer, none farther (%s)" % [who, WorldGen.PASSES[1], WorldGen.PASSES[2], str(cross)])
+		var where := {"watchpost": 1, "quarry": 1, "roost": 2, "den": 2, "cairns": 2, "gorge": 2, "fault": 3, "scrapyard": 3}
+		var placed := 0
+		for name in where:
+			if m.sites.has(name) and m.sites[name].get("at") != null:
+				var d := Vector2(m.sites[name]["at"]).distance_to(cave)
+				var r: int = where[name]
+				if d >= WorldGen.RINGS[r - 1] - 2.0 and d <= WorldGen.RINGS[r] + 8.0:
+					placed += 1
+		var closest := INF
+		var names: Array = where.keys()
+		for i in names.size():
+			for j in range(i + 1, names.size()):
+				if m.sites.has(names[i]) and m.sites.has(names[j]):
+					closest = minf(closest, Vector2(m.sites[names[i]]["at"]).distance_to(Vector2(m.sites[names[j]]["at"])))
+		_check(placed == where.size() and closest >= 40.0, "%s: the Watchpost and the Quarry in the inner ring, the Roost, the Den, the cairns and the gorge in the middle, the Fault and the Scrapyard in the outer, each at least 40 tiles from the next (%d)" % [who, int(closest)])
 		# No wall one tile thick: rock is in lumps you can dig into.
 		var thin := 0
 		for y in range(m.region.position.y + 3, m.region.end.y - 3):
@@ -283,24 +325,41 @@ func _rules() -> void:
 					crossing += 1
 		_check(crossing == 0, "%s: no two ways cross (%d do)" % [who, crossing])
 		var small := 0
-		var big := 0
+		var big := {1: 0, 2: 0, 3: 0}
+		var over_big := 0
 		for p in m.pockets:
+			if str(p["site"]) != "" or bool(p["gate"]):
+				continue
+			var r := int(p.get("ring", 1))
 			if float(p["rx"]) >= 8.0 or (bool(p["glen"]) and float(p["rx"]) > 3.4):
-				big += 1
+				big[r] += 1
 			elif not bool(p["glen"]) and float(p["rx"]) < 4.3:
 				small += 1
-		_check(small >= 6 and big <= WorldGen.BIG_MOST, "%s: the open places differ in size (%d small, %d big)" % [who, small, big])
-		# Life: how many places have an animal in them (counted over every world, below).
+		for r in [1, 2, 3]:
+			if int(big[r]) > int(WorldGen.RING[r]["big"]):
+				over_big += 1
+		_check(small >= 6 and over_big == 0 and int(big[1]) <= WorldGen.BIG_MOST, "%s: the open places differ in size (%d small; big ones in each ring %s, at most %d, %d and %d)" % [who, small, str(big.values()), WorldGen.RING[1]["big"], WorldGen.RING[2]["big"], WorldGen.RING[3]["big"]])
+		# Life: how many places have an animal in them (counted over every world, below). The inner ring has the
+		# most; farther out there are no cows and fewer hares (version 49).
 		for p in m.pockets:
 			if bool(p["gate"]) or str(p["site"]) != "":
 				continue
-			places += 1
+			var ring := int(p.get("ring", 1))
+			if ring == 1:
+				places += 1
+			else:
+				far_places += 1
 			for an in m.animals:
 				if (Vector2(float(an["x"]), float(an["y"])) / 16.0).distance_to(p["at"]) < float(p.get("reach", p["rx"])) + 3.0:
-					lively += 1
+					if ring == 1:
+						lively += 1
+					else:
+						far_lively += 1
 					break
 	var life := float(lively) / float(maxi(places, 1))
-	_check(life >= 0.22 and life <= 0.50, "an animal or two in about one open place in three (%d of %d, %d%%)" % [lively, places, int(life * 100.0)])
+	var far_life := float(far_lively) / float(maxi(far_places, 1))
+	_check(life >= 0.22 and life <= 0.50, "an animal or two in about one open place in three in the inner ring (%d of %d, %d%%)" % [lively, places, int(life * 100.0)])
+	_check(far_life >= 0.08 and far_life < life, "and fewer farther out, but some (%d of %d, %d%%)" % [far_lively, far_places, int(far_life * 100.0)])
 	_check(scree_worlds >= n_seeds * 3 / 4, "most worlds have some scree (%d of %d)" % [scree_worlds, n_seeds])
 	print("      %d worlds made, the slowest in %d ms, %.2f layouts tried a world" % [n_seeds, slowest, float(total_tries) / float(n_seeds)])
 
@@ -466,10 +525,10 @@ func _veins() -> void:
 				var with := Painter.paint(m, cx, cy)
 				if with.get_data() != Painter.paint(m, cx, cy).get_data():
 					unsteady += 1
-				var keep: Dictionary = m._veins_by_chunk
-				m._veins_by_chunk = {}
+				var keep: Dictionary = m._lumps_by_chunk
+				m._lumps_by_chunk = {}
 				var without := Painter.paint(m, cx, cy)
-				m._veins_by_chunk = keep
+				m._lumps_by_chunk = keep
 				var parts := Painter.rock_parts(m, cx * 16, cy * 16, 16, 16)
 				var on_seam := {}
 				for o in m.veins_in(cx, cy):
@@ -723,9 +782,23 @@ func _shots() -> void:
 	var views := {"base": m.spawn + Vector2(0, 3.5)}
 	views["quarry"] = m.sites["quarry"]["at"]
 	views["watchpost"] = m.sites["watchpost"]["at"]
+	# The middle and outer rings' named places (version 49).
+	for site in ["roost", "den", "cairns", "gorge", "fault", "scrapyard"]:
+		if m.sites.has(site) and m.sites[site].get("at") != null:
+			views[site] = Vector2(m.sites[site]["at"])
+	if m.sites.has("fault") and m.sites["fault"].has("line"):
+		var line: Array = m.sites["fault"]["line"]
+		views["fault_crack"] = (Vector2(line[0]) + Vector2(line[1])) * 0.5
 	var n := 0
 	for p in m.pockets:
 		if bool(p["gate"]) or bool(p["sealed"]) or str(p["site"]) != "":
+			continue
+		var ring := int(p.get("ring", 1))
+		if ring == 2 and not views.has("middle_ring") and float(p["rx"]) >= 5.0:
+			views["middle_ring"] = p["at"]
+		if ring == 3 and not views.has("outer_ring") and float(p["rx"]) >= 5.0:
+			views["outer_ring"] = p["at"]
+		if ring != 1:
 			continue
 		n += 1
 		if n == 3:

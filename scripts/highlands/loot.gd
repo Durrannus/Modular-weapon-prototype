@@ -320,7 +320,7 @@ func foe_died(e) -> void:
 		coins = floori(Sim.between(float(ELITE_COINS_MIN), float(ELITE_COINS_MAX) + 0.999))
 		bars = floori(Sim.between(float(ELITE_BARS_MIN), float(ELITE_BARS_MAX) + 0.999))
 		bar = "copper_bar" if Sim.chance() < 0.6 else "tin_bar"
-	var piece := str(HORN.get(str(e.kind), "")) if elite else ""
+	var piece := str(HORN.get(str(e.kind), "")) if elite and not e.has_meta("stands_for") else ""
 	for i in players.size():
 		if not is_instance_valid(players[i]):
 			continue

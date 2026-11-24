@@ -23,11 +23,14 @@ const PlayerInput := preload("res://scripts/player_input.gd")
 const Lab := preload("res://scripts/lab.gd")
 const SavePick := preload("res://scripts/ui/save_pick.gd")
 const Save := preload("res://scripts/save.gd")
+const Forging := preload("res://scripts/ui/forging.gd")
 
 var title
 var game
 var online_menu
 var pick           # the screen where a character and a world are picked
+var forging        # "Forging the land...", while a Highlands world is made
+var opening := 0   # raised whenever the screen changes: a world still waiting to be made is not made after all
 var last_inputs: Array = []
 var notice := ""   # shown once on the title screen ("Your friend left the game.")
 
@@ -47,13 +50,15 @@ func _ready() -> void:
 
 
 func _clear() -> void:
-	for n in [title, game, online_menu, pick]:
+	opening += 1
+	for n in [title, game, online_menu, pick, forging]:
 		if is_instance_valid(n):
 			n.queue_free()
 	title = null
 	game = null
 	online_menu = null
 	pick = null
+	forging = null
 
 
 func _show_title() -> void:
@@ -107,6 +112,18 @@ func _start(mode: String, inputs: Array, carry := {}, saves := {}) -> void:
 		return
 	last_inputs = inputs
 	_clear()
+	if mode == "highlands":
+		# Making the land takes a few seconds, all at once: "Forging the land..." is on the screen meanwhile.
+		var ticket := opening
+		var w: Dictionary = saves.get("world", {})
+		forging = Forging.new()
+		forging.world_name = str(w.get("name", "")) if not w.get("unsaved", false) else ""
+		forging.older = not w.is_empty() and SavePick.older_land(w)
+		add_child(forging)
+		await get_tree().process_frame
+		await get_tree().process_frame
+		if ticket != opening:
+			return
 	game = {"cave": Cave, "highlands": Highlands}.get(mode, Arena).new()
 	game.inputs = inputs
 	if mode == "cave":
@@ -120,6 +137,9 @@ func _start(mode: String, inputs: Array, carry := {}, saves := {}) -> void:
 	game.exit_to_title.connect(_show_title, CONNECT_DEFERRED)
 	game.quit_to_title.connect(_show_title, CONNECT_DEFERRED)
 	add_child(game)
+	if is_instance_valid(forging):
+		forging.queue_free()
+		forging = null
 
 
 # --- Online -----------------------------------------------------------------------
