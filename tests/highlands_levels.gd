@@ -21,6 +21,7 @@ const Make := preload("res://scripts/foes/make.gd")
 const Rock := preload("res://scripts/foes/rock.gd")
 const Arrow := preload("res://scripts/arrow.gd")
 const DamageNumber := preload("res://scripts/fx/damage_number.gd")
+const Words := preload("res://scripts/fx/words.gd")
 const Art := preload("res://scripts/art.gd")
 const Hound := preload("res://scripts/foes/hound.gd")
 const ScrapBrute := preload("res://scripts/foes/scrap_brute.gd")
@@ -87,6 +88,7 @@ func _run() -> void:
 	await _kill_credit()
 	await _warden()
 	await _warden_coop()
+	await _words_apart()
 	await _kindle()
 	await _ore_sense()
 	await _screens()
@@ -154,12 +156,15 @@ func _fight(p, e, until: Callable, most := 360) -> int:
 func _art() -> void:
 	for name in ["memory_frame", "memory_fill", "memory_empty", "level_badge", "memory_marker", "memory_marker_take", "level_up",
 			"challenged", "open", "spark", "spark_fade", "spark_take", "shimmer_tin", "shimmer_copper", "shimmer_chest",
-			"emblem_warden", "emblem_striker", "emblem_mender", "emblem_delver", "sharp_glint", "exposed"]:
+			"emblem_warden", "emblem_striker", "emblem_mender", "emblem_delver", "sharp_glint", "exposed",
+			"warden_ring", "plate_edge", "plate_break", "payback_frame", "payback_empty", "payback_fill", "payback_full", "payback_burst"]:
 		_check(not ItemArt.find(name).is_empty(), "the art has \"%s\"" % name)
 	_check(ItemArt.size("memory_frame") == Vector2(92, 9) and ItemArt.size("memory_fill") == Vector2(80, 4) and Levels.BAR_DROP == 8.0 and ItemArt.size("level_badge") == Vector2(15, 13), "the Memory bar and the roundel are the sizes the screen is laid out for")
 	_check(ItemArt.size("memory_marker") == Vector2(16, 34) and ItemArt.origin("memory_marker") == Vector2(8, 31), "the marker stands on its origin")
 	_check(ItemArt.size("challenged") == Vector2(24, 12) and ItemArt.origin("challenged") == Vector2(12, 11) and ItemArt.size("open") == Vector2(19, 18), "the marks over an enemy's head are measured a frame at a time")
 	_check(ItemArt.size("sharp_glint") == Vector2(11, 11) and ItemArt.origin("sharp_glint") == Vector2(5, 5) and ItemArt.size("exposed") == Vector2(15, 14) and ItemArt.origin("exposed") == Vector2(7, 13), "the Striker's glint sits on its middle, and Exposed stands over the head (version 53)")
+	_check(ItemArt.size("warden_ring") == Vector2(165, 105) and ItemArt.origin("warden_ring") == Vector2(82, 52) and ItemArt.size("payback_burst") == Vector2(137, 87) and ItemArt.origin("payback_burst") == Vector2(68, 43), "the Warden's ring and Payback's burst stand on their middles (version 55)")
+	_check(ItemArt.size("plate_edge") == Vector2(98, 18) and ItemArt.origin("plate_edge") == Vector2(3, 3) and ItemArt.size("plate_break") == Vector2(98, 26) and ItemArt.size("payback_frame") == Vector2(92, 6) and ItemArt.size("payback_fill") == Vector2(80, 2) and ItemArt.size("payback_full") == Vector2(80, 2), "the Plate's rim fits round the 92 by 12 health bar, and the Payback meter's track is 80 wide")
 	_check(ItemArt.size("no_such_thing") == Vector2.ZERO and ItemArt.origin("no_such_thing") == Vector2.ZERO, "a picture there is not has no size")
 	# Still what stood in the bag and the purse before.
 	_check(ItemArt.size("memory_mote") == Vector2(7, 7) and not ItemArt.find("item_tin_ore").is_empty(), "the older sheets are still read")
@@ -1350,6 +1355,67 @@ func _warden_coop() -> void:
 	t.knocked_out.connect(func(_who): falls[0] += 1)
 	t.take_damage(50.0, t.global_position + Vector2(30, 0))
 	_check(falls[0] == 1 and lv.unbroken_wait[0] == 0.0, "one outside the ring falls, and it stays ready")
+	await _leave(g)
+	await _frames(2)
+
+
+## The words over heads never sit on each other (the project's review of version 54): a Warden's finisher on a
+## cluster of hounds with Payback full, a Weak Point mark and a hound's word all at once.
+func _words_apart() -> void:
+	var g = _game(424242)
+	await _frames(5)
+	var lv = g.levels
+	var p = g.players[0]
+	var home: Vector2 = p.spawn_point
+	p.global_position = home + Vector2(0, 60)
+	p.unhurt = true
+	lv.level = 8
+	lv.perks[0] = ["challenge", "unmoved", "bodyguard", "payback"]
+	lv.payback[0] = 20.0
+	var foes: Array = []
+	for at in [Vector2(40, 0), Vector2(50, 12), Vector2(46, -12)]:
+		var e = _foe(g, "hound", p.global_position + at)
+		e.stun_time = 99.0
+		e.knock_resist = 0.0
+		foes.append(e)
+	await _frames(3)
+	lv.finisher(p, foes)
+	p._label("MARKED", Color.WHITE)
+	foes[1]._word("BLOCKED", Color.WHITE)
+	p._label("+DODGE", Color.WHITE)
+	var seen := {}
+	var worst := 0
+	for f in 50:
+		await physics_frame
+		worst = maxi(worst, Words.overlaps().size())
+		for w in Words.live:
+			if is_instance_valid(w) and w.visible:
+				seen[str(w.text)] = true
+	_check(worst == 0, "no two words over a group ever overlap (%d did)" % worst)
+	_check(seen.has("CHALLENGED ×3") and not seen.has("CHALLENGED"), "a finisher that Challenges three hounds says so once: CHALLENGED ×3 (%s)" % str(seen.keys()))
+	_check(seen.has("PAYBACK") and seen.has("MARKED") and seen.has("BLOCKED") and seen.has("+DODGE"), "and every other word still shows, in its turn (%s)" % str(seen.keys()))
+	# One newly Challenged says it plainly; one already Challenged by the same player says nothing again.
+	for e in foes:
+		e.challenge_left = 0.0
+	await _frames(60)
+	lv.finisher(p, [foes[0]])
+	await _frames(2)
+	var plain := Words.live.filter(func(w): return is_instance_valid(w) and str(w.text) == "CHALLENGED").size()
+	_check(plain == 1, "one hound Challenged: CHALLENGED, plainly")
+	await _frames(60)
+	lv.finisher(p, [foes[0]])
+	await _frames(2)
+	_check(Words.live.filter(func(w): return is_instance_valid(w) and str(w.text).begins_with("CHALLENGED")).is_empty(), "the same hound again: no second word")
+	# A word that cannot find room for half a second is dropped, not left waiting for ever.
+	for k in 6:
+		p._label("WORD %d" % k, Color.WHITE)
+	await _frames(2)
+	var shown := Words.live.filter(func(w): return is_instance_valid(w) and str(w.text).begins_with("WORD")).size()
+	_check(shown == Words.MOST, "six words at once over one player: %d shown, the rest wait (%d)" % [Words.MOST, shown])
+	await _frames(int(Words.WAIT_MOST * 60.0) + 40)
+	_check(Words.overlaps().is_empty(), "and still none overlap")
+	for e in foes:
+		e.queue_free()
 	await _leave(g)
 	await _frames(2)
 

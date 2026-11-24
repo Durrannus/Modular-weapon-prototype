@@ -11,6 +11,7 @@ extends Node2D
 ##   "crack"  Quake: a crack in the floor that runs out along dir for `reach` px
 
 const Art := preload("res://scripts/art.gd")
+const Words := preload("res://scripts/fx/words.gd")
 const SwordArt := preload("res://scripts/weapon/sword_art.gd")
 
 var kind := "wave"
@@ -43,6 +44,8 @@ func _ready() -> void:
 	# the engine does between physics ticks.
 	physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 	z_index = 20
+	if kind == "text":
+		visible = false       # (until it has found its room among the other words)
 	if kind == "wave":
 		rotation = dir.angle()
 	if kind in ["wave", "chain"]:
@@ -51,7 +54,22 @@ func _ready() -> void:
 		material = m
 
 
+var placed := false   # "text": it has found its room among the other words (scripts/fx/words.gd)
+var waited := 0.0
+
+
 func _physics_process(delta: float) -> void:
+	if kind == "text" and not placed:
+		var at := Words.place(self, global_position)
+		if at == Vector2.INF:
+			visible = false
+			waited += delta
+			if waited >= Words.WAIT_MOST:
+				queue_free()
+			return
+		global_position = at
+		placed = true
+		visible = true
 	t += delta
 	if t >= life:
 		queue_free()
@@ -64,7 +82,7 @@ func _physics_process(delta: float) -> void:
 			global_position = from_node.global_position + from_offset
 		_spin_hits()
 	elif kind == "text":
-		position.y -= 60.0 * delta
+		position.y -= Words.RISE * delta
 	queue_redraw()
 
 
@@ -220,6 +238,15 @@ func _draw() -> void:
 			c.a = fade
 			draw_string_outline(font, Vector2(-140, 0), text, HORIZONTAL_ALIGNMENT_CENTER, 280, Art.TEXT_BOLD_SIZE * 2, 8, Color(0.06, 0.04, 0.09, fade))
 			draw_string(font, Vector2(-140, 0), text, HORIZONTAL_ALIGNMENT_CENTER, 280, Art.TEXT_BOLD_SIZE * 2, c)
+
+
+## "text": the room its letters take, in the world (scripts/fx/words.gd).
+func word_box() -> Rect2:
+	return word_box_at(global_position)
+
+
+func word_box_at(at: Vector2) -> Rect2:
+	return Words.box(Art.font(Art.TEXT_BOLD), Art.TEXT_BOLD_SIZE * 2, text, at)
 
 
 ## A curved band facing +x (the node is rotated to the wave's direction).

@@ -294,7 +294,7 @@ func touch_damage(amount := -1.0, extra_reach := 0.0) -> bool:
 
 ## A Warden's finisher Challenges it: for `time` seconds it is after that player. A boss turns for its shorter
 ## time and then cannot be Challenged again for `rest` seconds. Returns false if it could not be Challenged.
-func challenge(by, time: float, rest := 0.0) -> bool:
+func challenge(by, time: float, rest := 0.0, say := true) -> bool:
 	if dead or kind == "dummy" or time <= 0.0:
 		return false
 	if is_boss():
@@ -304,7 +304,7 @@ func challenge(by, time: float, rest := 0.0) -> bool:
 	var fresh: bool = challenge_left <= 0.0 or challenged_by != by
 	challenged_by = by
 	challenge_left = time
-	if fresh:
+	if fresh and say:
 		_word("CHALLENGED", Color("#e8e4bc"))
 	return true
 
@@ -338,6 +338,7 @@ func is_open() -> bool:
 
 
 ## A word over its head.
+## A word over its head (CHALLENGED). It keeps clear of the other words on the screen (scripts/fx/words.gd).
 func _word(word: String, col: Color) -> void:
 	var n := DamageNumber.new()
 	n.text = word

@@ -64,3 +64,17 @@ Sparks, Shimmer."
   Four bone corner brackets round an empty middle, like a mark chalked on the target, closing in a pixel and opening again.
   One shape of its own: not a ring, not a cut guard. The code blinks it in its last half second.
 Both are the Art builder's choices; Darren has not seen them. `sharp_glint()` and `exposed()` in code/hl_roles.py.
+
+## 24 Nov: the Warden's tree pieces for version 54 (asked for by the Prototype builder)
+
+The sheet is now 700 wide, so every box moved: read them from roles.json.
+- `warden_ring`: 165x105, origin (82, 52) at the Warden's feet. A dashed ellipse 80 px out each way, squashed 0.62. White
+  near half, grey far half, for the game to tint with the player's colour (as `challenged`); each dash two pixels thick
+  with the HUD's ink round it so it reads on pale sand and on dark dug floor. Still.
+- `plate_edge`: 98x18, origin (3, 3) = the 92x12 health bar's top left. A riveted bronze rim, lit top and left.
+- `plate_break`: 5 frames of 98x26 at 12 fps, once: a white crack, the rim in pieces, the pieces dropping away, hatched out.
+- `payback_frame` (92x6, fill_at (6, 2)), `payback_empty`, `payback_fill` (80x2), `payback_full` (2 frames at 4 fps): the
+  Memory bar's own caps and teal, its motes turned to embers.
+- `payback_burst`: 5 frames of 137x87 at 15 fps, origin (68, 43) on the ground. An ember ring running out to 66 px with
+  chips off its edge; only the ring, never a filled disc, so it hides nobody. A small star at the middle on frame 0.
+All are the Art builder's choices (the ember for Payback follows the Prototype builder's stand-in); Darren has not seen them.

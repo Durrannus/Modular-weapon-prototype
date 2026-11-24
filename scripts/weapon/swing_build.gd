@@ -858,8 +858,13 @@ const TEST_SWORDS := {
 var blade := "wooden_blade"   # the sword everyone starts with: no slots on the blade, one on the grip
 var grip := "wooden_grip"
 var pommel := "plain_pommel"
-## Slot contents bottom to top: grip slots first, then blade slots. "" is empty.
+## Slot contents bottom to top: grip slots first, then blade slots, then the spirit's trophy seats. "" is empty.
 var line: Array = [""]
+## Seats the spirit has that no part gives, on every weapon (version 55: the Bible's "a seat for everyone who took
+## part" in Rattlecrown's first kill; Claude's: once a character, so at most TROPHY_MOST). They sit at the top of the
+## line, after the head's seats, and a change of parts leaves what is in them alone.
+const TROPHY_MOST := 1
+var trophy := 0
 ## A bow keeps its limbs in `blade` and its string in `pommel` (see "Bows"), and
 ## has one part more: its arrows ("" on a sword).
 var arrows := ""
@@ -884,25 +889,41 @@ func take(kind: String) -> void:
 
 
 func slot_count() -> int:
-	return int(grip_part(grip)["slots"]) + int(head_part(blade)["slots"])
+	return int(grip_part(grip)["slots"]) + int(head_part(blade)["slots"]) + trophy
 
 
 func grip_slots() -> int:
 	return int(grip_part(grip)["slots"])
 
 
-## Keeps the line the right length after a grip or blade change.
-## Grip slots keep their fittings, blade slots keep theirs, extras drop off the top.
-func _refit(old_grip_slots: int) -> void:
+func head_slots() -> int:
+	return int(head_part(blade)["slots"])
+
+
+## Keeps the line the right length after a grip or blade change (`old_head_slots`: what the head gave before; the
+## head in place if left out). Grip slots keep their fittings, blade slots keep theirs, the trophy seats keep theirs,
+## extras drop off the top of each.
+func _refit(old_grip_slots: int, old_head_slots := -1) -> void:
+	var oh := old_head_slots if old_head_slots >= 0 else head_slots()
 	var g: Array = line.slice(0, old_grip_slots)
-	var b: Array = line.slice(old_grip_slots)
-	var gs := grip_slots()
-	var bs := int(head_part(blade)["slots"])
-	g.resize(gs)
-	b.resize(bs)
+	var b: Array = line.slice(old_grip_slots, old_grip_slots + oh)
+	var e: Array = line.slice(old_grip_slots + oh)
+	g.resize(grip_slots())
+	b.resize(head_slots())
+	e.resize(trophy)
 	line = []
-	for x in g + b:
+	for x in g + b + e:
 		line.append("" if x == null else x)
+
+
+## The spirit gains a trophy seat (Rattlecrown's first kill). False if it has all it can have.
+func add_trophy() -> bool:
+	if trophy >= TROPHY_MOST:
+		return false
+	trophy += 1
+	_refit(grip_slots())
+	changed.emit()
+	return true
 
 
 ## The four setters take a part of the weapon in the hand; a part of another
@@ -911,8 +932,9 @@ func set_blade(id: String) -> void:
 	if not heads_of(weapon()).has(id):
 		return
 	var old := grip_slots()
+	var old_head := head_slots()
 	blade = id
-	_refit(old)
+	_refit(old, old_head)
 	changed.emit()
 
 
@@ -976,7 +998,8 @@ static func valid_data(data) -> bool:
 			return false
 	elif data.size() != 4:
 		return false
-	if data[3].size() != int(grip_part(data[1])["slots"]) + int(head_part(data[0])["slots"]):
+	var seats := int(grip_part(data[1])["slots"]) + int(head_part(data[0])["slots"])
+	if data[3].size() < seats or data[3].size() > seats + TROPHY_MOST:
 		return false
 	for id in data[3]:
 		if not (id is String) or (id != "" and not fits(id, kind)):
@@ -1003,6 +1026,10 @@ func set_data(data: Array) -> void:
 	pommel = data[2]
 	line = (data[3] as Array).duplicate()
 	arrows = data[4] if data.size() > 4 else ""
+	# A weapon put away before the spirit had its trophy seat gets it now; one sent from another computer brings its
+	# own (the copy of somebody else's weapon has their seats).
+	trophy = clampi(maxi(trophy, line.size() - grip_slots() - head_slots()), 0, TROPHY_MOST)
+	_refit(grip_slots())
 
 
 # --- Loadout presets ----------------------------------------------------------
@@ -1071,7 +1098,7 @@ func use_preset(i: int, owned = null) -> Array:
 		line = []
 		for id in data[3]:
 			line.append("" if id in missing else id)
-		_refit(saved_grip_slots)
+		_refit(saved_grip_slots, int(head_part(data[0])["slots"]))
 	changed.emit()
 	return missing
 
@@ -1083,7 +1110,7 @@ func use_preset(i: int, owned = null) -> Array:
 ## Everything about this player's weapons, as plain values a save file can hold.
 func to_save() -> Dictionary:
 	return {"hand": get_data(), "stowed": stowed.duplicate(true), "preset": preset, "preset_data": preset_data.duplicate(true),
-		"preset_names": preset_names.duplicate(), "presets_away": _presets_away.duplicate(true)}
+		"preset_names": preset_names.duplicate(), "presets_away": _presets_away.duplicate(true), "trophy": trophy}
 
 
 ## One weapon's presets as a save gives them back: [chosen, [three weapons or null], [three names]]. Whatever in it
@@ -1145,6 +1172,8 @@ func from_save(d) -> Array:
 	pommel = hand[2]
 	line = (hand[3] as Array).duplicate()
 	arrows = hand[4] if hand.size() > 4 else ""
+	trophy = clampi(int(d["trophy"]), 0, TROPHY_MOST) if (d.get("trophy") is int or d.get("trophy") is float) else 0
+	_refit(grip_slots())
 	var mine: Array = presets.get(in_hand, [0, [null, null, null], ["", "", ""]])
 	preset = mine[0]
 	preset_data = mine[1]

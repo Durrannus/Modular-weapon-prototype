@@ -782,6 +782,7 @@ func _found() -> void:
 	# With its piece of the Warhorn, the piece's line is the one that stays up.
 	Loot.ELITE_GIFT = 1.0
 	var hound = Make.make("hound", true)
+	hound.set_meta("horn", true)          # (the Hound Den's: the world's elite hound)
 	g.world.add_child(hound)
 	hound.global_position = p.global_position + Vector2(40, 0)
 	loot.foe_died(hound)
@@ -1353,7 +1354,7 @@ func _saved() -> void:
 		old_me.erase(key)
 	var stacks: Array = []
 	for n in 20:
-		stacks.append([Bag.ORDER[n % Bag.ORDER.size()], 99])
+		stacks.append([Bag.ORDER[n % 6], 99])      # (the six materials there were then)
 	old_me["bag"] = stacks
 	var old_world := Save.read(Save.WORLDS, str(where["id"]))
 	old_world.erase("visited")

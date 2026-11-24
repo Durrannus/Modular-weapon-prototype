@@ -201,6 +201,8 @@ func _ready() -> void:
 	loot.setup(chest_plan)
 	if not world_save.is_empty() and not new_world and not relaid:
 		loot.set_opened(world_save.get("chests"))
+	if not world_save.is_empty() and not new_world:
+		loot.set_blanks_found(world_save.get("blanks"))
 	levels = Levels.new()
 	levels.game = self
 	levels.map = map
@@ -269,9 +271,12 @@ func _ready() -> void:
 	_make_ui()
 	hud.mode = "highlands"
 	hud.under_bar = Levels.BAR_DROP           # the Memory bar is right under the health bar
+	hud.under_more = levels.bar_extra         # (and a Warden's Payback meter under that)
 	hall = ForgeHall.new()
 	hall.levels = levels
 	hall.folk = folk
+	hall.loot = loot
+	hall.weapon_name = func(i): return str(builds[i].weapon()) if i >= 0 and i < builds.size() else "weapon"
 	hall.players = players
 	add_child(hall)
 	hall.weapons.connect(_open_weapons)
@@ -418,6 +423,7 @@ func _world_now() -> Dictionary:
 	world_save["land"] = WorldGen.GEN
 	world_save.merge(map.changes(), true)
 	world_save["chests"] = loot.opened_ids()
+	world_save["blanks"] = loot.blanks_found
 	world_save.merge(levels.world_data(), true)
 	if gear != null:
 		world_save.merge(gear.world_data(), true)
@@ -607,6 +613,8 @@ func forge_words(i: int) -> String:
 		return "Go down to the forge: %s to spend" % ("1 point" if levels.points(i) == 1 else "%d points" % levels.points(i))
 	if levels.share(i) >= 1.0:
 		return "Go down to the forge: you carry enough for a level"
+	if loot != null and loot.any_blank(i):
+		return "Go down to the forge: a blank stone to infuse"
 	return "Go down to the forge"
 
 

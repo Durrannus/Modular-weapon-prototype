@@ -9,10 +9,17 @@ extends RefCounted
 ##   - "Random chests, scattered around": "usually tin or copper bars, coins and Memory".
 ##   - "Not every place is a quest. Some places are just enemies plus a chest with a random, modest reward."
 ##   - Chests opened are saved with the world.
-## And Claude's choices, until Darren says otherwise:
-##   - About half the places somebody lives in have a chest, at the back of the place (the far side from the cave),
-##     and a few of the empty ones.
-##   - Every sealed place (the ones only a pickaxe finds) has one, and it is a richer one: digging in is paid for.
+##   - FAR FEWER CHESTS (Darren, 24 November, from his test of version 50): "About 272 chests in the Highlands is far
+##     too many; chests should feel worth finding. Cut to about 60 to 80 chests across the whole Highlands."
+##   - Passive blank stones in chests (Darren, 24 November): about 4% a chest, until the world has given its cap
+##     (loot.gd counts them: 12 alone, 4 more for each other player).
+## And Claude's choices, until Darren says otherwise (since version 55):
+##   - A quarter of the inner ring's places somebody lives in have a chest, at the back of the place (the far side
+##     from the cave), and a few of the empty ones; half its sealed places (the ones only a pickaxe finds) have a
+##     richer one, so digging in is often paid for. The middle and outer rings have far more places, so a smaller
+##     share of them have one (RING_FEWER). About 65 chests a land in all.
+##   - Every chest holds about three times what one held before version 55 (coins, Memory, more bars, and an
+##     accessory more often), so the Memory on the way to Rattlecrown stays about what the level curve was set for.
 ##   - The Keeper's Watchpost and the Old Quarry each have a richer one.
 ##   - The open place nearest the cave always has a small one, so the first chest is met in the safe hills.
 ##   - Nearer the cave the bars are mostly tin; farther out mostly copper. A richer chest holds both.
@@ -22,10 +29,11 @@ extends RefCounted
 ##   - ACCESSORIES are in some chests since version 47 (the Bible: "sometimes a tier 1 accessory"): the first chest
 ##     always holds one, so the satchel is met in the safe hills; a richer chest holds one about half the time
 ##     and any other about one time in seven. Which one is the chest's own roll (`gift`).
-##   - Blank rune stones and the unique parts are NOT in the chests yet: there is no anvil to do anything with them.
+##   - The unique parts are NOT in the chests yet.
 ##
 ## A chest: {id (its place's number: what the world save keeps), pocket, kind: "first", "plain", "guarded", "sealed"
-## or "site", tile, foot (art pixels), coins, memory, items: [[what, how many]], gift: an accessory or ""}.
+## or "site", tile, foot (art pixels), coins, memory, items: [[what, how many]], gift: an accessory or "", blank: true
+## if it holds a passive blank stone (while the world has not given its cap)}.
 
 const LandMap := preload("res://scripts/highlands/land_map.gd")
 const WorldGen := preload("res://scripts/highlands/world_gen.gd")
@@ -33,19 +41,22 @@ const Painter := preload("res://scripts/highlands/land_painter.gd")
 const FoePlan := preload("res://scripts/highlands/foe_plan.gd")
 const Accessories := preload("res://scripts/highlands/accessories.gd")
 
-static var GUARDED_SHARE := 0.5    # of the places somebody lives in, how many have a chest
-static var EMPTY_SHARE := 0.2      # of the places nobody lives in, beyond the safe hills
-static var COINS_MIN := 8
-static var COINS_MAX := 18
-static var BARS_MIN := 1
-static var BARS_MAX := 3
-static var MEMORY := 15
+static var GUARDED_SHARE := 0.17   # of the inner ring's places somebody lives in, how many have a chest
+static var EMPTY_SHARE := 0.04     # of the places nobody lives in, beyond the safe hills
+static var SEALED_SHARE := 0.35    # of the sealed places
+static var RING_FEWER := [1.0, 1.0, 0.65, 0.6]   # in the middle and outer ring, those shares times this
+static var COINS_MIN := 24
+static var COINS_MAX := 50
+static var BARS_MIN := 2
+static var BARS_MAX := 5
+static var MEMORY := 40
+static var BLANK := 0.04           # how often a chest holds a passive blank stone (Darren: "about 4% per chest")
 static var RICH := 2.5             # a sealed place's chest and a named place's hold this many times the coins and Memory
 static var FIRST := 0.6            # and the first one, by the cave, this share
 static var RING_SHARE := [1.0, 1.0, 1.25, 1.55]    # in the middle and outer ring, coins and Memory this many times the inner ring's far chests'
 static var RING_COPPER := [0.0, 0.0, 0.75, 0.9]    # and the chance that a plain chest's bars are copper
-static var GIFT := 0.15            # how often a chest holds an accessory ...
-static var RICH_GIFT := 0.5        # ... and a richer one (the first chest always does)
+static var GIFT := 0.35            # how often a chest holds an accessory ...
+static var RICH_GIFT := 0.6        # ... and a richer one (the first chest always does)
 const FIRST_FROM := 12.0           # tiles from the cave: the first chest is in the nearest place at least this far out
 const TALL := 30                   # a thing at least this tall (art pixels) would hide a chest standing behind it
 
@@ -78,20 +89,22 @@ static func make(map: LandMap, groups: Array) -> Array:
 		var at: Vector2 = p["at"]
 		var d := at.distance_to(cave)
 		var kind := ""
+		var fewer := float(RING_FEWER[clampi(int(p.get("ring", 1)), 0, RING_FEWER.size() - 1)])
 		if str(p.get("site", "")) in ["watchpost", "quarry", "roost", "den", "cairns", "gorge", "fault"]:
 			kind = "site"
 		elif str(p.get("site", "")) == "scrapyard":
 			continue               # (the Scrapyard's chests are in its own rooms)
 		elif bool(p.get("sealed", false)):
-			kind = "sealed"
+			if roll < SEALED_SHARE * fewer:
+				kind = "sealed"
 		elif i == first:
 			kind = "first"
 		elif d < FoePlan.SAFE:
 			continue
 		elif lived.has(i):
-			if roll < GUARDED_SHARE:
+			if roll < GUARDED_SHARE * fewer:
 				kind = "guarded"
-		elif roll < EMPTY_SHARE:
+		elif roll < EMPTY_SHARE * fewer:
 			kind = "plain"
 		if kind == "":
 			continue
@@ -136,7 +149,9 @@ static func _holds(seed_value: int, id: int, kind: String, far: bool, ring := 1)
 	var roll := rng.randf()
 	var pick := rng.randi_range(0, Accessories.POOL.size() - 1)
 	var chance := 1.0 if kind == "first" else (RICH_GIFT if kind in ["sealed", "site"] else GIFT)
-	return {"coins": maxi(coins, 1), "memory": maxi(memory, 1), "items": items, "gift": str(Accessories.POOL[pick]) if roll < chance else ""}
+	# A passive blank stone: rolled last of all. (Whether the world still gives one is asked when it is opened.)
+	var blank := rng.randf() < BLANK
+	return {"coins": maxi(coins, 1), "memory": maxi(memory, 1), "items": items, "gift": str(Accessories.POOL[pick]) if roll < chance else "", "blank": blank}
 
 
 ## The tile for a chest in an open place: one that can be walked to from the place's middle, with open ground all

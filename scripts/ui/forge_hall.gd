@@ -11,6 +11,9 @@ extends CanvasLayer
 ##   ROLE TREES    The four trees side by side, a tree a column: the signature perk on top, three rows of two, the
 ##                 capstone at the bottom. The words of the perk you are on are underneath, with what a press would
 ##                 do or why it cannot be learnt yet. R (Y on a controller) forgets every perk for Memory.
+##   BLANK STONES  (version 55; only while you carry one) What a blank rune stone can become: a row for each rune
+##                 of the weapon in your hand it could be infused into, one to break a stone down for Memory, and in
+##                 co-op one to hand a stone to a teammate (left and right choose who). The rules are loot.gd's.
 ##
 ## The player who used the cave mouth has the screen; with two players the other one's controls do nothing here.
 ## The game stands still while it is open, as it does for the forge screen. It is words on the menu kit's plates,
@@ -26,6 +29,7 @@ const Art := preload("res://scripts/art.gd")
 const Sfx := preload("res://scripts/sfx.gd")
 const Perks := preload("res://scripts/highlands/perks.gd")
 const ItemArt := preload("res://scripts/highlands/item_art.gd")
+const SwingBuild := preload("res://scripts/weapon/swing_build.gd")
 
 const SCREEN := Vector2(640, 360)
 const INK := Color("#e8e4bc")
@@ -42,6 +46,8 @@ const POUR_TIME := 0.9
 const HALL := Rect2(140, 34, 360, 286)
 const ROWS := ["Give your Memory", "Role trees", "Weapons and runes", "Leave"]
 const TRAVEL_ROW := "Travel to the Watchpost"     # one more row, above "Leave", once that waystone is lit
+const BLANK_ROW := "Blank stones"                 # one more row, above "Weapons and runes", while you carry a blank
+const KIND_WORDS := {"passive_blank": "passive", "active_blank": "active"}
 const FIRST_WORDS := "Everything you kill, mine and chop gives Memory. Bring it here and the forge remembers: the whole squad gains a level."
 ## Under the trees' name. While only the signature perks are built, it says so (and not how rows open: none can yet).
 const TREES_WORDS := "One point for every level of the squad. In this version only the top perk of each tree is built."
@@ -56,11 +62,15 @@ const PERK_H := 16.0
 const INFO := Rect2(32, 236, 576, 86)
 
 var levels                    # scripts/highlands/levels.gd
+var loot                      # scripts/highlands/loot.gd, for the blank stones (may be null)
+var weapon_name := func(_i): return "weapon"     # what the weapon in player i's hand is called (the game says)
 var folk                      # scripts/highlands/folk.gd, for the waystones (may be null)
 var players: Array = []
 var who := 0                  # the player who has the screen
 var is_open := false
-var view := "hall"            # "hall" or "trees"
+var view := "hall"            # "hall", "trees" or "blanks"
+var blank_row := 0            # the blank stones: the row you are on ...
+var give_to := -1             # ... and who a stone would be handed to
 var row := 0                  # the hall: the row you are on
 var tree := 0                 # the trees: the column ...
 var place := 0                # ... and the place in it, 0 (the signature) to 7 (the capstone)
@@ -97,8 +107,11 @@ func open(i: int) -> void:
 	note = ""
 	pour = {}
 	opened_at = t
-	# On what there is to do: Memory to give, else points to spend, else the weapons.
-	row = 0 if levels.carried(who) > 0 and levels.need(levels.level) > 0.0 else (1 if levels.points(who) > 0 else 2)
+	# On what there is to do: Memory to give, else points to spend, else a blank stone, else the weapons.
+	var list := rows()
+	row = 0 if levels.carried(who) > 0 and levels.need(levels.level) > 0.0 else (1 if levels.points(who) > 0 else (list.find(BLANK_ROW) if BLANK_ROW in list else list.find("Weapons and runes")))
+	blank_row = 0
+	give_to = -1
 	root.visible = true
 	get_tree().paused = true
 	Sfx.play(self, "click", -10.0, 0.8)
@@ -107,9 +120,37 @@ func open(i: int) -> void:
 ## The rows of the forge's own screen: what is done here.
 func rows() -> Array:
 	var out: Array = ROWS.duplicate()
+	if loot != null and loot.any_blank(who):
+		out.insert(out.find("Weapons and runes"), BLANK_ROW)
 	if folk != null and folk.has_stone() and folk.lit(str(folk.plan["stone"]["id"])):
 		out.insert(out.size() - 1, TRAVEL_ROW)
 	return out
+
+
+## The rows of the blank stones: [{do: "infuse" | "break" | "give", kind, rune, text, right}].
+func blank_rows() -> Array:
+	var out: Array = []
+	if loot == null:
+		return out
+	for kind in ["passive_blank", "active_blank"]:
+		var n: int = loot.blanks(who, kind)
+		if n <= 0:
+			continue
+		var words := ("an " if kind == "active_blank" else "a ") + str(KIND_WORDS[kind])
+		for id in loot.infusions(who, kind):
+			out.append({"do": "infuse", "kind": kind, "rune": id, "text": "Infuse: %s" % str(SwingBuild.FITTINGS[id]["name"]), "right": "%s stone" % words})
+		out.append({"do": "break", "kind": kind, "rune": "", "text": "Break down %s stone" % words,
+			"right": "+%d Memory" % (int(loot.ACTIVE_MEMORY) if kind == "active_blank" else int(loot.BLANK_MEMORY))})
+		if players.size() > 1:
+			out.append({"do": "give", "kind": kind, "rune": "", "text": "Hand %s stone over" % words, "right": "to player %d" % (_give_target() + 1)})
+	return out
+
+
+## Who a stone would be handed to: the one chosen with left and right, else the next player.
+func _give_target() -> int:
+	if give_to < 0 or give_to >= players.size() or give_to == who:
+		give_to = (who + 1) % maxi(players.size(), 1)
+	return give_to
 
 
 func close() -> void:
@@ -176,6 +217,8 @@ func _input(event: InputEvent) -> void:
 		if not hit.is_empty() and not asking:
 			if str(hit[1]) == "row":
 				row = int(hit[2])
+			elif str(hit[1]) == "blank":
+				blank_row = int(hit[2])
 			else:
 				tree = int(hit[2])
 				place = int(hit[3])
@@ -235,6 +278,22 @@ func move(dx: int, dy: int) -> void:
 			row = posmod(row + dy, rows().size())
 			Sfx.play(self, "click", -16.0)
 		return
+	if view == "blanks":
+		var list := blank_rows()
+		if list.is_empty():
+			return
+		if dy != 0:
+			blank_row = posmod(blank_row + dy, list.size())
+			Sfx.play(self, "click", -16.0)
+		elif dx != 0 and str(list[clampi(blank_row, 0, list.size() - 1)]["do"]) == "give" and players.size() > 2:
+			var to := _give_target()
+			for k in players.size():
+				to = posmod(to + dx, players.size())
+				if to != who and is_instance_valid(players[to]):
+					break
+			give_to = to
+			Sfx.play(self, "click", -16.0)
+		return
 	tree = posmod(tree + dx, Perks.TREES.size())
 	place = clampi(place + dy, 0, 7)
 	if dx != 0 or dy != 0:
@@ -255,6 +314,9 @@ func confirm() -> void:
 			Sfx.play(self, "anvil", -8.0, 0.7)
 			say("Forgotten: %d %s to spend again, for %d Memory." % [had, "point" if had == 1 else "points", cost])
 		return
+	if view == "blanks":
+		_blank_do()
+		return
 	if view == "trees":
 		var id := perk_on()
 		var why: String = levels.learn(who, id)
@@ -271,6 +333,11 @@ func confirm() -> void:
 		"Role trees":
 			view = "trees"
 			note = ""
+			Sfx.play(self, "click", -8.0)
+		BLANK_ROW:
+			view = "blanks"
+			note = ""
+			blank_row = 0
 			Sfx.play(self, "click", -8.0)
 		"Weapons and runes":
 			var i := who
@@ -307,11 +374,52 @@ func _give() -> void:
 		say("You gave %d Memory." % int(got["poured"]))
 
 
+## BLANK STONES: what the row you are on does.
+func _blank_do() -> void:
+	var list := blank_rows()
+	if list.is_empty():
+		go_back()
+		return
+	var r: Dictionary = list[clampi(blank_row, 0, list.size() - 1)]
+	var kind := str(r["kind"])
+	match str(r["do"]):
+		"infuse":
+			var why: String = loot.infuse(who, kind, str(r["rune"]))
+			if why == "":
+				Sfx.play(self, "anvil", -8.0, 1.2)
+				say("%s is yours. Fit it under Weapons and runes." % str(SwingBuild.FITTINGS[r["rune"]]["name"]), 6.0)
+			else:
+				Sfx.play(self, "click", -14.0, 0.7)
+				say(why, 2.5)
+		"break":
+			var m: int = loot.break_down(who, kind)
+			Sfx.play(self, "pickup", -8.0, 0.9)
+			say("Broken down: %d Memory to give." % m)
+		"give":
+			var to := _give_target()
+			var why: String = loot.hand_over(who, to, kind)
+			if why == "":
+				Sfx.play(self, "pickup", -8.0, 1.1)
+				say("Player %d has your %s stone." % [to + 1, str(KIND_WORDS[kind])])
+			else:
+				Sfx.play(self, "click", -14.0, 0.7)
+				say(why, 2.5)
+	# With no stones left, back to the forge's own rows.
+	var left := blank_rows()
+	if left.is_empty():
+		view = "hall"
+		row = clampi(rows().find("Weapons and runes"), 0, rows().size() - 1)
+	else:
+		blank_row = clampi(blank_row, 0, left.size() - 1)
+
+
 func go_back() -> void:
 	Sfx.play(self, "click", -14.0, 0.7)
 	if asking:
 		asking = false
-	elif view == "trees":
+	elif view == "trees" or view == "blanks":
+		if view == "blanks":
+			row = clampi(rows().find(BLANK_ROW), 0, rows().size() - 1) if BLANK_ROW in rows() else row
 		view = "hall"
 		note = ""
 	else:
@@ -368,6 +476,8 @@ func _draw_screen() -> void:
 	root.draw_rect(Rect2(Vector2.ZERO, SCREEN), Color(0.06, 0.04, 0.09, 0.72))
 	if view == "hall":
 		_draw_hall(silk, pix)
+	elif view == "blanks":
+		_draw_blanks(silk, pix)
 	else:
 		_draw_trees(silk, pix)
 	# The bottom band: what the buttons do.
@@ -378,6 +488,8 @@ func _draw_screen() -> void:
 		hint = "Enter or A: forget them     Backspace or B: keep them"
 	elif view == "trees":
 		hint = "W A S D or stick: choose     Enter or A: learn     R or Y: forget them all     Backspace or B: back"
+	elif view == "blanks":
+		hint = "W / S or stick: choose     %sEnter or A: do it     Backspace or B: back" % ("A / D: who to     " if players.size() > 2 else "")
 	root.draw_string(pix, Vector2(10, SCREEN.y - 16), hint, HORIZONTAL_ALIGNMENT_LEFT, -1, Art.TEXT_SIZE, DIM)
 	if asking:
 		_draw_asking(silk, pix)
@@ -394,9 +506,10 @@ func _badge(at: Vector2, level: int, silk: Font) -> void:
 func _draw_hall(silk: Font, pix: Font) -> void:
 	var list := rows()
 	var more := 24.0 * float(list.size() - ROWS.size())      # a row more: the plate is that much taller
+	var quote := list.size() <= ROWS.size() + 1              # (with two rows more, the forge's line is left out)
 	var r := HALL
-	r.position.y -= floorf(more * 0.5)
-	r.size.y += more
+	r.size.y += more - (0.0 if quote else 58.0)
+	r.position.y -= floorf((r.size.y - HALL.size.y) * 0.5)
 	if not Art.draw_nine(root, "swing/ui/panel.png", r, 8):
 		root.draw_rect(r, PLATE)
 	var x := r.position.x + 18.0
@@ -455,7 +568,7 @@ func _draw_hall(silk: Font, pix: Font) -> void:
 	var points: int = levels.points(who)
 	var rights := {"Give your Memory": "You carry %d" % carried if carried > 0 else "You carry none",
 		"Role trees": "1 point to spend" if points == 1 else ("%d points to spend" % points if points > 1 else "No points to spend"),
-		TRAVEL_ROW: "By waystone"}
+		TRAVEL_ROW: "By waystone", BLANK_ROW: _carry_words()}
 	for k in list.size():
 		var rr := Rect2(x, y + 112.0 + float(k) * 24.0, w, 21.0)
 		var on := k == row
@@ -470,20 +583,84 @@ func _draw_hall(silk: Font, pix: Font) -> void:
 			tx += 12.0
 		_words(silk, Vector2(tx, rr.position.y + 14.0), str(list[k]).to_upper(), 8, AMBER if on else INK)
 		if rights.has(list[k]):
-			var lit: bool = (k == 0 and carried > 0 and levels.need(levels.level) > 0.0) or (k == 1 and points > 0)
+			var lit: bool = (k == 0 and carried > 0 and levels.need(levels.level) > 0.0) or (k == 1 and points > 0) or str(list[k]) == BLANK_ROW
 			_words(pix, Vector2(rr.position.x + 8.0, rr.position.y + 14.0), str(rights[list[k]]), Art.TEXT_SIZE, AMBER if lit else DIM, rr.size.x - 16.0, HORIZONTAL_ALIGNMENT_RIGHT)
 
 	# The forge's own words: the line of the level the squad has reached. And the news.
 	var ly := y + 218.0 + more
-	if level >= 1:
+	if quote and level >= 1:
 		_words(silk, Vector2(x, ly), "THE FORGE", 8, DIM)
 		var lines := lines_of(pix, "\"" + levels.line_for(level) + "\"", Art.TEXT_SIZE, w)
 		for n in mini(lines.size(), 3):
 			_words(pix, Vector2(x, ly + 14.0 + 13.0 * float(n)), str(lines[n]), Art.TEXT_SIZE, INK)
-	else:
+	elif quote:
 		var lines := lines_of(pix, FIRST_WORDS, Art.TEXT_SIZE, w)
 		for n in mini(lines.size(), 3):
 			_words(pix, Vector2(x, ly + 4.0 + 13.0 * float(n)), str(lines[n]), Art.TEXT_SIZE, DIM)
+	if t < note_until and note != "":
+		_words(pix, Vector2(x, y + r.size.y - 12.0), note, Art.TEXT_SIZE, AMBER)
+
+
+## "2 passive, 1 active": the blank stones player `who` carries.
+func _carry_words() -> String:
+	if loot == null:
+		return ""
+	var bits: Array = []
+	for kind in ["passive_blank", "active_blank"]:
+		if loot.blanks(who, kind) > 0:
+			bits.append("%d %s" % [loot.blanks(who, kind), str(KIND_WORDS[kind])])
+	return ", ".join(bits)
+
+
+func _draw_blanks(silk: Font, pix: Font) -> void:
+	var list := blank_rows()
+	var step := 21.0
+	var h := 86.0 + step * float(list.size()) + 66.0
+	var r := Rect2(140, floorf((SCREEN.y - 32.0 - h) * 0.5), 360, h)
+	if not Art.draw_nine(root, "swing/ui/panel.png", r, 8):
+		root.draw_rect(r, PLATE)
+	var x := r.position.x + 18.0
+	var w := r.size.x - 36.0
+	var y := r.position.y
+	_words(silk, Vector2(x, y + 28.0), "BLANK STONES", 16, AMBER)
+	if players.size() > 1:
+		_words(silk, Vector2(x, y + 28.0), "PLAYER %d" % (who + 1), 8, Art.PLAYER_COLORS[who % Art.PLAYER_COLORS.size()], w, HORIZONTAL_ALIGNMENT_RIGHT)
+	ItemArt.draw(root, "item_passive_blank", Vector2(x, y + 40.0))
+	var tell := lines_of(pix, "You carry %s. A stone becomes a rune of the %s in your hand, yours for good." % [_carry_words(), str(weapon_name.call(who))], Art.TEXT_SIZE, w - 21.0)
+	for n in mini(tell.size(), 2):
+		_words(pix, Vector2(x + 21.0, y + 48.0 + 12.0 * float(n)), str(tell[n]), Art.TEXT_SIZE, INK)
+	var ry := y + 74.0
+	for k in list.size():
+		var rr := Rect2(x, ry + float(k) * step, w, step - 3.0)
+		var on := k == blank_row
+		rects.append([rr, "blank", k, 0])
+		if not Art.draw_nine(root, "swing/ui/well_selected.png" if on else "swing/ui/well.png", rr, 3):
+			root.draw_rect(rr, AMBER if on else FAINT, false, 1.0)
+		var tx := rr.position.x + 8.0
+		if on:
+			var arrow := Art.texture("swing/ui/cursor.png")
+			if arrow != null:
+				root.draw_texture(arrow, Vector2(tx + (1.0 if fmod(t, 0.8) < 0.4 else 0.0), rr.position.y + 4.0))
+			tx += 12.0
+		_words(silk, Vector2(tx, rr.position.y + 13.0), str(list[k]["text"]).to_upper(), 8, AMBER if on else INK)
+		_words(pix, Vector2(rr.position.x + 8.0, rr.position.y + 13.0), str(list[k]["right"]), Art.TEXT_SIZE, AMBER if on else DIM, rr.size.x - 16.0, HORIZONTAL_ALIGNMENT_RIGHT)
+	# What the row you are on does, in words.
+	var about := ""
+	if not list.is_empty():
+		var on_row: Dictionary = list[clampi(blank_row, 0, list.size() - 1)]
+		match str(on_row["do"]):
+			"infuse":
+				about = str(SwingBuild.FITTINGS[on_row["rune"]].get("desc", ""))
+			"break":
+				about = "The stone is gone, and its Memory is yours to give to the forge."
+			"give":
+				about = "The stone goes into player %d's inventory.%s" % [_give_target() + 1, " Left and right choose who." if players.size() > 2 else ""]
+		if loot.infusions(who, str(on_row["kind"])).is_empty() and str(on_row["do"]) != "infuse" and loot.blanks(who, str(on_row["kind"])) > 0:
+			about += " You can fit every %s rune of your %s already." % [str(KIND_WORDS[on_row["kind"]]), str(weapon_name.call(who))]
+	var ay := ry + float(list.size()) * step + 8.0
+	var lines := lines_of(pix, about, Art.TEXT_SIZE, w)
+	for n in mini(lines.size(), 3):
+		_words(pix, Vector2(x, ay + 10.0 + 12.0 * float(n)), str(lines[n]), Art.TEXT_SIZE, DIM)
 	if t < note_until and note != "":
 		_words(pix, Vector2(x, y + r.size.y - 12.0), note, Art.TEXT_SIZE, AMBER)
 

@@ -51,6 +51,10 @@ const LandMap := preload("res://scripts/highlands/land_map.gd")
 const ItemArt := preload("res://scripts/highlands/item_art.gd")
 const Art := preload("res://scripts/art.gd")
 const RuneFx := preload("res://scripts/fx/rune_fx.gd")
+const BURST_FRAMES := 5.0          # the Art builder's payback_burst: 5 frames at 15 a second, played once
+const BURST_FPS := 15.0
+const BREAK_FRAMES := 5.0          # plate_break: 5 frames at 12 a second, played once
+const BREAK_FPS := 12.0
 const Sfx := preload("res://scripts/sfx.gd")
 const Enemy := preload("res://scripts/enemy.gd")
 
@@ -65,6 +69,8 @@ const SIZE := Vector2(640, 360)
 const MARGIN := 10.0
 const HP_BAR := Vector2(92, 12)    # the health bar (scripts/ui/hud.gd): the Memory bar sits right under it
 const BAR_DROP := 8.0              # what is under the health bar moves down this far to make room
+const PAYBACK_BELOW := 9.0         # the Payback meter's frame sits this far under the Memory bar's top (right under it)
+const PAYBACK_ROOM := 6.0          # and the rest of a Warden's HUD moves down this much more for it
 
 static var FIRST_LEVEL := 100      # Memory the forge needs from each player for the squad's first level ...
 static var LEVEL_STEP := 300       # ... and this much more for every level after it (100 until version 51)
@@ -149,6 +155,8 @@ var sharp_spent: Array = []        # per player: their glint went into a finishe
 var close_called: Array = []       # per player: the dodge (when it began) that last made a Close Call: one word a dodge
 var payback: Array = []            # per player: the damage stored in their Payback meter
 var plate_wait: Array = []         # per player: seconds until their Plate grows back (0: it holds)
+var plate_broke: Array = []        # per player: the clock when their Plate last broke (the rim falls apart on the screen)
+var bursts: Array = []             # Payback's bursts on the ground: {at, t} (the looks only)
 var unbroken_wait: Array = []      # per player: seconds until their Unbroken can save somebody again
 var sensed: Array = []             # looks only: what Ore Sense shows now, [[tile, "tin" | "copper"]]
 var sensed_t := 0.0
@@ -185,6 +193,7 @@ func _ready() -> void:
 		close_called.append(-99.0)
 		payback.append(0.0)
 		plate_wait.append(0.0)
+		plate_broke.append(-99.0)
 		unbroken_wait.append(0.0)
 		if is_instance_valid(players[i]):
 			players[i].roles = self
@@ -361,9 +370,16 @@ func finisher(p, hits: Array) -> void:
 	if i < 0 or hits.is_empty():
 		return
 	if has(i, "challenge"):
+		# One word for the lot: CHALLENGED over the first one newly turned, "CHALLENGED ×3" when the finisher caught
+		# a group (the ring over each head shows who). The project's review of version 54: words over a group piled up.
+		var fresh: Array = []
 		for e in hits:
 			if is_instance_valid(e) and not e.dead and e.has_method("challenge"):
-				e.challenge(p, CHALLENGE_BOSS_TIME if e.is_boss() else CHALLENGE_TIME, CHALLENGE_BOSS_REST)
+				var was_new: bool = float(e.challenge_left) <= 0.0 or e.challenged_by != p
+				if e.challenge(p, CHALLENGE_BOSS_TIME if e.is_boss() else CHALLENGE_TIME, CHALLENGE_BOSS_REST, false) and was_new:
+					fresh.append(e)
+		if not fresh.is_empty():
+			fresh[0]._word("CHALLENGED" if fresh.size() == 1 else "CHALLENGED ×%d" % fresh.size(), Color("#e8e4bc"))
 	if has(i, "payback") and float(payback[i]) > 0.0:
 		for e in hits:
 			if is_instance_valid(e):
@@ -501,6 +517,7 @@ func plate_soaks(p) -> bool:
 	if not has(i, "plate") or float(plate_wait[i]) > 0.0:
 		return false
 	plate_wait[i] = float(PLATE_BACK)
+	plate_broke[i] = clock
 	p._label("PLATE", BRONZE)
 	Sfx.play(game, "anvil", -6.0, 1.3)
 	return true
@@ -557,15 +574,19 @@ func _payback(i: int, at: Vector2) -> void:
 		var away: Vector2 = e.global_position - at
 		e.last_hit_by = p
 		e.take_hit(dmg, away.normalized() if away.length() > 1.0 else Vector2.RIGHT, 180.0, false, EMBER, 0.15, 0.06)
-	# An ember ring that bursts out as far as Payback reaches (the finisher has its own impact): it shows what was
-	# caught and hides nobody. A stand-in until the Art builder's "payback_burst" comes.
-	var ring := RuneFx.new()
-	ring.kind = "pulse"
-	ring.size = (PAYBACK_REACH + 10.0) / 140.0
-	ring.color = EMBER
-	ring.life = 0.3
-	p._fx_root().add_child(ring)
-	ring.global_position = at
+	# An ember ring that runs out on the ground as far as Payback reaches (the finisher has its own impact): it shows
+	# what was caught and hides nobody. The Art builder's "payback_burst", drawn under the figures (_draw_under);
+	# without it, a ring drawn by the code.
+	if ItemArt.size("payback_burst") != Vector2.ZERO:
+		bursts.append({"at": at, "t": 0.0})
+	else:
+		var ring := RuneFx.new()
+		ring.kind = "pulse"
+		ring.size = (PAYBACK_REACH + 10.0) / 140.0
+		ring.color = EMBER
+		ring.life = 0.3
+		p._fx_root().add_child(ring)
+		ring.global_position = at
 	p._label("PAYBACK", EMBER)
 	Sfx.play(game, "thud", -4.0, 0.8)
 
@@ -734,6 +755,9 @@ func _process(delta: float) -> void:
 	for s in spark_takes:
 		s["t"] = float(s["t"]) + delta
 	spark_takes = spark_takes.filter(func(s): return float(s["t"]) < 4.0 / 12.0)
+	for b in bursts:
+		b["t"] = float(b["t"]) + delta
+	bursts = bursts.filter(func(b): return float(b["t"]) < BURST_FRAMES / BURST_FPS)
 	# What Ore Sense shows is looked up twice a second.
 	sensed_t -= delta
 	if sensed_t <= 0.0:
@@ -778,15 +802,21 @@ func _draw_under(ci: Node2D) -> void:
 			continue
 		var mid: Vector2 = ((w.global_position + Vector2(0, FEET)) / UNIT).floor()
 		var col: Color = Art.PLAYER_COLORS[i % Art.PLAYER_COLORS.size()]
-		col.a = 0.4 if has(i, "unbroken") and float(unbroken_wait[i]) > 0.0 and not has(i, "bodyguard") else 0.85
-		var shade := Color(0.06, 0.04, 0.09, col.a * 0.4)      # a dark pixel under each dash, so it reads on pale sand
+		col.a = 0.45 if has(i, "unbroken") and float(unbroken_wait[i]) > 0.0 and not has(i, "bodyguard") else 0.9
+		# The Art builder's warden_ring (white and grey, tinted the player's colour; its ink stays dark).
+		var tint := Color(col.r, col.g, col.b, 0.5 if col.a < 0.5 else 1.0)
+		if ItemArt.draw(ci, "warden_ring", (mid - ItemArt.origin("warden_ring")) * UNIT, UNIT, tint) != Vector2.ZERO:
+			continue
+		# Each dash has a dark edge all round, so the ring reads on pale sand and on dark floor alike (the project's
+		# review of version 54: the plain dashes barely showed on the ochre ground). Quiet colours, never a glow.
+		var edge := Color(0.06, 0.04, 0.09, col.a * 0.5)
 		var r := RING / UNIT
-		var n := 40
+		var n := 44
 		for k in n:
 			var a := TAU * float(k) / float(n) + clock * 0.15
 			var at := (mid + Vector2(cos(a), sin(a) * 0.62) * r).floor()      # (seen from above at the game's slant)
-			ci.draw_rect(Rect2((at + Vector2(0, 1)) * UNIT, Vector2(UNIT * 3.0, UNIT)), shade)
-			ci.draw_rect(Rect2(at * UNIT, Vector2(UNIT * 3.0, UNIT)), col)
+			ci.draw_rect(Rect2((at - Vector2(1, 1)) * UNIT, Vector2(UNIT * 6.0, UNIT * 3.0)), edge)
+			ci.draw_rect(Rect2(at * UNIT, Vector2(UNIT * 4.0, UNIT)), col)
 	# The shimmer: a few glints that come and go on each ore tile, in the ore's own colours. Every tile starts its
 	# loop somewhere else, so a vein does not blink as one.
 	for k in sensed.size():
@@ -806,6 +836,10 @@ func _draw_under(ci: Node2D) -> void:
 			ci.draw_rect(Rect2((at + Vector2(-4, -6)) * UNIT, Vector2(8, 2) * UNIT), PALE)
 	for s in spark_takes:
 		ItemArt.draw(ci, "spark_take", ((((s["at"] as Vector2) / UNIT).floor()) - o) * UNIT, UNIT, Color.WHITE, clampi(int(float(s["t"]) * 12.0), 0, 3))
+	# Payback's bursts, on the ground under everybody.
+	var bo := ItemArt.origin("payback_burst")
+	for b in bursts:
+		ItemArt.draw(ci, "payback_burst", ((((b["at"] as Vector2) / UNIT).floor()) - bo) * UNIT, UNIT, Color.WHITE, clampi(int(float(b["t"]) * BURST_FPS), 0, int(BURST_FRAMES) - 1))
 
 
 ## Over everybody: the Memory left where somebody fell (a light: nothing that stands there hides it), and the
@@ -857,6 +891,11 @@ func bar_at(i: int) -> Vector2:
 	return Vector2(x, 7.0 + HP_BAR.y - 1.0)
 
 
+## How much more room player i's HUD needs under the Memory bar: the Payback meter's frame, while they have it.
+func bar_extra(i: int) -> float:
+	return PAYBACK_ROOM if has(i, "payback") and not ItemArt.find("payback_frame").is_empty() else 0.0
+
+
 ## On the screen: each player's Memory bar under their health, and the squad's level in a roundel, top middle.
 func _draw_hud() -> void:
 	var fill := ItemArt.find("memory_fill")
@@ -886,22 +925,43 @@ func _draw_hud() -> void:
 		var glow := maxf(lit * 0.45, 0.22 + 0.12 * sin(clock * 2.4) if frac >= 1.0 else 0.0)
 		if glow > 0.0 and w > 0.0:
 			panel.draw_rect(Rect2(fill_at, Vector2(w, float(box[3]))), Color(1.0, 0.96, 0.8, glow))
-	# The Warden's Plate: a bronze edge round the health bar while it holds. Payback: a thin ember meter under the
-	# Memory bar, as full as what it holds (stand-ins until the Art builder's pictures come).
+	# The Warden's Plate: a riveted bronze rim round the health bar while it holds, falling apart when it breaks.
+	# Payback: a thin ember meter under the Memory bar, as full as what it holds. (The Art builder's plate_edge,
+	# plate_break and payback_*; without them, lines drawn by the code.)
 	for i in players.size():
 		if not is_instance_valid(players[i]):
 			continue
 		var at := bar_at(i)
+		var hp_at := Vector2(at.x, 7.0)       # the health bar's top left corner
+		var since := clock - float(plate_broke[i])
 		if plate_up(i):
-			var hp := Rect2(at.x - 1.0, 7.0 - 1.0, HP_BAR.x + 2.0, HP_BAR.y + 1.0)
-			panel.draw_rect(hp, BRONZE, false, 1.0)
+			if ItemArt.draw(panel, "plate_edge", hp_at - ItemArt.origin("plate_edge")) == Vector2.ZERO:
+				panel.draw_rect(Rect2(hp_at - Vector2(1, 1), HP_BAR + Vector2(2, 1)), BRONZE, false, 1.0)
+		elif has(i, "plate") and since < BREAK_FRAMES / BREAK_FPS:
+			ItemArt.draw(panel, "plate_break", hp_at - ItemArt.origin("plate_break"), 1.0, Color.WHITE, int(since * BREAK_FPS))
 		if has(i, "payback"):
-			var track := Rect2(at + Vector2(float(inner[0]), 10.0), Vector2(80, 2))
-			panel.draw_rect(track.grow(1.0), PLATE)
 			var most: float = float(players[i].max_hp) * PAYBACK_MOST
-			var w := ceilf(80.0 * clampf(float(payback[i]) / maxf(most, 1.0), 0.0, 1.0))
-			if w > 0.0:
-				panel.draw_rect(Rect2(track.position, Vector2(w, 2)), EMBER)
+			var part := clampf(float(payback[i]) / maxf(most, 1.0), 0.0, 1.0)
+			var w := ceilf(80.0 * part)
+			var pf := ItemArt.find("payback_frame")
+			if pf.is_empty():
+				var track := Rect2(at + Vector2(float(inner[0]), 10.0), Vector2(80, 2))
+				panel.draw_rect(track.grow(1.0), PLATE)
+				if w > 0.0:
+					panel.draw_rect(Rect2(track.position, Vector2(w, 2)), EMBER)
+				continue
+			var frame_at := at + Vector2(0, PAYBACK_BELOW)
+			var fa: Array = (pf[1] as Dictionary).get("fill_at", [6, 2])
+			var track_at := frame_at + Vector2(float(fa[0]), float(fa[1]))
+			ItemArt.draw(panel, "payback_frame", frame_at)
+			ItemArt.draw(panel, "payback_empty", track_at)
+			if part >= 1.0:
+				ItemArt.draw(panel, "payback_full", track_at, 1.0, Color.WHITE, int(clock * 4.0))
+			elif w > 0.0:
+				var pfill := ItemArt.find("payback_fill")
+				if not pfill.is_empty():
+					var box: Array = (pfill[1] as Dictionary)["box"]
+					panel.draw_texture_rect_region(pfill[0], Rect2(track_at, Vector2(w, float(box[3]))), Rect2(float(box[0]), float(box[1]), w, float(box[3])))
 	# The squad's level.
 	var badge := ItemArt.size("level_badge")
 	var bx := floorf((SIZE.x - maxf(badge.x, 15.0)) * 0.5)

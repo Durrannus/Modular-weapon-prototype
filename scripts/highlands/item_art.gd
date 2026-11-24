@@ -10,12 +10,18 @@ extends RefCounted
 
 const Art := preload("res://scripts/art.gd")
 
+## Things that share a picture: both kinds of blank rune stone are the loot art's one smooth stone (version 55).
+const SAME := {"passive_blank": "blank_rune", "active_blank": "blank_rune"}
+
 const BOOKS := [["tools/tools.png", "tools/tools.json"], ["loot/loot.png", "loot/loot.json"], ["levelling/levelling.png", "levelling/levelling.json"],
 	["roles/roles.png", "roles/roles.json"], ["inventory/inventory.png", "inventory/inventory.json"]]
 
 
 ## [the sheet, what its book says about the picture], or [] if neither sheet has it.
 static func find(name: String) -> Array:
+	for id in SAME:
+		if name.ends_with("_" + str(id)):
+			name = name.trim_suffix(str(id)) + str(SAME[id])
 	for pair in BOOKS:
 		var info: Dictionary = Art.json(pair[1]).get("sprites", {}).get(name, {})
 		if info.has("box") and Art.texture(pair[0]) != null:

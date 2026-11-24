@@ -108,6 +108,8 @@ func _put(pack: Pack, i: int, k: int, at: Vector2) -> void:
 	e.set_meta("member", k)
 	if m.size() > 2:
 		e.set_meta("stands_for", str(m[2]))      # (the Gatehouse's elite handler, played by an elite slinger: no piece of the horn)
+	if bool(m[1]) and bool(pack.plan.get("horn", false)):
+		e.set_meta("horn", true)                 # (one of the three world elites who carry the Warhorn's pieces)
 	at = _apart(at, pack)
 	e.pack = pack
 	e.nav = nav

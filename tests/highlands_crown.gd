@@ -25,6 +25,7 @@ const Save := preload("res://scripts/save.gd")
 const Nav := preload("res://scripts/highlands/nav.gd")
 const Sim := preload("res://scripts/sim.gd")
 const Art := preload("res://scripts/art.gd")
+const SwingBuild := preload("res://scripts/weapon/swing_build.gd")
 const TILE := 32.0
 const ROOT := "user://test_crown_saves"
 const SEEDS := [424242, 515151, 123456, 777777, 31337, 202611]
@@ -78,6 +79,8 @@ func _run() -> void:
 		_art()
 	if only == "" or only == "plans":
 		_plans()
+	if only == "" or only == "seat":
+		_trophy_seat()
 	if only == "" or only == "gate":
 		await _gate()
 	if only == "" or only == "yard":
@@ -90,6 +93,57 @@ func _run() -> void:
 		await _saved()
 	print("%s  Rattlecrown: %d checks, %d failed" % ["PASS" if fails == 0 else "FAIL", checks, fails])
 	quit(1 if fails > 0 else 0)
+
+
+## The spirit's trophy seat (version 55), on a weapon of its own, away from the fight.
+func _trophy_seat() -> void:
+	var b := SwingBuild.new()
+	b.set_data(["iron_broadsword", "wrapped_grip", "plain_pommel", ["whirlwind", "", "twice", "shockwave"]])
+	_check(b.slot_count() == 4 and b.line.size() == 4, "(a broadsword on a wrapped grip: four seats)")
+	_check(b.add_trophy() and b.slot_count() == 5 and b.line == ["whirlwind", "", "twice", "shockwave", ""], "the trophy seat is a fifth, at the top of the ring")
+	_check(not b.add_trophy() and b.slot_count() == 5, "once a character: a second does nothing")
+	b.set_slot(4, "leap")
+	b.set_grip("tin_grip")
+	_check(b.line == ["whirlwind", "twice", "shockwave", "leap"], "a grip with fewer seats drops its own top seat, and the trophy seat keeps its rune (%s)" % str(b.line))
+	b.set_blade("tin_blade")
+	_check(b.line == ["whirlwind", "twice", "leap"], "a head with fewer seats likewise (%s)" % str(b.line))
+	b.set_blade("iron_broadsword")
+	_check(b.line == ["whirlwind", "twice", "", "leap"], "and back: an empty seat where the head's was (%s)" % str(b.line))
+	_check(SwingBuild.valid_data(b.get_data()), "a weapon with its trophy seat is one the game could have made (it can be sent online)")
+	var short: Array = b.get_data()
+	(short[3] as Array).resize(3)
+	_check(SwingBuild.valid_data(short), "(and one without it, from before)")
+	var long: Array = b.get_data()
+	(long[3] as Array).append("")
+	_check(not SwingBuild.valid_data(long), "but not one with two")
+	# Saved, and back.
+	var c := SwingBuild.new()
+	_check(c.from_save(b.to_save()).is_empty() and c.trophy == 1 and c.line == b.line, "the character save keeps the seat and what is in it")
+	var old_save: Dictionary = b.to_save()
+	old_save.erase("trophy")
+	(old_save["hand"][3] as Array).resize(3)
+	var d := SwingBuild.new()
+	_check(d.from_save(old_save).is_empty() and d.trophy == 0 and d.line.size() == 3, "a save from before has no seat")
+	# A weapon put away before the seat came gets it when it is taken up.
+	var e := SwingBuild.new()
+	e.set_data(["iron_broadsword", "wrapped_grip", "plain_pommel", ["whirlwind", "", "twice", "shockwave"]])
+	e.stowed["bow"] = SwingBuild.TEST_BOW.duplicate(true)
+	e.add_trophy()
+	e.take("bow")
+	_check(e.weapon() == "bow" and e.line.size() == e.slot_count() and e.slot_count() == e.grip_slots() + e.head_slots() + 1, "the seat is on every weapon: the bow taken up has it too")
+	e.take("sword")
+	_check(e.line == ["whirlwind", "", "twice", "shockwave", ""], "(and the sword put away kept its own)")
+	# A preset saved before the seat.
+	var f := SwingBuild.new()
+	f.set_data(["iron_broadsword", "wrapped_grip", "plain_pommel", ["whirlwind", "", "twice", "shockwave"]])
+	f.use_preset(1)
+	f.add_trophy()
+	f.set_slot(4, "leap")
+	f.use_preset(0)
+	_check(f.line.size() == 5 and f.line[4] == "", "a preset from before the seat has it, empty (%s)" % str(f.line))
+	f.use_preset(1)
+	_check(f.line[4] == "leap", "and the other preset kept what was in it")
+	_check(b.compute() != null, "(a weapon with it is worked out)")
 
 
 func _game(seed_value: int, players := 1, foes := false, characters: Array = [], world := {}):
@@ -1247,6 +1301,9 @@ func _fight() -> void:
 	await _press(p, "interact_pressed")
 	_check(crown.hoard == "" and purse.coins == coins0 + Crown.FIRST_COINS and purse.memory == memory0 + Crown.FIRST_MEMORY and bag.count("tin_bar") == tin0 + Crown.FIRST_BARS and bag.count("copper_bar") == copper0 + Crown.FIRST_BARS, "the first hoard: %d Memory, %d coins, %d bars of each" % [Crown.FIRST_MEMORY, Crown.FIRST_COINS, Crown.FIRST_BARS])
 	_check((g.owned[0] as Array).has("twice"), "and the Twice thread, to use at the forge")
+	_check(bag.count("active_blank") == 1, "and an active blank stone (Darren, 24 November)")
+	_check(g.builds[0].trophy == 1 and g.builds[0].slot_count() == g.builds[0].grip_slots() + g.builds[0].head_slots() + 1 and g.builds[0].line.size() == g.builds[0].slot_count(), "and a seat more on the spirit")
+	_check(g.players[0].weapon != null, "(the weapon is worked out again with it)")
 	_check(g.ui.hint == "" and _quest(folk, "hoard").is_empty() and _quest(folk, "horn").is_empty() and _quest(folk, "crown").is_empty(), "the horn's quests are done")
 	n = await _wait(func(): return g.ui.busy(), int(Crown.HOARD_CARD * 60.0) + 60)
 	_check(n >= 0 and g.ui.card_title == "Rattlecrown's hoard" and g.ui.card_body == crown.won_text(), "a card says what it held")
@@ -1280,6 +1337,7 @@ func _fight() -> void:
 	await _frames(3)
 	_check(crown.beaten == 2 and crown.hoard == "again" and g.loot.said == "Rattlecrown is beaten again", "beaten again")
 	_check(crown.open_hoard(0) and purse.coins == coins0 + Crown.AGAIN_COINS and purse.memory == memory0 + Crown.AGAIN_MEMORY and bag.count("tin_bar") == tin0 + Crown.AGAIN_BARS, "a later hoard: %d Memory, %d coins, %d bars of each" % [Crown.AGAIN_MEMORY, Crown.AGAIN_COINS, Crown.AGAIN_BARS])
+	_check(bag.count("active_blank") == 1 and g.builds[0].trophy == 1, "(no second blank stone, no second seat)")
 	await _frames(int(Crown.HOARD_CARD * 60.0) + 40)
 	_check(not g.ui.busy(), "(and no card)")
 	# In the test arena he fights on his own.
@@ -1382,6 +1440,7 @@ func _two_players() -> void:
 	_check(crown.hoard == "first" and crown.open_hoard(1), "he falls, and player two opens his hoard")
 	_check(purses[0].coins == before[0] + Crown.FIRST_COINS and purses[1].coins == before[1] + Crown.FIRST_COINS and purses[0].memory == before[2] + Crown.FIRST_MEMORY and purses[1].memory == before[3] + Crown.FIRST_MEMORY, "everybody gets their own full share")
 	_check((g.owned[0] as Array).has("twice") and (g.owned[1] as Array).count("twice") == 1, "and the Twice thread, once each")
+	_check(g.tools.bag_of(0).count("active_blank") == 1 and g.tools.bag_of(1).count("active_blank") == 1 and g.builds[0].trophy == 1 and g.builds[1].trophy == 1, "an active blank stone each, and a seat each")
 	await _leave(g)
 
 
@@ -1482,6 +1541,7 @@ func _saved() -> void:
 	_check(crown.hoard == "" and g.loot.purses[0].coins == coins0 + Crown.FIRST_COINS and (g.owned[0] as Array).has("twice"), "(opened)")
 	mine = Save.read(Save.CHARACTERS, me)
 	_check(g.saves_written > written and str(Save.read(Save.WORLDS, id)["crown"]["hoard"]) == "" and mine.get("owned") is Array and (mine["owned"] as Array).has("twice") and int(mine.get("coins", -1)) == coins0 + Crown.FIRST_COINS, "opening the hoard saves the world and the character: the Twice thread and the coins are theirs")
+	_check(int((mine.get("weapons", {}) as Dictionary).get("trophy", 0)) == 1 and (mine.get("bag", []) as Array).any(func(sl): return sl is Array and str(sl[0]) == "active_blank"), "and the seat and the active blank stone")
 	await _wait(func(): return g.ui.busy(), 200)
 	await _frames(30)
 	await _press(p, "interact_pressed")
@@ -1490,6 +1550,7 @@ func _saved() -> void:
 	await _frames(5)
 	crown = g.crown
 	_check(crown.beaten == 1 and crown.hoard == "" and not crown.horn and crown.gate_open and crown.chest.texture == crown._chest_tex("chest_empty") and (g.owned[0] as Array).has("twice"), "played again: he is beaten, the chest is empty, and the character still has Twice")
+	_check(g.builds[0].trophy == 1 and g.builds[0].line.size() == g.builds[0].slot_count() and g.tools.bag_of(0).count("active_blank") == 1, "and the seat, and the stone")
 	_check(_quest(g.folk, "crown").is_empty() and _quest(g.folk, "horn").is_empty() and _quest(g.folk, "hoard").is_empty(), "(and the horn has no quest until its pieces are found again)")
 	# What a save might hold that makes no sense is passed over.
 	crown.set_world_data({"crown": "king"})

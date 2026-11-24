@@ -5,7 +5,8 @@ extends RefCounted
 ## also want to add craftable backpacks so players can carry more later on". So this is ONE inventory (it was a
 ## materials bag until version 47): ore, bars, wood and stone lie in it in stacks, and an accessory lies in it too,
 ## one to a slot whatever its shape. An accessory does nothing in here: it works only in the Accessory Satchel
-## (gear.gd). Coins, Memory, tools and the Warhorn's pieces are not carried here.
+## (gear.gd). Coins, Memory, tools and the Warhorn's pieces are not carried here. Blank rune stones are (version 55):
+## they can be handed to a teammate at the forge, so they are things, not counters.
 ##
 ## The numbers are Claude's until Darren sets them (the Game Bible, "Inventory, accessories and backpacks"): 24
 ## slots in four rows of six, 99 to a stack, and a backpack adds rows: the Hide Pack one (30 slots), the next two
@@ -32,11 +33,14 @@ const PACKS := [
 ]
 
 ## What can be carried in stacks so far, in the order the screen lists it.
-const ORDER := ["stone", "wood", "tin_ore", "copper_ore", "tin_bar", "copper_bar"]
-const NAMES := {"stone": "Stone", "wood": "Wood", "tin_ore": "Tin ore", "copper_ore": "Copper ore", "tin_bar": "Tin bar", "copper_bar": "Copper bar"}
+const ORDER := ["stone", "wood", "tin_ore", "copper_ore", "tin_bar", "copper_bar", "passive_blank", "active_blank"]
+const NAMES := {"stone": "Stone", "wood": "Wood", "tin_ore": "Tin ore", "copper_ore": "Copper ore", "tin_bar": "Tin bar", "copper_bar": "Copper bar",
+	"passive_blank": "Passive blank stone", "active_blank": "Active blank stone"}
 const TEXTS := {"stone": "Rubble from digging. For building, once there is something to build.", "wood": "From felled pines. For building, once there is something to build.",
 	"tin_ore": "Mined from the pale veins. To be smelted into bars.", "copper_ore": "Mined from the orange veins. To be smelted into bars.",
-	"tin_bar": "For tin parts, at the forge's anvil.", "copper_bar": "For copper parts, and for mending waystones."}
+	"tin_bar": "For tin parts, at the forge's anvil.", "copper_bar": "For copper parts, and for mending waystones.",
+	"passive_blank": "At the forge: infuse it into a passive rune, break it down for Memory, or hand it over.",
+	"active_blank": "At the forge: infuse it into an active rune, break it down for Memory, or hand it over."}
 
 ## Until backpacks can be made (Pip sews the first from hides, and there are no hides yet), the lab says which one
 ## everybody carries: the larger of this and the character's own counts.

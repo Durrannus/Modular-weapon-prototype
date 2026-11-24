@@ -133,6 +133,11 @@ static func make(map: LandMap) -> Array:
 					g["members"].append(["slinger", false])
 				if shaman:
 					g["members"].append(["shaman", false])
+		# The three world elites who carry the Rusted Warhorn's pieces (Darren, 24 November: the body from the Elite
+		# Scrap Brute at the Old Quarry, the bell from the Elite Cliff Hound at the Hound Den, the mouthpiece from the
+		# Elite Pebble Slinger at the Slinger Roost; no other elite, and never the Scrapyard's or Rattlecrown's).
+		if g["site"] in ["quarry", "den", "roost"]:
+			g["horn"] = true
 		out.append(g)
 	_elites(map, out, rng, cave)
 	for k in out.size():
@@ -178,6 +183,7 @@ static func _elites(map: LandMap, out: Array, rng: RandomNumberGenerator, cave: 
 			continue
 		out[best]["members"] = band.duplicate(true)
 		out[best]["what"] = "hounds" if str(band[0][0]) == "hound" else "goblins"
+		out[best]["horn"] = str(band[0][0]) in ["hound", "slinger"]      # (standing in for the Den's or the Roost's)
 		held.append(out[best]["home"])
 
 

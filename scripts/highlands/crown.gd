@@ -30,9 +30,12 @@ extends Node
 ##   2. (Gone with it.)
 ##   3. Pip mends the horn himself, by his cave-mouth camp, for MEND_TIN tin bars and MEND_COPPER copper bars (tin
 ##      and copper make the bronze; there is no anvil yet). It takes every player's pieces.
-##   4. The first kill's hoard gives the Twice thread to everyone, Memory, coins and bars. The active blank, the
-##      trophy seat and the forge's beam to the Greenwood wait for what they belong to. A repeat kill's gives coins
-##      and bars (bars stand in for bronze and scrap).
+##   4. The first kill's hoard gives everyone the Twice thread, an ACTIVE BLANK stone, a TROPHY SEAT, Memory, coins
+##      and bars (Darren, 24 November: "Twice + an active blank + +1 seat + Memory", the blank in the golden hoard
+##      chest with the other loot). Claude's: everybody gets their own blank, as every chest's loot; the seat is the
+##      spirit's own, on every weapon, once a character (scripts/weapon/swing_build.gd, `trophy`). The forge's
+##      beam to the Greenwood waits for the Greenwood. A repeat kill's gives coins and bars (bars stand in for
+##      bronze and scrap).
 ##
 ## THE GATE SHUTS BEHIND YOU, AND HIS HOARD. Darren, 23 November, of the Art builder's ideas for the bigger hall:
 ## "Make the chest golden and the gate better as it's special loot, quite like the idea of goblins watching on the
@@ -1049,6 +1052,8 @@ func open_hoard(_by := -1) -> bool:
 		loot.give(i, "memory", int(FIRST_MEMORY) if first else int(AGAIN_MEMORY), at, HOARD_OUT + 0.25, true)
 		if first:
 			give_twice(i)
+			loot.give(i, "active_blank", 1, at, HOARD_OUT + 0.35, true)
+			give_seat(i)
 	if first:
 		card_in = HOARD_CARD
 	tip_left = 0.0
@@ -1069,6 +1074,13 @@ func give_twice(i: int) -> bool:
 		(game.owned[i] as Array).append("twice")
 		return true
 	return false
+
+
+## Player i's spirit gains its trophy seat, on every weapon (once a character: one who has it already gets nothing).
+func give_seat(i: int) -> bool:
+	if game == null or not ("builds" in game) or i < 0 or i >= (game.builds as Array).size():
+		return false
+	return game.builds[i].add_trophy()
 
 
 ## The fight is called off: he sits back down with all his health, and the horn calls him again.
@@ -1255,7 +1267,7 @@ func _tick_traps(delta: float) -> void:
 
 ## What the card says when the first hoard is opened. (Stand-in words: the story is Darren's to write.)
 func won_text() -> String:
-	return "His crown lies on top. It was never a crown: it is a thread of the old forge, Twice.\nEveryone here can thread Twice at the forge from now on.\n\nThe Rusted Warhorn cracked as he fell. For another fight, take its three pieces from the elites again and bring them to Pip."
+	return "His crown lies on top. It was never a crown: it is a thread of the old forge, Twice. Everyone here can thread Twice at the forge from now on.\nUnder it, an active blank stone each: infuse it at the forge. And your spirit has a new seat, on every weapon.\n\nThe Rusted Warhorn cracked as he fell. For another fight, take its three pieces from the elites again and bring them to Pip."
 
 
 func _near(at: Vector2, far: float) -> bool:

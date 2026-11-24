@@ -25,6 +25,7 @@ var said_until := -9.0
 var clock := 0.0
 var trail: Array = []      # per player: the pale bar that trails behind lost health, 0..1
 var under_bar := 0.0       # room kept right under every health bar for something drawn by somebody else (the Highlands' Memory bar)
+var under_more: Callable   # (player index) -> more room under one player's bar (the Highlands' Payback meter), or unset
 
 signal pause_pressed
 signal invincible_pressed
@@ -192,7 +193,8 @@ func _draw_hud() -> void:
 		# A staff's mana bar goes between the health bar and the row under it,
 		# which moves down to make room.
 		var mana_drop := 7.0 if _holds(p, "staff") and not p.is_down else 0.0
-		var drop := under_bar + mana_drop
+		var under := under_bar + (float(under_more.call(i)) if under_more.is_valid() else 0.0)
+		var drop := under + mana_drop
 		# A soft dark backing, so the words and pips read over bright floor.
 		panel.draw_rect(Rect2(x - 4, y - 3, lead + BAR.x + 8, 29 + drop), Art.shade(SHADE))
 		if many:
@@ -225,7 +227,7 @@ func _draw_hud() -> void:
 		else:
 			panel.draw_rect(Rect2(bar + FILL_AT, Vector2(fw, FILL.y)), who)
 		if mana_drop > 0.0:
-			_draw_mana(p, bar + Vector2(0, 11 + under_bar))
+			_draw_mana(p, bar + Vector2(0, 11 + under))
 		_head("%d" % roundi(p.hp), Vector2(bar.x + 40, y + 22 + drop), FAINT, 8, 50, HORIZONTAL_ALIGNMENT_RIGHT)
 		# Dodge charges, or the bad news.
 		if p.is_down:

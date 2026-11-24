@@ -467,8 +467,10 @@ static func _build_rows() -> void:
 
 	p = "Chests and loot"
 	g = "Chests"
-	_add(p, g, "Places with enemies that have a chest", "loot_plan:GUARDED_SHARE", "%", 0.05, 0.0, 1.0)
-	_add(p, g, "Empty places that have a chest", "loot_plan:EMPTY_SHARE", "%", 0.05, 0.0, 1.0)
+	_add(p, g, "Places with enemies that have a chest", "loot_plan:GUARDED_SHARE", "%", 0.01, 0.0, 1.0)
+	_add(p, g, "Empty places that have a chest", "loot_plan:EMPTY_SHARE", "%", 0.01, 0.0, 1.0)
+	_add(p, g, "Sealed places that have a chest", "loot_plan:SEALED_SHARE", "%", 0.05, 0.0, 1.0)
+	_add(p, g, "Chests that hold a passive blank", "loot_plan:BLANK", "%", 0.01, 0.0, 1.0)
 	_add(p, g, "Fewest coins in a chest", "loot_plan:COINS_MIN", "", 1.0, 0.0, 1000.0)
 	_add(p, g, "Most coins in a chest", "loot_plan:COINS_MAX", "", 1.0, 0.0, 1000.0)
 	_add(p, g, "Fewest bars in a chest", "loot_plan:BARS_MIN", "n", 1.0, 1.0, 20.0)

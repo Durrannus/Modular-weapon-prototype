@@ -499,6 +499,9 @@ func _set_tab(t: int) -> void:
 	card = 0
 
 
+## What the arc of the spirit's own seat is called (version 55: Rattlecrown's first kill gives it).
+const TROPHY_WORD := "Trophy"
+
 ## Every part id, in tray order (the cave shows the owned ones from this list).
 const ALL_BLADES := ["wooden_blade", "tin_blade", "iron_dagger", "iron_sabre", "iron_broadsword", "iron_rapier", "iron_falchion", "iron_greatsword"]
 const ALL_GRIPS := ["wooden_grip", "tin_grip", "wrapped_grip", "long_grip", "ringed_grip", "gilded_grip"]
@@ -1381,7 +1384,8 @@ var _ring_tex: ImageTexture
 func _ring_picture(live: Array) -> Texture2D:
 	var n := build.line.size()
 	var gs := build.grip_slots()
-	var key := "%d/%d" % [n, gs]
+	var hs := mini(build.head_slots(), maxi(n - gs, 0))
+	var key := "%d/%d/%d" % [n, gs, hs]
 	for i in n:
 		key += "/%s%s" % [build.line[i], "+" if live[i] else ""]
 	if key == _ring_key and _ring_tex != null:
@@ -1396,8 +1400,10 @@ func _ring_picture(live: Array) -> Texture2D:
 	var arcs: Array = []
 	if gs > 0 and n > 0:
 		arcs.append([0, mini(gs, n) - 1])
-	if n > gs:
-		arcs.append([gs, n - 1])
+	if hs > 0:
+		arcs.append([gs, gs + hs - 1])
+	if n > gs + hs:
+		arcs.append([gs + hs, n - 1])
 	# A lit thread reaches its rune across empty seats (an empty seat does not
 	# break the link), so the line stays lit over them too. (Darren, 21 November:
 	# "mkae the ring line light up to the rune they affect still".)
@@ -1466,9 +1472,9 @@ func _part_word(head: bool) -> String:
 
 ## The words beside a part's arc: which part gives these seats, and how many.
 ## Under the arc when it is in the lower half of the ring, over it in the upper.
-func _draw_arc_label(first: int, last: int, n: int, head: bool) -> void:
+func _draw_arc_label(first: int, last: int, n: int, head: bool, word := "") -> void:
 	var count := last - first + 1
-	var text := "%s: %d %s" % [_part_word(head), count, "seat" if count == 1 else "seats"]
+	var text := "%s: %d %s" % [_part_word(head) if word == "" else word, count, "seat" if count == 1 else "seats"]
 	var from := seat_angle(first, n) + ARC_PAD     # the arc runs from here ...
 	var to := seat_angle(last, n) - ARC_PAD        # ... round to here (angles go down)
 	var middle := deg_to_rad((from + to) * 0.5)
@@ -1494,10 +1500,13 @@ func _draw_ring(stats: Dictionary) -> void:
 	var gs := build.grip_slots()
 	var live := _live(stats)
 	root.draw_texture(_ring_picture(live), RING_AT - Vector2(RING_HALF, RING_HALF))
+	var hs := mini(build.head_slots(), maxi(n - gs, 0))
 	if gs > 0 and n > 0:
 		_draw_arc_label(0, mini(gs, n) - 1, n, false)
-	if n > gs:
-		_draw_arc_label(gs, n - 1, n, true)
+	if hs > 0:
+		_draw_arc_label(gs, gs + hs - 1, n, true)
+	if n > gs + hs:
+		_draw_arc_label(gs + hs, n - 1, n, true, TROPHY_WORD)      # Rattlecrown's trophy seat
 	var start := Art.texture("spirit/forge/start_mark.png")
 	if start != null:
 		root.draw_texture(start, RING_AT + Vector2(-RING_R, 0) - Vector2(5, 5))

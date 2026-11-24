@@ -154,7 +154,6 @@ var spawn_point := Vector2.ZERO
 var fell_at := Vector2.ZERO     # where they last fell (set as they fall, before they wake at spawn_point)
 var finishing := false          # a melee finisher's blow is landing (the Striker's Sharp and Execution ask)
 var shouldered: Dictionary = {}  # the enemies this dodge has run into (the Warden's Shoulder Charge: once a dodge)
-var _labels: Array = []          # the words over the player still rising (_label)
 var roles = null                # the Highlands' role trees (scripts/highlands/levels.gd): their perks hook in here. Null anywhere else
 var gear = null                 # the Highlands' Accessory Satchel (scripts/highlands/gear.gd): what is worn hooks in here. Null anywhere else
 var aim_dir := Vector2.RIGHT   # where an attack goes: the mouse, the right stick, or the way you face
@@ -4097,7 +4096,7 @@ func _fx_root() -> Node:
 
 
 ## A word that floats up over the player. Two at once (PAYBACK and MARKED off one finisher) never sit on top of
-## each other: a new word while another is still rising goes just above it.
+## each other, nor on a word over an enemy: scripts/fx/words.gd finds each its room.
 func _label(text: String, col: Color) -> void:
 	var l := RuneFx.new()
 	l.kind = "text"
@@ -4105,13 +4104,7 @@ func _label(text: String, col: Color) -> void:
 	l.color = col
 	l.life = 0.7
 	_fx_root().add_child(l)
-	_labels = _labels.filter(func(o): return is_instance_valid(o) and o.t < o.life * 0.6)
-	if _labels.is_empty():
-		l.global_position = global_position + Vector2(randf_range(-20, 20), -70)
-	else:
-		var top: Node2D = _labels[_labels.size() - 1]
-		l.global_position = Vector2(top.global_position.x, minf(top.global_position.y, global_position.y - 70.0) - 26.0)
-	_labels.append(l)
+	l.global_position = global_position + Vector2(randf_range(-20, 20), -70)
 
 
 # --- Elements ---------------------------------------------------------------

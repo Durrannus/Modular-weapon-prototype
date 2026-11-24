@@ -15,6 +15,10 @@ extends Node
 ##   - EVERYONE gets a chest's loot and a kill's Memory, each their own full share: nobody races for it.
 ##   - The Warhorn's pieces are KEPT THINGS: they take no room in the bag and cannot be lost. An elite gives its
 ##     piece to whoever has not got it yet.
+##   - Darren, 24 November: the pieces come only from the three world elites (the Old Quarry's brute, the Hound
+##     Den's hound, the Slinger Roost's slinger; foe_plan.gd marks them), never from chests, the Scrapyard's elites
+##     or Rattlecrown's champions. The horn cracks when he falls, so for a rematch they drop again from the same
+##     three. (Claude's: none drops while the squad holds the mended horn.)
 ##   - A bar that does not fit in your bag lies where it fell until you have room and walk over it. What still lies
 ##     there when you leave is lost.
 ##   - An enemy that was called into a fight (a hound answering a howl, a shaman's bat) gives nothing: howls and
@@ -27,6 +31,18 @@ extends Node
 ##     drop them too"). Some chests hold one (loot_plan.gd says which), and an elite leaves one about half the time.
 ##     Everyone gets their own. Whoever has that accessory already gets GIFT_COINS coins in its place: a second
 ##     one would do nothing (gear.gd), and there is nobody to sell it to yet.
+##   - BLANK RUNE STONES (version 55). Darren, 24 November: "Passive blanks in chests: about 4% a chest", at most
+##     12 in a world played solo and 4 more for each extra player (24 with four), "tradeable between players", and a
+##     spare one is broken down at the forge for Memory. The Bible: a blank is infused at the forge into a rune of
+##     your choice, which unlocks it for good; a passive blank can only become one of the weapon's passives; the
+##     first active blank is Rattlecrown's (crown.gd puts one in his first hoard for everyone).
+##     Claude's: a chest's blank is ONE stone, for whoever opened it (it is the one thing in a chest that is not
+##     everybody's own: the cap counts stones, and they are meant to be handed round). The world counts the stones
+##     its chests have given (saved with it); past the cap a chest's blank is simply not there. The forge's screen
+##     infuses, breaks down and hands over (scripts/ui/forge_hall.gd asks the functions here). Breaking one down
+##     gives BLANK_MEMORY (an active one ACTIVE_MEMORY). A stone is infused into a rune of the weapon in your hand
+##     that you cannot fit yet; somebody who can fit every rune already (a character from the pick screen) can only
+##     break it down or hand it over.
 ##
 ## THE RULES AND THE LOOKS ARE KEPT APART, as everywhere: what you hold changes at once, on the tick (give(),
 ## open(), tick()); the things that hop out and fly to you are looks only, with dice of their own.
@@ -38,6 +54,8 @@ const ItemArt := preload("res://scripts/highlands/item_art.gd")
 const Art := preload("res://scripts/art.gd")
 const Sfx := preload("res://scripts/sfx.gd")
 const Sim := preload("res://scripts/sim.gd")
+const Bag := preload("res://scripts/highlands/bag.gd")
+const SwingBuild := preload("res://scripts/weapon/swing_build.gd")
 
 const UNIT := Art.PIXEL
 const TILE := 16.0 * UNIT
@@ -66,6 +84,12 @@ static var ELITE_BARS_MAX := 4
 static var WORK_MEMORY := {"tin_ore": 1, "copper_ore": 1, "wood": 1}
 static var ELITE_GIFT := 0.5       # how often an elite leaves an accessory
 static var GIFT_COINS := 20        # what you get in place of an accessory you already have
+static var BLANK_CAP := 12         # the passive blanks a world's chests give at most, played solo ...
+static var BLANK_CAP_MORE := 4     # ... and how many more for each extra player
+static var BLANK_MEMORY := 100     # breaking a passive blank down at the forge
+static var ACTIVE_MEMORY := 250    # and an active one
+
+const BLANKS := ["passive_blank", "active_blank"]
 
 const INK := Color("#e8e4bc")
 const DIM := Color("#8ba688")
@@ -101,6 +125,7 @@ var nav                            # the enemies' way-finding, told where the ch
 var plan: Array = []               # loot_plan.gd's chests
 var chests: Array = []             # one for each of the plan's: {plan, sprite, state: 0 shut, 1 opening, 2 open, t}
 var opened := {}                   # chest id -> true: what the world save keeps
+var blanks_found := 0              # the passive blanks this world's chests have given (the world save keeps it)
 var purses: Array = []             # a Purse per player
 var lying: Array = []              # [{item, i, at}] what did not fit in somebody's bag
 var flies: Array = []              # looks only: [{item, i, from, spot, t, wait, mote}]
@@ -228,9 +253,30 @@ func open(k: int, _by := -1) -> bool:
 			give(i, str(it[0]), int(it[1]), at, OUT_AT + 0.05, true)
 		give(i, "memory", int(c["memory"]), at, OUT_AT + 0.25, true)
 	gift(str(c.get("gift", "")), at, OUT_AT + 0.4, true)
+	# A passive blank: one stone, for whoever opened it, while the world has not given its share.
+	if bool(c.get("blank", false)) and blanks_found < blank_cap():
+		var who := _by if _by >= 0 and _by < players.size() and is_instance_valid(players[_by]) else _first()
+		if who >= 0:
+			blanks_found += 1
+			give(who, "passive_blank", 1, at, OUT_AT + 0.45, true)
+			say("Found: a passive blank stone%s. Infuse it at the forge" % ("" if players.size() == 1 else " (player %d)" % (who + 1)))
+			Sfx.play(game, "pickup", -8.0, 1.4)
 	Sfx.play(game, "click", -7.0, 0.7)
 	Sfx.play(game, "thud", -12.0, 1.3)
 	return true
+
+
+## The first player there is (-1 if none).
+func _first() -> int:
+	for i in players.size():
+		if is_instance_valid(players[i]):
+			return i
+	return -1
+
+
+## The most passive blanks this world's chests give: 12 solo and 4 for each extra player (Darren's, 24 November).
+func blank_cap() -> int:
+	return int(BLANK_CAP) + int(BLANK_CAP_MORE) * maxi(players.size() - 1, 0)
 
 
 ## The accessories (gear.gd), where the game has them (not online, which is on hold).
@@ -320,7 +366,7 @@ func foe_died(e) -> void:
 		coins = floori(Sim.between(float(ELITE_COINS_MIN), float(ELITE_COINS_MAX) + 0.999))
 		bars = floori(Sim.between(float(ELITE_BARS_MIN), float(ELITE_BARS_MAX) + 0.999))
 		bar = "copper_bar" if Sim.chance() < 0.6 else "tin_bar"
-	var piece := str(HORN.get(str(e.kind), "")) if elite and not e.has_meta("stands_for") else ""
+	var piece := str(HORN.get(str(e.kind), "")) if elite and e.has_meta("horn") and not _horn_mended() else ""
 	for i in players.size():
 		if not is_instance_valid(players[i]):
 			continue
@@ -344,6 +390,11 @@ func foe_died(e) -> void:
 			if piece != "" and until > clock:
 				said = line
 				said_until = until
+
+
+## Does the squad hold the mended Rusted Warhorn (crown.gd)? Then no elite drops a piece of it.
+func _horn_mended() -> bool:
+	return game != null and "crown" in game and game.crown != null and bool(game.crown.horn)
 
 
 ## Somebody's tool won something (tools.gd tells us): mining ore and felling a pine are worth a little Memory.
@@ -382,6 +433,76 @@ func say(text: String) -> void:
 	said_until = clock + SAY_TIME
 
 
+# --- Blank rune stones, at the forge (version 55) ----------------------------------------------
+
+## How many of a kind of blank ("passive_blank" or "active_blank") player i carries.
+func blanks(i: int, kind: String) -> int:
+	return tools.bag_of(i).count(kind) if tools != null and i >= 0 and i < players.size() else 0
+
+
+## Does player i carry any blank at all?
+func any_blank(i: int) -> bool:
+	return blanks(i, "passive_blank") + blanks(i, "active_blank") > 0
+
+
+## The weapon in player i's hand ("" if the game has none).
+func _weapon(i: int) -> String:
+	if game == null or not ("builds" in game) or i < 0 or i >= (game.builds as Array).size():
+		return ""
+	return str(game.builds[i].weapon())
+
+
+## The runes a blank of this kind could become for player i: those of the weapon in their hand, passive or active
+## as the stone is, that they cannot fit yet. [] for somebody who can fit every rune already.
+func infusions(i: int, kind: String) -> Array:
+	var out: Array = []
+	var w := _weapon(i)
+	if w == "" or not ("owned" in game) or i >= (game.owned as Array).size() or not (game.owned[i] is Array):
+		return out
+	for id in SwingBuild.FITTING_ORDER:
+		var f: Dictionary = SwingBuild.FITTINGS[id]
+		if str(f["kind"]) != "rune" or bool(f.get("parked", false)) or not SwingBuild.fits(id, w) or id in game.owned[i]:
+			continue
+		if (str(f["trigger"]) == "active") == (kind == "active_blank"):
+			out.append(id)
+	return out
+
+
+## Player i infuses one of their blanks into a rune: it is theirs to fit from now on. "" if it was done, otherwise
+## why not.
+func infuse(i: int, kind: String, rune: String) -> String:
+	if blanks(i, kind) <= 0:
+		return "You carry no %s." % Bag.name_of(kind).to_lower()
+	if not (rune in infusions(i, kind)):
+		return "That stone cannot become %s." % str(SwingBuild.FITTINGS.get(rune, {}).get("name", rune))
+	tools.bag_of(i).take(kind, 1)
+	(game.owned[i] as Array).append(rune)
+	return ""
+
+
+## Player i breaks one of their blanks down: its Memory goes to what they carry. Returns how much (0 if they had none).
+func break_down(i: int, kind: String) -> int:
+	if blanks(i, kind) <= 0 or not tools.bag_of(i).take(kind, 1):
+		return 0
+	var m := int(ACTIVE_MEMORY) if kind == "active_blank" else int(BLANK_MEMORY)
+	(purses[i] as Purse).memory += m
+	(purses[i] as Purse).gained["memory"] = clock
+	return m
+
+
+## Player i hands one of their blanks to player j. "" if it was done, otherwise why not.
+func hand_over(i: int, j: int, kind: String) -> String:
+	if j == i or j < 0 or j >= players.size() or not is_instance_valid(players[j]):
+		return "There is nobody to hand it to."
+	if blanks(i, kind) <= 0:
+		return "You carry no %s." % Bag.name_of(kind).to_lower()
+	if tools.bag_of(j).room(kind) <= 0:
+		return "Player %d's inventory is full." % (j + 1)
+	tools.bag_of(i).take(kind, 1)
+	tools.bag_of(j).add(kind, 1)
+	return ""
+
+
 # --- What is saved ------------------------------------------------------------------------
 
 ## Player i's coins, Memory and kept things, as plain values for the character save.
@@ -404,6 +525,13 @@ func set_purse_data(i: int, d: Dictionary) -> void:
 		for name in d["kept"]:
 			if name is String and name in KEPT:
 				purse.kept[name] = true
+
+
+## The passive blanks this world's chests have given, from the world save. (It stays what it was when the land is
+## laid out again: the stones are in the characters' inventories still.)
+func set_blanks_found(d) -> void:
+	if d is int or d is float:
+		blanks_found = maxi(int(d), 0)
 
 
 ## The chests that have been opened, for the world save: their ids, in order.

@@ -80,6 +80,7 @@ func _run() -> void:
 	await _work()
 	await _drops()
 	await _saved()
+	await _blanks()
 	print("%s  chests and loot: %d checks, %d failed" % ["PASS" if fails == 0 else "FAIL", checks, fails])
 	quit(1 if fails > 0 else 0)
 
@@ -229,7 +230,7 @@ func _plans() -> void:
 				sealed += 1
 				if by_pocket.has(i):
 					sealed_with += 1
-		_check(sealed_with == sealed, "world %d: the sealed places have a chest each (%d of %d)" % [seed_value, sealed_with, sealed])
+		_check(sealed_with > 0 and sealed_with < sealed, "world %d: some of the sealed places have a chest, not all (%d of %d; since version 55)" % [seed_value, sealed_with, sealed])
 		for site in ["watchpost", "quarry"]:
 			var pocket := int(m.sites[site]["pocket"])
 			_check(by_pocket.has(pocket) and str(by_pocket[pocket]["kind"]) == "site", "world %d: the %s has its chest" % [seed_value, site])
@@ -238,8 +239,10 @@ func _plans() -> void:
 				_check(int(by_pocket[pocket]["coins"]) >= roundi(float(LootPlan.COINS_MIN) * LootPlan.RICH) and (by_pocket[pocket]["items"] as Array).size() == 2 and int(by_pocket[pocket]["memory"]) > roundi(float(LootPlan.MEMORY) * 1.3) and plain_most > 0,
 					"world %d: and it is a richer one (%s)" % [seed_value, str(by_pocket[pocket])])
 		var inner := plan.filter(func(c): return int(m.pockets[int(c["pocket"])].get("ring", 1)) == 1).size()
-		_check(inner >= 10 and inner <= 70 and plan.size() <= roundi(float(m.pockets.size()) * 0.6), "world %d: a sensible number of chests (%d in the inner ring, %d in all, for %d open places)" % [seed_value, inner, plan.size(), m.pockets.size()])
+		_check(inner >= 6 and inner <= 30 and plan.size() >= 40 and plan.size() <= 100, "world %d: a sensible number of chests (%d in the inner ring, %d in all, for %d open places)" % [seed_value, inner, plan.size(), m.pockets.size()])
 	print("      %d lands: %.1f chests a land (%s), %d of them in a tight spot; the slowest plan took %.1f ms" % [seeds, float(total) / float(seeds), str(kinds), tight, slowest])
+	var mean := float(total) / float(seeds)
+	_check(mean >= 60.0 and mean <= 80.0, "Darren, 24 November: about 60 to 80 chests in the whole Highlands (%.1f a land)" % mean)
 	_check(slowest < 300.0, "the chests of a land are worked out quickly (%.1f ms at most, while the land is forged)" % slowest)
 
 
@@ -344,7 +347,8 @@ func _bag_full() -> void:
 	await _before(g, p, k)
 	await _press(p, "interact_pressed")
 	_check(loot.purses[0].coins == int(c["coins"]) and loot.purses[0].memory == int(c["memory"]), "with a full bag, a chest's coins and Memory are still yours")
-	_check(loot.lying.size() == bars and bag.count("tin_bar") == 0 and bag.count("copper_bar") == 0, "and its bars lie on the ground (%d of %d)" % [loot.lying.size(), bars])
+	var bars_lying := func(): return loot.lying.filter(func(l): return str(l["item"]).ends_with("_bar")).size()
+	_check(int(bars_lying.call()) == bars and bag.count("tin_bar") == 0 and bag.count("copper_bar") == 0, "and its bars lie on the ground (%d of %d; %d things in all, with an accessory or a blank stone)" % [int(bars_lying.call()), bars, loot.lying.size()])
 	var spread := true
 	for l in loot.lying:
 		for o in loot.lying:
@@ -354,14 +358,14 @@ func _bag_full() -> void:
 			spread = false
 	_check(spread, "each in a place of its own, near the chest")
 	await _frames(90)
-	_check(loot.lying.size() == bars, "they stay there while there is no room")
+	_check(int(bars_lying.call()) == bars, "they stay there while there is no room")
 	_check(bag.take("stone", Bag.STACK * 2), "(room is made)")
 	# Walk over each of them.
 	for l in loot.lying.duplicate():
 		p.global_position = (l["at"] as Vector2) + Vector2(0, 6)
 		await _frames(6)
 	await _frames(40)
-	_check(loot.lying.is_empty() and bag.count("tin_bar") + bag.count("copper_bar") == bars, "and are picked up by walking over them once there is (%s)" % str(bag.data().slice(18)))
+	_check(int(bars_lying.call()) == 0 and bag.count("tin_bar") + bag.count("copper_bar") == bars, "and are picked up by walking over them once there is (%s)" % str(bag.data().slice(18)))
 	await _leave(g)
 
 
@@ -488,6 +492,7 @@ func _drops() -> void:
 	Loot.GIFT_COINS = gift_coins
 	# The same elite again (it comes back in time): no second piece. One that was called in: nothing at all.
 	var again = Make.make("hound", true)
+	again.set_meta("horn", true)
 	g.world.add_child(again)
 	again.global_position = p.global_position + Vector2(40, 0)
 	var memory: int = purse.memory
@@ -507,6 +512,31 @@ func _drops() -> void:
 	loot.foe_died(shaman)
 	_check(purse.kept.size() == pieces and purse.coins > coins, "the elite shaman leaves loot but no piece")
 	shaman.queue_free()
+	# Darren, 24 November: only the three world elites carry the pieces. Any other elite hound, slinger or brute
+	# (the Scrapyard's, one made in the arena) leaves elite loot and no piece, even to somebody who lacks it.
+	purse.kept.clear()
+	for kind in ["hound", "slinger", "scrap_brute"]:
+		var other = Make.make(kind, true)
+		g.world.add_child(other)
+		other.global_position = p.global_position + Vector2(40, 0)
+		coins = purse.coins
+		loot.foe_died(other)
+		_check(purse.kept.is_empty() and purse.coins > coins, "an elite %s that is not the world's leaves loot and no piece" % kind)
+		other.queue_free()
+	# While the squad holds the mended horn, not even the world's three drop one; once it cracks, they do again.
+	_check(g.crown != null, "(the land has Rattlecrown's crown)")
+	if g.crown != null:
+		var marked = Make.make("scrap_brute", true)
+		marked.set_meta("horn", true)
+		g.world.add_child(marked)
+		marked.global_position = p.global_position + Vector2(40, 0)
+		g.crown.horn = true
+		loot.foe_died(marked)
+		_check(purse.kept.is_empty(), "with the horn mended, the Quarry's brute drops no body")
+		g.crown.horn = false
+		loot.foe_died(marked)
+		_check(purse.kept.has("horn_body"), "once it has cracked (he fell), the body drops again for a rematch")
+		marked.queue_free()
 	await _leave(g)
 
 
@@ -575,6 +605,79 @@ func _saved() -> void:
 	var with_coins := Save.read(Save.CHARACTERS, str(who["id"]))
 	_check(SavePick.bag_counts(with_coins).any(func(part): return str(part[0]) == "tin_bar"), "the pick screen lists the bars in a character's bag")
 	Save.root = old_root
+
+
+# --- Blank rune stones (version 55) ----------------------------------------------------------
+
+func _blanks() -> void:
+	var g = _game(424242, 2)
+	await _frames(5)
+	var loot = g.loot
+	var hall = g.hall
+	_check(loot.blank_cap() == 16, "the passive blanks a world gives: 12 solo and 4 more for a second player (%d)" % loot.blank_cap())
+	var k := _kind(g, "first")
+	var c: Dictionary = loot.chests[k]["plan"]
+	c["blank"] = true
+	_check(loot.open(k, 1), "(player two opens a chest with a passive blank in it)")
+	_check(g.tools.bag_of(1).count("passive_blank") == 1 and g.tools.bag_of(0).count("passive_blank") == 0, "ONE stone, for whoever opened it (Claude's: it is meant to be handed round)")
+	_check(loot.blanks_found == 1 and loot.said.contains("passive blank stone"), "the world counts it, and the screen says so (\"%s\")" % loot.said)
+	_check(g._world_now().get("blanks") == 1, "(the world save keeps the count)")
+	# Past the cap a chest's blank is simply not there.
+	loot.blanks_found = loot.blank_cap()
+	var k2 := _kind(g, "plain") if _kind(g, "plain") >= 0 else _kind(g, "site")
+	loot.chests[k2]["plan"]["blank"] = true
+	loot.open(k2, 0)
+	_check(g.tools.bag_of(0).count("passive_blank") == 0 and loot.blanks_found == loot.blank_cap(), "once the world has given its share, no more")
+	loot.blanks_found = 1
+	# What a stone can become.
+	_check(loot.infusions(1, "passive_blank").is_empty(), "somebody who can fit every rune already (a pick-screen character) has nothing to infuse")
+	g.owned[1] = ["iron_broadsword", "wrapped_grip", "plain_pommel", "whirlwind", "leap", "ghostwield", "weak_point"]
+	_check(g.builds[1].weapon() == "sword" and loot.infusions(1, "passive_blank") == ["shockwave", "shards"], "a passive stone: the sword's passives they cannot fit yet (%s)" % str(loot.infusions(1, "passive_blank")))
+	_check(loot.infusions(1, "active_blank").is_empty(), "(they have all three of its actives)")
+	_check(loot.infuse(1, "passive_blank", "leap") != "" and loot.infuse(1, "passive_blank", "pierce") != "", "it cannot become an active rune, or another weapon's")
+	# At the forge.
+	g.builds[1].changed.emit()
+	loot.purses[1].memory = 0
+	hall.open(1)
+	var list: Array = hall.rows()
+	_check(hall.BLANK_ROW in list and list.find(hall.BLANK_ROW) == list.find("Weapons and runes") - 1, "the forge has a row for blank stones while you carry one (%s)" % str(list))
+	_check(str(list[hall.row]) == hall.BLANK_ROW, "and the screen opens on it when there is no Memory to give or point to spend")
+	hall.confirm()
+	_check(hall.view == "blanks", "it opens the blank stones")
+	var rows: Array = hall.blank_rows()
+	_check(rows.size() == 4 and str(rows[0]["rune"]) == "shockwave" and str(rows[2]["do"]) == "break" and str(rows[3]["do"]) == "give", "a row for each rune it could become, one to break it down, one to hand it over (%s)" % str(rows.map(func(r): return r["text"])))
+	hall.blank_row = 1
+	hall.confirm()
+	_check((g.owned[1] as Array).has("shards") and g.tools.bag_of(1).count("passive_blank") == 0, "infused: Shards is theirs to fit, and the stone is gone")
+	_check(hall.view == "hall" and not (hall.BLANK_ROW in hall.rows()), "with no stone left, back to the forge's rows, and the row is gone")
+	hall.close()
+	# Breaking one down.
+	g.tools.bag_of(0).add("passive_blank", 1)
+	g.tools.bag_of(0).add("active_blank", 1)
+	var m0: int = loot.purses[0].memory
+	_check(loot.break_down(0, "passive_blank") == Loot.BLANK_MEMORY and loot.purses[0].memory == m0 + Loot.BLANK_MEMORY, "a stone broken down: %d Memory to give" % Loot.BLANK_MEMORY)
+	_check(loot.break_down(0, "passive_blank") == 0, "(one stone, once)")
+	# Handing one over.
+	_check(loot.hand_over(0, 1, "active_blank") == "" and g.tools.bag_of(0).count("active_blank") == 0 and g.tools.bag_of(1).count("active_blank") == 1, "a stone handed to a teammate is in their inventory")
+	_check(loot.hand_over(0, 1, "active_blank") != "" and loot.hand_over(1, 1, "active_blank") != "", "(nothing to hand, or nobody to hand it to)")
+	_check(loot.infusions(1, "active_blank").is_empty(), "(an active stone, for somebody with every active rune of their weapon: nothing to infuse)")
+	hall.open(1)
+	hall.row = hall.rows().find(hall.BLANK_ROW)
+	hall.confirm()
+	rows = hall.blank_rows()
+	_check(rows.size() == 2 and str(rows[0]["do"]) == "break", "then only breaking down or handing over (%s)" % str(rows.map(func(r): return r["text"])))
+	hall.blank_row = 1
+	hall.confirm()
+	_check(g.tools.bag_of(0).count("active_blank") == 1 and g.tools.bag_of(1).count("active_blank") == 0, "handed back from the forge's screen")
+	hall.close()
+	_check(g.forge_words(0) == "Go down to the forge: a blank stone to infuse" or g.levels.share(0) >= 1.0 or g.levels.points(0) > 0, "the cave mouth says there is a stone to infuse (\"%s\")" % g.forge_words(0))
+	# The world save.
+	var w: Dictionary = g._world_now()
+	await _leave(g)
+	var g2 = _game(424242, 2, false, [], w)
+	await _frames(5)
+	_check(g2.loot.blanks_found == 1, "a world played again remembers how many stones it has given")
+	await _leave(g2)
 
 
 # --- Pictures --------------------------------------------------------------------------------
