@@ -10,9 +10,14 @@ const Player := preload("res://scripts/player.gd")
 const Art := preload("res://scripts/art.gd")
 const BowArt := preload("res://scripts/weapon/bow_art.gd")
 
-const SWING := 30.8          # one swing of the iron maul (slow and heavy since version 34)
-const SLAM := 46.2           # the chain's third move
-const CHAIN := 107.8         # swing, swing, slam
+## One swing of the iron maul (slow and heavy since version 34), the chain's third move and
+## the whole chain, read from the game (19.6, 21.56 and 60.76 since Darren's lab in version 57;
+## 30.8, 46.2 and 107.8 before).
+var SWING: float = float(SwingBuild.hammer_info("iron_maul")["damage"])
+var SLAM: float = SWING * float(Player.MOVES["maul_slam"]["power"])
+var CHAIN: float = SWING * 2.0 + SLAM
+var QUAKE: float = SWING * SwingBuild.QUAKE_DAMAGE   # a Quake: a swing and a half (it was the same as a slam until version 57)
+var FILL: float = 2.0 + float(Player.MOVES["maul_slam"]["power"])   # what a chain puts on a Stagger meter (3.1; 3.5 before)
 const RUNES := ["momentum", "stagger", "aftershock", "quake", "bulwark", "hook"]
 
 var m
@@ -260,11 +265,11 @@ func _run() -> void:
 	var post = _slime(Vector2(40, 0))
 	await _frames(2)
 	await _swings(3)
-	_check(_near(_lost(post), SWING + SWING * 1.08 + SLAM * 1.16), "Momentum: each swing that lands makes the next 8%% harder: 30.8, 33.264, then a slam of 53.592 (%.3f)" % _lost(post))
+	_check(_near(_lost(post), SWING + SWING * 1.08 + SLAM * 1.16), "Momentum: each swing that lands makes the next 8%% harder: 19.6, 21.17, then a slam of 25.01 (%.3f)" % _lost(post))
 	_check(p.momentum == 3 and _near(p.momentum_bonus(), 0.24), "three steps after a chain")
 	await _swings(3)
 	_check(p.momentum == 5 and _near(p.momentum_bonus(), 0.4) and p.momentum_full, "five steps at the most: +40%")
-	_check(_near(_lost(post), SWING * (1.0 + 1.08 + 1.24 + 1.32) + SLAM * (1.16 + 1.4)), "the second chain: 38.192, 40.656 and a slam of 64.68 (%.3f)" % _lost(post))
+	_check(_near(_lost(post), SWING * (1.0 + 1.08 + 1.24 + 1.32) + SLAM * (1.16 + 1.4)), "the second chain: 24.3, 25.87 and a slam of 30.18 (%.3f)" % _lost(post))
 	post.hp = post.max_hp
 	await _swings(3)
 	_check(_near(_lost(post), CHAIN * 1.4), "and there it stays while you keep hitting: a whole chain at +40%% (%.3f)" % _lost(post))
@@ -336,14 +341,14 @@ func _run() -> void:
 	_check(p.momentum == 5, "(five steps built)")
 	await _press(0)
 	await _frames(10)
-	_check(_near(_lost(post) - before, SLAM), "Momentum makes swings hit harder, not runes: a Quake is still 46.2 (%.3f)" % (_lost(post) - before))
+	_check(_near(_lost(post) - before, QUAKE), "Momentum makes swings hit harder, not runes: a Quake is still 29.4 (%.3f)" % (_lost(post) - before))
 
 	# --- Stagger ------------------------------------------------------------------------
 	await _hammer(["stagger"], home)
 	post = _slime(Vector2(40, 0), true)
 	await _frames(2)
 	await _swings(3)
-	_check(_near(post.stagger, 3.5) and _near(_lost(post), CHAIN, 0.02), "Stagger: a chain fills three and a half of the meter's four (a slam counts one and a half): %.2f" % post.stagger)
+	_check(_near(post.stagger, FILL) and _near(_lost(post), CHAIN, 0.02), "Stagger: a chain fills %.2f of the meter's four (a slam counts as strong as it hits): %.2f" % [FILL, post.stagger])
 	_check(post.staggered == 0.0, "not full yet, nothing happens")
 	p._reset_combo()
 	p.input.attack_pressed = true
@@ -357,7 +362,7 @@ func _run() -> void:
 			broke = post.staggered
 			stunned = post.stun_time
 	await _still()
-	_check(_near(_lost(post), CHAIN + SWING * 2.0, 0.02), "the next swing fills it: the enemy takes the swing and a heavy blow of another 30.8 (%.3f)" % _lost(post))
+	_check(_near(_lost(post), CHAIN + SWING * 2.0, 0.02), "the next swing fills it: the enemy takes the swing and a heavy blow of another 19.6 (%.3f)" % _lost(post))
 	_check(broke > 1.4 and broke <= 1.5 and stunned > 1.4 and stunned <= 1.5, "and is stunned for 1.5 seconds (%.2f, %.2f)" % [broke, stunned])
 	_check(post.stagger == 0.0, "the meter is empty again")
 	post.staggered = 1.0
@@ -396,13 +401,17 @@ func _run() -> void:
 	post = _slime(Vector2(40, 0), true)
 	await _frames(2)
 	await _swings(3)
-	_check(_near(post.stagger, 3.5 / 3.0), "Saved Up: the meter fills a third as fast (%.3f after a chain)" % post.stagger)
+	_check(_near(post.stagger, FILL / 3.0), "Saved Up: the meter fills a third as fast (%.3f after a chain)" % post.stagger)
 	await _swings(3)
 	await _swings(3)
-	_check(_near(post.stagger, 3.5) and post.staggered == 0.0, "three chains and it still holds")
+	_check(_near(post.stagger, FILL) and post.staggered == 0.0, "three chains and it still holds")
 	post.hp = post.max_hp
-	await _swings(1)
-	_check(post.staggered == 0.0, "eleven swings: not yet")
+	# Then single swings, a third of one each, until the four are full: two since
+	# Darren's lab made a chain 3.1 (version 57), one before.
+	var more: int = ceili((EnemyScript.STAGGER_FULL - FILL) * 3.0 - 0.001)
+	for i in more - 1:
+		await _swings(1)
+	_check(post.staggered == 0.0 and more >= 2, "%d swings: not yet" % (9 + more - 1))
 	p._reset_combo()
 	p.input.attack_pressed = true
 	await _frames(1)
@@ -413,7 +422,7 @@ func _run() -> void:
 		if post.staggered > 0.0 and broke == 0.0:
 			broke = post.staggered
 	await _still()
-	_check(_near(_lost(post), SWING * 2.0 + SWING * 3.0, 0.03), "the twelfth breaks it with a huge blow: three swings' worth, 92.4 (%.3f)" % (_lost(post) - SWING * 2.0))
+	_check(_near(_lost(post), SWING * float(more) + SWING * 3.0, 0.03), "the next breaks it with a huge blow: three swings' worth, 58.8 (%.3f)" % (_lost(post) - SWING * float(more)))
 	_check(broke > 4.4 and broke <= 4.5, "and a stun of 4.5 seconds (%.2f)" % broke)
 
 	# Wider: the break stuns what stands near it too (80 px round it).
@@ -471,7 +480,7 @@ func _run() -> void:
 	await _still()
 	_check(at_slam == 0.0, "Aftershock: when the slam lands the ground only cracks")
 	_check(waited >= 34 and waited <= 38, "0.6 seconds later it rumbles (%d ticks)" % waited)
-	_check(_near(_lost(post), CHAIN + SWING * 0.7), "the enemy the chain hit takes 21.56 more (%.3f)" % (_lost(post) - CHAIN))
+	_check(_near(_lost(post), CHAIN + SWING * 0.7), "the enemy the chain hit takes 13.72 more (%.3f)" % (_lost(post) - CHAIN))
 	_check(_near(_lost(near_by), SWING * 0.7), "and so does one the slam missed, 54 px from where it landed (%.3f)" % _lost(near_by))
 	_check(_lost(far_off) == 0.0, "but not one 80 px from it")
 	post.queue_free()
@@ -509,7 +518,7 @@ func _run() -> void:
 	await _frames(2)
 	await _swings(3)
 	await _rumbled()
-	_check(_near(_lost(post), CHAIN + SWING * 0.35 * 3.0), "Every Hit: every swing that lands sets off a small one at half strength: three of 10.78 (%.3f)" % (_lost(post) - CHAIN))
+	_check(_near(_lost(post), CHAIN + SWING * 0.35 * 3.0), "Every Hit: every swing that lands sets off a small one at half strength: three of 6.86 (%.3f)" % (_lost(post) - CHAIN))
 	_check(_near(_lost(near_by), SWING * 0.35 * 3.0) and _lost(far_off) == 0.0, "which reach less far")
 	post.queue_free()
 	near_by.hp = near_by.max_hp
@@ -529,7 +538,7 @@ func _run() -> void:
 	_check(_lost(near_by) == 0.0, "Saved Up: the first two finishers set off nothing")
 	await _swings(3)
 	await _rumbled()
-	_check(_near(_lost(near_by), SWING * 0.7 * 3.0) and _near(_lost(far_off), SWING * 0.7 * 3.0), "the third a huge one, three times as strong: 64.68 (%.3f)" % _lost(near_by))
+	_check(_near(_lost(near_by), SWING * 0.7 * 3.0) and _near(_lost(far_off), SWING * 0.7 * 3.0), "the third a huge one, three times as strong: 41.16 (%.3f)" % _lost(near_by))
 	_check(_lost(way_off) == 0.0, "90 px round: it doesn't reach one 109 px away")
 
 	await _hammer(["on_dodge", "aftershock"], home)
@@ -550,14 +559,14 @@ func _run() -> void:
 	var too_far = _slime(Vector2(300, 0))
 	await _frames(2)
 	await _press(0)
-	_check(_near(_lost(target), SLAM) and _near(_lost(further), SLAM), "Quake: a crack runs along your aim and hits every enemy on it for a swing and a half, 46.2 (%.3f, %.3f)" % [_lost(target), _lost(further)])
+	_check(_near(_lost(target), QUAKE) and _near(_lost(further), QUAKE), "Quake: a crack runs along your aim and hits every enemy on it for a swing and a half, 29.4 (%.3f, %.3f)" % [_lost(target), _lost(further)])
 	_check(_lost(outside) == 0.0 and _lost(behind) == 0.0, "not one 70 px to the side of the line, nor one behind you")
 	_check(_lost(too_far) == 0.0, "it is 240 px long: not one 300 px away")
 	_check(target.stun_time > 0.5 and target.stun_time <= 0.6, "it stuns for 0.6 seconds (%.2f)" % target.stun_time)
 	_check(p.ability_charge[0] < 0.05, "and its button is spent")
 	await _press(0)
 	await _frames(10)
-	_check(_near(_lost(target), SLAM) and p.game_time - float(p.ability_denied[0]) < 1.0, "pressed again too soon, nothing happens")
+	_check(_near(_lost(target), QUAKE) and p.game_time - float(p.ability_denied[0]) < 1.0, "pressed again too soon, nothing happens")
 	await _frames(300)
 	_check(p.ability_ready(0), "five seconds later it is back")
 
@@ -568,7 +577,7 @@ func _run() -> void:
 	p.input.stick_aim = Vector2.UP
 	await _frames(4)
 	await _press(0)
-	_check(_near(_lost(up_there), SLAM) and _lost(to_the_right) == 0.0, "aim up and the crack runs up: the enemy to the right is missed (%.3f, %.3f)" % [_lost(up_there), _lost(to_the_right)])
+	_check(_near(_lost(up_there), QUAKE) and _lost(to_the_right) == 0.0, "aim up and the crack runs up: the enemy to the right is missed (%.3f, %.3f)" % [_lost(up_there), _lost(to_the_right)])
 	p.input.stick_aim = Vector2.RIGHT
 	await _hammer(["quake"], home)
 	await _frames(2)
@@ -580,9 +589,9 @@ func _run() -> void:
 	var second = _slime(Vector2(150, 150))
 	await _frames(2)
 	await _press(0)
-	_check(_near(_lost(target), SLAM) and _lost(second) == 0.0, "Twice: the first crack")
+	_check(_near(_lost(target), QUAKE) and _lost(second) == 0.0, "Twice: the first crack")
 	await _frames(30)
-	_check(_near(_lost(target), SLAM * 2.0) and _lost(second) == 0.0, "then a second one along your aim, a moment later (%.3f)" % _lost(target))
+	_check(_near(_lost(target), QUAKE * 2.0) and _lost(second) == 0.0, "then a second one along your aim, a moment later (%.3f)" % _lost(target))
 
 	await _hammer(["wider", "quake"], home)
 	target = _slime(Vector2(340, 0))
@@ -591,7 +600,7 @@ func _run() -> void:
 	outside.global_position.y = home.y + SwingBuild.QUAKE_WIDTH + float(outside.radius) + 6.0
 	await _frames(1)
 	await _press(0)
-	_check(_near(_lost(target), SLAM) and _near(_lost(outside), SLAM), "Wider: a longer, wider crack catches one 340 px away and one just off a plain crack's edge (%.3f, %.3f)" % [_lost(target), _lost(outside)])
+	_check(_near(_lost(target), QUAKE) and _near(_lost(outside), QUAKE), "Wider: a longer, wider crack catches one 340 px away and one just off a plain crack's edge (%.3f, %.3f)" % [_lost(target), _lost(outside)])
 	await _hammer(["quake"], home)
 	target = _slime(Vector2(340, 0))
 	outside = _slime(Vector2(150, SwingBuild.QUAKE_WIDTH + 22.0))
@@ -605,14 +614,14 @@ func _run() -> void:
 	target = _slime(Vector2(150, 0))
 	await _frames(2)
 	await _press(0)
-	_check(_near(_lost(target), SLAM * 3.0) and _near(float(p.weapon["abilities"][0]["recharge"]), 15.0), "Saved Up: three times as strong, 138.6, and three times the recharge (%.3f)" % _lost(target))
+	_check(_near(_lost(target), QUAKE * 3.0) and _near(float(p.weapon["abilities"][0]["recharge"]), 15.0), "Saved Up: three times as strong, 88.2, and three times the recharge (%.3f)" % _lost(target))
 
 	await _hammer(["on_dodge", "quake"], home)
 	target = _slime(Vector2(80, 0))
 	await _frames(2)
 	await _dodge(Vector2.LEFT)
 	await _frames(5)
-	_check(_near(_lost(target), SLAM * 0.5) and float(p.ability_charge[0]) >= 1.0, "On Dodge: a dodge sets one off at half strength, 23.1, and leaves the button full (%.3f)" % _lost(target))
+	_check(_near(_lost(target), QUAKE * 0.5) and float(p.ability_charge[0]) >= 1.0, "On Dodge: a dodge sets one off at half strength, 14.7, and leaves the button full (%.3f)" % _lost(target))
 	await _still()
 
 	await _hammer(["every_hit", "quake"], home)
@@ -787,7 +796,7 @@ func _run() -> void:
 	await _frames(20)
 	await _press(2)
 	await _frames(20)
-	_check(_near(_lost(post), SLAM + SWING * 0.3) and p.bulwark_left > 0.0, "the arena's hammer: Quake, Bulwark and Hook all go off from their buttons (%.3f)" % _lost(post))
+	_check(_near(_lost(post), QUAKE + SWING * 0.3) and p.bulwark_left > 0.0, "the arena's hammer: Quake, Bulwark and Hook all go off from their buttons (%.3f)" % _lost(post))
 	await _still(200)
 	await _clear()
 

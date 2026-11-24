@@ -43,6 +43,7 @@ const SCRIPTS := {
 	"rattlecrown": "res://scripts/foes/rattlecrown.gd",
 	"crown": "res://scripts/highlands/crown.gd",
 	"highlands": "res://scripts/highlands/highlands.gd",
+	"charts": "res://scripts/highlands/charts.gd",
 }
 
 ## How a number is shown and stepped:
@@ -150,7 +151,7 @@ static func _build_rows() -> void:
 	_add(p, g, "Tin", "build:METALS/tin", "", 0.5, 0.5, 500.0)
 	_add(p, g, "Iron", "build:METALS/iron", "", 0.5, 0.5, 500.0)
 	g = "The chain of three"
-	_add(p, g, "The third hit, against a normal hit", _moves("power", 1.5), "%", 0.05, 0.5, 5.0, "chain_finisher")
+	_add(p, g, "The third hit, against a normal hit", _moves("power", 1.1), "%", 0.05, 0.5, 5.0, "chain_finisher")
 	_add(p, g, "A quick attack takes", _moves("time", 0.36), "s", 0.01, 0.26, 1.0, "chain_light")
 	_add(p, g, "A finisher takes", _moves("time", 0.45), "s", 0.01, 0.3, 1.5, "chain_heavy")
 	g = "Crits"
@@ -377,6 +378,7 @@ static func _build_rows() -> void:
 	_add(p, g, "Walking speed, as a share of the above", "highlands:PLAYER_PACE", "%", 0.05, 0.3, 2.0)
 	_add(p, g, "The squad's blows do", "highlands:DAMAGE_DEALT", "%", 0.05, 0.1, 3.0)
 	_add(p, g, "Enemies' blows, traps and falls do", "highlands:DAMAGE_TAKEN", "%", 0.05, 0.1, 3.0)
+	_add(p, g, "Show the whole map, click it to go (1 = on)", "charts:LAB_MAP", "n", 1.0, 0.0, 1.0)
 
 	p = "Enemies"
 	g = "The arena"

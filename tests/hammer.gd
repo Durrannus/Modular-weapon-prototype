@@ -173,7 +173,7 @@ func _run() -> void:
 	_check(p.weapon.get("weapon") == "hammer" and p._is_hammer() and not p._ranged(), "and the player knows it is a hammer")
 	_check(m.build.stowed.get("sword") == sword and m.build.stowed.has("bow") and not m.build.stowed.has("hammer"), "the sword and the bow wait, exactly as they were")
 	_check(m.hud.swap_button.text == "SWAP TO STAFF (B)", "the button now offers the staff")
-	_check(_near(float(p.weapon["damage"]), 11.0 * 2.8) and _near(float(p.weapon["damage"]), 30.8), "an iron maul's swing does 30.8: nearly three of an iron sword's 11 (slow but heavy, since version 34)")
+	_check(_near(float(p.weapon["damage"]), 7.0 * 2.8) and _near(float(p.weapon["damage"]), 19.6), "an iron maul's swing does 19.6: nearly three of an iron sword's 7 (slow but heavy since version 34; Darren's lab metals since version 57)")
 	_check(_near(float(p.weapon["speed"]), 0.45) and _near(float(p.weapon["reach"]), 0.75), "it swings at under half a sword's speed and reaches three quarters as far")
 	_check(_near(float(p.weapon["impact"]), 38.0), "its slam lands on a patch 38 px round")
 	var chain: Array = []
@@ -185,7 +185,7 @@ func _run() -> void:
 	fresh.set_data(SwingBuild.STARTERS["sword"])
 	fresh.take("hammer")
 	_check(fresh.get_data() == SwingBuild.STARTERS["hammer"] and fresh.compute()["weapon"] == "hammer", "someone who never had a hammer gets the wooden maul")
-	_check(_near(float(fresh.compute()["damage"]), 14.0), "whose swing does 14: one swing is a crawler's 14")
+	_check(_near(float(fresh.compute()["damage"]), 8.4), "whose swing does 8.4: two swings for a crawler's 14")
 	await _still()
 
 	# --- The hammer at the forge: its own parts, its own numbers, its own presets ---------
@@ -210,11 +210,11 @@ func _run() -> void:
 	# The numbers plate: impact beside reach, and what a part would change.
 	var now: Dictionary = Forge.stat_values(forge.build.compute())
 	_check(now.has("reach") and now.has("impact") and now.has("move") and not now.has("range"), "a hammer's numbers show reach, impact and walking while swinging")
-	_check(Forge.stat_text("damage", now["damage"]) == "Damage 30.8" and Forge.stat_text("impact", now["impact"]) == "Impact 100%" and Forge.stat_text("move", now["move"]) == "Walk, swinging 80%",
-		"an iron maul reads Damage 30.8, Impact 100%, Walk, swinging 80%")
+	_check(Forge.stat_text("damage", now["damage"]) == "Damage 19.6" and Forge.stat_text("impact", now["impact"]) == "Impact 100%" and Forge.stat_text("move", now["move"]) == "Walk, swinging 80%",
+		"an iron maul reads Damage 19.6, Impact 100%, Walk, swinging 80%")
 	_check(Forge.stat_rows(forge.build.compute()).size() == 8, "eight numbers, on five rows")
 	var change: Dictionary = Forge.stat_changes(now, Forge.stat_values(forge.stats_with("iron_warhammer")))
-	_check(change == {"damage": "-3.8", "impact": "-15%", "move": "-10%"}, "pointing at the warhammer shows a lighter hit, a smaller patch, slower feet: %s" % [change])
+	_check(change == {"damage": "-2.4", "impact": "-15%", "move": "-10%"}, "pointing at the warhammer shows a lighter hit, a smaller patch, slower feet: %s" % [change])
 	change = Forge.stat_changes(now, Forge.stat_values(forge.stats_with("studded_haft")))
 	_check(change == {"slots": "+1"}, "a studded haft only adds a slot")
 	change = Forge.stat_changes(now, Forge.stat_values(forge.stats_with("light_weight")))
@@ -229,7 +229,7 @@ func _run() -> void:
 		if tray[i]["id"] in ["iron_warhammer", "studded_haft", "keen_weight"]:
 			forge._use_card(i)
 	_check(m.build.get_data() == ["iron_warhammer", "studded_haft", "keen_weight", ["quake", "bulwark", "", "hook", "aftershock"]], "clicking a head, a haft and a counterweight fits them, and the runes keep their places (a new slot on the haft): %s" % [m.build.get_data()])
-	_check(_near(float(p.weapon["damage"]), 26.95) and p.weapon["steps"][0]["move"] == "crush" and p.weapon["line"].size() == 5, "and the hammer in your hand is that warhammer: 26.95 a blow, five slots")
+	_check(_near(float(p.weapon["damage"]), 17.15) and p.weapon["steps"][0]["move"] == "crush" and p.weapon["line"].size() == 5, "and the hammer in your hand is that warhammer: 17.15 a blow, five slots")
 	forge._load_test("A")
 	_check(m.build.weapon() == "hammer", "the test-sword keys do nothing while a hammer is on the anvil")
 	# Presets: a hammer has three of its own.
@@ -251,14 +251,14 @@ func _run() -> void:
 	m.build.changed.emit()
 	await _still()
 
-	# --- A chain at one enemy: 30.8, 30.8, 46.2 -------------------------------------------
+	# --- A chain at one enemy: 19.6, 19.6, 21.56 -------------------------------------------
 	var post = _slime(Vector2(40, 0))
 	await _frames(2)
 	await _swings(1)
-	_check(_near(_lost(post), 30.8), "a swing hits an enemy in front for 30.8 (%.3f)" % _lost(post))
+	_check(_near(_lost(post), 19.6), "a swing hits an enemy in front for 19.6 (%.3f)" % _lost(post))
 	post.hp = post.max_hp
 	await _swings(3)
-	_check(_near(_lost(post), 30.8 + 30.8 + 46.2), "the whole chain: 30.8 + 30.8 + a slam's 46.2 = 107.8 (%.3f)" % _lost(post))
+	_check(_near(_lost(post), 19.6 + 19.6 + 21.56), "the whole chain: 19.6 + 19.6 + a slam's 21.56 = 60.76 (%.3f)" % _lost(post))
 	_check(get_nodes_in_group("arrows").is_empty(), "nothing flies off a hammer")
 	_check(is_equal_approx(p.global_position.x, home.x) and is_equal_approx(p.global_position.y, home.y), "swinging doesn't move you")
 	post.queue_free()
@@ -296,7 +296,7 @@ func _run() -> void:
 	var wide = _slime(Vector2(30, 85))                         # outside both
 	await _frames(2)
 	await _swings(2)
-	_check(_near(_lost(mid), 61.6) and _lost(beyond) == 0.0, "two swings: the one in front is hit twice, the one a step further not at all")
+	_check(_near(_lost(mid), 39.2) and _lost(beyond) == 0.0, "two swings: the one in front is hit twice, the one a step further not at all")
 	for e in [mid, up, down, beyond, wide]:
 		e.hp = e.max_hp
 	# The slam alone: the third move of a chain.
@@ -317,8 +317,8 @@ func _run() -> void:
 		if p.current_step < 0:
 			break
 	await _frames(10)
-	_check(_near(_lost(mid), 46.2) and _near(_lost(up), 46.2) and _near(_lost(down), 46.2), "the slam hits everything on its patch for 46.2: the middle and 40 px to either side (%.2f, %.2f, %.2f)" % [_lost(mid), _lost(up), _lost(down)])
-	_check(_near(_lost(beyond), 46.2), "it comes down a little further out than the swings reach")
+	_check(_near(_lost(mid), 21.56) and _near(_lost(up), 21.56) and _near(_lost(down), 21.56), "the slam hits everything on its patch for 21.56: the middle and 40 px to either side (%.2f, %.2f, %.2f)" % [_lost(mid), _lost(up), _lost(down)])
+	_check(_near(_lost(beyond), 21.56), "it comes down a little further out than the swings reach")
 	_check(_lost(wide) == 0.0, "and misses whatever stands off the patch")
 	for e in [mid, up, down, beyond, wide]:
 		e.queue_free()
@@ -364,12 +364,12 @@ func _run() -> void:
 	for st in p.weapon["steps"]:
 		chain.append(st["move"])
 	_check(chain == ["crush", "crush", "crush"], "warhammer: three crushing blows")
-	_check(_near(float(p.weapon["damage"]), 26.95) and _near(float(p.weapon["impact"]), 38.0 * 0.85), "each is 26.95 before its weight, on a patch a little smaller than a maul's (32 px)")
+	_check(_near(float(p.weapon["damage"]), 17.15) and _near(float(p.weapon["impact"]), 38.0 * 0.85), "each is 17.15 before its weight, on a patch a little smaller than a maul's (32 px)")
 	post = _slime(Vector2(centre, 0))
 	var side = _slime(Vector2(centre, 36))
 	await _frames(2)
 	await _swings(1)
-	_check(_near(_lost(post), 40.425) and _near(_lost(side), 40.425), "a crushing blow hits everything on its patch for 40.4 (%.2f, %.2f)" % [_lost(post), _lost(side)])
+	_check(_near(_lost(post), 18.865) and _near(_lost(side), 18.865), "a crushing blow hits everything on its patch for 18.9 (%.2f, %.2f)" % [_lost(post), _lost(side)])
 	post.queue_free()
 	side.queue_free()
 	p.input.move = Vector2.LEFT
@@ -386,7 +386,14 @@ func _run() -> void:
 	m.build.set_blade("iron_maul")
 	await _still()
 	var maul_dps: float = await _dps(Vector2(34, 0))
-	_check(absf(war_dps / maul_dps - 1.0) < 0.1, "warhammer %.1f damage a second, maul %.1f: within a tenth (%.2f)" % [war_dps, maul_dps, war_dps / maul_dps])
+	# Every crush is a finisher, so the finisher's strength sets how the two heads compare.
+	# At 150% they were level; at Darren's 110% (his lab, version 57) the warhammer does
+	# about a fifth less a second. The sum below is the one the shapes were made with.
+	var mv: Dictionary = Player.MOVES
+	var war_chain: float = 3.0 * float(mv["crush"]["power"]) * float(SwingBuild.HAMMER_SHAPES["warhammer"]["damage"]) / (3.0 * float(mv["crush"]["time"]))
+	var maul_chain: float = (2.0 * float(mv["maul_swing"]["power"]) + float(mv["maul_slam"]["power"])) * float(SwingBuild.HAMMER_SHAPES["maul"]["damage"]) / (2.0 * float(mv["maul_swing"]["time"]) + float(mv["maul_slam"]["time"]))
+	var want: float = war_chain / maul_chain
+	_check(absf(war_dps / maul_dps - want) < 0.05, "warhammer %.1f damage a second, maul %.1f: %.2f of it, as the finishers make it (%.2f)" % [war_dps, maul_dps, war_dps / maul_dps, want])
 
 	# --- Against the sword: a fifth more a second, from closer in --------------------------------
 	m.swap_weapon(0, "sword")

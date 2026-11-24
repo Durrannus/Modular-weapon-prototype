@@ -271,6 +271,7 @@ func _ready() -> void:
 		charts.players = players
 		charts.rig = rig
 		charts.can_swap = can_swap
+		charts.nav = foes.nav
 		if not world_save.is_empty() and not new_world and not relaid:
 			charts.set_world_data(world_save)
 		add_child(charts)

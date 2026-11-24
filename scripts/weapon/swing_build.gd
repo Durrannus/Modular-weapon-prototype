@@ -39,7 +39,7 @@ static var SHAPES := {
 		"desc": "Sweep, backswing, slam: huge reach and damage, but very slow, and you walk slower while swinging."},
 }
 const SHAPE_ORDER := ["dagger", "sabre", "broadsword", "rapier", "falchion", "greatsword"]
-static var SWING_MOVE := 0.9        # walking speed while swinging, unless the shape says otherwise
+static var SWING_MOVE := 0.8        # walking speed while swinging, unless the shape says otherwise (Darren's lab, version 57; was 0.9)
 
 ## What a move is called on screen.
 const MOVE_NAMES := {"slash": "slash", "overhead": "overhead",
@@ -53,7 +53,7 @@ const MOVE_NAMES := {"slash": "slash", "overhead": "overhead",
 	"bolt": "bolt", "burst": "burst", "spray": "spray", "orb": "orb"}
 
 ## A broadsword's damage in each metal. (Later metals each add about a quarter.)
-static var METALS := {"wood": 5.0, "tin": 8.0, "iron": 11.0}
+static var METALS := {"wood": 3.0, "tin": 5.0, "iron": 7.0}   # Darren's lab, 24 Nov (version 57; was 5, 8 and 11)
 
 ## In the prototype every iron shape has two slots: slots come from a blade's
 ## tier, never from its shape.
@@ -128,7 +128,7 @@ static var BOW_SHAPES := {
 ## second than the sword, to one enemy at a time.
 ## Seven tenths (it was four fifths until Darren played the bow, 21 November:
 ## "too much damage also as its ranged so too easy to stay safe"): a wooden arrow
-## is 3.5, so a crawler takes four. It hits one enemy, a little harder than a
+## is 3.5, so a crawler takes four (2.1 and seven since Darren's lab metals, version 57). It hits one enemy, a little harder than a
 ## staff's bolt (STAFF_DAMAGE), which hurts a very small area.
 static var BOW_DAMAGE := 0.7
 static var BOW_RANGE := 520.0       # how far a shortbow's arrow flies (a sword reaches 91)
@@ -2006,7 +2006,7 @@ func compute() -> Dictionary:
 
 
 static var BASE_CRIT := 0.07
-static var BASE_CRIT_DAMAGE := 1.6
+static var BASE_CRIT_DAMAGE := 1.4  # Darren's lab, 24 Nov (version 57; was 1.6)
 
 const ELEMENT_COLORS := {
 	"fire": Color(1.0, 0.5, 0.2),

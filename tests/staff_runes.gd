@@ -12,8 +12,10 @@ const PlayerInput := preload("res://scripts/player_input.gd")
 const Art := preload("res://scripts/art.gd")
 const BowArt := preload("res://scripts/weapon/bow_art.gd")
 
-const BOLT := 6.6            # one bolt of the iron apprentice staff
-const CHAIN := 19.8          # its chain: three bolts
+## One bolt of the iron apprentice staff, and its chain of three bolts, read from the game
+## (4.2 and 12.6 since Darren's lab in version 57; 6.6 and 19.8 before).
+var BOLT: float = float(SwingBuild.staff_info("iron_apprentice", "iron_crystal")["damage"])
+var CHAIN: float = BOLT * 3.0
 const PASSIVE := 5.0         # mana a passive rune costs each time it goes off
 const RUNES := ["orbit", "chain", "overflow", "nova", "lance", "spectre"]
 

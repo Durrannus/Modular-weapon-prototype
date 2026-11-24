@@ -10,8 +10,9 @@ const Player := preload("res://scripts/player.gd")
 const Art := preload("res://scripts/art.gd")
 const BowArt := preload("res://scripts/weapon/bow_art.gd")
 
-const ARROW := 7.7           # one iron arrow from the shortbow
-const HEAVY := 7.7           # the chain's third shot (a plain one too since version 34: no heavy last arrow on a shortbow)
+## One iron arrow from the shortbow, read from the game (4.9 since Darren's lab in version 57; 7.7 before).
+var ARROW: float = float(SwingBuild.limb_info("iron_shortbow", "iron_arrows")["damage"])
+var HEAVY: float = ARROW     # the chain's third shot (a plain one too since version 34: no heavy last arrow on a shortbow)
 const RUNES := ["pierce", "ricochet", "steady_aim", "volley", "snipe", "arrow_rain"]
 
 var m
@@ -462,7 +463,8 @@ func _run() -> void:
 	await _frames(600)
 	var full_dps: float = (_lost(post) - d0) / 10.0
 	p.input.attack_held = false
-	_check(full_dps > 19.6 * 1.4 and full_dps < 19.6 * 1.6, "at +50%% the bow does about half as much again a second: %.1f against 19.6" % full_dps)
+	var plain_dps: float = ARROW * 2.545   # a plain shortbow looses about two and a half arrows a second (19.6 with the 7.7 arrows before version 57)
+	_check(full_dps > plain_dps * 1.4 and full_dps < plain_dps * 1.6, "at +50%% the bow does about half as much again a second: %.1f against %.1f" % [full_dps, plain_dps])
 	await _still()
 
 	# --- Volley ---------------------------------------------------------------------------------

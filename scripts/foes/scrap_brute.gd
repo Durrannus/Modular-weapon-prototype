@@ -12,13 +12,13 @@ extends "res://scripts/foes/foe.gd"
 ## that knocks you a long way back. After the bash it is open like after a swing.
 
 static var HP := 75.0
-static var SPEED := 62.0
+static var SPEED := 70.0  # Darren's lab, 24 Nov (version 57; was 62.0)
 static var CLUB := 18.0
 static var TURN := 2.6               # how fast it turns its shield towards you, in radians a second
 static var GUARD := 65.0             # the shield covers this many degrees to each side of where it points
-static var WINDUP := 0.65            # the weapon raised before the swing (a boulder on a pole, in the art since version 44)
-static var OPEN := 1.0               # how long the shield is down after a swing
-static var REACH := 56.0             # from its middle to the end of its weapon
+static var WINDUP := 0.4            # the weapon raised before the swing (a boulder on a pole, in the art since version 44) (Darren's lab, version 57; was 0.65)
+static var OPEN := 0.5               # how long the shield is down after a swing (Darren's lab, version 57; was 1.0)
+static var REACH := 66.0             # from its middle to the end of its weapon (Darren's lab, version 57; was 56.0)
 static var ELITE_HP := 200.0
 static var ELITE_CLUB := 22.0
 static var BASH_EVERY := 3           # every this many attacks the elite bashes

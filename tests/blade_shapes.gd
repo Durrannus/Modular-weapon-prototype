@@ -309,7 +309,8 @@ func _run() -> void:
 	for id in SwingBuild.BLADE_ORDER:
 		var info := SwingBuild.blade_info(id)
 		var ratio: float = float(dps[id]) / base
-		var want: float = float(info["damage"]) * float(info["speed"]) / 11.0
+		var broad := SwingBuild.blade_info("iron_broadsword")
+		var want: float = float(info["damage"]) * float(info["speed"]) / (float(broad["damage"]) * float(broad["speed"]))
 		_check(ratio >= 0.9 and ratio <= 1.1, "%s: %.1f damage a second, %.2f of the broadsword's (within a tenth)" % [info["shape_name"], float(dps[id]), ratio])
 		_check(absf(ratio - want) < 0.03, "%s: which is its damage times its speed (%.2f)" % [info["shape_name"], want])
 

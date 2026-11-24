@@ -1,7 +1,8 @@
 extends SceneTree
 ## Darren's notes after playing version 55 (version 56): the player drawn smaller, walking slower, every blow doing
 ## less, the small map in the corner with the land that has been seen, the whole map on M, and the role trees drawn
-## as trees. Prints PASS / FAIL lines.
+## as trees. Version 57: the lab's map switch (Darren: "add map reveal to the lab and click on it to teleport. can only
+## teleport to ground walkable"). Prints PASS / FAIL lines.
 ##
 ##   godot --headless --path . --fixed-fps 60 -s tests/highlands_map.gd
 
@@ -44,8 +45,9 @@ func _run() -> void:
 	await _map()
 	await _whole_map()
 	await _saved()
+	await _lab_map()
 	_trees()
-	print("%s  the Highlands' map and Darren's version 55 notes: %d checks, %d failed" % ["PASS" if fails == 0 else "FAIL", checks, fails])
+	print("%s  the Highlands' map, Darren's version 55 notes and the lab's map switch: %d checks, %d failed" % ["PASS" if fails == 0 else "FAIL", checks, fails])
 	quit(1 if fails > 0 else 0)
 
 
@@ -245,6 +247,106 @@ func _saved() -> void:
 	copy.set_world_data({})
 	_check(copy.explored.is_empty(), "a save that does not read leaves the land unseen")
 	copy.free()
+
+
+# --- The lab's map switch: all of it shown, and a click takes you there (version 57) ---------------
+
+func _lab_map() -> void:
+	var g = _game(5605)
+	await _frames(12)
+	var c = g.charts
+	var m: LandMap = g.map
+	var nav = g.foes.nav
+	var first: Vector2 = g.players[0].global_position
+	_check(Charts.LAB_MAP == 0, "the lab's map switch starts off")
+	c.open()
+	var mid: Rect2 = c.layout()[0]
+	_check(not c.click(mid.get_center()) and c.is_open and g.players[0].global_position == first, "while it is off a click on the map does nothing")
+	c.close()
+	var seen_before: int = c.seen_count()
+	var far := Vector2i(m.region.end.x - 10, LandMap.MID)
+	_check(not c.shows(far.x, far.y), "(the far edge of the land has not been seen)")
+	Charts.LAB_MAP = 1
+	_check(c.shows(far.x, far.y) and c.shown_tiles().encloses(Rect2(m.region)), "the switch shows the whole land")
+	_check(c.seen_count() == seen_before, "without counting it as seen in the world's save")
+	c.open()
+	var lay0: Array = c.layout()
+	var spots: Array = c.name_spots(lay0[0], lay0[1], lay0[2])
+	var crossed := 0
+	for i in spots.size():
+		for j in range(i + 1, spots.size()):
+			if (spots[i]["rect"] as Rect2).intersects(spots[j]["rect"]):
+				crossed += 1
+	_check(spots.size() >= 8 and crossed == 0, "the whole land on one small map: every place's name is written clear of the others (%d names, %d run into another)" % [spots.size(), crossed])
+	c.close()
+	# Clicks all over the whole map: every one that goes lands the squad on ground somebody can stand on.
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 57
+	var went := 0
+	var refused := 0
+	var bad := 0
+	var closed := true
+	var said := true
+	for k in 150:
+		if not c.is_open:
+			c.open()
+		var dest: Rect2 = c.layout()[0]
+		var at := dest.position + Vector2(rng.randf() * dest.size.x, rng.randf() * dest.size.y)
+		if c.click(at):
+			went += 1
+			closed = closed and not c.is_open and not paused
+			var t := Vector2i((g.players[0].global_position / TILE).floor())
+			if not m.walkable(t.x, t.y) or not nav.is_free(t):
+				bad += 1
+		else:
+			refused += 1
+			said = said and c.note == "Can't go there" and c.is_open
+	_check(went >= 10 and bad == 0, "every click that goes lands on ground that can be stood on (%d went, %d off it)" % [went, bad])
+	_check(closed, "and the map closes as the squad arrives")
+	_check(refused > 0 and said, "a click on solid rock, far from any ground, says \"Can't go there\" and the map stays open (%d)" % refused)
+	if c.is_open:
+		c.close()
+	# A click on rock right beside open ground goes to the ground beside it.
+	var edge := Vector2i(-1, -1)
+	var home := Vector2i((first / TILE).floor())
+	for dy in range(-12, 13):
+		for dx in range(-20, 21):
+			var t := home + Vector2i(dx, dy)
+			if edge.x < 0 and m.is_rock(t.x, t.y) and nav.is_free(t + Vector2i(0, 1)):
+				edge = t
+	_check(edge.x >= 0 and c.landing(edge) != edge and c.landing(edge).x >= 0 and m.walkable(c.landing(edge).x, c.landing(edge).y), "a click on rock beside open ground lands on the ground beside it")
+	_check(c.landing(Vector2i(-1, -1)) == Vector2i(-1, -1) and c.landing(Vector2i(LandMap.SIZE + 5, 3)) == Vector2i(-1, -1), "off the land nobody goes anywhere")
+	# A real click of the mouse's left button on the whole map does the same.
+	var aim: Vector2i = c.landing(home + Vector2i(0, 3))
+	c.open()
+	var lay: Array = c.layout()
+	var on_map: Vector2 = (lay[0] as Rect2).position + (Vector2(aim) + Vector2(0.5, 0.5) - (lay[1] as Rect2).position) * float(lay[2])
+	var press := InputEventMouseButton.new()
+	press.button_index = MOUSE_BUTTON_LEFT
+	press.pressed = true
+	press.position = c.screen.get_global_transform_with_canvas() * on_map
+	c._input(press)
+	_check(c.is_open, "(a click in the first moment after opening is not taken, as with the keys)")
+	await _frames(12)
+	c._input(press)
+	var now := Vector2i((g.players[0].global_position / TILE).floor())
+	_check(aim.x >= 0 and now == aim and not c.is_open, "a click of the mouse on the whole map takes the squad there (%s, wanted %s)" % [now, aim])
+	if c.is_open:
+		c.close()
+	Charts.LAB_MAP = 0
+	_check(not c.shows(far.x, far.y), "switched off, the map is what has really been seen again")
+	await _leave(g)
+	# Two players: both arrive, each on ground of their own.
+	var g2 = _game(5605, 2)
+	await _frames(12)
+	Charts.LAB_MAP = 1
+	var spot: Vector2i = g2.charts.landing(Vector2i((g2.players[0].global_position / TILE).floor()) + Vector2i(0, 4))
+	g2.charts.go_to(spot)
+	var ta := Vector2i((g2.players[0].global_position / TILE).floor())
+	var tb := Vector2i((g2.players[1].global_position / TILE).floor())
+	_check(ta == spot and tb != ta and g2.map.walkable(tb.x, tb.y) and g2.foes.nav.is_free(tb), "with two players both go, the second on the free ground beside the first")
+	Charts.LAB_MAP = 0
+	await _leave(g2)
 
 
 # --- The role trees ------------------------------------------------------------------------------

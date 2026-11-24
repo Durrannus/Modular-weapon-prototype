@@ -11,14 +11,14 @@ extends "res://scripts/foes/foe.gd"
 
 const Bat := preload("res://scripts/foes/bat.gd")
 
-static var HP := 22.0
+static var HP := 30.0  # Darren's lab, 24 Nov (version 57; was 22.0)
 static var SPEED := 85.0
 static var FLEE := 110.0
 static var KEEP := 230.0             # how far from you it likes to stand
 static var NEAR := 150.0             # it backs away inside this
-static var CAST_TIME := 0.9          # the staff raised before a bat comes
-static var CAST_EVERY := 5.0
-static var BATS := 3                 # the most bats of its own at once
+static var CAST_TIME := 0.5          # the staff raised before a bat comes (Darren's lab, version 57; was 0.9)
+static var CAST_EVERY := 2.0  # Darren's lab, 24 Nov (version 57; was 5.0)
+static var BATS := 6                 # the most bats of its own at once (Darren's lab, version 57; was 3)
 static var ELITE_HP := 70.0
 static var ELITE_BATS := 6
 static var ELITE_A_CAST := 2

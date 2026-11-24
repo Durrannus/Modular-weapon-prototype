@@ -425,7 +425,7 @@ func test_blade_shapes() -> void:
 	eq(SwingBuild.SHAPE_ORDER.size(), 6, "there are six blade shapes")
 	eq(SwingBuild.BLADE_ORDER.size(), 6, "and an iron blade of each")
 	var broad := SwingBuild.blade_info("iron_broadsword")
-	eq(broad["damage"], 11.0, "the iron broadsword does 11 damage")
+	eq(broad["damage"], 7.0, "the iron broadsword does 7 damage (Darren's lab, version 57; 11 before)")
 	var base_time := 0.0
 	for id in SwingBuild.BLADE_ORDER:
 		var b := SwingBuild.blade_info(id)
@@ -438,14 +438,14 @@ func test_blade_shapes() -> void:
 			check(SwingBuild.MOVE_NAMES.has(m), id + ": the move '%s' has a name" % m)
 			power += float(Player.MOVES[m]["power"])
 			time += float(Player.MOVES[m]["time"])
-		eq(snappedf(power, 0.001), 3.5, id + ": a chain is 1 + 1 + 1.5 hits")
+		eq(snappedf(power, 0.001), 3.1, id + ": a chain is 1 + 1 + 1.1 hits (Darren's lab, version 57; 1.5 before)")
 		if base_time == 0.0:
 			base_time = time
 		eq(snappedf(time, 0.001), snappedf(base_time, 0.001), id + ": every chain takes the same time at speed 1")
 		# Shape is a way of playing, not more power: damage a second within a tenth of the broadsword's.
 		var dps: float = float(b["damage"]) * float(b["speed"]) / (float(broad["damage"]) * float(broad["speed"]))
 		check(dps >= 0.9 and dps <= 1.1, "%s: damage a second within 10%% of the broadsword (%.2f)" % [id, dps])
-	check(is_equal_approx(SwingBuild.blade_info("iron_dagger")["damage"], 6.6), "dagger: 0.6 of the broadsword's damage")
+	check(is_equal_approx(SwingBuild.blade_info("iron_dagger")["damage"], 4.2), "dagger: 0.6 of the broadsword's damage")
 	eq(SwingBuild.blade_info("iron_dagger")["speed"], 1.6, "dagger: 1.6x speed")
 	eq(SwingBuild.blade_info("iron_dagger")["swing_move"], 1.0, "dagger: full speed while attacking")
 	eq(SwingBuild.blade_info("iron_sabre")["crit"], 0.1, "sabre: +10% crit chance")
@@ -455,15 +455,15 @@ func test_blade_shapes() -> void:
 	check(float(Player.MOVES["chop"]["knock"]) > float(Player.MOVES["slash"]["knock"]) * 1.5, "falchion: big knockback")
 	check(float(Player.MOVES["cleave"]["stun"]) >= 0.6, "falchion: the finisher staggers")
 	eq(SwingBuild.blade_info("iron_greatsword")["swing_move"], 0.7, "greatsword: 70% speed while swinging")
-	check(is_equal_approx(SwingBuild.blade_info("iron_greatsword")["damage"], 17.6), "greatsword: 1.6 of the broadsword's damage")
+	check(is_equal_approx(SwingBuild.blade_info("iron_greatsword")["damage"], 11.2), "greatsword: 1.6 of the broadsword's damage")
 	eq(float(Player.MOVES["great_sweep"]["arc"]), 180.0, "greatsword: sweeps half a circle")
 	eq(float(Player.MOVES["dagger_slash"]["arc"]), 60.0, "dagger: a 60 degree slash")
 	eq(float(Player.MOVES["sabre_slash"]["arc"]), 160.0, "sabre: 160 degree cuts")
 	eq(float(Player.MOVES["slash"]["arc"]), 120.0, "broadsword: 120 degree slashes")
-	eq(float(Player.MOVES["overhead"]["power"]), 1.5, "broadsword: the finisher is 1.5 hits")
+	eq(float(Player.MOVES["overhead"]["power"]), 1.1, "broadsword: the finisher is 1.1 hits (Darren's lab, version 57)")
 	# The tutorial's blades are broadswords in softer stuff.
-	eq(SwingBuild.blade_info("wooden_blade")["damage"], 5.0, "wooden blade: 5 damage")
-	eq(SwingBuild.blade_info("tin_blade")["damage"], 8.0, "tin blade: 8 damage")
+	eq(SwingBuild.blade_info("wooden_blade")["damage"], 3.0, "wooden blade: 3 damage (Darren's lab, version 57)")
+	eq(SwingBuild.blade_info("tin_blade")["damage"], 5.0, "tin blade: 5 damage (Darren's lab, version 57)")
 	eq(SwingBuild.blade_info("tin_blade")["chain"], broad["chain"], "tin blade: the broadsword's chain")
 	# Slots never make a part weaker: a grip with more of them swings just as fast.
 	var b = SwingBuild.new()

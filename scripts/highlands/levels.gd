@@ -82,9 +82,9 @@ static var CHALLENGE_TIME := 5.0
 static var CHALLENGE_BOSS_TIME := 3.0
 static var CHALLENGE_BOSS_REST := 10.0
 static var CHALLENGE_SOFTEN := 0.25
-static var SPARK_EVERY := 4.0
-static var SPARK_HEAL := 0.1
-static var SPARK_LIFE := 10.0
+static var SPARK_EVERY := 8.0  # Darren's lab, 24 Nov (version 57; was 4.0)
+static var SPARK_HEAL := 0.05  # Darren's lab, 24 Nov (version 57; was 0.1)
+static var SPARK_LIFE := 5.0  # Darren's lab, 24 Nov (version 57; was 10.0)
 static var ORE_SENSE_TILES := 9.0
 # The Striker's other perks (version 53). The Bible gives these numbers; how far behind is "behind" is enemy.gd's.
 static var CLOSE_CALL_OPEN := 2.0  # Close Call: an enemy whose attack you dodged through is Open this long

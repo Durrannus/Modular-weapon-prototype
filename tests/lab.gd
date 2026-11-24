@@ -191,22 +191,22 @@ func _search() -> void:
 
 ## A change reaches the game's own code, and a reset takes it out again.
 func _changes() -> void:
-	_check(is_equal_approx(float(SwingBuild.blade_info("iron_broadsword")["damage"]), 11.0), "an iron broadsword hits for 11 to begin with")
+	_check(is_equal_approx(float(SwingBuild.blade_info("iron_broadsword")["damage"]), 7.0), "an iron broadsword hits for 7 to begin with (Darren's lab, version 57)")
 	Lab.set_value("build:METALS/iron", 22.0)
 	_check(is_equal_approx(float(SwingBuild.blade_info("iron_broadsword")["damage"]), 22.0), "iron at 22: an iron broadsword hits for 22")
 	_check(is_equal_approx(float(SwingBuild.blade_info("iron_greatsword")["damage"]), 22.0 * 1.6), "...and a greatsword for 1.6 times that")
-	_check(is_equal_approx(float(SwingBuild.blade_info("tin_blade")["damage"]), 8.0), "...and tin is as it was")
+	_check(is_equal_approx(float(SwingBuild.blade_info("tin_blade")["damage"]), 5.0), "...and tin is as it was")
 	_check(Lab.changed_count() == 1 and Lab.changed_on("All weapons") == 1 and Lab.changed_on("Sword") == 0, "one number is changed, on its own page")
 	_check(Lab.words("build:METALS/iron", Lab.value("build:METALS/iron")) == "22", "it reads 22")
 	Lab.reset("build:METALS/iron")
-	_check(is_equal_approx(float(SwingBuild.blade_info("iron_broadsword")["damage"]), 11.0) and Lab.changed_count() == 0, "reset: 11 again, nothing changed")
+	_check(is_equal_approx(float(SwingBuild.blade_info("iron_broadsword")["damage"]), 7.0) and Lab.changed_count() == 0, "reset: 7 again, nothing changed")
 	# A number kept in several places (every finisher's strength).
 	Lab.set_value("chain_finisher", 2.0)
 	_check(is_equal_approx(float(Player.MOVES["overhead"]["power"]), 2.0) and is_equal_approx(float(Player.MOVES["crush"]["power"]), 2.0)
 		and is_equal_approx(float(Player.MOVES["burst"]["power"]), 2.0), "the third hit at 200%: the sword's, the hammer's and the staff's finishers all follow")
 	_check(is_equal_approx(float(Player.MOVES["slash"]["power"]), 1.0), "...and a normal hit is still one hit")
 	Lab.reset("chain_finisher")
-	_check(is_equal_approx(float(Player.MOVES["overhead"]["power"]), 1.5), "reset: 150% again")
+	_check(is_equal_approx(float(Player.MOVES["overhead"]["power"]), 1.1), "reset: 110% again")
 	# Limits, whole numbers, shares and seconds.
 	Lab.set_value("build:METALS/iron", 99999.0)
 	_check(is_equal_approx(Lab.value("build:METALS/iron"), 500.0), "a number can't go past its limit")
@@ -257,7 +257,7 @@ func _file() -> void:
 	_check(is_equal_approx(SwingBuild.BOW_DAMAGE, 0.9) and is_equal_approx(Guardian.HP, 400.0), "back offline: the lab's numbers again")
 	# A file with rubbish in it does no harm.
 	var f := FileAccess.open(FILE, FileAccess.WRITE)
-	f.store_string(JSON.stringify({"changes": {"build:BOW_DAMAGE": 99.0, "no:SUCH/number": 3.0, "guardian:HP": "big", "build:METALS/tin": 8.0}}))
+	f.store_string(JSON.stringify({"changes": {"build:BOW_DAMAGE": 99.0, "no:SUCH/number": 3.0, "guardian:HP": "big", "build:METALS/tin": float(SwingBuild.METALS["tin"])}}))
 	f.close()
 	Lab.load_file()
 	Lab._apply_all()
@@ -280,7 +280,7 @@ func _arena() -> void:
 	_check(m.hud.has_lab, "the HUD knows the lab is there (its button shows)")
 	var version = root.get_node_or_null("VersionLabel")
 	_check(version != null and version.lab_words() == "", "the version corner says nothing about the lab while nothing is changed")
-	_check(is_equal_approx(float(p.weapon["damage"]), 11.0), "the test sword hits for 11")
+	_check(is_equal_approx(float(p.weapon["damage"]), 7.0), "the test sword hits for 7")
 	# Open: the game stops. Change iron and health; close: both are in force.
 	m.open_lab()
 	_check(s.is_open and paused, "L opens it and the game stops")
@@ -294,8 +294,8 @@ func _arena() -> void:
 		_check(s._rows.size() == want and want > 0, "the page %s shows its %d numbers (%d)" % [page, want, s._rows.size()])
 	s._show_page("All weapons")
 	s._nudge("build:METALS/iron", 1)
-	_check(is_equal_approx(SwingBuild.METALS["iron"], 11.5), "+ on iron: 11.5")
-	_check(s._rows["build:METALS/iron"]["was"].text == "game: 11" and s._rows["build:METALS/iron"]["reset"].visible, "the row says what the game's own number is and offers Reset")
+	_check(is_equal_approx(SwingBuild.METALS["iron"], 7.5), "+ on iron: 7.5")
+	_check(s._rows["build:METALS/iron"]["was"].text == "game: 7" and s._rows["build:METALS/iron"]["reset"].visible, "the row says what the game's own number is and offers Reset")
 	_check(s._status.text == "1 number changed." and str(s._page_buttons["All weapons"].text) == "ALL WEAPONS (1)", "the screen counts it: %s / %s" % [s._status.text, s._page_buttons["All weapons"].text])
 	# Typing a number.
 	var box = s._rows["build:METALS/iron"]["edit"]
@@ -314,7 +314,7 @@ func _arena() -> void:
 		box.put(ch)
 	box.finish()
 	p.hp = 50.0
-	_check(is_equal_approx(float(p.weapon["damage"]), 11.0), "(the sword in the hand waits for the screen to close)")
+	_check(is_equal_approx(float(p.weapon["damage"]), 7.0), "(the sword in the hand waits for the screen to close)")
 	s.close()
 	_check(not s.is_open and not paused, "closing it starts the game again")
 	_check(is_equal_approx(float(p.weapon["damage"]), 22.0), "the sword in the hand now hits for 22")
@@ -329,7 +329,7 @@ func _arena() -> void:
 	s._reset_all()
 	_check(Lab.changed_count() == 0 and s._status.text == "Every number is the game's own.", "reset everything")
 	s.close()
-	_check(is_equal_approx(float(p.weapon["damage"]), 11.0) and is_equal_approx(p.max_hp, 100.0), "and the game follows: 11 damage, 100 health")
+	_check(is_equal_approx(float(p.weapon["damage"]), 7.0) and is_equal_approx(p.max_hp, 100.0), "and the game follows: 7 damage, 100 health")
 	# The spawner: every enemy in the game.
 	m.open_lab()
 	s._show_page("Spawn")

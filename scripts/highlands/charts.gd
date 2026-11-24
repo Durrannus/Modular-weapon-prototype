@@ -17,6 +17,12 @@ extends Node
 ##   - The whole map stops the game, like the inventory. It opens and closes on M (or a click of the right stick,
 ##     when that is not the test setup's weapon swap); Esc, B and Start close it too.
 ##   - Online (on hold) has no map yet.
+##
+## Version 57, Darren, 24 November: "add map reveal to the lab and click on it to teleport. can only teleport to ground
+## walkable". The lab's switch (LAB_MAP) draws the whole land as seen, on both maps, without counting it as seen in the
+## world's save (switched off, the map is what the squad has really seen again); and while it is on, a click on the
+## whole map takes the squad there. Only to ground somebody can stand on: a click on rock, water or a trunk goes to the
+## nearest such ground within GO_NEAR tiles, or else the map says "Can't go there" and stays open. (Claude's choices.)
 
 const LandMap := preload("res://scripts/highlands/land_map.gd")
 const Art := preload("res://scripts/art.gd")
@@ -35,6 +41,11 @@ const AMBER := Color("#ffc850")
 const PLATE := Color("#19142a")
 const SHADOW := Color(0.06, 0.04, 0.09, 0.9)
 const FOG := 15                    # the palette's entry for land nobody has seen
+const GO_NEAR := 3                 # the lab's click: how far (tiles) it looks for ground to stand on
+const NOTE_TIME := 2.0
+
+## The lab (version 57): 1 shows the whole map, and a click on the whole map takes the squad there.
+static var LAB_MAP := 0
 
 ## Each kind of land's colour on the map, from the Highlands kit's palette (art/highlands/kit.json).
 const COLOURS := {
@@ -52,10 +63,11 @@ const SHADER := """
 shader_type canvas_item;
 uniform sampler2D seen : filter_nearest;
 uniform sampler2D palette : filter_nearest;
+uniform bool all_seen = false;
 void fragment() {
 	int k = int(texture(TEXTURE, UV).r * 255.0 + 0.5);
 	float s = texture(seen, UV).r;
-	COLOR = texelFetch(palette, ivec2(s > 0.5 ? k : 15, 0), 0);
+	COLOR = texelFetch(palette, ivec2((s > 0.5 || all_seen) ? k : 15, 0), 0);
 }
 """
 
@@ -82,6 +94,9 @@ var corner_land: Control           # its land (drawn by the shader)
 var corner_marks: Control          # and the marks over it
 var screen: Control
 var _opened_at := 0.0
+var note := ""                     # a line on the whole map ("Can't go there"), for NOTE_TIME
+var note_until := -9.0
+var nav                            # the enemies' way-finding grid (nav.gd): which tiles can be stood on
 
 
 func _ready() -> void:
@@ -187,6 +202,15 @@ func seen(x: int, y: int) -> bool:
 	return x >= 0 and y >= 0 and x < LandMap.SIZE and y < LandMap.SIZE and explored[y * LandMap.SIZE + x] != 0
 
 
+## Is tile (x, y) drawn on the maps? What has been seen, or all of it while the lab's switch is on.
+func shows(x: int, y: int) -> bool:
+	return lab_on() or seen(x, y)
+
+
+func lab_on() -> bool:
+	return int(LAB_MAP) >= 1
+
+
 ## How many tiles have been seen (for the checks).
 func seen_count() -> int:
 	return explored.count(255)
@@ -233,6 +257,11 @@ func close() -> void:
 
 
 func _input(event: InputEvent) -> void:
+	if is_open and event is InputEventMouseButton and event.is_pressed() and (event as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT:
+		get_viewport().set_input_as_handled()
+		if lab_on() and clock - _opened_at >= 0.12:
+			click((screen.make_input_local(event) as InputEventMouseButton).position)
+		return
 	if not (event is InputEventKey or event is InputEventJoypadButton) or not event.is_pressed() or event.is_echo():
 		return
 	var toggles: bool = (event is InputEventKey and (event as InputEventKey).physical_keycode == KEY_M) \
@@ -254,6 +283,8 @@ func _input(event: InputEvent) -> void:
 
 func _process(delta: float) -> void:
 	clock += delta
+	if mat != null:
+		mat.set_shader_parameter("all_seen", lab_on())
 	var shown := _corner_shown()
 	corner.visible = shown
 	if shown:
@@ -263,6 +294,83 @@ func _process(delta: float) -> void:
 		corner_marks.queue_redraw()
 	if is_open:
 		screen.queue_redraw()
+
+
+# --- The lab's click on the whole map (version 57) ----------------------------------------------
+
+## The tile under a point of the screen on the whole map, or (-1, -1) off the land.
+func tile_at(at: Vector2) -> Vector2i:
+	var l := layout()
+	var dest: Rect2 = l[0]
+	if not dest.has_point(at):
+		return Vector2i(-1, -1)
+	var t: Vector2 = (l[1] as Rect2).position + (at - dest.position) / float(l[2])
+	return Vector2i(t.floor())
+
+
+## Where the squad would land for a click on `tile`: itself if it can be stood on, else the nearest tile that can
+## within GO_NEAR, else (-1, -1).
+func landing(tile: Vector2i) -> Vector2i:
+	if tile.x < 0 or not map.region.has_point(tile):
+		return Vector2i(-1, -1)
+	if nav != null:
+		var free: Vector2i = nav.nearest_free(tile, GO_NEAR)
+		return free if free.x >= 0 and map.walkable(free.x, free.y) else Vector2i(-1, -1)
+	for r in GO_NEAR + 1:
+		for dy in range(-r, r + 1):
+			for dx in range(-r, r + 1):
+				if maxi(absi(dx), absi(dy)) == r and map.walkable(tile.x + dx, tile.y + dy):
+					return tile + Vector2i(dx, dy)
+	return Vector2i(-1, -1)
+
+
+## The lab's click at a point of the screen: the squad goes there (and the map closes), or the map says why not.
+func click(at: Vector2) -> bool:
+	if not is_open or not lab_on():
+		return false
+	var to := landing(tile_at(at))
+	if to.x < 0:
+		note = "Can't go there"
+		note_until = clock + NOTE_TIME
+		Sfx.play(self, "click", -8.0, 0.6)
+		return false
+	go_to(to)
+	close()
+	return true
+
+
+## Put the whole squad on `tile` (the second and later players on the free tiles nearest it).
+func go_to(tile: Vector2i) -> void:
+	var taken: Array = []
+	for p in players:
+		if not is_instance_valid(p):
+			continue
+		var t := tile
+		if not taken.is_empty():
+			t = _free_beside(tile, taken)
+		taken.append(t)
+		p.global_position = (Vector2(t) + Vector2(0.5, 0.5)) * TILE
+		p.velocity = Vector2.ZERO
+		p.reset_physics_interpolation()
+	if game != null:
+		if game.rig != null:
+			game.rig.snap()
+		if game.land != null:
+			game.land.prime()
+		if game.has_method("_swallow_presses"):
+			game._swallow_presses()
+	reveal((Vector2(tile) + Vector2(0.5, 0.5)) * TILE)
+	Sfx.play(self, "pickup", -9.0, 0.6)
+
+
+func _free_beside(tile: Vector2i, taken: Array) -> Vector2i:
+	for r in range(1, GO_NEAR + 2):
+		for dy in range(-r, r + 1):
+			for dx in range(-r, r + 1):
+				var t := tile + Vector2i(dx, dy)
+				if maxi(absi(dx), absi(dy)) == r and not (t in taken) and map.walkable(t.x, t.y) and (nav == null or nav.is_free(t)):
+					return t
+	return tile
 
 
 # --- What is saved (with the world) ---------------------------------------------------------
@@ -359,6 +467,8 @@ func area() -> Rect2:
 
 ## The part of the land the whole map shows (tiles): everything that has been seen, with a little room around it.
 func shown_tiles() -> Rect2:
+	if lab_on():
+		return Rect2(map.region).grow(2.0)
 	var lo := Vector2i(LandMap.SIZE, LandMap.SIZE)
 	var hi := Vector2i(-1, -1)
 	var region: Rect2i = map.region
@@ -384,6 +494,19 @@ func shown_tiles() -> Rect2:
 	return r
 
 
+## Where the whole map is drawn: [the rectangle on the screen, the tiles it shows, screen pixels a tile].
+func layout() -> Array:
+	var a := area()
+	var src := shown_tiles()
+	# Whole pixels a tile once there is room for two or more; between one and two it fills the space, so the map is
+	# not drawn needlessly small.
+	var scale := minf(a.size.x / src.size.x, a.size.y / src.size.y)
+	if scale >= 2.0:
+		scale = floorf(scale)
+	var size := src.size * scale
+	return [Rect2((a.position + (a.size - size) * 0.5).round(), size), src, scale]
+
+
 func _draw_screen() -> void:
 	if not is_open:
 		return
@@ -395,16 +518,13 @@ func _draw_screen() -> void:
 	if not Art.draw_nine(screen, "swing/ui/panel.png", plate, 8):
 		screen.draw_rect(plate, PLATE)
 	_words(screen, silk, Vector2(24, 26), "MAP OF THE HIGHLANDS", 8, AMBER)
-	_words(screen, pix, Vector2(24, 26), "M: close", Art.TEXT_SIZE, FAINT, 592.0, HORIZONTAL_ALIGNMENT_RIGHT)
-	var a := area()
-	var src := shown_tiles()
-	# Whole pixels a tile once there is room for two or more; between one and two it fills the space, so the map is
-	# not drawn needlessly small.
-	var scale := minf(a.size.x / src.size.x, a.size.y / src.size.y)
-	if scale >= 2.0:
-		scale = floorf(scale)
-	var size := src.size * scale
-	var dest := Rect2((a.position + (a.size - size) * 0.5).round(), size)
+	_words(screen, pix, Vector2(24, 26), "Click: go there     M: close" if lab_on() else "M: close", Art.TEXT_SIZE, FAINT, 592.0, HORIZONTAL_ALIGNMENT_RIGHT)
+	if clock < note_until and note != "":
+		_words(screen, pix, Vector2(24, 342), note, Art.TEXT_SIZE, AMBER, 592.0, HORIZONTAL_ALIGNMENT_CENTER)
+	var l := layout()
+	var dest: Rect2 = l[0]
+	var src: Rect2 = l[1]
+	var scale: float = l[2]
 	# The land, drawn by a child so the plate and the words keep their own looks.
 	var land := screen.get_node_or_null("Land") as Control
 	if land == null:
@@ -440,19 +560,59 @@ func _draw_over() -> void:
 	var src: Rect2 = over.get_meta("src")
 	var scale: float = over.get_meta("scale")
 	var pix := Art.font(Art.TEXT)
+	for spot in name_spots(dest, src, scale):
+		var r: Rect2 = spot["rect"]
+		_words(over, pix, Vector2(r.position.x, r.end.y - 2.0), spot["text"], Art.TEXT_SIZE, spot["col"])
+	_draw_marks(over, dest, src.position, scale)
+	# The lab's click: where it would take the squad.
+	if lab_on():
+		var to := landing(tile_at(screen.get_local_mouse_position()))
+		if to.x >= 0:
+			var c := (dest.position + (Vector2(to) + Vector2(0.5, 0.5) - src.position) * scale).round()
+			over.draw_rect(Rect2(c - Vector2(3, 3), Vector2(7, 7)), AMBER, false, 1.0)
+
+
+## Where the whole map writes its names: "Your cave" first, then each place somebody has seen (or every place while
+## the lab's switch is on). When the map is small, places stand close, so a name that would run into one already
+## written goes above, below or to one side of its place instead (version 57; the first spot that is clear, else
+## the one that overlaps least). Each is {text, rect, col}.
+func name_spots(dest: Rect2, src: Rect2, scale: float) -> Array:
+	var pix := Art.font(Art.TEXT)
+	var want: Array = []
+	var cave := dest.position + (Vector2(map.mouth) + Vector2(0.5, 1.0) - src.position) * scale
+	if dest.has_point(cave):
+		want.append({"text": "Your cave", "at": cave + Vector2(0, -11), "col": DIM})
 	for name in PLACE_NAMES:
 		if not map.sites.has(name):
 			continue
 		var at: Vector2 = map.sites[name]["at"]
-		if not seen(int(at.x), int(at.y)):
+		if not shows(int(at.x), int(at.y)):
 			continue
 		var p := dest.position + (at - src.position) * scale
 		if dest.has_point(p):
-			_words(over, pix, (p + Vector2(-60, 4)).round(), str(PLACE_NAMES[name]), Art.TEXT_SIZE, INK, 120.0, HORIZONTAL_ALIGNMENT_CENTER)
-	var cave := dest.position + (Vector2(map.mouth) + Vector2(0.5, 1.0) - src.position) * scale
-	if dest.has_point(cave):
-		_words(over, pix, (cave + Vector2(-60, -8)).round(), "Your cave", Art.TEXT_SIZE, DIM, 120.0, HORIZONTAL_ALIGNMENT_CENTER)
-	_draw_marks(over, dest, src.position, scale)
+			want.append({"text": str(PLACE_NAMES[name]), "at": p, "col": INK})
+	var placed: Array = []
+	for w in want:
+		var size := Vector2(60, 8)
+		if pix != null:
+			size = pix.get_string_size(w["text"], HORIZONTAL_ALIGNMENT_LEFT, -1, Art.TEXT_SIZE)
+		size.y = maxf(size.y, 8.0)
+		var best := Rect2()
+		var least := INF
+		for off in [Vector2.ZERO, Vector2(0, -size.y - 1), Vector2(0, size.y + 1), Vector2(size.x * 0.5 + 6, 0), Vector2(-size.x * 0.5 - 6, 0),
+				Vector2(0, -2.0 * size.y - 2), Vector2(0, 2.0 * size.y + 2)]:
+			var r := Rect2(((w["at"] as Vector2) + off - size * 0.5).round(), size)
+			r.position.x = clampf(r.position.x, dest.position.x, maxf(dest.end.x - size.x, dest.position.x))
+			var overlap := 0.0
+			for q in placed:
+				overlap += (q["rect"] as Rect2).intersection(r).get_area()
+			if overlap < least:
+				least = overlap
+				best = r
+			if overlap == 0.0:
+				break
+		placed.append({"text": w["text"], "rect": best, "col": w["col"]})
+	return placed
 
 
 func _words(ci: CanvasItem, f: Font, at: Vector2, text: String, size: int, col: Color, width := -1.0, align := HORIZONTAL_ALIGNMENT_LEFT) -> void:

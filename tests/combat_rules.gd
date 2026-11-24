@@ -13,7 +13,9 @@ const SwingBuild := preload("res://scripts/weapon/swing_build.gd")
 const Player := preload("res://scripts/player.gd")
 const RuneFx := preload("res://scripts/fx/rune_fx.gd")
 
-const SWING := 30.8          # one swing of the iron maul (18.7 until version 34 made the hammer slow and heavy)
+## One swing of the iron maul, read from the game (19.6 since Darren's lab in version 57;
+## 30.8 from version 34, 18.7 before that).
+var SWING: float = float(SwingBuild.hammer_info("iron_maul")["damage"])
 const HOME := Vector2(900, 560)   # the middle of the room, far from every wall
 
 var m

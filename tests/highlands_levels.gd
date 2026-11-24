@@ -1449,29 +1449,29 @@ func _kindle() -> void:
 	_check(at.x > e.global_position.x and at.distance_to(e.global_position) < 40.0 and g.map.walkable(int(at.x / TILE), int(at.y / TILE)), "it lies on the ground beyond the enemy")
 	_check(is_equal_approx(float(lv.spark_wait[0]), Levels.SPARK_EVERY) or float(lv.spark_wait[0]) > Levels.SPARK_EVERY - 0.2, "(and the next has to wait)")
 	lv.finisher(p, [e])
-	_check(lv.sparks.size() == 1, "one Spark every 4 s at most")
+	_check(lv.sparks.size() == 1, "one Spark every %d s at most" % int(Levels.SPARK_EVERY))
 	lv.spark_wait[0] = 0.0
 	lv.finisher(p, [e])
-	_check(lv.sparks.size() == 2, "after 4 s, another")
+	_check(lv.sparks.size() == 2, "after %d s, another" % int(Levels.SPARK_EVERY))
 	lv.sparks.remove_at(1)
-	# Somebody at full health walks over it: it stays. Somebody hurt: it heals a tenth of their health.
+	# Somebody at full health walks over it: it stays. Somebody hurt: it heals SPARK_HEAL of their health (a twentieth since Darren's lab, version 57).
 	e.global_position += Vector2(400, 0)
 	p.global_position = at
 	await _frames(3)
 	_check(lv.sparks.size() == 1 and p.hp == p.max_hp, "at full health a Spark is left lying")
 	p.hp = p.max_hp * 0.5
 	await _frames(2)
-	_check(lv.sparks.is_empty() and is_equal_approx(p.hp, p.max_hp * 0.6), "walking over a Spark heals 10%% of your health (%.0f of %.0f)" % [p.hp, p.max_hp])
+	_check(lv.sparks.is_empty() and is_equal_approx(p.hp, p.max_hp * (0.5 + Levels.SPARK_HEAL)), "walking over a Spark heals %d%% of your health (%.0f of %.0f)" % [roundi(Levels.SPARK_HEAL * 100.0), p.hp, p.max_hp])
 	_check(lv.spark_takes.size() == 1, "(and is seen to be taken)")
 	# It never heals past full.
 	lv.sparks.append({"at": p.global_position, "left": 5.0, "by": 0})
 	p.hp = p.max_hp - 1.0
 	await _frames(2)
 	_check(p.hp == p.max_hp and lv.sparks.is_empty(), "never past full health")
-	# Sparks last 10 s.
+	# Sparks last SPARK_LIFE seconds (5 since Darren's lab, version 57).
 	lv.sparks.append({"at": p.global_position + Vector2(300, 0), "left": Levels.SPARK_LIFE, "by": 0})
 	await _frames(int(Levels.SPARK_LIFE * 60.0) - 30)
-	_check(lv.sparks.size() == 1, "a Spark lies for 10 s")
+	_check(lv.sparks.size() == 1, "a Spark lies for %d s" % int(Levels.SPARK_LIFE))
 	await _frames(40)
 	_check(lv.sparks.is_empty(), "and is gone after")
 	e.queue_free()

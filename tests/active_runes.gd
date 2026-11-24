@@ -7,6 +7,7 @@ extends SceneTree
 const EnemyScript := preload("res://scripts/enemy.gd")
 const RuneFx := preload("res://scripts/fx/rune_fx.gd")
 const SwingBuild := preload("res://scripts/weapon/swing_build.gd")
+const Player := preload("res://scripts/player.gd")
 
 var m
 var p
@@ -15,6 +16,11 @@ var swings := 0
 var last_step := -1
 var most_turns := 0
 var lowest := 1.0     # the emptiest button one's meter has been
+## A broadsword chain in hits, a Weak Point mark's hit and a Whirlwind cut, read from the game
+## (Darren's lab made them 3.1, 1.5 and 0.6 in version 57; they were 3.5, 2.5 and 0.9).
+var CHAIN: float = 2.0 + float(Player.MOVES["overhead"]["power"])
+var WEAK: float = Player.WEAK_CRIT
+var WHIRL: float = Player.WHIRLWIND_DAMAGE
 
 
 func _init() -> void:
@@ -220,7 +226,7 @@ func _run() -> void:
 	for e in ring:
 		worst = maxf(worst, 5000.0 - e.hp)
 		best = minf(best, 5000.0 - e.hp)
-	_check(absf(best - dmg * 0.9 * 6.0) < 0.01 and absf(worst - best) < 0.01, "every enemy around was cut once a turn (%.1f each, blade %.0f)" % [best, dmg])
+	_check(absf(best - dmg * WHIRL * 6.0) < 0.01 and absf(worst - best) < 0.01, "every enemy around was cut once a turn (%.1f each, blade %.0f)" % [best, dmg])
 	_check(lowest < 0.01, "the meter was emptied (%.2f)" % lowest)
 	_release()
 	await _frames(5)
@@ -518,7 +524,7 @@ func _weak_point_checks(dmg: float) -> void:
 	_check(near.weak_marks.size() == 1 and p.weak_marks.size() == 1, "the finisher marks the enemy it hit")
 	near.hp = 5000.0
 	await _swing()
-	_check(absf((5000.0 - near.hp) - dmg * 2.5) < 0.01, "the next hit on the mark is a big crit: 2.5 hits' worth (%.1f, blade %.0f)" % [5000.0 - near.hp, dmg])
+	_check(absf((5000.0 - near.hp) - dmg * WEAK) < 0.01, "the next hit on the mark is a big crit: %.2f hits' worth (%.1f, blade %.0f)" % [WEAK, 5000.0 - near.hp, dmg])
 	_check(near.weak_marks.is_empty() and p.weak_marks.is_empty(), "and it uses the mark up")
 	near.hp = 5000.0
 	await _swing()
@@ -565,7 +571,7 @@ func _weak_point_checks(dmg: float) -> void:
 	p.global_position = big.global_position + spot_dir * 75.0
 	big.hp = 5000.0
 	await _swing(-spot_dir)
-	_check(absf((5000.0 - big.hp) - dmg * 2.5) < 0.01 and big.weak_marks.is_empty(), "stepping round and hitting the spot is the big crit (%.1f)" % (5000.0 - big.hp))
+	_check(absf((5000.0 - big.hp) - dmg * WEAK) < 0.01 and big.weak_marks.is_empty(), "stepping round and hitting the spot is the big crit (%.1f)" % (5000.0 - big.hp))
 
 	# Twice: two spots on a big enemy.
 	_sword_exact(["twice", "weak_point", "", ""])
@@ -597,7 +603,7 @@ func _weak_point_checks(dmg: float) -> void:
 	_check(near.weak_marks.size() == 1, "Every Hit: an ordinary hit marks")
 	near.hp = 5000.0
 	await _swing()
-	_check(absf((5000.0 - near.hp) - dmg * 1.75) < 0.01, "and the next hit is a smaller crit: 1.75 hits' worth (%.2f)" % (5000.0 - near.hp))
+	_check(absf((5000.0 - near.hp) - dmg * (1.0 + (WEAK - 1.0) * 0.5)) < 0.01, "and the next hit is a smaller crit, half the bonus: %.2f hits' worth (%.2f)" % [1.0 + (WEAK - 1.0) * 0.5, 5000.0 - near.hp])
 	_check(near.weak_marks.is_empty(), "the hit that strikes a mark doesn't put a new one on")
 	near.queue_free()
 	await _frames(2)
@@ -614,7 +620,7 @@ func _weak_point_checks(dmg: float) -> void:
 	_check(near.weak_marks.size() == 1, "the third one does")
 	near.hp = 5000.0
 	await _swing()
-	_check(absf((5000.0 - near.hp) - dmg * 5.5) < 0.01, "and its crit is huge: 5.5 hits' worth (%.1f)" % (5000.0 - near.hp))
+	_check(absf((5000.0 - near.hp) - dmg * (1.0 + (WEAK - 1.0) * 3.0)) < 0.01, "and its crit is huge, three times the bonus: %.2f hits' worth (%.1f)" % [1.0 + (WEAK - 1.0) * 3.0, 5000.0 - near.hp])
 	near.queue_free()
 	await _frames(2)
 
@@ -643,7 +649,7 @@ func _weak_point_checks(dmg: float) -> void:
 	await _chain()
 	near.hp = 5000.0
 	await _swing()
-	_check(absf((5000.0 - near.hp) - dmg * 2.9) < 0.01, "a Heavy pommel's +40%% crit damage adds to it (%.1f)" % (5000.0 - near.hp))
+	_check(absf((5000.0 - near.hp) - dmg * (WEAK + 0.4)) < 0.01, "a Heavy pommel's +40%% crit damage adds to it (%.1f)" % (5000.0 - near.hp))
 	m.build.set_pommel("plain_pommel")
 	near.queue_free()
 	await _frames(2)
@@ -682,7 +688,7 @@ func _ghostwield_checks(dmg: float) -> void:
 	near.hp = 5000.0
 	await _chain()
 	await _frames(20)
-	_check(absf(_lost(near) - dmg * 3.5 * (1.0 + g)) < 0.01, "a whole chain: 3.5 hits and the ghost's 1.225 (%.1f, blade %.0f)" % [_lost(near), dmg])
+	_check(absf(_lost(near) - dmg * CHAIN * (1.0 + g)) < 0.01, "a whole chain: %.2f hits and the ghost's %.3f (%.1f, blade %.0f)" % [CHAIN, CHAIN * g, _lost(near), dmg])
 	_check(float(p.ability_charge[0]) < 0.2, "its meter is still filling while it is out (%.2f)" % p.ability_charge[0])
 	# Its time runs out.
 	p.ghost_left = 0.2
@@ -763,7 +769,7 @@ func _ghostwield_checks(dmg: float) -> void:
 	near.hp = 5000.0
 	await _chain()
 	await _frames(24)
-	_check(absf(_lost(near) - dmg * (3.5 + 0.4) * (1.0 + g)) < 0.01, "Shockwave: the ghost's finisher sends a second wave at a third of its strength (%.2f, want %.2f)" % [_lost(near), dmg * (3.5 + 0.4) * (1.0 + g)])
+	_check(absf(_lost(near) - dmg * (CHAIN + 0.4) * (1.0 + g)) < 0.01, "Shockwave: the ghost's finisher sends a second wave at a third of its strength (%.2f, want %.2f)" % [_lost(near), dmg * (CHAIN + 0.4) * (1.0 + g)])
 
 	_sword_exact(["ghostwield", "saved_up", "shockwave", ""])
 	await _rest()
@@ -771,17 +777,17 @@ func _ghostwield_checks(dmg: float) -> void:
 	near.hp = 5000.0
 	await _chain()
 	await _frames(24)
-	_check(absf(_lost(near) - dmg * 3.5 * (1.0 + g)) < 0.01, "Saved Up Shockwave: no wave, and no ghost wave, on the first finisher (%.2f)" % _lost(near))
+	_check(absf(_lost(near) - dmg * CHAIN * (1.0 + g)) < 0.01, "Saved Up Shockwave: no wave, and no ghost wave, on the first finisher (%.2f)" % _lost(near))
 	await _chain()
 	await _frames(24)
 	near.hp = 5000.0
 	await _chain()
 	await _frames(24)
-	_check(absf(_lost(near) - dmg * (3.5 + 1.2) * (1.0 + g)) < 0.01, "the third finisher's big wave gets its ghost too, and the count isn't thrown (%.2f, want %.2f)" % [_lost(near), dmg * (3.5 + 1.2) * (1.0 + g)])
+	_check(absf(_lost(near) - dmg * (CHAIN + 1.2) * (1.0 + g)) < 0.01, "the third finisher's big wave gets its ghost too, and the count isn't thrown (%.2f, want %.2f)" % [_lost(near), dmg * (CHAIN + 1.2) * (1.0 + g)])
 	near.hp = 5000.0
 	await _chain()
 	await _frames(24)
-	_check(absf(_lost(near) - dmg * 3.5 * (1.0 + g)) < 0.01, "and the fourth has none again (%.2f)" % _lost(near))
+	_check(absf(_lost(near) - dmg * CHAIN * (1.0 + g)) < 0.01, "and the fourth has none again (%.2f)" % _lost(near))
 
 	# (Back to the middle first: by now the fight has drifted against the east
 	# wall, and a wall stops shards.)
@@ -806,10 +812,10 @@ func _ghostwield_checks(dmg: float) -> void:
 	near.hp = 5000.0
 	await _chain()
 	await _frames(20)
-	_check(near.weak_marks.size() == 1 and absf(_lost(near) - dmg * 3.5 * (1.0 + g)) < 0.01, "Weak Point: the ghost's copy of the finisher doesn't spend the mark (%.1f)" % _lost(near))
+	_check(near.weak_marks.size() == 1 and absf(_lost(near) - dmg * CHAIN * (1.0 + g)) < 0.01, "Weak Point: the ghost's copy of the finisher doesn't spend the mark (%.1f)" % _lost(near))
 	near.hp = 5000.0
 	await _swing()
-	_check(near.weak_marks.is_empty() and absf(_lost(near) - dmg * (2.5 + g)) < 0.01, "your next hit takes the big crit, and the ghost copies it as an ordinary hit (%.1f)" % _lost(near))
+	_check(near.weak_marks.is_empty() and absf(_lost(near) - dmg * (WEAK + g)) < 0.01, "your next hit takes the big crit, and the ghost copies it as an ordinary hit (%.1f)" % _lost(near))
 	near.queue_free()
 	await _frames(2)
 	_sword_exact(["whirlwind", "leap", "ghostwield", "weak_point"])

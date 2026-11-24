@@ -553,7 +553,7 @@ func apply_stun(duration: float) -> void:
 # Stagger (the hammer's passive rune, 15 November): a hammer's swings fill a meter
 # on the enemy. Full, it breaks: a heavy blow and a long stun (player.gd,
 # _add_stagger). The meter is the enemy's own, so two hammers fill it together.
-static var STAGGER_FULL := 4.0       # in swings (a slam counts as one and a half)
+static var STAGGER_FULL := 4.0       # in swings (a slam counts as strong as it hits: 1.1 since Darren's lab, version 57)
 static var STAGGER_HOLD := 3.0       # seconds without a hit before it starts to empty...
 static var STAGGER_DRAIN := 2.0      # ...this fast, in swings a second
 var stagger := 0.0              # the meter, 0 to STAGGER_FULL

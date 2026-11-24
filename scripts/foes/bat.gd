@@ -8,11 +8,11 @@ extends "res://scripts/foes/foe.gd"
 
 static var HP := 4.0
 static var SPEED := 150.0
-static var DIVE_SPEED := 300.0
+static var DIVE_SPEED := 350.0  # Darren's lab, 24 Nov (version 57; was 300.0)
 static var NIP := 4.0
 static var HOVER := 78.0             # how far from you it flutters
-static var REST_MIN := 1.6           # seconds between its swoops
-static var REST_MAX := 2.8
+static var REST_MIN := 1.0           # seconds between its swoops (Darren's lab, version 57; was 1.6)
+static var REST_MAX := 2.0  # Darren's lab, 24 Nov (version 57; was 2.8)
 const FLY_HEIGHT := 22.0             # how far above its shadow it is drawn (world units)
 const DIVE_PAST := 70.0              # a swoop carries on this far past where you stood
 

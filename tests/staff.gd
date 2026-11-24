@@ -205,7 +205,7 @@ func _run() -> void:
 	_check(m.build.stowed.get("sword") == sword and m.build.stowed.has("bow") and m.build.stowed.has("hammer"), "the other three wait")
 	_check(m.hud.swap_button.text == "SWAP TO SWORD (B)", "the button now offers the sword again")
 	_check(m.hud._holds(p, "staff"), "the mana bar belongs to whoever holds a staff")
-	_check(_near(float(p.weapon["damage"]), 11.0 * SwingBuild.STAFF_DAMAGE) and _near(float(p.weapon["damage"]), 6.6), "a bolt from an iron crystal does 6.6: three fifths of an iron sword's 11, a little less than an arrow's 7.7")
+	_check(_near(float(p.weapon["damage"]), 7.0 * SwingBuild.STAFF_DAMAGE) and _near(float(p.weapon["damage"]), 4.2), "a bolt from an iron crystal does 4.2: three fifths of an iron sword's 7, a little less than an arrow's 4.9 (Darren's lab metals, version 57)")
 	_check(_near(float(p.weapon["range"]), 400.0) and _near(float(p.weapon["flight"]), 520.0), "it flies 400 px at 520 a second (an arrow: 520 px at 800)")
 	_check(p.weapon.get("hit_color") == Color("#ffec98"), "in the iron crystal's forge light (no more violet)")
 	var chain: Array = []
@@ -217,7 +217,7 @@ func _run() -> void:
 	fresh.set_data(SwingBuild.STARTERS["sword"])
 	fresh.take("staff")
 	_check(fresh.get_data() == SwingBuild.STARTERS["staff"] and fresh.compute()["weapon"] == "staff", "someone who never had a staff gets the wooden one")
-	_check(_near(float(fresh.compute()["damage"]), 3.0), "whose sea glass does 3: five bolts for one crawler's 14")
+	_check(_near(float(fresh.compute()["damage"]), 1.8), "whose sea glass does 1.8: eight bolts for one crawler's 14")
 	await _still()
 
 	# --- The staff at the forge: its own parts, its own numbers, its own presets ----------
@@ -242,14 +242,14 @@ func _run() -> void:
 	# The numbers plate: range, blast and mana, and what a part would change.
 	var now: Dictionary = Forge.stat_values(forge.build.compute())
 	_check(now.has("range") and now.has("size") and now.has("mana") and now.has("cast_move") and not now.has("reach"), "a staff's numbers show range, blast, mana and walking while casting")
-	_check(Forge.stat_text("damage", now["damage"]) == "Damage 6.6" and Forge.stat_text("range", now["range"]) == "Range 77%" and Forge.stat_text("size", now["size"]) == "Blast 100%",
-		"an iron staff reads Damage 6.6, Range 77% (of a shortbow's), Blast 100%")
+	_check(Forge.stat_text("damage", now["damage"]) == "Damage 4.2" and Forge.stat_text("range", now["range"]) == "Range 77%" and Forge.stat_text("size", now["size"]) == "Blast 100%",
+		"an iron staff reads Damage 4.2, Range 77% (of a shortbow's), Blast 100%")
 	_check(Forge.stat_text("mana", now["mana"]) == "Mana 100, +5 a second" and Forge.stat_text("cast_move", now["cast_move"]) == "Walk, casting 80%", "Mana 100, +5 a second (the bar the runes spend: %s), Walk, casting 80%%" % Forge.stat_text("mana", now["mana"]))
 	_check(Forge.stat_rows(forge.build.compute()).size() == 9, "nine numbers, on five rows")
 	var change: Dictionary = Forge.stat_changes(now, Forge.stat_values(forge.stats_with("iron_storm")))
-	_check(change == {"damage": "-0.7", "range": "-23%", "size": "+25%"}, "pointing at the storm head shows a lighter hit, less range, bigger spells: %s" % [change])
+	_check(change == {"damage": "-0.4", "range": "-23%", "size": "+25%"}, "pointing at the storm head shows a lighter hit, less range, bigger spells: %s" % [change])
 	change = Forge.stat_changes(now, Forge.stat_values(forge.stats_with("tin_crystal")))
-	_check(change == {"damage": "-1.8"}, "a tin crystal only changes the damage: %s" % [change])
+	_check(change == {"damage": "-1.2"}, "a tin crystal only changes the damage: %s" % [change])
 	change = Forge.stat_changes(now, Forge.stat_values(forge.stats_with("twisted_shaft")))
 	_check(change == {"slots": "+1"}, "a twisted shaft only adds a slot")
 	change = Forge.stat_changes(now, Forge.stat_values(forge.stats_with("light_cap")))
@@ -262,7 +262,7 @@ func _run() -> void:
 		if tray[i]["id"] in ["iron_storm", "twisted_shaft", "heavy_cap", "tin_crystal"]:
 			forge._use_card(i)
 	_check(m.build.get_data() == ["iron_storm", "twisted_shaft", "heavy_cap", ["nova", "lance", "", "spectre", "chain"], "tin_crystal"], "clicking a head, a shaft, a cap and a crystal fits them, and the runes stay in their slots: %s" % [m.build.get_data()])
-	_check(_near(float(p.weapon["damage"]), 8.0 * 0.6 * 0.9) and _near(float(p.weapon["range"]), 280.0) and p.weapon["steps"][2]["move"] == "orb", "and the staff in your hand is that storm staff: 4.32 a bolt's worth, 280 px, ending in an orb")
+	_check(_near(float(p.weapon["damage"]), 5.0 * 0.6 * 0.9) and _near(float(p.weapon["range"]), 280.0) and p.weapon["steps"][2]["move"] == "orb", "and the staff in your hand is that storm staff: 2.7 a bolt's worth, 280 px, ending in an orb")
 	_check(p.weapon.get("hit_color") == Color("#d0dcd8"), "casting in the tin crystal's pale steel light")
 	forge._load_test("A")
 	_check(m.build.weapon() == "staff", "the test-sword keys do nothing while a staff is on the anvil")
@@ -286,14 +286,14 @@ func _run() -> void:
 	m.build.changed.emit()
 	await _still()
 
-	# --- A chain at one enemy: three bolts of 6.6 ------------------------------------------
+	# --- A chain at one enemy: three bolts of 4.2 ------------------------------------------
 	var post = _slime(Vector2(200, 0))
 	await _frames(2)
 	await _casts(1)
-	_check(_near(_lost(post), 6.6), "a bolt hits an enemy 200 px away for 6.6 (%.3f)" % _lost(post))
+	_check(_near(_lost(post), 4.2), "a bolt hits an enemy 200 px away for 4.2 (%.3f)" % _lost(post))
 	post.hp = post.max_hp
 	await _casts(3)
-	_check(_near(_lost(post), 6.6 * 3.0), "the whole chain: three bolts, 19.8 (%.3f)" % _lost(post))
+	_check(_near(_lost(post), 4.2 * 3.0), "the whole chain: three bolts, 12.6 (%.3f)" % _lost(post))
 	_check(_bolts().is_empty(), "a bolt that hits is gone")
 	_check(is_equal_approx(p.global_position.x, home.x) and is_equal_approx(p.global_position.y, home.y), "casting doesn't move you")
 	post.queue_free()
@@ -316,11 +316,11 @@ func _run() -> void:
 	var apart = _slime(Vector2(200, -45))
 	await _frames(2)
 	await _casts(1)
-	_check(_near(_lost(target), 6.6), "the enemy a bolt lands on takes it once (%.2f)" % _lost(target))
-	_check(_near(_lost(neighbour), 6.6), "one standing right against it (30 px off) is hurt too: 6.6 (%.2f)" % _lost(neighbour))
+	_check(_near(_lost(target), 4.2), "the enemy a bolt lands on takes it once (%.2f)" % _lost(target))
+	_check(_near(_lost(neighbour), 4.2), "one standing right against it (30 px off) is hurt too: 4.2 (%.2f)" % _lost(neighbour))
 	_check(_lost(apart) == 0.0, "one 45 px away is not (the splash reaches 18 px past an enemy's edge)")
 	await _casts(3)
-	_check(_near(_lost(target), 6.6 * 4.0) and _near(_lost(neighbour), 6.6 * 4.0) and _lost(apart) == 0.0, "every bolt of the chain does the same (%.1f and %.1f)" % [_lost(target), _lost(neighbour)])
+	_check(_near(_lost(target), 4.2 * 4.0) and _near(_lost(neighbour), 4.2 * 4.0) and _lost(apart) == 0.0, "every bolt of the chain does the same (%.1f and %.1f)" % [_lost(target), _lost(neighbour)])
 	for e in [target, neighbour, apart]:
 		e.queue_free()
 	await _still()
@@ -350,7 +350,7 @@ func _run() -> void:
 	var at_end = _slime(Vector2(400.0 + 28.0, 0))
 	await _frames(2)
 	await _casts(1)
-	_check(_near(_lost(at_end), 6.6), "a bolt that hits nothing pops where it stops: an enemy whose edge is 14 px past that is caught (%.2f)" % _lost(at_end))
+	_check(_near(_lost(at_end), 4.2), "a bolt that hits nothing pops where it stops: an enemy whose edge is 14 px past that is caught (%.2f)" % _lost(at_end))
 	at_end.queue_free()
 	await _still()
 
@@ -433,7 +433,7 @@ func _run() -> void:
 	bolt = await _first_bolt()
 	_check(bolt != null and bolt.bolt == "bolt" and not p.cast_weak and _near(p._speed(), 1.0), "with no mana at all the staff still casts a whole bolt, as fast as ever")
 	await _frames(60)
-	_check(_near(_lost(post), 6.6), "which hits for all of its 6.6 (%.2f)" % _lost(post))
+	_check(_near(_lost(post), 4.2), "which hits for all of its 4.2 (%.2f)" % _lost(post))
 	post.queue_free()
 	await _still()
 	# Held down, it never runs dry: the mana is for the runes.
@@ -471,7 +471,7 @@ func _run() -> void:
 	_check(p.cast_weak and _near(p._speed(), 0.75), "three quarters as fast")
 	_check(p.mana >= 2.0 and p.mana < 6.0, "which costs nothing (%.1f)" % p.mana)
 	await _frames(60)
-	_check(_near(_lost(post), 3.3), "and hits for half: 3.3 (%.2f)" % _lost(post))
+	_check(_near(_lost(post), 2.1), "and hits for half: 2.1 (%.2f)" % _lost(post))
 	post.queue_free()
 	SwingBuild.CAST_MANA = free
 	await _still()
@@ -484,16 +484,16 @@ func _run() -> void:
 	for st in p.weapon["steps"]:
 		chain.append(st["move"])
 	_check(chain == ["spray", "spray", "orb"], "storm head: spray, spray, orb")
-	_check(_near(float(p.weapon["damage"]), 5.94) and _near(float(p.weapon["range"]), 280.0) and _near(float(p.weapon["size"]), 1.25), "its bolt is a tenth lighter (5.94), it reaches 280 px and its spells are a quarter bigger")
+	_check(_near(float(p.weapon["damage"]), 3.78) and _near(float(p.weapon["range"]), 280.0) and _near(float(p.weapon["size"]), 1.25), "its bolt is a tenth lighter (3.78), it reaches 280 px and its spells are a quarter bigger")
 	var close = _slime(Vector2(50, 0))
 	await _frames(2)
 	await _casts(1)
-	_check(_near(_lost(close), 3.0 * 0.4 * 5.94), "a spray is three sparks: from 50 px all three hit, 7.1 together (%.3f)" % _lost(close))
+	_check(_near(_lost(close), 3.0 * 0.4 * 3.78), "a spray is three sparks: from 50 px all three hit, 4.5 together (%.3f)" % _lost(close))
 	close.global_position = p.global_position + Vector2(220, 0)
 	close.hp = close.max_hp
 	await _frames(2)
 	await _casts(1)
-	_check(_near(_lost(close), 0.4 * 5.94), "from 220 px only the middle one does: 2.4 (%.3f)" % _lost(close))
+	_check(_near(_lost(close), 0.4 * 3.78), "from 220 px only the middle one does: 1.5 (%.3f)" % _lost(close))
 	close.queue_free()
 	await _still()
 	target = _slime(Vector2(150, 0))
@@ -523,7 +523,7 @@ func _run() -> void:
 		e.hp = e.max_hp
 	_check(orb != null and _near(orb.speed, 520.0 * 0.4), "the orb is slow: 208 px a second")
 	await _frames(110)
-	_check(_near(_lost(target), 8.91) and _near(_lost(neighbour), 8.91), "it bursts wide: the enemy it lands on and one 80 px from it take 8.91 each (%.2f, %.2f)" % [_lost(target), _lost(neighbour)])
+	_check(_near(_lost(target), 4.158) and _near(_lost(neighbour), 4.158), "it bursts wide: the enemy it lands on and one 80 px from it take 4.16 each (an orb is a finisher, 110% since Darren's lab) (%.2f, %.2f)" % [_lost(target), _lost(neighbour)])
 	_check(_lost(apart) == 0.0, "one 115 px away does not (the orb's burst reaches 88)")
 	for e in [target, neighbour, apart]:
 		e.queue_free()

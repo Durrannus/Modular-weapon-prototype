@@ -1102,12 +1102,12 @@ func _fight() -> void:
 	# Something answers the white hound's howl.
 	var came = g.call_foe(crown.elites[1], "hound")
 	_check(came != null and crown.court.members.has(came), "(a hound answers the howl)")
-	crown.elites[0].take_hit(99999.0, Vector2.RIGHT, 0.0, false, Color.WHITE)
+	_kill(crown.elites[0])
 	await _frames(20)
 	_check(crown.stage == "elites", "one champion down: he still watches")
 	for e in crown.elites:
 		if is_instance_valid(e) and not e.dead:
-			e.take_hit(99999.0, Vector2.RIGHT, 0.0, false, Color.WHITE)
+			_kill(e)
 	await _frames(3)
 	_check(crown.stage == "kick" and crown.throne.anim == "kick" and g.ui.hint == Crown.SAYS["kick"], "all three down: he kicks his throne apart")
 	_check(not is_instance_valid(came) or came.is_queued_for_deletion(), "what answered the howl runs")
@@ -1569,3 +1569,12 @@ func _saved() -> void:
 	_check(g.crown.ok() and not g.crown.horn and not g.crown.gate_open and g.crown.beaten == 0 and not g.relaid, "a world saved before there was a Rattlecrown plays on, with his gate shut (and its land is not laid out again)")
 	await _leave(g)
 	Save.root = old_root
+
+
+## A killing blow from behind, so that a Scrap Brute's shield never stops it
+## (which way he faces depends on how fast he walks: Darren's lab made him faster in version 57).
+func _kill(e) -> void:
+	var dir := Vector2.RIGHT
+	if "facing" in e and (e.facing as Vector2).length() > 0.01:
+		dir = (e.facing as Vector2).normalized()
+	e.take_hit(99999.0, dir, 0.0, false, Color.WHITE)

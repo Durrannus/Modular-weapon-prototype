@@ -47,7 +47,7 @@ const FINISHER_RECOVERY := 0.1   # short pause after the finisher, so holding ke
 static var DODGE_SPEED := 620.0
 static var DODGE_TIME := 0.15
 static var DODGE_MAX_CHARGES := 1
-static var DODGE_REFILL := 0.8      # seconds per charge
+static var DODGE_REFILL := 2.0      # seconds per charge (Darren's lab, version 57; was 0.8)
 
 ## The sword moves. A blade's shape picks three of them for its chain
 ## (SHAPES in swing_build.gd). Times are at attack speed 1.0.
@@ -68,40 +68,40 @@ static var MOVES := {
 	# Broadsword (and the wooden and tin blades): slash, slash, overhead.
 	"slash": {"windup": 0.055, "time": LIGHT, "shape": "arc", "arc": 120.0, "power": 1.0, "knock": 240.0, "stun": 0.16, "freeze": 0.05,
 		"curve": [-0.9, 0.9, 13.0, 16.0], "smear": "slash_smear", "alternate": true},
-	"overhead": {"windup": 0.14, "time": HEAVY, "shape": "arc", "arc": 120.0, "power": 1.5, "knock": 400.0, "stun": 0.3, "freeze": 0.1, "shake": 11.0,
+	"overhead": {"windup": 0.14, "time": HEAVY, "shape": "arc", "arc": 120.0, "power": 1.1, "knock": 400.0, "stun": 0.3, "freeze": 0.1, "shake": 11.0,
 		"curve": [-1.4, 0.45, 10.0, 18.0], "smear": "overhead_smear", "big": true},
 	# Dagger: stab, slash, stab. Quick pokes at one enemy and a short flick.
 	"dagger_stab": {"windup": 0.05, "time": LIGHT, "shape": "line", "width": 12.0, "max_hits": 1, "power": 1.0, "knock": 150.0, "stun": 0.1, "freeze": 0.03,
 		"curve": [0.0, 0.0, 4.0, 22.0], "smear": "thrust_smear"},
 	"dagger_slash": {"windup": 0.05, "time": LIGHT, "shape": "arc", "arc": 60.0, "power": 1.0, "knock": 170.0, "stun": 0.1, "freeze": 0.03,
 		"curve": [-0.56, 0.56, 12.0, 15.0], "smear": "flick_smear"},
-	"dagger_finish": {"windup": 0.09, "time": HEAVY, "shape": "line", "width": 14.0, "max_hits": 1, "power": 1.5, "knock": 300.0, "stun": 0.25, "freeze": 0.08, "shake": 7.0,
+	"dagger_finish": {"windup": 0.09, "time": HEAVY, "shape": "line", "width": 14.0, "max_hits": 1, "power": 1.1, "knock": 300.0, "stun": 0.25, "freeze": 0.08, "shake": 7.0,
 		"curve": [0.0, 0.0, 2.0, 26.0], "smear": "thrust_smear"},
 	# Sabre: slash, backslash, wide sweep. Every cut is wide.
 	"sabre_slash": {"windup": 0.055, "time": LIGHT, "shape": "arc", "arc": 160.0, "power": 1.0, "knock": 220.0, "stun": 0.14, "freeze": 0.04,
 		"curve": [-1.3, 1.3, 13.0, 16.0], "smear": "sweep_smear"},
 	"sabre_back": {"windup": 0.055, "time": LIGHT, "shape": "arc", "arc": 160.0, "power": 1.0, "knock": 220.0, "stun": 0.14, "freeze": 0.04,
 		"curve": [-1.3, 1.3, 13.0, 16.0], "smear": "sweep_smear", "mirror": true},
-	"sabre_sweep": {"windup": 0.12, "time": HEAVY, "shape": "arc", "arc": 160.0, "power": 1.5, "knock": 340.0, "stun": 0.25, "freeze": 0.08, "shake": 9.0,
+	"sabre_sweep": {"windup": 0.12, "time": HEAVY, "shape": "arc", "arc": 160.0, "power": 1.1, "knock": 340.0, "stun": 0.25, "freeze": 0.08, "shake": 9.0,
 		"curve": [-1.48, 1.48, 12.0, 18.0], "smear": "sweep_smear", "big": true},
 	# Rapier: thrust, thrust, lunge. A straight line that goes through to a second
 	# enemy. The lunge reaches further instead of moving you: attacks never carry
 	# you into the enemy (Darren, 9 November).
 	"thrust": {"windup": 0.06, "time": LIGHT, "shape": "line", "width": 13.0, "max_hits": 2, "power": 1.0, "knock": 200.0, "stun": 0.12, "freeze": 0.04,
 		"curve": [0.0, 0.0, 4.0, 26.0], "smear": "thrust_smear"},
-	"long_thrust": {"windup": 0.14, "time": HEAVY, "shape": "line", "width": 15.0, "max_hits": 2, "reach": 1.25, "power": 1.5, "knock": 340.0, "stun": 0.25, "freeze": 0.08, "shake": 8.0,
+	"long_thrust": {"windup": 0.14, "time": HEAVY, "shape": "line", "width": 15.0, "max_hits": 2, "reach": 1.25, "power": 1.1, "knock": 340.0, "stun": 0.25, "freeze": 0.08, "shake": 8.0,
 		"curve": [0.0, 0.0, 0.0, 32.0], "smear": "thrust_smear", "big": true},
 	# Falchion: chop, chop, cleave. Everything shoves hard, and the cleave staggers.
 	"chop": {"windup": 0.08, "time": LIGHT, "shape": "arc", "arc": 110.0, "power": 1.0, "knock": 430.0, "stun": 0.2, "freeze": 0.06, "shake": 4.0,
 		"curve": [-1.05, 0.35, 11.0, 17.0], "smear": "chop_smear"},
-	"cleave": {"windup": 0.15, "time": HEAVY, "shape": "arc", "arc": 110.0, "power": 1.5, "knock": 560.0, "stun": 0.8, "freeze": 0.11, "shake": 12.0,
+	"cleave": {"windup": 0.15, "time": HEAVY, "shape": "arc", "arc": 110.0, "power": 1.1, "knock": 560.0, "stun": 0.8, "freeze": 0.11, "shake": 12.0,
 		"curve": [-1.5, 0.4, 10.0, 18.0], "smear": "overhead_smear", "big": true},
 	# Greatsword: sweep, backswing, slam. Half a circle each way, then the ground breaks.
 	"great_sweep": {"windup": 0.1, "time": LIGHT, "shape": "arc", "arc": 180.0, "power": 1.0, "knock": 320.0, "stun": 0.2, "freeze": 0.06, "shake": 4.0,
 		"curve": [-1.48, 1.48, 13.0, 17.0], "smear": "sweep_smear"},
 	"great_back": {"windup": 0.1, "time": LIGHT, "shape": "arc", "arc": 180.0, "power": 1.0, "knock": 320.0, "stun": 0.2, "freeze": 0.06, "shake": 4.0,
 		"curve": [-1.48, 1.48, 13.0, 17.0], "smear": "sweep_smear", "mirror": true},
-	"slam": {"windup": 0.19, "time": HEAVY, "shape": "arc", "arc": 120.0, "power": 1.5, "knock": 480.0, "stun": 0.45, "freeze": 0.12, "shake": 15.0,
+	"slam": {"windup": 0.19, "time": HEAVY, "shape": "arc", "arc": 120.0, "power": 1.1, "knock": 480.0, "stun": 0.45, "freeze": 0.12, "shake": 15.0,
 		"curve": [-1.5, 0.3, 9.0, 19.0], "smear": "overhead_smear", "big": true, "burst": "slam_burst"},
 	# Bow shots (14 November). "windup" is the draw: the arrow leaves as it ends,
 	# towards wherever you are aiming at that moment, and the rest of the move is
@@ -110,14 +110,14 @@ static var MOVES := {
 	#   flight  this arrow's speed (1.0 = the bow's)
 	"quick_shot": {"windup": 0.13, "time": LIGHT, "shape": "shot", "power": 1.0, "knock": 130.0, "stun": 0.1, "freeze": 0.03,
 		"curve": [0.0, 0.0, 4.0, 22.0]},
-	"heavy_shot": {"windup": 0.22, "time": HEAVY, "shape": "shot", "power": 1.5, "knock": 300.0, "stun": 0.25, "freeze": 0.08, "shake": 6.0,
+	"heavy_shot": {"windup": 0.22, "time": HEAVY, "shape": "shot", "power": 1.1, "knock": 300.0, "stun": 0.25, "freeze": 0.08, "shake": 6.0,
 		"curve": [0.0, 0.0, 4.0, 22.0], "big": true, "flight": 1.15},
 	# The longbow's last arrow (21 November): it charges for a moment before it
 	# goes, then flies fast and lands hard. ("charge": the bow glints when it is drawn.)
 	"charged_shot": {"windup": 0.42, "time": 0.62, "shape": "shot", "power": 1.75, "knock": 340.0, "stun": 0.3, "freeze": 0.08, "shake": 6.0,
 		"curve": [0.0, 0.0, 4.0, 22.0], "big": true, "flight": 1.25, "charge": true},
 	# (Not on any bow now: the longbow's old move.)
-	"long_shot": {"windup": 0.25, "time": HEAVY, "shape": "shot", "power": 1.5, "knock": 340.0, "stun": 0.3, "freeze": 0.08, "shake": 6.0,
+	"long_shot": {"windup": 0.25, "time": HEAVY, "shape": "shot", "power": 1.1, "knock": 340.0, "stun": 0.3, "freeze": 0.08, "shake": 6.0,
 		"curve": [0.0, 0.0, 4.0, 22.0], "big": true, "flight": 1.25},
 	# Hammer (15 November). A maul's side swing is a short, blunt arc. Its slam, and
 	# every blow of a warhammer, lands on a patch of floor in front of you (shape
@@ -129,20 +129,20 @@ static var MOVES := {
 	# the weight of it. It is held in both hands: see "The hammer in both hands".
 	"maul_swing": {"windup": 0.16, "time": LIGHT, "shape": "arc", "arc": 110.0, "power": 1.0, "knock": 130.0, "stun": 0.3, "freeze": 0.07, "shake": 4.0,
 		"curve": [-1.0, 0.9, 12.0, 16.0], "smear": "hammer_smear", "smear_else": "chop_smear", "alternate": true},
-	"maul_slam": {"windup": 0.22, "time": HEAVY, "shape": "impact", "power": 1.5, "knock": 180.0, "stun": 0.6, "freeze": 0.12, "shake": 15.0,
+	"maul_slam": {"windup": 0.22, "time": HEAVY, "shape": "impact", "power": 1.1, "knock": 180.0, "stun": 0.6, "freeze": 0.12, "shake": 15.0,
 		"curve": [-1.5, 0.3, 9.0, 19.0], "smear": "hammer_slam_smear", "smear_else": "overhead_smear", "big": true, "burst": "hammer_impact", "burst_else": "slam_burst"},
-	"crush": {"windup": 0.22, "time": HEAVY, "shape": "impact", "power": 1.5, "knock": 150.0, "stun": 0.7, "freeze": 0.12, "shake": 12.0,
+	"crush": {"windup": 0.22, "time": HEAVY, "shape": "impact", "power": 1.1, "knock": 150.0, "stun": 0.7, "freeze": 0.12, "shake": 12.0,
 		"curve": [-1.5, 0.3, 9.0, 19.0], "smear": "hammer_slam_smear", "smear_else": "overhead_smear", "big": true, "burst": "hammer_impact", "burst_else": "slam_burst"},
 	# Staff casts (15 November). Like a bow's shots: "windup" is the gathering, the
 	# bolt leaves as it ends, towards wherever you are aiming at that moment.
 	#   bolt   what leaves the staff (SwingBuild.CAST_MANA has what each costs)
 	"bolt": {"windup": 0.12, "time": LIGHT, "shape": "cast", "bolt": "bolt", "power": 1.0, "knock": 110.0, "stun": 0.1, "freeze": 0.03,
 		"curve": [0.0, 0.0, 2.0, 10.0], "smear": ""},
-	"burst": {"windup": 0.2, "time": HEAVY, "shape": "cast", "bolt": "burst", "power": 1.5, "knock": 260.0, "stun": 0.25, "freeze": 0.06, "shake": 5.0,
+	"burst": {"windup": 0.2, "time": HEAVY, "shape": "cast", "bolt": "burst", "power": 1.1, "knock": 260.0, "stun": 0.25, "freeze": 0.06, "shake": 5.0,
 		"curve": [0.0, 0.0, 0.0, 13.0], "smear": "", "big": true},
 	"spray": {"windup": 0.12, "time": LIGHT, "shape": "cast", "bolt": "spray", "power": 1.0, "knock": 90.0, "stun": 0.08, "freeze": 0.02,
 		"curve": [0.0, 0.0, 2.0, 10.0], "smear": ""},
-	"orb": {"windup": 0.22, "time": HEAVY, "shape": "cast", "bolt": "orb", "power": 1.5, "knock": 300.0, "stun": 0.3, "freeze": 0.07, "shake": 6.0,
+	"orb": {"windup": 0.22, "time": HEAVY, "shape": "cast", "bolt": "orb", "power": 1.1, "knock": 300.0, "stun": 0.3, "freeze": 0.07, "shake": 6.0,
 		"curve": [0.0, 0.0, 0.0, 13.0], "smear": "", "big": true},
 	# The old parts-grid moves (weapon_build.gd), kept so that screen still works.
 	"stab": {"windup": 0.06, "time": 0.25, "shape": "line", "width": 16.0, "range": 115.0, "power": 1.15, "knock": 320.0,
@@ -280,7 +280,7 @@ var leap_landing: Dictionary = {}   # the strike waiting for the jump to end: {a
 
 # Weak Point (passive, 11 November): the finisher marks the enemy it hit, and the
 # next sword hit on the mark is a big crit. Only so many marks at a time.
-static var WEAK_CRIT := 2.5        # a full-strength mark's hit, in normal hits
+static var WEAK_CRIT := 1.5        # a full-strength mark's hit, in normal hits (Darren's lab, version 57; was 2.5)
 const WEAK_DODGE_REACH := 70.0  # On Dodge: how close the dodge must pass
 var weak_marks: Array = []    # this player's marks, oldest first: [[enemy, mark]]
 
@@ -3046,7 +3046,7 @@ func _hit_enemy(e, dmg: float, kdir: Vector2, knock: float, stun := 0.12, freeze
 		mark = e.pop_weak_mark(global_position, swing)
 		if not mark.is_empty():
 			_forget_mark(mark)
-			var bonus := (WEAK_CRIT - 1.0) * float(mark["power"]) + maxf(float(weapon.get("crit_damage", 1.6)) - 1.6, 0.0)
+			var bonus := (WEAK_CRIT - 1.0) * float(mark["power"]) + maxf(float(weapon.get("crit_damage", SwingBuild.BASE_CRIT_DAMAGE)) - SwingBuild.BASE_CRIT_DAMAGE, 0.0)
 			var col: Color = SwingBuild.FITTINGS["weak_point"]["color"]
 			e.take_hit(dmg * (1.0 + bonus), kdir, knock, true, col, maxf(stun, 0.3), maxf(freeze, 0.09))
 			# (The break is the hit's spark: it plays in place of the usual crit spark.)
@@ -3217,7 +3217,7 @@ const HOOK_AIM := 300.0              # picking its enemy: being a radian off the
 const HOOK_STOP := 31.0              # the dragged enemy stops with its edge about this far from your middle
 const HOOK_KEEP := 34.0              # a tug never brings you nearer than this to the boss's edge
 const HOOK_TUG_TIME := 0.15          # how long a tug takes
-static var WHIRLWIND_DAMAGE := 0.9   # for each turn
+static var WHIRLWIND_DAMAGE := 0.6   # for each turn (Darren's lab, version 57; was 0.9)
 
 
 func _fire_rune(q: Dictionary) -> void:
