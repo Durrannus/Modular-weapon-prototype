@@ -214,6 +214,8 @@ The numbers are at the top of `scripts/player.gd` (`MOVE_SPEED`, `ACCEL`, `MOVES
 
 ## Checks
 
+**The quick way (since version 57):** `tests/run.sh` runs every suite below quietly, three at a time, and prints one line for each and, under it, only what failed; everything a suite printed is kept in a log folder (`/tmp/checks` unless `CHECKS_LOG` says otherwise). Name an area to run only that part: `tests/run.sh highlands`, `weapons` or `cave` (or a suite by name, such as `tests/run.sh lab`); `--full` prints every suite's whole output. It needs `GODOT=/path/to/godot` unless `godot` is on the PATH. The online check and the version check below are run on their own. `CLAUDE.md` is a short map of which script does what.
+
 Run these after changes (they need no window):
 
 ```
