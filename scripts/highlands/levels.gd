@@ -14,7 +14,10 @@ extends Node
 ##
 ## Claude's choices, until Darren says otherwise (they are listed in the README and the Game Bible):
 ##   - The squad starts at level 0. Level 1 needs FIRST_LEVEL Memory and every level after it LEVEL_STEP more (the
-##     Bible leaves "Memory needed per level" open; it asks for about level 5 at the Highlands' boss).
+##     Bible leaves "Memory needed per level" open; it asks for about level 5 at the Highlands' boss). Version 51
+##     raised LEVEL_STEP from 100 to 300 once the middle and outer rings were filled: `tools/memory_sum.gd` adds up
+##     what lies on the way to Rattlecrown, and a usual run (the inner ring, half the middle ring, the way through the
+##     outer ring and the Scrapyard) now comes to about 4,600 Memory, level 5; going straight there, level 4.
 ##   - EVERY PLAYER POURS THEIR OWN FULL SHARE (loot.gd gives everyone a full share of every chest and kill), so the
 ##     forge needs that much FROM EACH PLAYER: with two players the meter is twice as long. A squad of four then
 ##     levels at the pace of one player alone. What is banked is kept as one player's share of it.
@@ -63,7 +66,7 @@ const HP_BAR := Vector2(92, 12)    # the health bar (scripts/ui/hud.gd): the Mem
 const BAR_DROP := 8.0              # what is under the health bar moves down this far to make room
 
 static var FIRST_LEVEL := 100      # Memory the forge needs from each player for the squad's first level ...
-static var LEVEL_STEP := 100       # ... and this much more for every level after it
+static var LEVEL_STEP := 300       # ... and this much more for every level after it (100 until version 51)
 static var LEVEL_CAP := 20         # the Bible: "about 20 (suggested)"
 static var FALL_MEMORY := 0.5      # the share of your carried Memory that stays where you fell
 static var FALL_COINS := 0.1       # the share of your coins that is gone for good

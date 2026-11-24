@@ -13,6 +13,7 @@ const WorldGen := preload("res://scripts/highlands/world_gen.gd")
 const Painter := preload("res://scripts/highlands/land_painter.gd")
 const Highlands := preload("res://scripts/highlands/highlands.gd")
 const Levels := preload("res://scripts/highlands/levels.gd")
+const MemoryCount := preload("res://tools/memory_count.gd")
 const Perks := preload("res://scripts/highlands/perks.gd")
 const Loot := preload("res://scripts/highlands/loot.gd")
 const ItemArt := preload("res://scripts/highlands/item_art.gd")
@@ -200,12 +201,20 @@ func _the_trees() -> void:
 # --- The forge's levels -------------------------------------------------------------------
 
 func _forge() -> void:
-	_check(is_equal_approx(Levels.need(0), 100.0) and is_equal_approx(Levels.need(1), 200.0) and is_equal_approx(Levels.need(4), 500.0), "level 1 needs 100 Memory, and each level 100 more")
+	_check(is_equal_approx(Levels.need(0), 100.0) and is_equal_approx(Levels.need(1), 400.0) and is_equal_approx(Levels.need(4), 1300.0), "level 1 needs 100 Memory, and each level 300 more")
 	_check(Levels.need(Levels.LEVEL_CAP) == 0.0 and Levels.LEVEL_CAP == 20, "level 20 is the last")
 	var to_five := 0.0
 	for n in 5:
 		to_five += Levels.need(n)
-	_check(is_equal_approx(to_five, 1500.0), "level 5 takes 1500 Memory in all")
+	_check(is_equal_approx(to_five, 3500.0), "level 5 takes 3500 Memory in all")
+	# The curve against the land (version 51): what lies on the way to Rattlecrown (tools/memory_count.gd).
+	for w in [424242, 432161]:
+		var sums: Dictionary = MemoryCount.world(w)
+		var usual := MemoryCount.level_of(float(sums["usual"]))
+		var straight := MemoryCount.level_of(float(sums["straight"]))
+		_check(usual >= 4 and usual <= 6, "land %d: a usual run to Rattlecrown comes to about level 5 (%d Memory, level %d)" % [w, roundi(float(sums["usual"])), usual])
+		_check(straight >= 3 and straight < usual, "land %d: going straight there comes to less (%d Memory, level %d)" % [w, roundi(float(sums["straight"])), straight])
+		_check(MemoryCount.level_of(float(sums["all"])) < Levels.LEVEL_CAP - 5, "land %d: clearing the whole land once leaves levels for later zones (level %d)" % [w, MemoryCount.level_of(float(sums["all"]))])
 	var g = _game(424242)
 	await _frames(5)
 	var lv = g.levels
@@ -230,16 +239,16 @@ func _forge() -> void:
 	_check(g.forge_words(0).contains("enough for a level"), "and the cave mouth says so (\"%s\")" % g.forge_words(0))
 	got = lv.pour(0)
 	_check(int(got["levels"]) == 1 and int(got["from"]) == 0 and lv.level == 1 and is_equal_approx(lv.banked, 10.0) and purse.memory == 0, "the meter fills: the squad is level 1, and what was over is kept towards level 2")
-	_check(lv.points(0) == 1 and lv.meter() == [10, 200], "a point to spend, and the meter reads 10 of 200")
+	_check(lv.points(0) == 1 and lv.meter() == [10, 400], "a point to spend, and the meter reads 10 of 400")
 	_check(g.loot.clock < g.loot.said_until and g.loot.said.contains("level 1"), "the screen says so (\"%s\")" % g.loot.said)
 	_check(lv.rises.size() == 1, "and the level is seen to land on the player")
 	_check(g.forge_words(0).contains("1 point to spend"), "the cave mouth says there is a point to spend (\"%s\")" % g.forge_words(0))
 	_check(Levels.line_for(1) == Levels.FORGE_LINES[0] and Levels.line_for(6) == Levels.FORGE_LINES[5] and Levels.line_for(7) == Levels.FORGE_LINE_LATER and Levels.line_for(0) == Levels.FORGE_LINE_LATER, "the forge has a line for each of its first levels")
 	# One pour can be worth several levels.
-	g.loot.give(0, "memory", 190 + 300 + 50, p.global_position)
+	g.loot.give(0, "memory", 390 + 700 + 50, p.global_position)
 	got = lv.pour(0)
 	_check(int(got["levels"]) == 2 and lv.level == 3 and is_equal_approx(lv.banked, 50.0) and lv.points(0) == 3, "a big pour is worth every level it fills (level %d, %.0f over)" % [lv.level, lv.banked])
-	_check(lv.pour(0) == {"poured": 0, "levels": 0, "from": 3, "was": 50.0 / 400.0}, "pouring nothing does nothing")
+	_check(lv.pour(0) == {"poured": 0, "levels": 0, "from": 3, "was": 50.0 / 1000.0}, "pouring nothing does nothing")
 	# The last level: nothing more is taken.
 	lv.level = Levels.LEVEL_CAP - 1
 	lv.banked = 0.0
@@ -834,7 +843,7 @@ func _saved() -> void:
 	var lv = g.levels
 	var p = g.players[0]
 	_check(lv.level == 0 and (lv.perks[0] as Array).is_empty(), "(a new character in a new world)")
-	g.loot.give(0, "memory", 100 + 200 + 300 + 45, p.global_position)
+	g.loot.give(0, "memory", 100 + 400 + 700 + 45, p.global_position)
 	var written: int = g.saves_written
 	g._use_forge(0)
 	await _frames(12)
