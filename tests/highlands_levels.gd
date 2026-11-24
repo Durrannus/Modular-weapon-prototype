@@ -85,6 +85,8 @@ func _run() -> void:
 	await _punish()
 	await _striker()
 	await _kill_credit()
+	await _warden()
+	await _warden_coop()
 	await _kindle()
 	await _ore_sense()
 	await _screens()
@@ -180,9 +182,11 @@ func _the_trees() -> void:
 	_check(Perks.BUILT.slice(0, 4) == ["challenge", "punish", "kindle", "ore_sense"], "the four signature perks are built")
 	for id in Perks.TREE["striker"]:
 		_check(Perks.built(str(id)), "since version 53, every Striker perk is built: %s" % id)
+	for id in Perks.TREE["warden"]:
+		_check(Perks.built(str(id)), "since version 54, every Warden perk is built: %s" % id)
 	for id in Perks.BUILT:
-		_check(Perks.row_of(str(id)) == 0 or Perks.tree_of(str(id)) == "striker", "%s is a signature or the Striker's" % id)
-	_check(Perks.BUILT.size() == 11, "and nothing else yet (%d built)" % Perks.BUILT.size())
+		_check(Perks.row_of(str(id)) == 0 or Perks.tree_of(str(id)) in ["striker", "warden"], "%s is a signature, the Striker's or the Warden's" % id)
+	_check(Perks.BUILT.size() == 18, "and nothing else yet (%d built)" % Perks.BUILT.size())
 	_check(Perks.why_not("close_call", [], 3) == "Needs Punish first." and Perks.why_not("close_call", ["punish"], 3) == "", "a built row-2 perk needs its signature first, and opens with it")
 	_check(Perks.why_not("execution", ["punish", "close_call", "flank", "keep_the_chain", "sharp"], 3).begins_with("Needs 6 points") and Perks.why_not("execution", ["punish", "close_call", "flank", "keep_the_chain", "sharp", "expose"], 3) == "", "the Striker's capstone, Execution, after 6 Striker points")
 	_check(Perks.row_of("forge_prophet") == Perks.CAPSTONE and Perks.row_of("unbroken") == Perks.CAPSTONE and Perks.row_of("execution") == Perks.CAPSTONE and Perks.row_of("rekindle") == Perks.CAPSTONE, "each tree ends in its capstone")
@@ -192,7 +196,7 @@ func _the_trees() -> void:
 	_check(Perks.why_not("challenge", [], 0).begins_with("No point"), "not without one")
 	_check(Perks.why_not("challenge", ["challenge"], 3) == "You have learnt this.", "not twice")
 	_check(Perks.why_not("nothing", [], 3) == "There is no such perk." and not Perks.known(7) and not Perks.known(null), "not a perk there is not")
-	_check(Perks.why_not("unmoved", ["challenge"], 3).begins_with("Not built yet") and Perks.why_not("unbroken", [], 9).begins_with("Not built yet"), "a perk that is not built yet says so, and cannot be bought")
+	_check(Perks.why_not("helping_hand", ["kindle"], 3).begins_with("Not built yet") and Perks.why_not("rekindle", [], 9).begins_with("Not built yet"), "a perk that is not built yet says so, and cannot be bought")
 	# The shape of a tree, which holds for the perks still to come (tried as if every perk were built).
 	_check(Perks.why_not("unmoved", [], 3, true) == "Needs Challenge first.", "row 2 needs the signature")
 	_check(Perks.why_not("unmoved", ["challenge"], 3, true) == "", "and opens with it")
@@ -307,7 +311,7 @@ func _learning() -> void:
 	lv.level = 2
 	_check(lv.points(0) == 2 and lv.learn(0, "punish") == "" and lv.perks[0] == ["punish"] and lv.points(0) == 1, "a point buys a signature perk")
 	_check(lv.has(0, "punish") and lv.has_p(g.players[0], "punish") and lv.any_has("punish") and not lv.has(0, "kindle"), "and it is awake")
-	_check(lv.learn(0, "punish") == "You have learnt this." and lv.learn(0, "unmoved").begins_with("Not built yet") and lv.points(0) == 1, "what cannot be learnt costs nothing")
+	_check(lv.learn(0, "punish") == "You have learnt this." and lv.learn(0, "helping_hand").begins_with("Not built yet") and lv.points(0) == 1, "what cannot be learnt costs nothing")
 	_check(lv.learn(0, "kindle") == "" and lv.points(0) == 0 and lv.learn(0, "ore_sense").begins_with("No point"), "you can take the signatures of two trees, a point each, until the points are spent")
 	_check(g._character_now(0).get("perks") == ["punish", "kindle"], "the character knows its perks")
 	# Forgetting costs Memory you carry.
@@ -1024,6 +1028,332 @@ func _striker_shots(g, lv, p) -> void:
 	p.weapon["crit"] = 0.05
 
 
+## The Warden's tree (version 54), with two players: the ring, the Plate on the health bar, the Payback meter, a hit
+## shared, the Plate breaking, a Payback burst, a Shoulder Charge, Unbroken and the whole tree.
+func _warden_shots() -> void:
+	var g = _game(shot_seed, 2)
+	await _frames(10)
+	var lv = g.levels
+	var w = g.players[0]
+	var t = g.players[1]
+	var home: Vector2 = w.spawn_point
+	lv.level = 8
+	lv.perks[0] = ["challenge", "unmoved", "bodyguard", "payback", "tempered", "shoulder_charge", "plate", "unbroken"]
+	lv.perks[1] = ["punish"]
+	w.global_position = home + Vector2(-20, 70)
+	t.global_position = home + Vector2(50, 80)
+	for q in [w, t]:
+		q.reset_physics_interpolation()
+		q.weapon["crit"] = 0.0
+	g.rig.snap()
+	await _frames(40)
+	g.land.settle()
+	await _snap("41_warden_ring_plate_up")
+	# A hit on the teammate in the ring: a third of it lands on the Warden.
+	t.invuln = 0.0
+	t.take_damage(30.0, t.global_position + Vector2(30, 0))
+	await _frames(8)
+	await _snap("42_bodyguard_shares_a_hit")
+	await _frames(50)
+	# The Plate soaks a hit and breaks; what the Warden takes after is in the Payback meter.
+	w.invuln = 0.0
+	w.take_damage(40.0, w.global_position + Vector2(-30, 0))
+	await _frames(6)
+	await _snap("43_plate_breaks")
+	await _frames(40)
+	w.invuln = 0.0
+	w.take_damage(22.0, w.global_position + Vector2(-30, 0))
+	await _frames(50)
+	await _snap("44_plate_broken_payback_filling")
+	# Payback: the finisher spends it as a burst on what it hits and what stands near.
+	t.global_position = home + Vector2(-110, 90)
+	t.reset_physics_interpolation()
+	var foes: Array = []
+	for at in [Vector2(40, 0), Vector2(62, 42), Vector2(52, -40)]:
+		var e = _foe(g, "hound", w.global_position + at)
+		e.stun_time = 99.0                 # they stand still for the picture
+		e.knock_resist = 0.0
+		foes.append(e)
+	lv.perks[1] = []                       # (nobody can use Open, so it is not shown)
+	await _frames(10)
+	w._reset_combo()
+	w._clear_marks()
+	w.input.stick_aim = Vector2.RIGHT
+	w.input.attack_held = true
+	await _wait(func(): return w.current_step == w._steps().size() - 1 and w.hit_time >= 0.0, 200)
+	await _wait(func(): return w.hit_time < 0.0, 60)
+	w.input.attack_held = false
+	await _frames(4)
+	await _snap("45_payback_burst")
+	await _frames(14)
+	await _snap("45b_payback_after")
+	await _frames(60)
+	for e in foes:
+		if is_instance_valid(e):
+			e.queue_free()
+	await _frames(4)
+	# Shoulder Charge: a dodge into a hound knocks it flat and Challenges it.
+	var h = _foe(g, "hound", w.global_position + Vector2(44, 0))
+	h.rest = 99.0
+	h.knock_resist = 0.9
+	await _frames(6)
+	w.input.move = Vector2.RIGHT
+	w.dodge_charges = w.DODGE_MAX_CHARGES
+	w.input.dash_pressed = true
+	await _frames(1)
+	w.input.dash_pressed = false
+	w.input.move = Vector2.ZERO
+	await _wait(func(): return h.challenge_left > 0.0, 20)
+	await _frames(6)
+	await _snap("46_shoulder_charge")
+	await _frames(60)
+	h.queue_free()
+	# Unbroken: the blow that would knock the teammate down leaves them on 1 health.
+	t.global_position = w.global_position + Vector2(60, 10)
+	t.reset_physics_interpolation()
+	await _frames(20)
+	lv.perks[0] = ["challenge", "unbroken"]
+	t.invuln = 0.0
+	t.hp = 6.0
+	t.take_damage(60.0, t.global_position + Vector2(30, 0))
+	await _frames(8)
+	await _snap("47_unbroken_saves_a_teammate")
+	await _frames(60)
+	await _snap("47b_unbroken_resting")
+	# The whole tree on the forge's screen.
+	lv.perks[0] = ["challenge", "unmoved", "bodyguard", "payback", "tempered", "shoulder_charge", "plate", "unbroken"]
+	w.global_position = home
+	await _frames(10)
+	g._use_forge(0)
+	await _idle(10)
+	g.hall.view = "trees"
+	g.hall.tree = 0
+	g.hall.place = 7
+	await _idle(10)
+	await _snap("48_trees_warden_whole")
+	await _leave(g)
+
+
+# --- The Warden's other perks (version 54) ------------------------------------------------
+
+func _warden() -> void:
+	var g = _game(424242)
+	await _frames(5)
+	var lv = g.levels
+	var p = g.players[0]
+	var home: Vector2 = p.spawn_point
+	p.global_position = home + Vector2(0, 60)
+	lv.level = 8
+	var luck := float(p.weapon.get("crit", 0.05))
+	p.weapon["crit"] = 0.0
+	var falls := [0]
+	p.knocked_out.connect(func(_who): falls[0] += 1)
+	await _frames(3)
+	var from: Vector2 = p.global_position + Vector2(30, 0)
+
+	# Unmoved: no knock back in the middle of a swing or a held rune.
+	for k in 3:
+		lv.perks[0] = ["challenge", "unmoved"] if k < 2 else ["challenge"]
+		_still(p)
+		p.current_step = 0 if k != 1 else -1
+		p.take_damage(5.0, from)
+		var knocked: bool = p.hurt_vel.length() > 1.0
+		p.current_step = -1
+		p._reset_combo()
+		if k == 0:
+			_check(not knocked, "Unmoved: a hit in the middle of a swing does not knock you back")
+		elif k == 1:
+			_check(knocked, "out of a swing it does")
+		else:
+			_check(knocked, "without Unmoved a swing is knocked about as ever")
+	_check(p.hp < p.max_hp, "(you still take the damage)")
+	_still(p)
+	p.hold_button = 0
+	lv.perks[0] = ["challenge", "unmoved"]
+	_check(lv.unmoved(p), "a held rune is kept going too")
+	p.hold_button = -1
+
+	# Tempered: no single hit takes more than a third of your health.
+	lv.perks[0] = ["challenge", "tempered"]
+	_still(p)
+	p.take_damage(p.max_hp * 0.9, from)
+	_check(is_equal_approx(p.hp, p.max_hp * (1.0 - Levels.TEMPERED_MOST)), "Tempered: a hit of nine tenths of your health takes a third (%.0f left of %.0f)" % [p.hp, p.max_hp])
+	_still(p)
+	p.take_damage(5.0, from)
+	_check(is_equal_approx(p.hp, p.max_hp - 5.0), "a small hit is as ever")
+
+	# Plate: soaks the next hit whole, and grows back 8 s after it breaks.
+	lv.perks[0] = ["challenge", "plate"]
+	lv.plate_wait[0] = 0.0
+	_still(p)
+	_check(lv.plate_up(0), "Plate: it holds from the start")
+	p.take_damage(30.0, from)
+	_check(p.hp == p.max_hp and not lv.plate_up(0) and is_equal_approx(lv.plate_wait[0], Levels.PLATE_BACK), "it soaks the next hit whole and breaks")
+	p.invuln = 0.0
+	p.take_damage(30.0, from)
+	_check(is_equal_approx(p.hp, p.max_hp - 30.0), "the hit after that lands")
+	lv.plate_wait[0] = 0.1
+	await _frames(10)
+	_check(lv.plate_up(0), "%.0f s after it broke it is back" % Levels.PLATE_BACK)
+	_still(p)
+	p.take_damage(9999.0, from)
+	_check(p.hp == p.max_hp, "and soaks anything, a fall too")
+	lv.plate_wait[0] = 0.0
+
+	# Unbroken: a blow that would knock you down leaves you on 1 health, untouchable, once every 90 s.
+	lv.perks[0] = ["challenge", "unbroken"]
+	lv.unbroken_wait[0] = 0.0
+	_still(p)
+	p.hp = 10.0
+	falls[0] = 0
+	p.take_damage(50.0, from)
+	_check(p.hp == 1.0 and falls[0] == 0 and p.invuln >= Levels.UNBROKEN_TIME - 0.05, "Unbroken: the blow that would knock you down leaves you on 1 health and untouchable for %.0f s" % Levels.UNBROKEN_TIME)
+	_check(is_equal_approx(lv.unbroken_wait[0], Levels.UNBROKEN_EVERY), "and it rests %.0f s" % Levels.UNBROKEN_EVERY)
+	p.invuln = 0.0
+	p.take_damage(50.0, from)
+	_check(falls[0] == 1, "the next such blow inside that time knocks you down")
+	await _frames(5)
+
+	# Payback: what you take fills a meter; your next finisher spends it as a burst where it lands.
+	lv.perks[0] = ["challenge", "payback"]
+	lv.payback[0] = 0.0
+	_still(p)
+	p.take_damage(20.0, from)
+	_check(is_equal_approx(lv.payback[0], 20.0), "Payback: a hit fills the meter by what it took")
+	var e = _foe(g, "hound", p.global_position + Vector2(60, 0))
+	var near = _foe(g, "hound", p.global_position + Vector2(60, 30))
+	var far = _foe(g, "hound", p.global_position + Vector2(60, 140))
+	for x in [e, near, far]:
+		x.rest = 99.0
+		x.knock_resist = 0.0
+	await _frames(2)
+	lv.finisher(p, [e])
+	_check(is_equal_approx(99999.0 - e.hp, 20.0) and is_equal_approx(99999.0 - near.hp, 20.0) and far.hp == 99999.0, "the finisher spends it as a burst: on what it hit and what stands near, not farther off")
+	_check(lv.payback[0] == 0.0, "all of it")
+	e.hp = 99999.0
+	lv.finisher(p, [e])
+	_check(e.hp == 99999.0, "an empty meter bursts nothing")
+	_still(p)
+	p.take_damage(p.max_hp * 0.5, from)
+	p.invuln = 0.0
+	p.hp = p.max_hp
+	p.take_damage(p.max_hp * 0.8, from)
+	_check(lv.payback[0] <= p.max_hp * Levels.PAYBACK_MOST + 0.01, "it holds at most your health's worth (%.0f)" % lv.payback[0])
+	lv.payback[0] = 0.0
+	for x in [near, far]:
+		x.queue_free()
+	# As played: a chain whose finisher lands carries the burst.
+	e.stun_time = 9999.0
+	var n: int = p._steps().size()
+	lv.perks[0] = ["challenge"]
+	var plain: Array = await _chain_hits(p, e, n)
+	lv.perks[0] = ["challenge", "payback"]
+	lv.payback[0] = 15.0
+	var paid: Array = await _chain_hits(p, e, n)
+	_check(plain.size() == n and paid.size() == n and is_equal_approx(float(paid[n - 1]), float(plain[n - 1]) + 15.0) and is_equal_approx(float(paid[0]), float(plain[0])), "a real chain's finisher spends it, and only the finisher (%s, %s)" % [str(plain), str(paid)])
+	e.stun_time = 0.0
+
+	# Shoulder Charge: a dodge into enemies shoves them back and Challenges them; a small one is knocked flat (Open).
+	lv.perks[0] = ["challenge", "shoulder_charge"]
+	_still(p)
+	p.global_position = home + Vector2(0, 60)
+	e.global_position = p.global_position + Vector2(40, 0)
+	e.challenge_left = 0.0
+	e.stun_time = 0.0
+	e.knock_resist = 0.9
+	var b = _foe(g, "scrap_brute", p.global_position + Vector2(-46, 0))
+	b.cool = 99.0
+	await _frames(2)
+	p.input.move = Vector2.RIGHT
+	p.dodge_charges = p.DODGE_MAX_CHARGES
+	p.input.dash_pressed = true
+	await _frames(1)
+	p.input.dash_pressed = false
+	p.input.move = Vector2.ZERO
+	await _wait(func(): return e.challenge_left > 0.0, 20)
+	_check(e.challenged_by == p and e.challenge_left > 0.0, "Shoulder Charge: an enemy the dodge runs into is Challenged")
+	_check(e.stun_time > 0.3 and e.is_open(), "a small one is knocked flat for a moment, and is Open")
+	_check(e.global_position.x > p.global_position.x + 20.0, "and shoved away")
+	await _wait(func(): return p.dodge_timer <= 0.0, 30)
+	await _frames(20)
+	p.global_position = b.global_position + Vector2(40, 0)
+	p.input.move = Vector2.LEFT
+	p.dodge_charges = p.DODGE_MAX_CHARGES
+	p.input.dash_pressed = true
+	await _frames(1)
+	p.input.dash_pressed = false
+	p.input.move = Vector2.ZERO
+	await _wait(func(): return b.challenge_left > 0.0, 20)
+	_check(b.challenged_by == p and b.stun_time <= 0.0, "a brute is Challenged but not knocked flat")
+	lv.perks[0] = ["challenge"]
+	e.challenge_left = 0.0
+	await _frames(30)
+	p.global_position = e.global_position + Vector2(-40, 0)
+	p.input.move = Vector2.RIGHT
+	p.dodge_charges = p.DODGE_MAX_CHARGES
+	p.input.dash_pressed = true
+	await _frames(1)
+	p.input.dash_pressed = false
+	p.input.move = Vector2.ZERO
+	await _frames(12)
+	_check(e.challenge_left == 0.0, "without it a dodge only dodges")
+	b.queue_free()
+	e.queue_free()
+	p.weapon["crit"] = luck
+	await _leave(g)
+	await _frames(2)
+
+
+## Bodyguard and Unbroken for a teammate in the Warden's ring.
+func _warden_coop() -> void:
+	var g = _game(424242, 2)
+	await _frames(5)
+	var lv = g.levels
+	var w = g.players[0]
+	var t = g.players[1]
+	var home: Vector2 = w.spawn_point
+	w.global_position = home + Vector2(0, 60)
+	t.global_position = home + Vector2(80, 60)
+	lv.level = 8
+	lv.perks[0] = ["challenge", "bodyguard"]
+	await _frames(3)
+	var from: Vector2 = t.global_position + Vector2(30, 0)
+	_still(w)
+	_still(t)
+	_check(lv.shows_ring(0) and not lv.shows_ring(1), "in co-op the Warden's ring shows")
+	t.take_damage(30.0, from)
+	_check(is_equal_approx(t.hp, t.max_hp - 20.0) and is_equal_approx(w.hp, w.max_hp - 10.0), "Bodyguard: a teammate in your ring takes a third less, and that third lands on you (%.0f, %.0f)" % [t.max_hp - t.hp, w.max_hp - w.hp])
+	_check(w.hurt_vel == Vector2.ZERO, "(it knocks the Warden nowhere)")
+	_still(w)
+	_still(t)
+	w.take_damage(30.0, w.global_position + Vector2(30, 0))
+	_check(is_equal_approx(w.hp, w.max_hp - 30.0) and t.hp == t.max_hp, "the Warden's own hits are their own")
+	_still(w)
+	_still(t)
+	t.global_position = home + Vector2(0, 60 + Levels.RING + 40.0)
+	t.take_damage(30.0, t.global_position + Vector2(30, 0))
+	_check(is_equal_approx(t.hp, t.max_hp - 30.0) and w.hp == w.max_hp, "outside the ring a hit is as ever")
+	# Unbroken saves a teammate in the ring.
+	lv.perks[0] = ["challenge", "unbroken"]
+	lv.unbroken_wait[0] = 0.0
+	_still(w)
+	_still(t)
+	t.global_position = home + Vector2(80, 60)
+	t.hp = 5.0
+	t.take_damage(50.0, t.global_position + Vector2(30, 0))
+	_check(t.hp == 1.0 and is_equal_approx(lv.unbroken_wait[0], Levels.UNBROKEN_EVERY), "Unbroken: a teammate in your ring is left on 1 health too, and your Unbroken rests")
+	lv.unbroken_wait[0] = 0.0
+	_still(t)
+	t.global_position = home + Vector2(0, 60 + Levels.RING + 40.0)
+	t.hp = 5.0
+	var falls := [0]
+	t.knocked_out.connect(func(_who): falls[0] += 1)
+	t.take_damage(50.0, t.global_position + Vector2(30, 0))
+	_check(falls[0] == 1 and lv.unbroken_wait[0] == 0.0, "one outside the ring falls, and it stays ready")
+	await _leave(g)
+	await _frames(2)
+
+
 # --- Kindle (Mender) ----------------------------------------------------------------------
 
 func _kindle() -> void:
@@ -1194,10 +1524,10 @@ func _screens() -> void:
 	_check(hall.place == 1 and hall.perk_on() == "close_call", "down is the next perk of it")
 	hall.confirm()
 	_check((lv.perks[0] as Array).is_empty() and hall.note == "Needs Punish first.", "a perk you cannot learn yet says why (\"%s\")" % hall.note)
-	hall.move(-1, 0)
-	hall.confirm()
-	_check(hall.perk_on() == "unmoved" and (lv.perks[0] as Array).is_empty() and hall.note.begins_with("Not built yet"), "a perk that is not built cannot be bought (\"%s\")" % hall.note)
 	hall.move(1, 0)
+	hall.confirm()
+	_check(hall.perk_on() == "helping_hand" and (lv.perks[0] as Array).is_empty() and hall.note.begins_with("Not built yet"), "a perk that is not built cannot be bought (\"%s\")" % hall.note)
+	hall.move(-1, 0)
 	hall.move(0, -1)
 	hall.confirm()
 	_check(lv.perks[0] == ["punish"] and lv.points(0) == 0 and hall.note == "Punish learnt.", "Enter learns the perk the cursor is on")
@@ -1448,10 +1778,10 @@ func _shots() -> void:
 	hall.move(0, 1)
 	await _idle(300)
 	await _snap("10_trees_close_call_built")
-	hall.move(-1, 0)
+	hall.move(1, 0)
 	await _idle(10)
-	await _snap("10b_trees_warden_not_built_yet")
-	hall.move(1, 2)
+	await _snap("10b_trees_mender_not_built_yet")
+	hall.move(-1, 2)
 	hall.move(2, 4)
 	await _idle(10)
 	await _snap("11_trees_delver_capstone")
@@ -1636,3 +1966,4 @@ func _shots() -> void:
 	await _idle(10)
 	await _snap("35_two_players_trees")
 	await _leave(g)
+	await _warden_shots()

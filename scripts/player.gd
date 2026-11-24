@@ -153,6 +153,8 @@ var hp := MAX_HP
 var spawn_point := Vector2.ZERO
 var fell_at := Vector2.ZERO     # where they last fell (set as they fall, before they wake at spawn_point)
 var finishing := false          # a melee finisher's blow is landing (the Striker's Sharp and Execution ask)
+var shouldered: Dictionary = {}  # the enemies this dodge has run into (the Warden's Shoulder Charge: once a dodge)
+var _labels: Array = []          # the words over the player still rising (_label)
 var roles = null                # the Highlands' role trees (scripts/highlands/levels.gd): their perks hook in here. Null anywhere else
 var gear = null                 # the Highlands' Accessory Satchel (scripts/highlands/gear.gd): what is worn hooks in here. Null anywhere else
 var aim_dir := Vector2.RIGHT   # where an attack goes: the mouse, the right stick, or the way you face
@@ -568,6 +570,8 @@ func _physics_process(delta: float) -> void:
 	hurt_vel = hurt_vel.move_toward(Vector2.ZERO, 1800.0 * delta)
 	velocity = vel + hurt_vel
 	move_and_slide()
+	if dodge_timer > 0.0 and roles != null:
+		roles.shoulder(self)      # (Shoulder Charge: what the dodge runs into is shoved and Challenged)
 	if rig != null:
 		var kept: Vector2 = rig.leash(self, global_position)
 		if kept != global_position:
@@ -657,6 +661,7 @@ func _update_dodge(delta: float, move: Vector2) -> void:
 		else:
 			_reset_combo()
 		dodge_started = game_time
+		shouldered = {}
 		dodge_from = global_position
 		dodge_arrow = true
 		_overflow_dodge()
@@ -4091,6 +4096,8 @@ func _fx_root() -> Node:
 	return fx_parent if is_instance_valid(fx_parent) else get_parent()
 
 
+## A word that floats up over the player. Two at once (PAYBACK and MARKED off one finisher) never sit on top of
+## each other: a new word while another is still rising goes just above it.
 func _label(text: String, col: Color) -> void:
 	var l := RuneFx.new()
 	l.kind = "text"
@@ -4098,7 +4105,13 @@ func _label(text: String, col: Color) -> void:
 	l.color = col
 	l.life = 0.7
 	_fx_root().add_child(l)
-	l.global_position = global_position + Vector2(randf_range(-20, 20), -70)
+	_labels = _labels.filter(func(o): return is_instance_valid(o) and o.t < o.life * 0.6)
+	if _labels.is_empty():
+		l.global_position = global_position + Vector2(randf_range(-20, 20), -70)
+	else:
+		var top: Node2D = _labels[_labels.size() - 1]
+		l.global_position = Vector2(top.global_position.x, minf(top.global_position.y, global_position.y - 70.0) - 26.0)
+	_labels.append(l)
 
 
 # --- Elements ---------------------------------------------------------------
@@ -4211,13 +4224,22 @@ func take_damage(amount: float, from: Vector2 = Vector2.INF, by = null) -> void:
 		return
 	if unhurt:
 		return
+	# (The Warden's Plate soaks the whole hit; a short moment untouchable after, as after any hit, but shorter.)
+	if roles != null and roles.plate_soaks(self):
+		invuln = 0.4
+		Art.play_piece(self, "weak_break", global_position + Vector2(0, -8), 0.0, 0.8)
+		return
 	if roles != null:
 		amount = roles.softened(self, amount, by)
 	if gear != null:
 		amount = gear.softened(self, amount)      # (the Banner Pin)
+	if roles != null:
+		amount = roles.guarded(self, amount)      # (a Warden's Bodyguard takes a third)
+		amount = roles.tempered(self, amount)     # (Tempered: no more than a third of your health)
 	hp -= amount
 	if roles != null:
 		roles.was_hit(self)      # (Sharp loses its glint)
+		roles.paid(self, amount)      # (Payback fills)
 	invuln = 0.8
 	hurt_flash = 0.12
 	shake = maxf(shake, 7.0)
@@ -4225,30 +4247,58 @@ func take_damage(amount: float, from: Vector2 = Vector2.INF, by = null) -> void:
 	var away := Vector2.UP
 	if from != Vector2.INF and from.distance_to(global_position) > 0.5:
 		away = (global_position - from).normalized()
-		hurt_vel = away * 330.0 * (gear.knock(self) if gear != null else 1.0)      # (the Iron Bracer)
+		# (Unmoved: in the middle of a swing or a held rune nothing knocks the Warden back.)
+		if roles == null or not roles.unmoved(self):
+			hurt_vel = away * 330.0 * (gear.knock(self) if gear != null else 1.0)      # (the Iron Bracer)
 	Art.play_piece(self, "hurt_burst", global_position + Vector2(0, -8), away.angle())
 	if gear != null:
 		gear.struck(self, by)      # (the Thorn Charm answers; the Hearthstone Pebble goes cold)
 	if hp <= 0.0:
-		hp = 0.0
-		fell_at = global_position
-		_reset_combo()
-		dodge_timer = 0.0
-		_end_ghost()
-		if auto_respawn:
-			hp = max_hp
-			global_position = spawn_point
-			hurt_vel = Vector2.ZERO
-			reset_physics_interpolation()
-			knocked_out_timer = 2.0
-			invuln = 2.0
-			if rig != null:
-				rig.snap()
-		else:
-			is_down = true
-			down_time = 0.0
-			down_flip = face_dir.x < 0.0
-		knocked_out.emit(self)
+		_fall()
+
+
+## Bodyguard: a share of a teammate's hit lands on this Warden. It hurts as a hit does (Tempered holds, Payback
+## fills, Unbroken can save them) but knocks nothing back, comes through a dodge, and the Plate does not soak it.
+func take_share(amount: float) -> void:
+	if is_down or unhurt or amount <= 0.0:
+		return
+	if roles != null:
+		amount = roles.tempered(self, amount)
+	hp -= amount
+	hurt_flash = 0.12
+	if roles != null:
+		roles.was_hit(self)
+		roles.paid(self, amount)
+	if hp <= 0.0:
+		_fall()
+
+
+## Health gone: knocked down (or, where that is the rule, straight back at the start). A Warden's Unbroken may
+## leave them on 1 health instead.
+func _fall() -> void:
+	if roles != null and roles.unbroken(self):
+		hp = 1.0      # (and untouchable for a moment: levels.gd's unbroken() sees to it)
+		hurt_vel = Vector2.ZERO
+		return
+	hp = 0.0
+	fell_at = global_position
+	_reset_combo()
+	dodge_timer = 0.0
+	_end_ghost()
+	if auto_respawn:
+		hp = max_hp
+		global_position = spawn_point
+		hurt_vel = Vector2.ZERO
+		reset_physics_interpolation()
+		knocked_out_timer = 2.0
+		invuln = 2.0
+		if rig != null:
+			rig.snap()
+	else:
+		is_down = true
+		down_time = 0.0
+		down_flip = face_dir.x < 0.0
+	knocked_out.emit(self)
 
 
 ## Back on your feet (after a room is cleared, or a restart).

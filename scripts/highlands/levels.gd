@@ -50,6 +50,7 @@ const Perks := preload("res://scripts/highlands/perks.gd")
 const LandMap := preload("res://scripts/highlands/land_map.gd")
 const ItemArt := preload("res://scripts/highlands/item_art.gd")
 const Art := preload("res://scripts/art.gd")
+const RuneFx := preload("res://scripts/fx/rune_fx.gd")
 const Sfx := preload("res://scripts/sfx.gd")
 const Enemy := preload("res://scripts/enemy.gd")
 
@@ -87,6 +88,18 @@ static var EXPOSE_TIME := 4.0      # Expose: a boss or an elite you crit is Expo
 static var EXPOSE_MORE := 0.15     # ... and everyone's hits on it do this much more
 static var EXECUTION_TIMES := 3.0  # Execution: a finisher on an Open enemy hits this many times as hard ...
 static var EXECUTION_BELOW := 1.0 / 3.0   # ... and a normal enemy left below this share of its health dies outright
+# The Warden's other perks (version 54). Numbers the Bible leaves open are Claude's (marked so).
+static var RING := 160.0           # the Warden's ring: "about three body lengths" (a body is 27 art px, 54 here)
+static var BODYGUARD_SHARE := 1.0 / 3.0    # Bodyguard: a teammate in the ring takes this much less, and it lands on you
+static var PAYBACK_TIMES := 1.0    # Payback: the burst does this much of the damage stored (Claude's) ...
+static var PAYBACK_MOST := 1.0     # ... the meter holds at most this share of your health (Claude's) ...
+static var PAYBACK_REACH := 56.0   # ... and the burst reaches this far round where the finisher lands (Claude's)
+static var TEMPERED_MOST := 1.0 / 3.0      # Tempered: no single hit takes more than this share of your health
+static var SHOULDER_SHOVE := 320.0 # Shoulder Charge: how hard a dodge shoves (Claude's) ...
+static var SHOULDER_FLAT := 0.6    # ... and how long a small enemy lies flat, Open (Claude's)
+static var PLATE_BACK := 8.0       # Plate: it grows back this long after it breaks
+static var UNBROKEN_TIME := 2.0    # Unbroken: 1 health and untouchable this long ...
+static var UNBROKEN_EVERY := 90.0  # ... once every this long
 
 ## What the forge says as the squad reaches each level, from level 1. Stand-ins: see the top of this file.
 const FORGE_LINES := [
@@ -105,6 +118,8 @@ const PLATE := Color("#19142a")
 const PALE := Color("#7fe0c0")     # the Spark's verdigris, for the number it heals
 const GLINT := Color("#fff0b4")    # the Striker's pale gold (the Open mark's): Sharp's glint, Close Call, Execution
 const GLINT_TIP := Color("#e0b860")   # the glint's arms fade to this at their ends
+const BRONZE := Color("#d08a3c")   # the Warden's Plate, round the health bar while it holds
+const EMBER := Color("#c8482c")    # the Payback meter
 
 
 class Layer extends Node2D:
@@ -132,6 +147,9 @@ var was_full: Array = []           # per player: their bar was full on the last 
 var calm: Array = []               # per player: seconds since they were last hit (Sharp glints at SHARP_TIME)
 var sharp_spent: Array = []        # per player: their glint went into a finisher this tick (it goes at the tick's end)
 var close_called: Array = []       # per player: the dodge (when it began) that last made a Close Call: one word a dodge
+var payback: Array = []            # per player: the damage stored in their Payback meter
+var plate_wait: Array = []         # per player: seconds until their Plate grows back (0: it holds)
+var unbroken_wait: Array = []      # per player: seconds until their Unbroken can save somebody again
 var sensed: Array = []             # looks only: what Ore Sense shows now, [[tile, "tin" | "copper"]]
 var sensed_t := 0.0
 var clock := 0.0
@@ -165,6 +183,9 @@ func _ready() -> void:
 		calm.append(0.0)
 		sharp_spent.append(false)
 		close_called.append(-99.0)
+		payback.append(0.0)
+		plate_wait.append(0.0)
+		unbroken_wait.append(0.0)
 		if is_instance_valid(players[i]):
 			players[i].roles = self
 
@@ -343,6 +364,11 @@ func finisher(p, hits: Array) -> void:
 		for e in hits:
 			if is_instance_valid(e) and not e.dead and e.has_method("challenge"):
 				e.challenge(p, CHALLENGE_BOSS_TIME if e.is_boss() else CHALLENGE_TIME, CHALLENGE_BOSS_REST)
+	if has(i, "payback") and float(payback[i]) > 0.0:
+		for e in hits:
+			if is_instance_valid(e):
+				_payback(i, e.global_position)
+				break
 	if has(i, "kindle") and float(spark_wait[i]) <= 0.0:
 		for e in hits:
 			if not is_instance_valid(e):
@@ -459,6 +485,143 @@ func landed(p, e, crit: bool, boosted: Dictionary, was: float) -> void:
 			e._apply_damage(float(e.hp), true, GLINT)
 
 
+# --- The Warden's other perks (version 54) --------------------------------------------------
+# Unmoved, Bodyguard, Payback, Tempered, Shoulder Charge, Plate and Unbroken. player.gd's take_damage() asks them in
+# this order: Plate (soaks the whole hit), Challenge, Bodyguard (a third goes to the Warden), Tempered (no more than
+# a third of your health), then the hit lands (Payback fills), Unmoved (no knock back), Unbroken (not down).
+
+## Is player p in the middle of a move that Unmoved keeps going: a swing, a held rune, a Snipe's draw or a Leap?
+func unmoved(p) -> bool:
+	return has_p(p, "unmoved") and (int(p.current_step) >= 0 or int(p.hold_button) >= 0 or int(p.snipe_button) >= 0 or not (p.leap_landing as Dictionary).is_empty())
+
+
+## Plate: does player p's bronze plate soak this hit, whole? It breaks, and grows back PLATE_BACK later.
+func plate_soaks(p) -> bool:
+	var i := players.find(p)
+	if not has(i, "plate") or float(plate_wait[i]) > 0.0:
+		return false
+	plate_wait[i] = float(PLATE_BACK)
+	p._label("PLATE", BRONZE)
+	Sfx.play(game, "anvil", -6.0, 1.3)
+	return true
+
+
+## Does player p have a Plate up now (the screen shows it round their health bar)?
+func plate_up(i: int) -> bool:
+	return has(i, "plate") and float(plate_wait[i]) <= 0.0
+
+
+## Bodyguard: what of this hit reaches player p, when a Warden of the squad (not p) stands within RING of them.
+## A third less, and that third lands on the Warden. Only the nearest Warden takes it; alone, nothing changes.
+func guarded(p, amount: float) -> float:
+	if players.size() < 2 or amount <= 0.0:
+		return amount
+	var best = null
+	for w in players:
+		if w == p or not is_instance_valid(w) or w.is_down or not has_p(w, "bodyguard"):
+			continue
+		var d: float = w.global_position.distance_to(p.global_position)
+		if d <= RING and (best == null or d < best.global_position.distance_to(p.global_position)):
+			best = w
+	if best == null:
+		return amount
+	var share := amount * clampf(BODYGUARD_SHARE, 0.0, 1.0)
+	best.take_share(share)
+	return amount - share
+
+
+## Tempered: no single hit takes more than TEMPERED_MOST of player p's health.
+func tempered(p, amount: float) -> float:
+	if has_p(p, "tempered"):
+		return minf(amount, float(p.max_hp) * TEMPERED_MOST)
+	return amount
+
+
+## Player p was hurt this much: their Payback meter fills (up to PAYBACK_MOST of their health).
+func paid(p, amount: float) -> void:
+	var i := players.find(p)
+	if has(i, "payback") and amount > 0.0:
+		payback[i] = minf(float(payback[i]) + amount, float(p.max_hp) * PAYBACK_MOST)
+
+
+## Payback's burst where player i's finisher landed: every enemy within PAYBACK_REACH takes what the meter held.
+func _payback(i: int, at: Vector2) -> void:
+	var p = players[i]
+	var dmg := float(payback[i]) * PAYBACK_TIMES
+	payback[i] = 0.0
+	if game == null or dmg <= 0.0:
+		return
+	for e in game.get_tree().get_nodes_in_group("enemies"):
+		if not is_instance_valid(e) or e.dead or e.immune or e.global_position.distance_to(at) > PAYBACK_REACH + float(e.radius):
+			continue
+		var away: Vector2 = e.global_position - at
+		e.last_hit_by = p
+		e.take_hit(dmg, away.normalized() if away.length() > 1.0 else Vector2.RIGHT, 180.0, false, EMBER, 0.15, 0.06)
+	# An ember ring that bursts out as far as Payback reaches (the finisher has its own impact): it shows what was
+	# caught and hides nobody. A stand-in until the Art builder's "payback_burst" comes.
+	var ring := RuneFx.new()
+	ring.kind = "pulse"
+	ring.size = (PAYBACK_REACH + 10.0) / 140.0
+	ring.color = EMBER
+	ring.life = 0.3
+	p._fx_root().add_child(ring)
+	ring.global_position = at
+	p._label("PAYBACK", EMBER)
+	Sfx.play(game, "thud", -4.0, 0.8)
+
+
+## Shoulder Charge: player p is dodging. Each enemy the dodge runs into is shoved back and Challenged (once a dodge);
+## a small one (not an elite, not a boss, no bigger than a hound) is knocked flat for a moment, which makes it Open.
+func shoulder(p) -> void:
+	if not has_p(p, "shoulder_charge") or game == null:
+		return
+	for e in game.get_tree().get_nodes_in_group("enemies"):
+		if not is_instance_valid(e) or e.dead or e.kind == "dummy" or p.shouldered.has(e.get_instance_id()):
+			continue
+		if e.global_position.distance_to(p.global_position) > float(e.radius) + 16.0 + 8.0:
+			continue
+		p.shouldered[e.get_instance_id()] = true
+		e.knock = (p.dodge_dir as Vector2) * SHOULDER_SHOVE * float(e.knock_resist)
+		e.challenge(p, CHALLENGE_BOSS_TIME if e.is_boss() else CHALLENGE_TIME, CHALLENGE_BOSS_REST)
+		if small(e):
+			e.stun_time = maxf(float(e.stun_time), SHOULDER_FLAT)
+		Sfx.play(game, "thud", -8.0, 1.2)
+
+
+## A small enemy, for Shoulder Charge: no elite, no boss, no bigger than a hound.
+static func small(e) -> bool:
+	return not e.is_boss() and not bool(e.elite) and float(e.radius) <= 12.0
+
+
+## Unbroken: a blow is about to knock player p down. If p has Unbroken ready, or stands within RING of a teammate who
+## has, it does not: p is left on 1 health and untouchable for UNBROKEN_TIME, and that Unbroken rests UNBROKEN_EVERY.
+func unbroken(p) -> bool:
+	var i := players.find(p)
+	if i < 0:
+		return false
+	var who := -1
+	if has(i, "unbroken") and float(unbroken_wait[i]) <= 0.0:
+		who = i
+	elif players.size() > 1:
+		for k in players.size():
+			var w = players[k]
+			if k != i and is_instance_valid(w) and not w.is_down and has(k, "unbroken") and float(unbroken_wait[k]) <= 0.0 and w.global_position.distance_to(p.global_position) <= RING:
+				who = k
+				break
+	if who < 0:
+		return false
+	unbroken_wait[who] = float(UNBROKEN_EVERY)
+	p.invuln = maxf(float(p.invuln), UNBROKEN_TIME)
+	p._label("UNBROKEN", BRONZE)
+	Sfx.play(game, "anvil", -4.0, 0.8)
+	return true
+
+
+## Does player i's ring show (co-op, with Bodyguard or Unbroken awake)?
+func shows_ring(i: int) -> bool:
+	return players.size() > 1 and (has(i, "bodyguard") or has(i, "unbroken"))
+
+
 # --- Once a tick --------------------------------------------------------------------------
 
 func tick(delta: float) -> void:
@@ -474,6 +637,11 @@ func tick(delta: float) -> void:
 			calm[i] = 0.0
 		var glinted := glinting(i)
 		calm[i] = float(calm[i]) + delta
+		unbroken_wait[i] = maxf(float(unbroken_wait[i]) - delta, 0.0)
+		if float(plate_wait[i]) > 0.0:
+			plate_wait[i] = maxf(float(plate_wait[i]) - delta, 0.0)
+			if float(plate_wait[i]) <= 0.0 and has(i, "plate") and is_instance_valid(players[i]):
+				Sfx.play(game, "click", -8.0, 0.9)      # (the Plate is back)
 		var p = players[i]
 		if not is_instance_valid(p):
 			continue
@@ -601,6 +769,24 @@ func _sense() -> void:
 
 ## On the ground, under everybody: what Ore Sense shows through the rock, and the Sparks.
 func _draw_under(ci: Node2D) -> void:
+	# The Warden's ring (co-op, with Bodyguard or Unbroken): a faint ring of dots on the ground round their feet, in
+	# their colour, as far as the ring reaches. A stand-in drawn here until the Art builder's picture ("warden_ring"
+	# in art/roles) comes. It is fainter while their Unbroken rests.
+	for i in players.size():
+		var w = players[i]
+		if not shows_ring(i) or not is_instance_valid(w) or w.is_down:
+			continue
+		var mid: Vector2 = ((w.global_position + Vector2(0, FEET)) / UNIT).floor()
+		var col: Color = Art.PLAYER_COLORS[i % Art.PLAYER_COLORS.size()]
+		col.a = 0.4 if has(i, "unbroken") and float(unbroken_wait[i]) > 0.0 and not has(i, "bodyguard") else 0.85
+		var shade := Color(0.06, 0.04, 0.09, col.a * 0.4)      # a dark pixel under each dash, so it reads on pale sand
+		var r := RING / UNIT
+		var n := 40
+		for k in n:
+			var a := TAU * float(k) / float(n) + clock * 0.15
+			var at := (mid + Vector2(cos(a), sin(a) * 0.62) * r).floor()      # (seen from above at the game's slant)
+			ci.draw_rect(Rect2((at + Vector2(0, 1)) * UNIT, Vector2(UNIT * 3.0, UNIT)), shade)
+			ci.draw_rect(Rect2(at * UNIT, Vector2(UNIT * 3.0, UNIT)), col)
 	# The shimmer: a few glints that come and go on each ore tile, in the ore's own colours. Every tile starts its
 	# loop somewhere else, so a vein does not blink as one.
 	for k in sensed.size():
@@ -700,6 +886,22 @@ func _draw_hud() -> void:
 		var glow := maxf(lit * 0.45, 0.22 + 0.12 * sin(clock * 2.4) if frac >= 1.0 else 0.0)
 		if glow > 0.0 and w > 0.0:
 			panel.draw_rect(Rect2(fill_at, Vector2(w, float(box[3]))), Color(1.0, 0.96, 0.8, glow))
+	# The Warden's Plate: a bronze edge round the health bar while it holds. Payback: a thin ember meter under the
+	# Memory bar, as full as what it holds (stand-ins until the Art builder's pictures come).
+	for i in players.size():
+		if not is_instance_valid(players[i]):
+			continue
+		var at := bar_at(i)
+		if plate_up(i):
+			var hp := Rect2(at.x - 1.0, 7.0 - 1.0, HP_BAR.x + 2.0, HP_BAR.y + 1.0)
+			panel.draw_rect(hp, BRONZE, false, 1.0)
+		if has(i, "payback"):
+			var track := Rect2(at + Vector2(float(inner[0]), 10.0), Vector2(80, 2))
+			panel.draw_rect(track.grow(1.0), PLATE)
+			var most: float = float(players[i].max_hp) * PAYBACK_MOST
+			var w := ceilf(80.0 * clampf(float(payback[i]) / maxf(most, 1.0), 0.0, 1.0))
+			if w > 0.0:
+				panel.draw_rect(Rect2(track.position, Vector2(w, 2)), EMBER)
 	# The squad's level.
 	var badge := ItemArt.size("level_badge")
 	var bx := floorf((SIZE.x - maxf(badge.x, 15.0)) * 0.5)
