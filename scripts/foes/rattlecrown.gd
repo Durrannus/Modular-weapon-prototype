@@ -61,6 +61,7 @@ const BODY := 17.0                     # his body's radius
 const SLAM_OUT := 52.0                 # the club comes down this far in front of his feet (26 art pixels)
 const SLAM_REACH := Vector2(56.0, 28.0)    # the ring's reach from its middle if the art does not say: across and deep
 const SLAM_NEAR := 66.0                # he slams once you are this near
+const SLAM_CHOKE := 0.65               # the nearest the club comes down, as a share of its reach
 const SLAM_TIME := 0.3
 const SLAM_AT := 0.1                   # the blow lands this long into the swing (the strip's second picture)
 const BLOW_SHOW := 0.2                 # the ring's last picture stays this long
@@ -77,6 +78,10 @@ const PUSH := 520.0                    # how hard a charge throws you aside
 
 var team := 0                          # how many players his health is for (0: he counts them)
 var big := 1.0                         # how much bigger than the first draft's king he is drawn
+var slam_out := SLAM_OUT               # how far in front of his feet the club comes down (world units; from his art)
+var hand := HAND                       # where the scrap leaves his hand (world units; from his art)
+var slam_near := SLAM_NEAR             # he slams once you are this near (world units; follows slam_out)
+var slam_dist := SLAM_OUT              # how far out this slam's club comes down (world units; _reach_for)
 var slam_reach := SLAM_REACH
 var toss_reach := TOSS_REACH
 var room := Rect2()                    # with a size (world units): he fights only those inside it, and stays in it
@@ -103,9 +108,16 @@ var blow_at := Vector2.ZERO
 func _setup() -> void:
 	kind = "rattlecrown"
 	_stats()
-	var frame: Array = Art.json(Scrap.BOOK).get("enemies", {}).get("rattlecrown", {}).get("frame", [DRAWN, DRAWN])
+	var info: Dictionary = Art.json(Scrap.BOOK).get("enemies", {}).get("rattlecrown", {})
+	var frame: Array = info.get("frame", [DRAWN, DRAWN])
 	big = clampf(float(frame[0]) / DRAWN, 1.0, 2.5)
 	radius = roundf(minf(BODY * big, 28.0))
+	# Where his art puts the club's head on the slam's blow and the lump as it leaves his hand, if it says (art
+	# pixels in front of his feet, and up; version 50's animated art does): the ring is laid where the club lands.
+	var reach: Dictionary = info.get("reach", {})
+	slam_out = float(reach["slam"][0]) * Art.PIXEL if reach.has("slam") else SLAM_OUT * big
+	hand = Vector2(float(reach["hand"][0]), float(reach["hand"][1])) * Art.PIXEL if reach.has("hand") else HAND * big
+	slam_near = slam_out + (SLAM_NEAR - SLAM_OUT) * big     # he slams once you are about where the club comes down
 	slam_reach = Scrap.reach_of("slam_mark", SLAM_REACH)
 	toss_reach = Scrap.reach_of("scrap_mark", TOSS_REACH)
 	contact_damage = 0.0
@@ -129,6 +141,139 @@ func phase() -> int:
 func _physics_process(delta: float) -> void:
 	blow_t += delta
 	super._physics_process(delta)
+	_see_through()
+	_through.queue_redraw()
+	_through_marks.queue_redraw()
+	_through_ghosts.queue_redraw()
+
+
+# --- Seen through him (version 50, after the Overseer's review) ----------------------------------------------------
+# At his new size (134 by 120 art pixels) his body covers what is just behind it: his own marks on the floor, and a
+# player above him on the screen. A hazard must be seen, and so must your own character, so both show through his
+# body, clipped to it: his marks in their warning orange, a little see-through, and anyone behind him as a flat
+# shape in their own colour. Outside his body nothing changes (the marks lie on the floor, under everyone).
+
+const THROUGH_MARKS := 0.85            # how strongly his marks show through his body
+const THROUGH_GHOST := 0.9             # how strongly a player behind him shows through it
+const GHOST_EDGE := Color("#fff1d6")   # the pale edge round that shape
+
+var _through: Node2D                   # his body again, as a mask only (nothing of it is drawn)
+var _through_marks: Node2D             # his marks, inside the mask
+var _through_ghosts: Node2D            # players behind him, inside the mask
+static var _ghost_mat: ShaderMaterial = null
+
+
+func _see_through() -> void:
+	if _through != null:
+		return
+	_through = Node2D.new()
+	_through.clip_children = CanvasItem.CLIP_CHILDREN_ONLY
+	_through.z_index = 1                   # over everything on the floor's level, him included
+	_through.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_INHERIT
+	add_child(_through)
+	_through.draw.connect(_draw_body_mask)
+	_through_marks = Node2D.new()
+	_through_marks.material = Art.unshaded()
+	_through_marks.self_modulate = Color(1, 1, 1, THROUGH_MARKS)
+	_through.add_child(_through_marks)
+	_through_marks.draw.connect(_draw_marks_through)
+	_through_ghosts = Node2D.new()
+	_through_ghosts.material = _ghost_material()
+	_through.add_child(_through_ghosts)
+	_through_ghosts.draw.connect(_draw_ghosts)
+
+
+## A flat shape in the colour it is drawn with, cut to the picture's own outline; the dark never dims it.
+static func _ghost_material() -> ShaderMaterial:
+	if _ghost_mat == null:
+		var sh := Shader.new()
+		sh.code = "shader_type canvas_item;\nrender_mode unshaded;\nvarying vec4 tint;\nvoid vertex() { tint = COLOR; }\nvoid fragment() { COLOR = vec4(tint.rgb, texture(TEXTURE, UV).a * tint.a); }\n"
+		_ghost_mat = ShaderMaterial.new()
+		_ghost_mat.shader = sh
+	return _ghost_mat
+
+
+func _draw_body_mask() -> void:
+	var sp := _sprite()
+	if sp.is_empty():
+		return
+	Art.draw_strip(_through, sp["tex"], sp["frames"], sp["frame"], _feet(), sp["origin"], sp["flip"])
+
+
+## His picture's box right now, in the world.
+func body_box() -> Rect2:
+	var sp := _sprite()
+	if sp.is_empty():
+		return Rect2(global_position - Vector2(radius, radius), Vector2(radius, radius) * 2.0)
+	var tex: Texture2D = sp["tex"]
+	var size := Vector2(float(tex.get_width()) / float(maxi(int(sp["frames"]), 1)), float(tex.get_height()))
+	var o: Vector2 = sp["origin"]
+	var left := (size.x - o.x) if bool(sp["flip"]) else o.x
+	return Rect2(global_position + _feet() - Vector2(left, o.y) * Art.PIXEL, size * Art.PIXEL)
+
+
+## His tossed scrap whose rings are still on the floor.
+func through_shots() -> Array:
+	var out: Array = []
+	for s in get_tree().get_nodes_in_group("crown_shots"):
+		if is_instance_valid(s) and s.by == self:
+			out.append(s)
+	return out
+
+
+## The marks his body is over right now: his own (the slam's ring, the charge's lane, a landed slam) and his
+## scrap's rings, as [what, where in the world].
+func marks_under_him() -> Array:
+	var out: Array = []
+	var box := body_box()
+	if not dead and not held:
+		if mode == "slam_windup":
+			out.append(["slam", global_position + _feet() + aim * slam_dist])
+		elif mode == "charge_windup":
+			out.append(["charge", global_position])
+	if blow_t < BLOW_SHOW:
+		out.append(["blow", blow_at])
+	for s in through_shots():
+		out.append(["scrap", s.global_position])
+	return out.filter(func(m): return m[0] == "charge" or box.grow(maxf(slam_reach.x, toss_reach.x)).has_point(m[1]))
+
+
+func _draw_marks_through() -> void:
+	_draw_ground(_through_marks)
+	for s in through_shots():
+		s.draw_mark(_through_marks, s.global_position - global_position)
+
+
+## Players his body hides: anyone higher up the screen than he is (so drawn before him) whose body overlaps his
+## picture.
+func behind_him() -> Array:
+	var out: Array = []
+	var box := body_box()
+	for p in get_tree().get_nodes_in_group("player"):
+		if not is_instance_valid(p) or not p.visible or p.global_position.y >= global_position.y:
+			continue
+		if box.intersects(Rect2(p.global_position + Vector2(-16.0, -50.0), Vector2(32.0, 56.0))):
+			out.append(p)
+	return out
+
+
+func _draw_ghosts() -> void:
+	for p in behind_him():
+		var col: Color = Art.PLAYER_COLORS[int(p.index) % Art.PLAYER_COLORS.size()]
+		col.a = THROUGH_GHOST
+		var off: Vector2 = p.global_position - global_position
+		var b: Dictionary = p._body_now()
+		if b.is_empty():
+			_through_ghosts.draw_circle(off, 15.0, col)
+			continue
+		# A pale edge one art pixel wide all round, then the body in the player's colour, so it reads on his rust.
+		var rect := Rect2(-p._body_origin(), (b["src"] as Rect2).size)
+		for edge in [Vector2(-1, 0), Vector2(1, 0), Vector2(0, -1), Vector2(0, 1)]:
+			_through_ghosts.draw_set_transform(off + (b["at"] as Vector2) + edge * Art.PIXEL, float(b["angle"]), b["scale"])
+			_through_ghosts.draw_texture_rect_region(b["tex"], rect, b["src"], GHOST_EDGE)
+		_through_ghosts.draw_set_transform(off + (b["at"] as Vector2), float(b["angle"]), b["scale"])
+		_through_ghosts.draw_texture_rect_region(b["tex"], rect, b["src"], col)
+		_through_ghosts.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 
 func _think(delta: float) -> Vector2:
@@ -173,7 +318,7 @@ func _fight(delta: float) -> Vector2:
 			var ready := false
 			match next:
 				"slam":
-					ready = dist <= SLAM_NEAR * big
+					ready = dist <= slam_near
 				"toss":
 					ready = dist <= TOSS_FAR and sees(at)
 				"charge":
@@ -198,6 +343,7 @@ func _fight(delta: float) -> Vector2:
 			if mode_t > LOCK and target != null and dist > 1.0:
 				aim = to_p.normalized()
 				facing = aim
+				_reach_for(target.global_position)
 			if mode_t <= 0.0:
 				_set_mode("slam", SLAM_TIME)
 				blow_done = false
@@ -262,7 +408,7 @@ func _fight(delta: float) -> Vector2:
 				_begin(last, SECOND)
 				return Vector2.ZERO
 			# Between two slams he steps after you, so the second is not struck at the air.
-			if last == "slam" and target != null and dist > SLAM_NEAR * big * 0.8:
+			if last == "slam" and target != null and dist > slam_near * 0.8:
 				return _go(at, speed * 1.6, delta)
 		"rest":
 			if mode_t <= 0.0:
@@ -286,6 +432,12 @@ func _pick() -> String:
 	return str(from[clampi(floori(Sim.between(0.0, float(from.size()) - 0.001)), 0, from.size() - 1)])
 
 
+## How far out the club comes down: where you are, but no nearer than about two thirds of its reach and no farther
+## than all of it (his long club's head lands 81 art pixels out at most, in version 50's art).
+func _reach_for(at: Vector2) -> void:
+	slam_dist = clampf((at - global_position - _feet()).dot(aim), slam_out * SLAM_CHOKE, slam_out)
+
+
 ## The warning of an attack begins. `share`: how much of its usual length it lasts (the second go's is shorter).
 func _begin(what: String, share: float) -> void:
 	var at: Vector2 = target.global_position if target != null else global_position + aim * 80.0
@@ -296,6 +448,7 @@ func _begin(what: String, share: float) -> void:
 	match what:
 		"slam":
 			_set_mode("slam_windup", SLAM_WINDUP * share)
+			_reach_for(at)
 			Sfx.play(self, "warn", -11.0, 0.6)
 		"toss":
 			_set_mode("toss_windup", TOSS_WINDUP * share)
@@ -307,8 +460,8 @@ func _begin(what: String, share: float) -> void:
 				aim_at = _apart(at + (target.velocity as Vector2) * 0.4 if target != null else at)
 			var s := Scrap.new()
 			s.by = self
-			s.from = global_position + Vector2((-1.0 if facing.x < 0.0 else 1.0) * HAND.x * big, _feet().y)
-			s.from_up = HAND.y * big
+			s.from = global_position + Vector2((-1.0 if facing.x < 0.0 else 1.0) * hand.x, _feet().y)
+			s.from_up = hand.y
 			s.to = aim_at
 			s.wait = mode_t
 			s.flight = TOSS_FLIGHT
@@ -360,7 +513,7 @@ func _after() -> void:
 
 ## The club comes down.
 func _blow() -> void:
-	blow_at = global_position + _feet() + aim * SLAM_OUT * big
+	blow_at = global_position + _feet() + aim * slam_dist
 	blow_t = 0.0
 	Sfx.play(self, "slam", -5.0, 0.9)
 	for p in players():
@@ -445,7 +598,7 @@ func _draw_ground(ci: CanvasItem) -> void:
 	match mode:
 		"slam_windup":
 			var k := 1.0 - clampf(mode_t / maxf(windup, 0.01), 0.0, 1.0)
-			_ring(ci, _feet() + aim * SLAM_OUT * big, clampi(int(k * 3.0), 0, 2))
+			_ring(ci, _feet() + aim * slam_dist, clampi(int(k * 3.0), 0, 2))
 		"charge_windup":
 			if not Warn.lane(ci, "wide", mode_t <= LOCK, Vector2(0, radius * 0.5), aim, CHARGE_DIST + radius, anim_time):
 				ci.draw_line(Vector2.ZERO, aim * (CHARGE_DIST + radius), Color("#ff8a3c"), 6.0)

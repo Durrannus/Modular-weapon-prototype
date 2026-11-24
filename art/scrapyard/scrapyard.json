@@ -1,5 +1,5 @@
 {
- "note": "The Scrapyard's gate, Rattlecrown's hoard, the scrap piles, the spike traps' spikes, the stands and the watching goblins: round 2 (the Art builder's hl_king3.py), baked by tools/rattlecrown_kit/bake.py. Stills; the open gate is the shut one with its leaves swung in against its posts, until an open gate is drawn.",
+ "note": "The Scrapyard's gate, Rattlecrown's hoard, the scrap piles, the spike traps' spikes, the stands and the watching goblins: round 2 (the Art builder's hl_king3.py and hl_rc_anim.py), baked by tools/rattlecrown_kit/bake.py. The gate, the hoard, the spikes and the crowd move; the piles and the stands are stills.",
  "sprites": {
   "gate_front_shut": {
    "frame": [
@@ -27,12 +27,12 @@
     28,
     63
    ],
-   "frames": 3,
-   "fps": 6,
+   "frames": 4,
+   "fps": 8,
    "box": [
     74,
     0,
-    168,
+    224,
     64
    ]
   },
@@ -47,7 +47,7 @@
    ],
    "frames": 1,
    "box": [
-    243,
+    299,
     0,
     56,
     64
@@ -68,7 +68,7 @@
     8
    ],
    "box": [
-    300,
+    356,
     0,
     66,
     52
@@ -89,7 +89,7 @@
     8
    ],
    "box": [
-    418,
+    474,
     0,
     48,
     42
@@ -110,7 +110,7 @@
     8
    ],
    "box": [
-    740,
+    850,
     0,
     46,
     40
@@ -131,8 +131,8 @@
     8
    ],
    "box": [
-    887,
-    0,
+    229,
+    419,
     34,
     32
    ]
@@ -152,7 +152,7 @@
     8
    ],
    "box": [
-    367,
+    423,
     0,
     50,
     44
@@ -173,8 +173,8 @@
     8
    ],
    "box": [
-    852,
-    0,
+    194,
+    419,
     34,
     34
    ]
@@ -191,7 +191,7 @@
    "frames": 4,
    "fps": 5,
    "box": [
-    787,
+    897,
     0,
     64,
     36
@@ -200,51 +200,51 @@
   "hoard_chest": {
    "frame": [
     32,
-    28
+    36
    ],
    "origin": [
     16,
-    27
+    35
    ],
    "frames": 5,
    "foot": [
     16,
-    27
+    35
    ],
    "solid": [
     26,
-    6
+    8
    ],
    "box": [
-    781,
+    0,
     419,
     160,
-    28
+    36
    ]
   },
   "hoard_chest_empty": {
    "frame": [
     32,
-    28
+    36
    ],
    "origin": [
     16,
-    27
+    35
    ],
    "frames": 1,
    "foot": [
     16,
-    27
+    35
    ],
    "solid": [
     26,
-    6
+    8
    ],
    "box": [
-    942,
+    161,
     419,
     32,
-    28
+    36
    ]
   },
   "hoard_gate_shut": {
@@ -258,7 +258,7 @@
    ],
    "frames": 1,
    "box": [
-    467,
+    523,
     0,
     54,
     42
@@ -273,12 +273,12 @@
     27,
     41
    ],
-   "frames": 3,
-   "fps": 6,
+   "frames": 4,
+   "fps": 8,
    "box": [
-    522,
+    578,
     0,
-    162,
+    216,
     42
    ]
   },
@@ -293,7 +293,7 @@
    ],
    "frames": 1,
    "box": [
-    685,
+    795,
     0,
     54,
     42
@@ -310,8 +310,8 @@
    ],
    "frames": 1,
    "box": [
-    922,
-    0,
+    264,
+    419,
     18,
     30
    ]
@@ -328,8 +328,8 @@
    "frames": 2,
    "fps": 12,
    "box": [
-    941,
-    0,
+    283,
+    419,
     36,
     30
    ]
@@ -343,12 +343,12 @@
     9,
     29
    ],
-   "frames": 4,
-   "fps": 24,
+   "frames": 2,
+   "fps": 16,
    "box": [
-    0,
+    320,
     419,
-    72,
+    36,
     30
    ]
   },
@@ -363,7 +363,7 @@
    ],
    "frames": 1,
    "box": [
-    73,
+    357,
     419,
     18,
     30
@@ -380,7 +380,7 @@
    ],
    "frames": 1,
    "box": [
-    92,
+    376,
     419,
     242,
     30
@@ -397,7 +397,7 @@
    ],
    "frames": 1,
    "box": [
-    335,
+    619,
     419,
     82,
     30
@@ -414,7 +414,7 @@
    ],
    "frames": 1,
    "box": [
-    418,
+    702,
     419,
     98,
     30
@@ -437,40 +437,6 @@
     418
    ]
   },
-  "goblin_lean": {
-   "frame": [
-    32,
-    30
-   ],
-   "origin": [
-    16,
-    27
-   ],
-   "frames": 1,
-   "box": [
-    517,
-    419,
-    32,
-    30
-   ]
-  },
-  "goblin_lean_cap": {
-   "frame": [
-    32,
-    30
-   ],
-   "origin": [
-    16,
-    27
-   ],
-   "frames": 1,
-   "box": [
-    550,
-    419,
-    32,
-    30
-   ]
-  },
   "goblin_cheer": {
    "frame": [
     32,
@@ -480,11 +446,12 @@
     16,
     27
    ],
-   "frames": 1,
+   "frames": 2,
+   "fps": 4,
    "box": [
-    583,
+    801,
     419,
-    32,
+    64,
     30
    ]
   },
@@ -497,11 +464,48 @@
     16,
     27
    ],
-   "frames": 1,
+   "frames": 2,
+   "fps": 4,
    "box": [
-    616,
+    866,
     419,
+    64,
+    30
+   ]
+  },
+  "goblin_lean": {
+   "frame": [
     32,
+    30
+   ],
+   "origin": [
+    16,
+    27
+   ],
+   "frames": 2,
+   "fps": 4,
+   "box": [
+    931,
+    419,
+    64,
+    30
+   ]
+  },
+  "goblin_lean_cap": {
+   "frame": [
+    32,
+    30
+   ],
+   "origin": [
+    16,
+    27
+   ],
+   "frames": 2,
+   "fps": 4,
+   "box": [
+    0,
+    456,
+    64,
     30
    ]
   },
@@ -514,11 +518,12 @@
     16,
     27
    ],
-   "frames": 1,
+   "frames": 2,
+   "fps": 4,
    "box": [
-    649,
-    419,
-    32,
+    65,
+    456,
+    64,
     30
    ]
   },
@@ -531,11 +536,12 @@
     16,
     27
    ],
-   "frames": 1,
+   "frames": 2,
+   "fps": 4,
    "box": [
-    682,
-    419,
-    32,
+    130,
+    456,
+    64,
     30
    ]
   },
@@ -548,11 +554,12 @@
     16,
     27
    ],
-   "frames": 1,
+   "frames": 2,
+   "fps": 4,
    "box": [
-    715,
-    419,
-    32,
+    195,
+    456,
+    64,
     30
    ]
   },
@@ -565,11 +572,12 @@
     16,
     27
    ],
-   "frames": 1,
+   "frames": 2,
+   "fps": 4,
    "box": [
-    748,
-    419,
-    32,
+    260,
+    456,
+    64,
     30
    ]
   }

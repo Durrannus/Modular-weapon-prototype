@@ -965,7 +965,7 @@ func _draw_hud() -> void:
 		var back := Rect2(belt.position - Vector2(4, 14), Vector2(maxf(belt.size.x + (bag_w + 3.0 if bag_w > 0.0 else 0.0), words_w) + 8.0, belt.size.y + 18.0))
 		if right:
 			back.position.x = belt.end.x + 4.0 - back.size.x
-		panel.draw_rect(back, SHADE)
+		panel.draw_rect(back, Art.shade(SHADE))
 		# The picked tool's name, and the two buttons.
 		var lit := clampf(1.0 - (clock - h.picked_at) / 0.5, 0.0, 1.0)
 		var line := belt.position.y - 4.0

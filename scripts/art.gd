@@ -71,6 +71,15 @@ static func glow_texture(rel_path: String) -> Texture2D:
 	return texture(rel_path.trim_suffix(".png") + "_glow.png")
 
 
+## The HUD's soft dark backings, stronger while the ground behind them is busy (the Throne Room's stands and
+## crowd, version 50, after the Overseer's review); scripts/highlands/crown.gd says when.
+static var busy_ground := false
+const BUSY_SHADE := 0.82
+
+static func shade(base: Color) -> Color:
+	return Color(base.r, base.g, base.b, BUSY_SHADE) if busy_ground else base
+
+
 static var _unshaded: CanvasItemMaterial = null
 
 ## For things that must stay bright in the dark: lights and the dark tint skip them.

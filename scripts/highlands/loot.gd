@@ -531,7 +531,7 @@ func _draw_hud() -> void:
 			continue
 		var purse: Purse = purses[i]
 		var r := purse_rect(i)
-		panel.draw_rect(Rect2(r.position - Vector2(4, 3), r.size + Vector2(8, 6)), SHADE)
+		panel.draw_rect(Rect2(r.position - Vector2(4, 3), r.size + Vector2(8, 6)), Art.shade(SHADE))
 		var lit_c := clampf(1.0 - (clock - float(purse.gained.get("coins", -9.0))) / 0.7, 0.0, 1.0)
 		ItemArt.draw(panel, "hud_coin", r.position + Vector2(0, 2))
 		_head(str(purse.coins), r.position + Vector2(15, 12), INK.lerp(AMBER, lit_c))

@@ -646,7 +646,14 @@ func _still(name: String, foot: Vector2, mirrored: bool, up: float, z: int) -> S
 	sp.texture = t
 	sp.centered = false
 	sp.flip_h = mirrored
-	var ox := float(box[2]) - float(o[0]) if mirrored else float(o[0])
+	var frames := maxi(int(info.get("frames", 1)), 1)
+	sp.hframes = frames
+	if frames > 1:
+		# A loop (the crowd's cheering): each one starts on its own beat, so they do not all move together.
+		sp.set_meta("fps", float(info.get("fps", 4)))
+		sp.set_meta("beat", float(posmod(int(foot.x * 7.0 + foot.y * 13.0), 97)) / 97.0 * float(frames))
+	var w := float(box[2]) / float(frames)
+	var ox := w - float(o[0]) if mirrored else float(o[0])
 	sp.offset = Vector2(-ox, -float(o[1]) + up)
 	sp.scale = Vector2(UNIT, UNIT)
 	sp.position = (foot - Vector2(0, up)) * UNIT
@@ -1096,6 +1103,20 @@ func _clear_shots() -> void:
 			s.queue_free()
 
 
+## Is anybody where the stands and their crowd fill the screen behind the HUD (the Throne Room and its doorway)? The
+## HUD's backings are stronger then (Art.shade), so the bars and the belt read over the planks and the goblins.
+func busy_view() -> bool:
+	var r := room_rect().grow(TILE * 2.0)
+	for p in players:
+		if is_instance_valid(p) and r.has_point(p.global_position):
+			return true
+	return false
+
+
+func _exit_tree() -> void:
+	Art.busy_ground = false
+
+
 ## How many of the squad are on their feet in the room (its doorway counts).
 func standing_in_room() -> int:
 	var r := room_rect().grow(TILE)
@@ -1110,14 +1131,19 @@ func standing_in_room() -> int:
 
 func tick(delta: float) -> void:
 	if not ok() or gate == null:
+		Art.busy_ground = false
 		return
 	clock += delta
+	Art.busy_ground = busy_view()
 	gate.step(delta)
 	inner.step(delta)
 	throne.step(delta)
 	_tick_rooms(delta)
 	for a in dress:
 		a.step(delta)
+	for sp: Sprite2D in scenery:
+		if sp.hframes > 1:
+			sp.frame = int(clock * float(sp.get_meta("fps", 4.0)) + float(sp.get_meta("beat", 0.0))) % sp.hframes
 	bars.step(delta)
 	if gate.anim == "opening" and gate.done():
 		gate.play("open")

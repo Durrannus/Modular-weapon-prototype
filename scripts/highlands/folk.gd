@@ -1001,7 +1001,7 @@ func _draw_hud() -> void:
 	for q in quests():
 		var lines := Shop.lines_of(pix, str(q["text"]), Art.TEXT_SIZE, TRACK_W - 12.0)
 		var h := 17.0 + 12.0 * float(lines.size()) + 3.0
-		panel.draw_rect(Rect2(at, Vector2(TRACK_W, h)), SHADE)
+		panel.draw_rect(Rect2(at, Vector2(TRACK_W, h)), Art.shade(SHADE))
 		var mark := Art.texture("hud/objective_mark.png")
 		if mark != null:
 			panel.draw_texture(mark, at + Vector2(5, 4))

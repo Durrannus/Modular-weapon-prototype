@@ -4,11 +4,11 @@
 The look is the Art builder's round 2, which Darren shaped on 23 November ("He needs more spikes like actual scrap
 armour", "Change the throne to match the scrap look too", "Make the chest golden and the gate better", "it has to look
 part of the world and not just a thing placed onto", "put scrap piles around the arena") and asked for in the game on 24
-November ("Add the new art for scrap boss fight"). It lives in hl_king3.py and hl_king2.py, in
-/mnt/project-files/art/highlands-rattlecrown-v2-rough/code/, with the cave's kit (core.py, knight.py, props.py) and the
-Highlands land (hl3.py). Darren also said "Don't animate yet as I might change more", so everything here is a STILL:
-every strip of the king and the throne is one picture, held as long as the old strip lasted. Only the mechanisms move:
-the spikes come up out of the floor and the hoard's portcullis goes up, which are the Art builder's own pieces moved.
+November ("Add the new art for scrap boss fight", then "Get art thread to animate"). It lives in hl_rc_anim.py (the
+animation), hl_king3.py and hl_king2.py, in /mnt/project-files/art/highlands-rattlecrown-v2/code/ (the rough stills'
+code in highlands-rattlecrown-v2-rough/code/ is the fallback), with the cave's kit (core.py, knight.py, props.py) and
+the Highlands land (hl3.py). The king, his throne, the gate, the hoard, the spikes and the crowd are animated; the
+scrap piles, the stands and the floor are stills.
 
 What it writes (and what reads it):
   art/foes/rattlecrown.png, .json      the king on foot, crowned, and on his throne (scripts/foes/rattlecrown.gd, crown.gd)
@@ -28,7 +28,7 @@ import numpy as np
 from PIL import Image
 
 ART = "/mnt/project-files/art/"
-CODE = [ART + "highlands-rattlecrown-v2-rough/code", ART + "highlands-concept/v3/code", ART + "concept-art-3/code",
+CODE = [ART + "highlands-rattlecrown-v2/code", ART + "highlands-rattlecrown-v2-rough/code", ART + "highlands-concept/v3/code", ART + "concept-art-3/code",
         ART + "highlands-scrapyard-v1/code", ART + "highlands-enemies-v1/code"]
 GAME = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 T = 16
@@ -37,7 +37,6 @@ PILES = {                   # the Throne Room's scrap piles, as the Art builder'
     "scrap_pile_big": (64, 38, 2), "scrap_pile_mid": (46, 28, 4), "scrap_pile_side": (44, 26, 6), "scrap_pile_small": (32, 18, 8),
     "scrap_heap_large": (48, 30, 11), "scrap_heap_small": (32, 20, 12),     # the other rooms' (same names as before)
 }
-POSES = ("lean", "cheer", "fist", "drum")
 
 
 def arr(im):
@@ -74,15 +73,6 @@ class Sheet:
         return img[:, :used.max() + 2] if len(used) else img, boxes
 
 
-def held(old, name, frames=1):
-    """A still for an old strip: the same length of time, in one picture (or `frames` copies of it)."""
-    st = old.get("strips", {}).get(name, {"frames": 1, "fps": 0})
-    n, fps = int(st.get("frames", 1)), float(st.get("fps", 0))
-    if fps <= 0:
-        return 0
-    return round(fps * frames / n, 3)
-
-
 def cut(img, box):
     x, y, w, h = box
     return img[y:y + h, x:x + w].copy()
@@ -95,44 +85,52 @@ def main():
     a = ap.parse_args()
     for p in reversed(CODE):
         sys.path.insert(0, p)
-    import hl_king2 as K2, hl_king3 as K3, hl3, core
+    import hl_king2 as K2, hl_king3 as K3, hl3, core, hl_rc_anim as A
 
-    # --- Rattlecrown and his throne ------------------------------------------------------------------------------
+    # --- Rattlecrown and his throne: animated (Darren, 24 Nov: "Get art thread to animate") -------------------------
     rpath = os.path.join(GAME, "art/foes/rattlecrown")
     old = json.load(open(rpath + ".json")); old_img = np.array(Image.open(rpath + ".png").convert("RGBA"))
-    sh = Sheet()
-    king, kf = K3.scrap_king(False); crowned, cf = K3.scrap_king(True)
-    seated, sf = K3.scrap_enthroned(); empty, ef = K3.scrap_throne_empty()
-    enemies = {}; pic_of = {}                  # (every strip of a still shares its one picture)
-    for key, im in (("king", king), ("crowned", crowned), ("seated", seated), ("empty", empty)):
-        sh.add(key, [arr(im)])
-    for name, im, ft, key, note in (("rattlecrown", king, kf, "king", "Rattlecrown on foot in scrap armour, the crown at his belt."),
-                                    ("rattlecrown_crowned", crowned, cf, "crowned", "With the crown on (phase 3).")):
-        o = old["enemies"][name]; strips = {}
-        for s_name in o["strips"]:
-            strips[s_name] = {"frames": 1, "fps": held(o, s_name)}; pic_of[(name, s_name)] = key
-        enemies[name] = {"frame": [im.w, im.h], "origin_feet": list(ft), "strips": strips,
-                         "note": note + " A still for every strip until Darren says the look is settled (\"Don't animate yet\")."}
-    o = old["enemies"]["throne"]; strips = {}
-    for s_name in o["strips"]:
-        pic_of[("throne", s_name)] = "empty" if s_name == "wreck" else "seated"
-        strips[s_name] = {"frames": 1, "fps": held(o, s_name)}
-    enemies["throne"] = {"frame": [seated.w, seated.h], "origin_feet": list(sf), "solid": [104, 46], "strips": strips,
-                         "note": "The scrap throne. Feet = the middle of the front of its lower step. 'idle', 'point' and 'kick' have him on it; "
-                                 "'wreck' is the throne standing empty (a broken one waits for the Art builder). Solid as wide as its steps and "
-                                 "back to the stand behind it."}
-    for s_name, info in old["shots"].items():
-        sh.add(("shot", s_name), [cut(old_img, info["box"])])
+    sh = Sheet(1200); enemies = {}
+    fps_of = A.king_strips()
+    for name, crowned, note in (("rattlecrown", False, "Rattlecrown on foot in scrap armour with his cog club, the crown at his belt (phase 2)."),
+                                ("rattlecrown_crowned", True, "With the crown on (phase 3): the same strips, no crown_on.")):
+        strips = {}; frame = feet = None
+        for s_name in A.KING_ORDER:
+            if crowned and s_name == "crown_on":
+                continue
+            fr = A.king_frames(s_name, crowned)
+            sh.add((name, s_name), [arr(im) for im, _ in fr])
+            frame = [fr[0][0].w, fr[0][0].h]; feet = list(fr[0][1])
+            strips[s_name] = {"frames": len(fr), "fps": fps_of[s_name][0]}
+        # Where the art puts things, in art pixels in front of his feet and up (the Art builder's README): the club's head
+        # on slam frame 1, the lump leaving his hand on toss frame 0, the levelled club in the charge.
+        enemies[name] = {"frame": frame, "origin_feet": feet, "strips": strips,
+                         "reach": {"slam": [81, 11], "hand": [23, 49], "charge": [89, 26]},
+                         "note": note + " Faces right, the club in his right hand on the right of the frame; mirror for left."}
+    strips = {}; frame = feet = None
+    for s_name in ("idle", "point", "kick", "wreck"):
+        fr = A.throne_frames(s_name)
+        sh.add(("throne", s_name), [arr(im) for im, _ in fr])
+        frame = [fr[0][0].w, fr[0][0].h]; feet = list(fr[0][1])
+        strips[s_name] = {"frames": len(fr), "fps": A.THRONE_STRIPS[s_name]}
+    enemies["throne"] = {"frame": frame, "origin_feet": feet, "solid": [104, 46], "strips": strips,
+                         "note": "The scrap throne. Feet = the middle of the front of its lower step. idle and point have him on it; kick: he "
+                                 "stands 6 px below its feet, kicks back, it flies apart, the heap; then wreck, with him on foot 6 px below its feet."}
+    sc = A.scrap_shot()
+    sh.add(("shot", "scrap"), [arr(im) for im, _ in sc])
+    for s_name in ("slam_mark", "scrap_mark"):                # the floor marks are round 1's, unchanged
+        info = old["shots"][s_name]; x, y, w, h = info["box"]; fw = info["frame"][0]
+        sh.add(("shot", s_name), [old_img[y:y + h, x + k * fw:x + (k + 1) * fw].copy() for k in range(info["frames"])])
     img, boxes = sh.pack()
     for name, e in enemies.items():
         for s_name, st in e["strips"].items():
-            st["box"] = boxes[pic_of[(name, s_name)]]
-    shots = {}
-    for s_name, info in old["shots"].items():
-        shots[s_name] = dict(info); shots[s_name]["box"] = boxes[("shot", s_name)]
-    out = {"note": "Rattlecrown, round 2 (the Art builder's hl_king3.py), baked by tools/rattlecrown_kit/bake.py. Everything faces right; "
-                   "strips run left to right. Stills only (Darren, 23 Nov: \"Don't animate yet as I might change more\").",
-           "enemies": enemies, "shots": shots}
+            st["box"] = boxes[(name, s_name)]
+    shots = {"scrap": {"frame": [sc[0][0].w, sc[0][0].h], "origin": list(sc[0][1]), "frames": len(sc), "fps": 10, "box": boxes[("shot", "scrap")],
+                       "note": "The lump he throws, tumbling."}}
+    for s_name in ("slam_mark", "scrap_mark"):
+        shots[s_name] = dict(old["shots"][s_name]); shots[s_name]["box"] = boxes[("shot", s_name)]
+    out = {"note": "Rattlecrown, round 2, animated (the Art builder's hl_rc_anim.py), baked by tools/rattlecrown_kit/bake.py. Everything "
+                   "faces right; strips run left to right.", "enemies": enemies, "shots": shots}
     Image.fromarray(img).save(rpath + ".png"); json.dump(out, open(rpath + ".json", "w"), indent=1)
     print("rattlecrown", img.shape[1], img.shape[0])
 
@@ -147,24 +145,10 @@ def main():
         if fps:
             sprites[name]["fps"] = fps
 
-    raw = lambda f, *args, **kw: _raw(K3, f, *args, **kw)
-    # The gate: shut is the Art builder's; opening and open are the same gate with its two leaves swung in, narrowed
-    # against their posts (a stand-in until an open gate is drawn).
-    g, gf = K3.scrap_gate()
-    put("gate_front_shut", [arr(g)], gf)
-    def swung(f):
-        gr = _raw_gate(K2, K3)
-        leaves = gr[:, 8:46].copy(); gr[:, 8:46] = 0
-        for a, b, left in ((0, 19, True), (19, 38, False)):
-            src = leaves[:, a:b]; w = max(2, round((b - a) * f))
-            cols = [int(i * (b - a) / w) for i in range(w)]
-            leaf = src[:, cols].copy(); leaf[..., :3] = (leaf[..., :3] * (0.6 + 0.4 * f)).astype(np.uint8)
-            x0 = 8 if left else 46 - w
-            m = leaf[..., 3] > 0; gr[:, x0:x0 + w][m] = leaf[m]
-        out = core.outline(_im(core, gr)); im = core.Im(56, 64); im.blit(out, 0, 0)
-        return arr(im)
-    put("gate_front_opening", [swung(f) for f in (0.75, 0.5, 0.3)], gf, fps=6)
-    put("gate_front_open", [swung(0.16)], gf)
+    # The gate: shut, its two leaves swinging back against the posts, open (the Art builder's animation).
+    for st, fps in (("shut", 0), ("opening", 8), ("open", 0)):
+        fr = A.gate_frames(st)
+        put("gate_front_" + st, [arr(im) for im, _ in fr], fr[0][1], fps=fps if len(fr) > 1 else 0)
     # The scrap piles.
     for name, (w, h, seed) in PILES.items():
         p, pf = K3.scrap_pile(w, h, seed)
@@ -172,32 +156,18 @@ def main():
     # The braziers stay the cave's own, as the first draft had them.
     b = yold["brazier"]; put("brazier", [cut(yimg, [b["box"][0] + k * b["frame"][0], b["box"][1], b["frame"][0], b["frame"][1]]) for k in range(b["frames"])],
                              b["origin"], fps=b.get("fps", 5))
-    # His hoard: the golden chest (its lid does not open yet: the same picture full and empty), and its portcullis.
-    c, cfo = K3.gold_chest()
-    put("hoard_chest", [arr(c)] * 5, cfo, foot=list(cfo), solid=[26, 6])
-    put("hoard_chest_empty", [arr(c)], cfo, foot=list(cfo), solid=[26, 6])
-    VW, VH = 52, 40
-    full = raw(K3.vault_gate, VW, VH)
-    bare = full.copy(); bare[9:, 10:VW - 10] = 0
-    bars = full.copy(); bars[bare[..., 3] > 0] = 0; bars[:9] = 0
-    vf = (VW // 2 + 1, VH + 1)
-    frames = []
-    for k in range(5):
-        lift = round((VH - 12) * k / 4)
-        layer = np.zeros_like(full)
-        layer[:VH - lift] = bars[lift:]
-        comp = layer.copy(); m = bare[..., 3] > 0; comp[m] = bare[m]
-        frames.append(arr(core.outline(_im(core, comp))))
-    put("hoard_gate_shut", [frames[0]], vf)
-    put("hoard_gate_opening", frames[1:4], vf, fps=6)
-    put("hoard_gate_open", [frames[4]], vf)
-    # The spikes: nothing above the floor while a trap is down (its slab is painted into the floor), the tips while
-    # it rattles, then up.
-    blank = np.zeros((30, 18, 4), np.uint8)
-    put("spike_trap_down", [blank], (9, 29))
-    put("spike_trap_warn", [arr(K3.spikes(3, 1)[0]), arr(K3.spikes(3, 0)[0])], (9, 29), fps=12)
-    put("spike_trap_rise", [arr(K3.spikes(h)[0]) for h in (4, 7, 10, 12)], (9, 29), fps=24)
-    put("spike_trap_up", [arr(K3.spikes(12)[0])], (9, 29))
+    # His hoard: the golden chest whose lid swings back over the coins, and its portcullis rising into the lintel.
+    fr = A.hoard_chest_frames()
+    put("hoard_chest", [arr(im) for im, _ in fr], fr[0][1], foot=list(fr[0][1]), solid=[26, 8])
+    fr = A.hoard_chest_frames(True)
+    put("hoard_chest_empty", [arr(im) for im, _ in fr], fr[0][1], foot=list(fr[0][1]), solid=[26, 8])
+    for st, fps in (("shut", 0), ("opening", 8), ("open", 0)):
+        fr = A.hoard_gate_frames(st)
+        put("hoard_gate_" + st, [arr(im) for im, _ in fr], fr[0][1], fps=fps if len(fr) > 1 else 0)
+    # The spikes (their slabs, collars and kerbs are painted into the floor): down, rattling, rising, up.
+    for st in ("down", "warn", "rise", "up"):
+        fr = A.spike_frames(st)
+        put("spike_trap_" + st, [arr(im) for im, _ in fr], fr[0][1], fps=A.SPIKE_FPS[st] if len(fr) > 1 else 0)
     # The stands and the crowd, fitted to the room (CrownPlan.throne_layout).
     lay = _layout(a)
     runs = [d for d in lay["scenery"] if str(d[0]).startswith("stand_front_")]
@@ -209,16 +179,16 @@ def main():
         put(str(d[0]), [arr(fr)], ff)
     rail, rf = K3.stand_rail(lay["room"][1], 1)
     put("stand_rail", [arr(rail)], rf)
-    for i, pose in enumerate(POSES):
+    for i, pose in enumerate(("cheer", "lean", "fist", "drum")):     # (the Art builder's seeds for each pose)
         for cap in (False, True):
-            gb, gbf = K3.goblin(pose, cap, i * 2 + int(cap))
-            put("goblin_%s%s" % (pose, "_cap" if cap else ""), [arr(gb)], gbf)
+            fr = A.goblin_frames(pose, cap, i)
+            put("goblin_%s%s" % (pose, "_cap" if cap else ""), [arr(im) for im, _ in fr], fr[0][1], fps=4)
     img, boxes = sh.pack()
     for name in sprites:
         sprites[name]["box"] = boxes[name]
     out = {"note": "The Scrapyard's gate, Rattlecrown's hoard, the scrap piles, the spike traps' spikes, the stands and the watching goblins: "
-                   "round 2 (the Art builder's hl_king3.py), baked by tools/rattlecrown_kit/bake.py. Stills; the open gate is the shut one "
-                   "with its leaves swung in against its posts, until an open gate is drawn.", "sprites": sprites}
+                   "round 2 (the Art builder's hl_king3.py and hl_rc_anim.py), baked by tools/rattlecrown_kit/bake.py. The gate, the hoard, "
+                   "the spikes and the crowd move; the piles and the stands are stills.", "sprites": sprites}
     Image.fromarray(img).save(ypath + ".png"); json.dump(out, open(ypath + ".json", "w"), indent=1)
     print("scrapyard", img.shape[1], img.shape[0])
 
@@ -244,32 +214,6 @@ def _run_end(lay, x0, room_w):
         if stop >= x0:
             return stop
     return room_w - 1
-
-
-def _im(core, a):
-    im = core.Im(a.shape[1], a.shape[0]); im.a = a.copy(); return im
-
-
-def _raw(K3, f, *args, **kw):
-    """What a drawing function draws before its outline goes round it."""
-    keep = K3.outline
-    K3.outline = lambda o: o
-    try:
-        im, _ = f(*args, **kw)
-    finally:
-        K3.outline = keep
-    return np.array(im.a, dtype=np.uint8)
-
-
-def _raw_gate(K2, K3):
-    keep = K2.outline
-    K2.outline = lambda o: o
-    try:
-        with K3.ramp(K3.IRON2):
-            im, _ = K2.gate2()
-    finally:
-        K2.outline = keep
-    return np.array(im.a, dtype=np.uint8)[:62, :54]
 
 
 def floor(lay, hl3, K3):

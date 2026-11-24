@@ -273,6 +273,12 @@ func _shots() -> void:
 	await _wait(func(): return boss.mode == "crown_on", 900)
 	await _frames(24)
 	await _snap("22_the_crown_goes_on")
+	# (Just behind him: you show through his body, in your colour.)
+	var stood_at: Vector2 = p.global_position
+	_put(g, p, boss.global_position + Vector2(10, -36))
+	await _frames(2)
+	await _snap("22b_behind_him")
+	_put(g, p, stood_at)
 	await _wait(func(): return boss.crowned and boss.mode == "toss_windup" and not boss.first_go, 2400)
 	await _frames(14)
 	await _snap("23_crowned_two_rings")
@@ -998,6 +1004,30 @@ func _fight() -> void:
 	_check(boss != null and crown.phase() == 2 and crown.throne.anim == "wreck" and g.ui.hint == Crown.SAYS["foot"], "he is on his feet, in front of the wreck of the throne")
 	_check(is_equal_approx(boss.max_hp, Rattlecrown.HP) and boss.hp == boss.max_hp, "with his full health for one player (%.0f)" % boss.max_hp)
 	_check(g.ui.boss == boss and not boss.show_bar and boss.knock_resist == 0.0, "his health is the bar at the top of the screen, and nothing knocks him back")
+	# Seen through him (version 50, the Overseer's review): at his size his body would hide his own rings and whoever
+	# is just behind him, so both show through it, clipped to it.
+	await physics_frame
+	var through_ok: bool = boss._through != null and boss._through.clip_children == CanvasItem.CLIP_CHILDREN_ONLY and boss._through.z_index > 0 and boss._through_marks.get_parent() == boss._through and boss._through_ghosts.get_parent() == boss._through
+	var probe := Scrap.new()
+	probe.by = boss
+	probe.to = boss.global_position + Vector2(0, -40)
+	probe.wait = 30.0
+	probe.flight = 1.0
+	probe.damage = 0.0
+	boss.get_parent().add_child(probe)
+	var under: Array = boss.marks_under_him()
+	probe.queue_free()
+	_check(through_ok and under.any(func(m): return m[0] == "scrap"), "a ring under his body shows through it, over him")
+	var keep_at: Vector2 = p.global_position
+	p.global_position = boss.global_position + Vector2(0, -40)
+	var behind: bool = boss.behind_him().has(p)
+	p.global_position = boss.global_position + Vector2(0, 30)
+	var in_front: bool = boss.behind_him().has(p)
+	p.global_position = boss.global_position + Vector2(400, -40)
+	var away: bool = boss.behind_him().has(p)
+	p.global_position = keep_at
+	_check(behind and not in_front and not away, "and a player just behind him shows through his body as a shape in their own colour (not one in front of him, or away from him)")
+	_check(Art.busy_ground and Art.shade(Color(0, 0, 0, 0.5)).a > 0.8, "in the Throne Room the HUD's backings are darker, so the bars and the belt read over the stands and the crowd")
 	# Club Slam.
 	p.unhurt = false
 	p.hp = p.max_hp
@@ -1117,6 +1147,8 @@ func _fight() -> void:
 	p.take_damage(99999.0, boss.global_position, boss)
 	await _frames(3)
 	_check(not room.has_point(p.global_position) and crown.standing_in_room() == 0, "(you fall, and wake where you set out from)")
+	await physics_frame
+	_check(not Art.busy_ground and Art.shade(Color(0, 0, 0, 0.5)).a == 0.5, "(and out of the room the HUD's backings are as everywhere else)")
 	n = await _wait(func(): return crown.stage == "wait", int(Crown.RESET_AFTER * 60.0) + 60)
 	_check(n >= int(Crown.RESET_AFTER * 60.0) - 20, "nobody on their feet in the room for %.0f seconds: the fight is called off" % Crown.RESET_AFTER)
 	await _frames(3)

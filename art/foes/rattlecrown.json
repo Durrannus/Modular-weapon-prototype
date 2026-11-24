@@ -1,241 +1,269 @@
 {
- "note": "Rattlecrown, round 2 (the Art builder's hl_king3.py), baked by tools/rattlecrown_kit/bake.py. Everything faces right; strips run left to right. Stills only (Darren, 23 Nov: \"Don't animate yet as I might change more\").",
+ "note": "Rattlecrown, round 2, animated (the Art builder's hl_rc_anim.py), baked by tools/rattlecrown_kit/bake.py. Everything faces right; strips run left to right.",
  "enemies": {
   "rattlecrown": {
    "frame": [
-    134,
-    120
+    172,
+    140
    ],
    "origin_feet": [
-    71,
-    109
+    70,
+    136
    ],
    "strips": {
     "idle": {
-     "frames": 1,
-     "fps": 1.0,
+     "frames": 4,
+     "fps": 4,
      "box": [
-      334,
       0,
-      134,
-      120
+      298,
+      688,
+      140
      ]
     },
     "move": {
-     "frames": 1,
-     "fps": 1.167,
+     "frames": 6,
+     "fps": 7,
      "box": [
-      334,
       0,
-      134,
-      120
+      439,
+      1032,
+      140
      ]
     },
     "slam_windup": {
-     "frames": 1,
-     "fps": 2.5,
+     "frames": 2,
+     "fps": 5,
      "box": [
-      334,
       0,
-      134,
-      120
+      580,
+      344,
+      140
      ]
     },
     "slam": {
-     "frames": 1,
-     "fps": 3.333,
+     "frames": 3,
+     "fps": 10,
      "box": [
-      334,
-      0,
-      134,
-      120
+      345,
+      580,
+      516,
+      140
      ]
     },
     "toss_windup": {
-     "frames": 1,
-     "fps": 2.5,
+     "frames": 2,
+     "fps": 5,
      "box": [
-      334,
       0,
-      134,
-      120
+      721,
+      344,
+      140
      ]
     },
     "toss": {
-     "frames": 1,
-     "fps": 3.333,
+     "frames": 3,
+     "fps": 10,
      "box": [
-      334,
-      0,
-      134,
-      120
+      345,
+      721,
+      516,
+      140
      ]
     },
     "charge_windup": {
-     "frames": 1,
-     "fps": 2.5,
+     "frames": 2,
+     "fps": 5,
      "box": [
-      334,
       0,
-      134,
-      120
+      862,
+      344,
+      140
      ]
     },
     "charge": {
-     "frames": 1,
-     "fps": 3.333,
+     "frames": 3,
+     "fps": 10,
      "box": [
-      334,
-      0,
-      134,
-      120
+      345,
+      862,
+      516,
+      140
      ]
     },
     "hit": {
-     "frames": 1,
-     "fps": 6.0,
+     "frames": 2,
+     "fps": 12,
      "box": [
-      334,
       0,
-      134,
-      120
+      1003,
+      344,
+      140
      ]
     },
     "death": {
-     "frames": 1,
-     "fps": 1.5,
+     "frames": 4,
+     "fps": 6,
      "box": [
-      334,
-      0,
-      134,
-      120
+      345,
+      1003,
+      688,
+      140
      ]
     },
     "crown_on": {
-     "frames": 1,
-     "fps": 1.25,
+     "frames": 4,
+     "fps": 5,
      "box": [
-      334,
       0,
-      134,
-      120
+      1144,
+      688,
+      140
      ]
     }
    },
-   "note": "Rattlecrown on foot in scrap armour, the crown at his belt. A still for every strip until Darren says the look is settled (\"Don't animate yet\")."
+   "reach": {
+    "slam": [
+     81,
+     11
+    ],
+    "hand": [
+     23,
+     49
+    ],
+    "charge": [
+     89,
+     26
+    ]
+   },
+   "note": "Rattlecrown on foot in scrap armour with his cog club, the crown at his belt (phase 2). Faces right, the club in his right hand on the right of the frame; mirror for left."
   },
   "rattlecrown_crowned": {
    "frame": [
-    134,
-    120
+    172,
+    140
    ],
    "origin_feet": [
-    71,
-    109
+    70,
+    136
    ],
    "strips": {
     "idle": {
-     "frames": 1,
-     "fps": 1.0,
+     "frames": 4,
+     "fps": 4,
      "box": [
-      469,
       0,
-      134,
-      120
+      1285,
+      688,
+      140
      ]
     },
     "move": {
-     "frames": 1,
-     "fps": 1.167,
+     "frames": 6,
+     "fps": 7,
      "box": [
-      469,
       0,
-      134,
-      120
+      1426,
+      1032,
+      140
      ]
     },
     "slam_windup": {
-     "frames": 1,
-     "fps": 2.5,
+     "frames": 2,
+     "fps": 5,
      "box": [
-      469,
       0,
-      134,
-      120
+      1567,
+      344,
+      140
      ]
     },
     "slam": {
-     "frames": 1,
-     "fps": 3.333,
+     "frames": 3,
+     "fps": 10,
      "box": [
-      469,
-      0,
-      134,
-      120
+      345,
+      1567,
+      516,
+      140
      ]
     },
     "toss_windup": {
-     "frames": 1,
-     "fps": 2.5,
+     "frames": 2,
+     "fps": 5,
      "box": [
-      469,
       0,
-      134,
-      120
+      1708,
+      344,
+      140
      ]
     },
     "toss": {
-     "frames": 1,
-     "fps": 3.333,
+     "frames": 3,
+     "fps": 10,
      "box": [
-      469,
-      0,
-      134,
-      120
+      345,
+      1708,
+      516,
+      140
      ]
     },
     "charge_windup": {
-     "frames": 1,
-     "fps": 2.5,
+     "frames": 2,
+     "fps": 5,
      "box": [
-      469,
       0,
-      134,
-      120
+      1849,
+      344,
+      140
      ]
     },
     "charge": {
-     "frames": 1,
-     "fps": 3.333,
+     "frames": 3,
+     "fps": 10,
      "box": [
-      469,
-      0,
-      134,
-      120
+      345,
+      1849,
+      516,
+      140
      ]
     },
     "hit": {
-     "frames": 1,
-     "fps": 6.0,
+     "frames": 2,
+     "fps": 12,
      "box": [
-      469,
       0,
-      134,
-      120
+      1990,
+      344,
+      140
      ]
     },
     "death": {
-     "frames": 1,
-     "fps": 1.5,
+     "frames": 4,
+     "fps": 6,
      "box": [
-      469,
-      0,
-      134,
-      120
+      345,
+      1990,
+      688,
+      140
      ]
     }
    },
-   "note": "With the crown on (phase 3). A still for every strip until Darren says the look is settled (\"Don't animate yet\")."
+   "reach": {
+    "slam": [
+     81,
+     11
+    ],
+    "hand": [
+     23,
+     49
+    ],
+    "charge": [
+     89,
+     26
+    ]
+   },
+   "note": "With the crown on (phase 3): the same strips, no crown_on. Faces right, the club in his right hand on the right of the frame; mirror for left."
   },
   "throne": {
    "frame": [
@@ -252,32 +280,32 @@
    ],
    "strips": {
     "idle": {
-     "frames": 1,
-     "fps": 0.75,
+     "frames": 4,
+     "fps": 3,
      "box": [
       0,
       0,
-      166,
+      664,
       148
      ]
     },
     "point": {
-     "frames": 1,
-     "fps": 2.0,
+     "frames": 2,
+     "fps": 4,
      "box": [
+      665,
       0,
-      0,
-      166,
+      332,
       148
      ]
     },
     "kick": {
-     "frames": 1,
-     "fps": 1.75,
+     "frames": 4,
+     "fps": 7,
      "box": [
       0,
-      0,
-      166,
+      149,
+      664,
       148
      ]
     },
@@ -285,35 +313,35 @@
      "frames": 1,
      "fps": 0,
      "box": [
-      167,
-      0,
+      665,
+      149,
       166,
       148
      ]
     }
    },
-   "note": "The scrap throne. Feet = the middle of the front of its lower step. 'idle', 'point' and 'kick' have him on it; 'wreck' is the throne standing empty (a broken one waits for the Art builder). Solid as wide as its steps and back to the stand behind it."
+   "note": "The scrap throne. Feet = the middle of the front of its lower step. idle and point have him on it; kick: he stands 6 px below its feet, kicks back, it flies apart, the heap; then wreck, with him on foot 6 px below its feet."
   }
  },
  "shots": {
   "scrap": {
    "frame": [
-    9,
-    9
+    17,
+    17
    ],
    "origin": [
-    4,
-    4
+    8,
+    8
    ],
    "frames": 4,
    "fps": 10,
-   "note": "The lump of scrap he throws, tumbling. Origin at its middle; lob it over a ground shadow.",
    "box": [
-    974,
-    0,
-    36,
-    9
-   ]
+    370,
+    2131,
+    68,
+    17
+   ],
+   "note": "The lump he throws, tumbling."
   },
   "slam_mark": {
    "frame": [
@@ -328,8 +356,8 @@
    "fps": 6,
    "note": "Where the Club Slam will land: flat on the floor, no outline, the game's warning colours, as pebble_mark. An orange ring closes in over frames 0 to 2; frame 3 is the blow. The reach is 28 px across and 14 deep from the middle.",
    "box": [
-    604,
     0,
+    2131,
     224,
     28
    ]
@@ -347,8 +375,8 @@
    "fps": 6,
    "note": "Where the tossed scrap will land: the same, 18 px across and 9 deep from the middle.",
    "box": [
-    829,
-    0,
+    225,
+    2131,
     144,
     18
    ]

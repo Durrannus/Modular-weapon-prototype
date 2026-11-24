@@ -96,10 +96,15 @@ func _land() -> void:
 
 
 func _draw() -> void:
+	draw_mark(self, Vector2.ZERO)
+
+
+## The mark, drawn on any canvas item at a place in its own space (Rattlecrown draws it again through his body).
+func draw_mark(ci: CanvasItem, at: Vector2) -> void:
 	var k := clampf(t / maxf(wait + flight, 0.01), 0.0, 1.0)
 	var frame := 3 if landed else clampi(int(k * 3.0), 0, 2)
-	if not draw_shot(self, "scrap_mark", frame, Vector2.ZERO):
-		draw_arc(Vector2.ZERO, reach.x * (1.0 - 0.5 * k), 0.0, TAU, 24, Color("#ff8a3c"), 2.0)
+	if not draw_shot(ci, "scrap_mark", frame, at):
+		ci.draw_arc(at, reach.x * (1.0 - 0.5 * k), 0.0, TAU, 24, Color("#ff8a3c"), 2.0)
 
 
 func _draw_lump() -> void:

@@ -194,7 +194,7 @@ func _draw_hud() -> void:
 		var mana_drop := 7.0 if _holds(p, "staff") and not p.is_down else 0.0
 		var drop := under_bar + mana_drop
 		# A soft dark backing, so the words and pips read over bright floor.
-		panel.draw_rect(Rect2(x - 4, y - 3, lead + BAR.x + 8, 29 + drop), SHADE)
+		panel.draw_rect(Rect2(x - 4, y - 3, lead + BAR.x + 8, 29 + drop), Art.shade(SHADE))
 		if many:
 			var tag := Art.texture("hud/tag_%s.png" % side)
 			if tag != null:
@@ -317,7 +317,7 @@ func _draw_abilities(p, right: bool, x: float, y: float, block_w: float) -> void
 		widths.append(w)
 		total += w + (6.0 if b < list.size() - 1 else 0.0)
 	var at := x + block_w - total if right else x
-	panel.draw_rect(Rect2(at - 4, y - 2, total + 8, SLOT + 4), SHADE)
+	panel.draw_rect(Rect2(at - 4, y - 2, total + 8, SLOT + 4), Art.shade(SHADE))
 	var cool := Art.texture("hud/ability_cool.png")
 	for b in list.size():
 		var a: Dictionary = list[b]
@@ -423,7 +423,7 @@ func _draw_path(p, i: int, right: bool) -> void:
 	var title_x := x
 	if right:
 		title_x = minf(x, SIZE.x - MARGIN - _head_width(title))
-	panel.draw_rect(Rect2(title_x - 4, y - 14, _head_width(title) + 8, 12), SHADE)
+	panel.draw_rect(Rect2(title_x - 4, y - 14, _head_width(title) + 8, 12), Art.shade(SHADE))
 	_head(title, Vector2(title_x, y - 5), DIM)
 	for s in line.size():
 		var id: String = line[s]

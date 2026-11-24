@@ -75,7 +75,7 @@ func _draw_label() -> void:
 	var w := ceilf(f.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 8).x)
 	var lab := lab_words()
 	var lab_w := 0.0 if lab == "" else ceilf(f.get_string_size(lab, HORIZONTAL_ALIGNMENT_LEFT, -1, 8).x) + 8.0
-	_panel.draw_rect(Rect2(AT.x - 3, AT.y - 7, w + 6 + lab_w, 9), SHADE)
+	_panel.draw_rect(Rect2(AT.x - 3, AT.y - 7, w + 6 + lab_w, 9), Art.shade(SHADE))
 	_panel.draw_string(f, AT, text, HORIZONTAL_ALIGNMENT_LEFT, -1, 8, EMBER if changed else DIM)
 	if lab != "":
 		_panel.draw_string(f, AT + Vector2(w + 8.0, 0), lab, HORIZONTAL_ALIGNMENT_LEFT, -1, 8, AMBER)
