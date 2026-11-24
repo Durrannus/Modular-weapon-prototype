@@ -54,3 +54,13 @@ Sparks, Shimmer."
 
 - A shimmer for hidden rooms (the Bible names them beside ore and chests).
 - Looks for the later perks of each tree (for example Sparks flying to a knocked-down teammate).
+
+## 24 Nov: two Striker marks for version 53 (asked for by the Prototype builder)
+
+- `sharp_glint`: 6 frames of 11x11, origin (5, 5) = its middle, on the weapon's tip, 6 fps (a 1 s loop). A small pale gold
+  cross with a white heart that breathes, flaring to an eight-point star on frame 3. Hard pixels with the HUD's ink edge, no
+  glow, so it reads mid-fight on the moor and on dug floor without looking neon.
+- `exposed`: 4 frames of 15x14, origin (7, 13) = just over the enemy's head, stacked above `challenged` and `open`, 6 fps.
+  Four bone corner brackets round an empty middle, like a mark chalked on the target, closing in a pixel and opening again.
+  One shape of its own: not a ring, not a cut guard. The code blinks it in its last half second.
+Both are the Art builder's choices; Darren has not seen them. `sharp_glint()` and `exposed()` in code/hl_roles.py.

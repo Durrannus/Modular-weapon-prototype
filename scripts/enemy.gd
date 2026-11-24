@@ -854,10 +854,11 @@ func _draw_role_marks(ci: CanvasItem, y: float) -> void:
 				var half := float(3 - row)
 				ci.draw_rect(Rect2(-(half + 1.0) * px, y - lift - float(6 - row) * px, px * 2.0, px), Color("#fff0b4"))
 				ci.draw_rect(Rect2((half - 1.0) * px, y - lift - float(6 - row) * px, px * 2.0, px), Color("#fff0b4"))
-	# EXPOSED (version 53): a cracked plate, above the others. A stand-in drawn here until the Art builder's picture
-	# ("exposed" in art/roles) comes; it blinks in its last half second.
+	# EXPOSED (version 53): four bone brackets above the others (the Art builder's "exposed"; a cracked plate is drawn
+	# in its place if the picture is missing). It blinks in its last half second.
 	if exposed_left > 0.0 and not (exposed_left < 0.5 and int(exposed_left * 12.0) % 2 == 0):
-		var up := y - (9.0 * px if ring else 0.0) - (8.0 * px if open else 0.0)
+		var open_tall := maxf(ItemArt.size("open").y - 2.0, 8.0)
+		var up := y - (9.0 * px if ring else 0.0) - (open_tall * px if open else 0.0)
 		if ItemArt.draw(ci, "exposed", Vector2(0, up) - ItemArt.origin("exposed") * px, px, Color.WHITE, int(now * 6.0)) == Vector2.ZERO:
 			var bone := Color("#e8e4bc")
 			ci.draw_rect(Rect2(-4.0 * px, up - 8.0 * px, 8.0 * px, 8.0 * px), dark)

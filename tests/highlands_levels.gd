@@ -20,6 +20,8 @@ const ItemArt := preload("res://scripts/highlands/item_art.gd")
 const Make := preload("res://scripts/foes/make.gd")
 const Rock := preload("res://scripts/foes/rock.gd")
 const Arrow := preload("res://scripts/arrow.gd")
+const DamageNumber := preload("res://scripts/fx/damage_number.gd")
+const Art := preload("res://scripts/art.gd")
 const Hound := preload("res://scripts/foes/hound.gd")
 const ScrapBrute := preload("res://scripts/foes/scrap_brute.gd")
 const Slinger := preload("res://scripts/foes/slinger.gd")
@@ -150,11 +152,12 @@ func _fight(p, e, until: Callable, most := 360) -> int:
 func _art() -> void:
 	for name in ["memory_frame", "memory_fill", "memory_empty", "level_badge", "memory_marker", "memory_marker_take", "level_up",
 			"challenged", "open", "spark", "spark_fade", "spark_take", "shimmer_tin", "shimmer_copper", "shimmer_chest",
-			"emblem_warden", "emblem_striker", "emblem_mender", "emblem_delver"]:
+			"emblem_warden", "emblem_striker", "emblem_mender", "emblem_delver", "sharp_glint", "exposed"]:
 		_check(not ItemArt.find(name).is_empty(), "the art has \"%s\"" % name)
 	_check(ItemArt.size("memory_frame") == Vector2(92, 9) and ItemArt.size("memory_fill") == Vector2(80, 4) and Levels.BAR_DROP == 8.0 and ItemArt.size("level_badge") == Vector2(15, 13), "the Memory bar and the roundel are the sizes the screen is laid out for")
 	_check(ItemArt.size("memory_marker") == Vector2(16, 34) and ItemArt.origin("memory_marker") == Vector2(8, 31), "the marker stands on its origin")
 	_check(ItemArt.size("challenged") == Vector2(24, 12) and ItemArt.origin("challenged") == Vector2(12, 11) and ItemArt.size("open") == Vector2(19, 18), "the marks over an enemy's head are measured a frame at a time")
+	_check(ItemArt.size("sharp_glint") == Vector2(11, 11) and ItemArt.origin("sharp_glint") == Vector2(5, 5) and ItemArt.size("exposed") == Vector2(15, 14) and ItemArt.origin("exposed") == Vector2(7, 13), "the Striker's glint sits on its middle, and Exposed stands over the head (version 53)")
 	_check(ItemArt.size("no_such_thing") == Vector2.ZERO and ItemArt.origin("no_such_thing") == Vector2.ZERO, "a picture there is not has no size")
 	# Still what stood in the bag and the purse before.
 	_check(ItemArt.size("memory_mote") == Vector2(7, 7) and not ItemArt.find("item_tin_ore").is_empty(), "the older sheets are still read")
@@ -789,6 +792,12 @@ func _striker() -> void:
 	_check(p.dodge_charges == 0, "without it a kill is only a kill")
 	p.dodge_charges = p.DODGE_MAX_CHARGES
 
+	# (A long word over an enemy is written whole: the review of version 53 saw CHALLENGED cut short.)
+	var word := DamageNumber.new()
+	word.text = "CHALLENGED"
+	var whole: float = Art.font(Art.TEXT_SMALL).get_string_size("CHALLENGED", HORIZONTAL_ALIGNMENT_LEFT, -1, Art.TEXT_SMALL_SIZE * 2).x
+	_check(word.width() >= whole and whole > 80.0, "a long word over an enemy has room to be written whole (%.0f for %.0f)" % [word.width(), whole])
+	word.free()
 	# Expose: your crit on a boss or an elite Exposes it for 4 s; everyone's hits on it do 15% more.
 	lv.perks[0] = ["punish", "expose"]
 	var el = _foe(g, "hound", p.global_position + Vector2(60, -30), true)

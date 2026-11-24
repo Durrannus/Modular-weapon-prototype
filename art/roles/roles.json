@@ -153,10 +153,48 @@
    "fps": 4,
    "note": "Ore Sense: a chest hidden in a sealed place or under the ground. A dotted chest outline with a glint on the latch."
   },
+  "sharp_glint": {
+   "box": [
+    1,
+    122,
+    66,
+    11
+   ],
+   "frame": [
+    11,
+    11
+   ],
+   "origin": [
+    5,
+    5
+   ],
+   "frames": 6,
+   "fps": 6,
+   "note": "The Sharp perk: at the weapon's tip while the next finisher hits twice as hard. Origin = its middle, put on the blade's tip every frame. A slow 1 s loop: a small pale gold cross that breathes and flares to a star on frame 3."
+  },
+  "exposed": {
+   "box": [
+    68,
+    122,
+    60,
+    14
+   ],
+   "frame": [
+    15,
+    14
+   ],
+   "origin": [
+    7,
+    13
+   ],
+   "frames": 4,
+   "fps": 6,
+   "note": "Over the head of an Exposed boss or elite (everyone's hits do more), stacked above challenged and open. Four bone corner brackets that close in a pixel and open again. The code blinks it in its last half second."
+  },
   "emblem_warden": {
    "box": [
-    98,
-    105,
+    129,
+    122,
     16,
     16
    ],
@@ -168,8 +206,8 @@
   },
   "emblem_striker": {
    "box": [
-    115,
-    105,
+    1,
+    139,
     16,
     16
    ],
@@ -181,8 +219,8 @@
   },
   "emblem_mender": {
    "box": [
-    132,
-    105,
+    18,
+    139,
     16,
     16
    ],
@@ -194,8 +232,8 @@
   },
   "emblem_delver": {
    "box": [
-    1,
-    122,
+    35,
+    139,
     16,
     16
    ],

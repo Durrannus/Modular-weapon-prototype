@@ -104,6 +104,7 @@ const AMBER := Color("#ffc850")
 const PLATE := Color("#19142a")
 const PALE := Color("#7fe0c0")     # the Spark's verdigris, for the number it heals
 const GLINT := Color("#fff0b4")    # the Striker's pale gold (the Open mark's): Sharp's glint, Close Call, Execution
+const GLINT_TIP := Color("#e0b860")   # the glint's arms fade to this at their ends
 
 
 class Layer extends Node2D:
@@ -640,22 +641,26 @@ func _draw_over(ci: Node2D) -> void:
 			continue
 		var feet: Vector2 = players[i].global_position + Vector2(0, FEET)
 		ItemArt.draw(ci, "level_up", ((feet / UNIT).floor() - ItemArt.origin("level_up")) * UNIT, UNIT, Color.WHITE, clampi(int(float(r["t"]) * 10.0), 0, 7))
-	# Sharp: the tip of a glinting weapon twinkles, a pale gold cross that flares about once a second. A stand-in
-	# drawn here until the Art builder's picture ("sharp_glint" in art/roles) comes.
+	# Sharp: the tip of a glinting weapon twinkles, a pale gold cross that flares into a small star about once a
+	# second (slow, and never a glow): the Art builder's "sharp_glint" (art/roles), at 6 frames a second. If the
+	# picture is missing, a cross drawn here stands in.
 	for i in players.size():
 		var p = players[i]
 		if not glinting(i) or not is_instance_valid(p) or p.is_down or not p.armed() or not p.has_method("_tip_world"):
 			continue
 		var at: Vector2 = (p._tip_world() / UNIT).floor()
 		var beat := fmod(clock * 1.1 + float(i) * 0.37, 1.0)
-		if ItemArt.draw(ci, "sharp_glint", (at - ItemArt.origin("sharp_glint")) * UNIT, UNIT, Color.WHITE, int(clock * 8.0)) != Vector2.ZERO:
+		if ItemArt.draw(ci, "sharp_glint", (at - ItemArt.origin("sharp_glint")) * UNIT, UNIT, Color.WHITE, int(clock * 6.0)) != Vector2.ZERO:
 			continue
-		var arm := 3 if beat < 0.14 else (2 if beat < 0.3 else 1)
+		var arm := 4 if beat < 0.1 else (3 if beat < 0.22 else 2)
+		var flare := arm >= 3
 		for d in [Vector2(1, 1), Vector2(-1, 1), Vector2(1, -1), Vector2(-1, -1)]:
-			ci.draw_rect(Rect2((at + d) * UNIT, Vector2(UNIT, UNIT)), Color(PLATE, 0.7))
+			ci.draw_rect(Rect2((at + d * (2.0 if flare else 1.0)) * UNIT, Vector2(UNIT, UNIT)), Color(PLATE, 0.7))
+			if flare:
+				ci.draw_rect(Rect2((at + d) * UNIT, Vector2(UNIT, UNIT)), GLINT)
 		for k in range(1, arm + 1):
 			for d in [Vector2.RIGHT, Vector2.LEFT, Vector2.UP, Vector2.DOWN]:
-				ci.draw_rect(Rect2((at + d * float(k)) * UNIT, Vector2(UNIT, UNIT)), GLINT)
+				ci.draw_rect(Rect2((at + d * float(k)) * UNIT, Vector2(UNIT, UNIT)), GLINT if k < arm else GLINT_TIP)
 		ci.draw_rect(Rect2(at * UNIT, Vector2(UNIT, UNIT)), Color.WHITE)
 
 
