@@ -27,6 +27,7 @@ const ScrapBrute := preload("res://scripts/foes/scrap_brute.gd")
 const Shaman := preload("res://scripts/foes/shaman.gd")
 const Bat := preload("res://scripts/foes/bat.gd")
 const Pack := preload("res://scripts/foes/pack.gd")
+const Snow := preload("res://scripts/highlands/snow.gd")
 const Art := preload("res://scripts/art.gd")
 const Sim := preload("res://scripts/sim.gd")
 const TILE := 32.0
@@ -165,13 +166,26 @@ func _plans() -> void:
 			# Two to four in the inner ring; out in the middle and outer rings the groups are bigger (version 49).
 			var ring := int(map.pockets[int(g["pocket"])].get("ring", 1))
 			var most: int = [0, 4, 5, 6][ring]
-			_check(kinds.size() >= 2 and kinds.size() <= most, "seed %d: a group is two to %d in ring %d" % [seed_value, most, ring])
+			if str(g["what"]) == "creatures":
+				# The moor's creatures (version 63): one kind to a place, one to four, none an elite.
+				_check(kinds.size() >= 1 and kinds.size() <= 4 and kinds.count(kinds[0]) == kinds.size() and kinds[0] in Make.CREATURES and not (g["members"] as Array).any(func(mm): return bool(mm[1])), "seed %d: a place of moor creatures has one to four of one kind (%s)" % [seed_value, str(kinds)])
+				_check(kinds[0] != "capercaillie" or kinds.size() >= 2, "seed %d: capercaillies are never alone" % seed_value)
+			else:
+				_check(kinds.size() >= 2 and kinds.size() <= most, "seed %d: a group is two to %d in ring %d" % [seed_value, most, ring])
 			if "shaman" in kinds:
 				_check(kinds.count("shaman") == 1 and ("slinger" in kinds or "scrap_brute" in kinds), "seed %d: a shaman is with other goblins" % seed_value)
 			if "hound" in kinds:
 				_check(kinds.count("hound") == kinds.size(), "seed %d: hounds keep to themselves" % seed_value)
 			if at.distance_to(cave) < FoePlan.NEAR and str(g["site"]) == "":
-				_check(kinds.size() == 2 and not "scrap_brute" in kinds and not "shaman" in kinds, "seed %d: near the base only pairs of hounds or slingers" % seed_value)
+				_check(str(g["what"]) == "creatures" and kinds.size() <= 3, "seed %d: near the base only a few moor creatures (%s)" % [seed_value, str(kinds)])
+			# Outside the goblin ground, the hound ground and the named places: only the moor's creatures (version 63).
+			var yard_at: Vector2 = map.sites["scrapyard"]["at"] if map.sites.has("scrapyard") else Vector2.INF
+			var snow_at := Snow.centre(map)
+			var grounds := at.distance_to(yard_at) < FoePlan.SCRAP_REACH or (snow_at != Vector2.INF and at.distance_to(snow_at) < Snow.REACH + Snow.HOUNDS_NEAR)
+			if str(g["site"]) in ["", "cairns", "gorge", "fault"] and not grounds:
+				_check(str(g["what"]) == "creatures", "seed %d: away from the goblins' and the hounds' ground only moor creatures live (%s at %s)" % [seed_value, str(kinds), str(at)])
+			if "shaman" in kinds and bool(g["members"][0][1]):
+				_check(at.distance_to(yard_at) < FoePlan.SCRAP_REACH, "seed %d: the elite shaman holds a place in the goblin ground" % seed_value)
 			if str(g["site"]) == "watchpost":
 				_check(kinds == ["hound", "hound", "hound"], "seed %d: hounds den at the Watchpost" % seed_value)
 			if str(g["site"]) == "quarry":
@@ -200,7 +214,7 @@ func _plans() -> void:
 						ok_kind = false
 					near_groups += 1
 					near_goblins += n
-				elif ring == 3:
+				elif ring == 3 and str(g["what"]) == "goblins":
 					far_groups += 1
 					far_goblins += n
 			var empty := 0
@@ -221,7 +235,7 @@ func _plans() -> void:
 
 ## Darren, 23 November: "Not every enemy has to have telegraph markers for its moves, only bosses."
 func _no_marks() -> void:
-	for f in ["foe", "hound", "slinger", "scrap_brute", "shaman", "bat", "rock"]:
+	for f in ["foe", "hound", "slinger", "scrap_brute", "shaman", "bat", "rock", "creature", "boar", "badger", "capercaillie"]:
 		var src: String = (load("res://scripts/foes/%s.gd" % f) as GDScript).source_code
 		_check(not src.contains("Warn.") and not src.contains("warn_ring") and not src.contains("func _draw_ground"), "%s.gd draws no warning mark (only bosses have them)" % f)
 
@@ -869,6 +883,8 @@ func _long_fights(dice: int) -> void:
 		var ticks := 0
 		var t0 := Time.get_ticks_usec()
 		for gr in foes.plan:
+			if str(gr["what"]) == "creatures":
+				continue                 # (they wake only when hit: the creatures' own suite fights them)
 			var elite: bool = (gr["members"] as Array).any(func(mm): return bool(mm[1]))
 			if not elite and int(by_what[str(gr["what"])]) >= 3:
 				continue

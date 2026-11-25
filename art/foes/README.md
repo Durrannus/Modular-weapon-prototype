@@ -102,3 +102,10 @@ The fixes were checked by the Art builder, not sent for a second independent pas
 ## Not confirmed by Darren
 
 Everything here: slate-blue goblins, the hound's colours, the brute's boulder, the red robe, the skull mask.
+
+## The moor's creatures (version 63)
+
+`moor.png` and `moor.json` are the Art builder's "Neutral moor creatures, first drafts" (25 Nov 2026,
+`highlands-moor-creatures-v1/`, made by its `code/hl_moor.py`): the boar, the badger and the capercaillie, in the wildlife
+sheet's form (`"actors"` by name, everything facing right, the outline drawn in, no shadows). `scripts/foes/creature.gd`
+cuts their strips from it. Copied in unchanged.

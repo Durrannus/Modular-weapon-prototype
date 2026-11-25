@@ -5,7 +5,7 @@ extends RefCounted
 ##
 ## The rules, from the Game Bible:
 ##   - Nothing lives near the cave: the base and the first open places round it are safe.
-##   - Cliff Hounds: "a mix of pairs and packs of three or four". Near the base only pairs.
+##   - Cliff Hounds: "a mix of pairs and packs of three or four".
 ##   - Pebble Slingers in twos and threes.
 ##   - A Scrap Brute is "uncommon... Usually one at a time, leading a small group of Pebble Slingers... never in
 ##     packs": at most one in a group, and only in some.
@@ -24,11 +24,19 @@ extends RefCounted
 ##     in and near"; version 62). Every open place in the snow round the Hound Den (snow.gd) and within HOUNDS_NEAR
 ##     tiles of its edge has a pack of hounds in it: none is left empty, and no goblins. (Claude's: how near, and that
 ##     the goblin ground round the Scrapyard wins where the two meet.)
-##   - Farther out is harder (the research's rings; the numbers are Claude's): in the middle ring hound packs are
-##     three or four and more goblin groups have a Brute or a Shaman; in the outer ring packs are up to five,
-##     goblin groups are bigger still, and fewer places are empty. See RINGS.
+##   - THE MOOR'S CREATURES EVERYWHERE ELSE (Darren, 25 November 2026: "The rest of the zone should be new simple
+##     neutral enemies so that the zone feels like it has different sections as it feels very samsey atm"; version
+##     63). Outside the goblin ground, the hound ground and the named places, the open places that are not empty hold
+##     boars, badgers or capercaillies (scripts/foes/creature.gd): one kind to a place, BOAR_SHARE and BADGER_SHARE
+##     of them, a single boar or badger or two or three birds near the base, a few more farther out. They leave you
+##     alone until one is hit. As many places stand empty as before (EMPTY_NEAR, EMPTY_FAR, RINGS' "empty").
+##     (Claude's: the shares and the numbers, and that the elite shaman now holds a place in the goblin ground.)
+##   - Farther out is harder (the research's rings; the numbers are Claude's): in the goblin and hound grounds the
+##     middle ring's hound packs are three or four and more goblin groups have a Brute or a Shaman; in the outer ring
+##     packs are up to five and goblin groups bigger still. See RINGS. (Before version 63 those rules held all over.)
 ##
-## A group: {id, pocket, home (tiles), r (tiles), members: [[kind, elite]], what: "hounds" or "goblins", site}.
+## A group: {id, pocket, home (tiles), r (tiles), members: [[kind, elite]], what: "hounds", "goblins" or
+## "creatures", site}.
 
 const LandMap := preload("res://scripts/highlands/land_map.gd")
 const WorldGen := preload("res://scripts/highlands/world_gen.gd")
@@ -43,8 +51,8 @@ static var EMPTY_FAR := 0.3
 static var SCRAP_REACH := 90.0 # tiles round the Scrapyard gate that are goblin ground (version 61)
 static var SCRAP_BRUTE := 0.8  # there, how many groups a Scrap Brute leads ...
 static var SCRAP_SHAMAN := 0.6 # ... and how many have a Shaman at the back
-static var BRUTE_SHARE := 0.3  # of goblin groups, how many a Scrap Brute leads
-static var SHAMAN_SHARE := 0.3 # and how many have a Shaman at the back
+static var BOAR_SHARE := 0.35  # of the places the moor's creatures live in, how many are boars' ...
+static var BADGER_SHARE := 0.3 # ... and how many badgers' (the rest are capercaillies') (version 63)
 ## The middle and the outer ring: the share of empty places; how many hounds a pack has at least and at most; of goblin
 ## groups, how many a Brute leads and how many have a Shaman; how many slingers at least and at most.
 static var RINGS := [{}, {},
@@ -111,71 +119,19 @@ static func make(map: LandMap) -> Array:
 				n = 2
 			for k in n:
 				g["members"].append(["hound", false])
-		elif ring >= 2:
-			var rule: Dictionary = RINGS[ring]
-			if roll < float(rule["empty"]):
-				continue
-			var spare := 1.0 - float(rule["empty"])
-			if roll < float(rule["empty"]) + spare * 0.4:
-				g["what"] = "hounds"
-				var lo: int = rule["hounds"][0]
-				var hi: int = rule["hounds"][1]
-				var n := lo + mini(int(size_roll * float(hi - lo + 1)), hi - lo)
-				if small:
-					n = lo - 1
-				for k in n:
-					g["members"].append(["hound", false])
-			else:
-				g["what"] = "goblins"
-				var brute := brute_roll < float(rule["brute"]) and not small
-				var shaman := shaman_roll < float(rule["shaman"]) and not small
-				var lo: int = rule["slingers"][0]
-				var hi: int = rule["slingers"][1]
-				var slingers := lo + mini(int(size_roll * float(hi - lo + 1)), hi - lo)
-				if small:
-					slingers = 2
-				if brute:
-					g["members"].append(["scrap_brute", false])
-				for k in slingers:
-					g["members"].append(["slinger", false])
-				if shaman:
-					g["members"].append(["shaman", false])
 		elif g["site"] == "watchpost":
 			g["what"] = "hounds"
 			g["members"] = [["hound", false], ["hound", false], ["hound", false]]
 		elif g["site"] == "quarry":
 			g["what"] = "goblins"
 			g["members"] = [["scrap_brute", true], ["slinger", false], ["slinger", false]]
-		elif d < NEAR:
-			if roll < EMPTY_NEAR:
-				continue
-			if roll < EMPTY_NEAR + (1.0 - EMPTY_NEAR) * 0.6:
-				g["what"] = "hounds"
-				g["members"] = [["hound", false], ["hound", false]]
-			else:
-				g["what"] = "goblins"
-				g["members"] = [["slinger", false], ["slinger", false]]
 		else:
-			if roll < EMPTY_FAR:
+			# Everywhere else, the moor's neutral creatures (version 63). As many places stand empty as before, so the
+			# chests (loot_plan.gd) stay where they were.
+			var empty := float(RINGS[ring]["empty"]) if ring >= 2 else (EMPTY_NEAR if d < NEAR else EMPTY_FAR)
+			if roll < empty:
 				continue
-			if roll < EMPTY_FAR + (1.0 - EMPTY_FAR) * 0.4:
-				g["what"] = "hounds"
-				var n := 2 if size_roll < 0.4 else (3 if size_roll < 0.75 else 4)
-				if small:
-					n = 2
-				for k in n:
-					g["members"].append(["hound", false])
-			else:
-				g["what"] = "goblins"
-				var brute := brute_roll < BRUTE_SHARE and not small
-				var shaman := shaman_roll < SHAMAN_SHARE and not small
-				var slingers := 2 if (size_roll < 0.5 or small or (brute and shaman)) else 3
-				if brute:
-					g["members"].append(["scrap_brute", false])
-				for k in slingers:
-					g["members"].append(["slinger", false])
-				if shaman:
-					g["members"].append(["shaman", false])
+			_creatures(g, brute_roll, size_roll, small, d < NEAR, ring)
 		# The three world elites who carry the Rusted Warhorn's pieces (Darren, 24 November: the body from the Elite
 		# Scrap Brute at the Old Quarry, the bell from the Elite Cliff Hound at the Hound Den, the mouthpiece from the
 		# Elite Pebble Slinger at the Slinger Roost; no other elite, and never the Scrapyard's or Rattlecrown's).
@@ -186,6 +142,27 @@ static func make(map: LandMap) -> Array:
 	for k in out.size():
 		out[k]["id"] = k
 	return out
+
+
+## A group of the moor's creatures (version 63): boars, badgers or capercaillies, one kind to a place (which one by
+## `kind_roll`, how many by `size_roll`). Near the base, or in a small place, the fewest; farther out a few more.
+static func _creatures(g: Dictionary, kind_roll: float, size_roll: float, small: bool, near: bool, ring: int) -> void:
+	g["what"] = "creatures"
+	var kind := "capercaillie"
+	if kind_roll < float(BOAR_SHARE):
+		kind = "boar"
+	elif kind_roll < float(BOAR_SHARE) + float(BADGER_SHARE):
+		kind = "badger"
+	var n := 1
+	match kind:
+		"boar":
+			n = 1 if (near or small or size_roll < 0.45) else (3 if ring >= 3 and size_roll > 0.8 else 2)
+		"badger":
+			n = 1 if (near or small or size_roll < 0.5) else 2
+		_:
+			n = 2 if small else (2 + mini(int(size_roll * 2.0), 1) if near else 2 + mini(int(size_roll * 3.0), 2))
+	for k in n:
+		g["members"].append([kind, false])
 
 
 ## The elites with no place of their own each take over one far group: since version 49 only the elite shaman, in
@@ -208,19 +185,27 @@ static func _elites(map: LandMap, out: Array, rng: RandomNumberGenerator, cave: 
 	for band in bands:
 		var start := rng.randi()
 		var best := -1
-		for step in out.size():
-			var k := (start + step) % maxi(out.size(), 1)
-			var g: Dictionary = out[k]
-			if str(g["site"]) != "" or (g["home"] as Vector2).distance_to(cave) < from or float(g["r"]) < 4.3:
-				continue
-			if (g["members"] as Array).any(func(m): return bool(m[1])):
-				continue
-			var ok := true
-			for h in held:
-				if (g["home"] as Vector2).distance_to(h) < ELITE_APART:
-					ok = false
-			if ok:
-				best = k
+		# Since version 63 an elite goes among its own kind first (the elite shaman to the goblin ground round the
+		# Scrapyard), and only failing that takes over any far group.
+		var own := "hounds" if str(band[0][0]) == "hound" else "goblins"
+		for pass_ in 2:
+			for step in out.size():
+				var k := (start + step) % maxi(out.size(), 1)
+				var g: Dictionary = out[k]
+				if str(g["site"]) != "" or (g["home"] as Vector2).distance_to(cave) < from or float(g["r"]) < 4.3:
+					continue
+				if pass_ == 0 and str(g["what"]) != own:
+					continue
+				if (g["members"] as Array).any(func(m): return bool(m[1])):
+					continue
+				var ok := true
+				for h in held:
+					if (g["home"] as Vector2).distance_to(h) < ELITE_APART:
+						ok = false
+				if ok:
+					best = k
+					break
+			if best >= 0:
 				break
 		if best < 0:
 			continue

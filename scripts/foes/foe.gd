@@ -300,13 +300,14 @@ func _death_burst() -> void:
 
 static var _strips := {}
 
-## A strip of the sheet as a picture of its own (null if the book has no such box).
-static func strip_tex(box) -> Texture2D:
+## A strip of the sheet as a picture of its own (null if the book has no such box). `from` is another sheet (the moor
+## creatures': creature.gd).
+static func strip_tex(box, from := SHEET) -> Texture2D:
 	if not (box is Array) or (box as Array).size() != 4:
 		return null
-	var key := "%d,%d,%d,%d" % [int(box[0]), int(box[1]), int(box[2]), int(box[3])]
+	var key := "%s:%d,%d,%d,%d" % [from, int(box[0]), int(box[1]), int(box[2]), int(box[3])]
 	if not _strips.has(key):
-		var sheet := Art.texture(SHEET)
+		var sheet := Art.texture(from)
 		var tex: AtlasTexture = null
 		if sheet != null:
 			tex = AtlasTexture.new()

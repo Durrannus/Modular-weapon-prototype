@@ -1,6 +1,7 @@
 extends RefCounted
 ## Makes one of the Highlands' enemies by name: "hound", "slinger", "scrap_brute", "shaman", "bat", and
-## "<name>_elite" for the elite of the first four; and "rattlecrown", their boss, on his feet. (The land's foes.gd,
+## "<name>_elite" for the elite of the first four; "rattlecrown", their boss, on his feet; and the moor's neutral
+## creatures, "boar", "badger" and "capercaillie" (version 63). (The land's foes.gd,
 ## crown.gd and the test arena's spawn list use it.)
 
 const KINDS := {
@@ -10,10 +11,15 @@ const KINDS := {
 	"shaman": preload("res://scripts/foes/shaman.gd"),
 	"bat": preload("res://scripts/foes/bat.gd"),
 	"rattlecrown": preload("res://scripts/foes/rattlecrown.gd"),
+	"boar": preload("res://scripts/foes/boar.gd"),
+	"badger": preload("res://scripts/foes/badger.gd"),
+	"capercaillie": preload("res://scripts/foes/capercaillie.gd"),
 }
 
 ## Those with no elite of their own.
-const NO_ELITE := ["bat", "rattlecrown"]
+const NO_ELITE := ["bat", "rattlecrown", "boar", "badger", "capercaillie"]
+## The moor's creatures (version 63): neutral, they leave you alone until one of them is hit (creature.gd).
+const CREATURES := ["boar", "badger", "capercaillie"]
 
 
 static func knows(name: String) -> bool:

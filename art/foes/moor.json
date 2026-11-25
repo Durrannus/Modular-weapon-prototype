@@ -1,0 +1,224 @@
+{
+ "note": "Neutral moor creatures, first drafts (25 Nov 2026). The wildlife sheet's form: everything faces right (mirror for left), strips run left to right, every frame of a strip the same size, the outline drawn in, no shadows. See README.md.",
+ "actors": {
+  "boar": {
+   "frame": [
+    46,
+    32
+   ],
+   "origin_feet": [
+    22,
+    29
+   ],
+   "note": "A moor boar: neutral. Roots and wanders; when hit it paws the ground (charge_windup, the tell) and charges in a line. Drops hide and meat.",
+   "strips": {
+    "idle": {
+     "frames": 4,
+     "fps": 3,
+     "box": [
+      0,
+      0,
+      184,
+      32
+     ]
+    },
+    "move": {
+     "frames": 6,
+     "fps": 8,
+     "box": [
+      0,
+      32,
+      276,
+      32
+     ]
+    },
+    "hit": {
+     "frames": 2,
+     "fps": 12,
+     "box": [
+      0,
+      64,
+      92,
+      32
+     ]
+    },
+    "charge_windup": {
+     "frames": 2,
+     "fps": 6,
+     "box": [
+      0,
+      96,
+      92,
+      32
+     ]
+    },
+    "charge": {
+     "frames": 3,
+     "fps": 12,
+     "box": [
+      0,
+      128,
+      138,
+      32
+     ]
+    },
+    "death": {
+     "frames": 2,
+     "fps": 6,
+     "box": [
+      0,
+      160,
+      92,
+      32
+     ]
+    }
+   }
+  },
+  "badger": {
+   "frame": [
+    36,
+    24
+   ],
+   "origin_feet": [
+    17,
+    21
+   ],
+   "note": "A peat badger: neutral. Snuffles about; when hit it bites back (bite: frame 0 is the tell, frame 1 the bite) or, hurt, digs in and is gone (dig, not a loop: the last frame is just the soil mound). Drops a pelt.",
+   "strips": {
+    "idle": {
+     "frames": 4,
+     "fps": 3,
+     "box": [
+      0,
+      192,
+      144,
+      24
+     ]
+    },
+    "move": {
+     "frames": 6,
+     "fps": 9,
+     "box": [
+      0,
+      216,
+      216,
+      24
+     ]
+    },
+    "hit": {
+     "frames": 2,
+     "fps": 12,
+     "box": [
+      0,
+      240,
+      72,
+      24
+     ]
+    },
+    "bite": {
+     "frames": 3,
+     "fps": 10,
+     "box": [
+      0,
+      264,
+      108,
+      24
+     ]
+    },
+    "dig": {
+     "frames": 4,
+     "fps": 8,
+     "box": [
+      0,
+      288,
+      144,
+      24
+     ]
+    },
+    "death": {
+     "frames": 2,
+     "fps": 6,
+     "box": [
+      0,
+      312,
+      72,
+      24
+     ]
+    }
+   }
+  },
+  "capercaillie": {
+   "frame": [
+    40,
+    36
+   ],
+   "origin_feet": [
+    17,
+    33
+   ],
+   "note": "A capercaillie, the big moor grouse: neutral and timid. Pecks and struts, fans its tail now and then (display); when hit it runs off flapping (flee, a loop) and never fights. Drops feathers and meat.",
+   "strips": {
+    "idle": {
+     "frames": 4,
+     "fps": 3,
+     "box": [
+      0,
+      336,
+      160,
+      36
+     ]
+    },
+    "move": {
+     "frames": 6,
+     "fps": 8,
+     "box": [
+      0,
+      372,
+      240,
+      36
+     ]
+    },
+    "display": {
+     "frames": 2,
+     "fps": 3,
+     "box": [
+      0,
+      408,
+      80,
+      36
+     ]
+    },
+    "hit": {
+     "frames": 2,
+     "fps": 12,
+     "box": [
+      0,
+      444,
+      80,
+      36
+     ]
+    },
+    "flee": {
+     "frames": 4,
+     "fps": 12,
+     "box": [
+      0,
+      480,
+      160,
+      36
+     ]
+    },
+    "death": {
+     "frames": 2,
+     "fps": 6,
+     "box": [
+      0,
+      516,
+      80,
+      36
+     ]
+    }
+   }
+  }
+ }
+}

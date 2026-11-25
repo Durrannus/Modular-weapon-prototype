@@ -29,7 +29,7 @@ LOG="${CHECKS_LOG:-/tmp/checks}"
 FULL=0
 JOBS=3
 
-HIGHLANDS="highlands highlands_map highlands_snow highlands_foes highlands_loot highlands_crown highlands_folk highlands_gear highlands_tools highlands_levels saving"
+HIGHLANDS="highlands highlands_map highlands_snow highlands_foes highlands_creatures highlands_loot highlands_crown highlands_folk highlands_gear highlands_tools highlands_levels saving"
 WEAPONS="test_swing_build blade_shapes bow bow_runes hammer hammer_runes staff staff_runes active_runes combat_rules feel_check spirit check_parts lab"
 CAVE="cave_playthrough cave_words smoke_forge title_screen arena_switches"
 

@@ -32,6 +32,10 @@ const SCRIPTS := {
 	"scrap_brute": "res://scripts/foes/scrap_brute.gd",
 	"shaman": "res://scripts/foes/shaman.gd",
 	"bat": "res://scripts/foes/bat.gd",
+	"creature": "res://scripts/foes/creature.gd",
+	"boar": "res://scripts/foes/boar.gd",
+	"badger": "res://scripts/foes/badger.gd",
+	"capercaillie": "res://scripts/foes/capercaillie.gd",
 	"foes": "res://scripts/highlands/foes.gd",
 	"foe_plan": "res://scripts/highlands/foe_plan.gd",
 	"snow": "res://scripts/highlands/snow.gd",
@@ -80,7 +84,7 @@ const PAGE_NOTES := {
 	"Threads": "The forge's sentences keep their own words for these (\"half strength\").",
 	"Players": "Everyone gets the same numbers.",
 	"Enemies": "Enemies already here keep the same share of their health.",
-	"Highlands enemies": "The hounds and goblins of the Highlands. You can also put them in the arena: see Spawn.",
+	"Highlands enemies": "Hounds, goblins and moor creatures. You can also put them in the arena: see Spawn.",
 	"Chests and loot": "What chests hold and what enemies leave. Chest changes take hold when a world is next opened.",
 	"Levelling": "The forge's levels, what falling costs, and the four signature perks of the role trees.",
 	"Pip and the waystone": "Pip's cage and his prices, and what the Watchpost's waystone takes to mend.",
@@ -487,12 +491,45 @@ static func _build_rows() -> void:
 	_add(p, g, "Swooping speed", "bat:DIVE_SPEED", "d", 10.0, 50.0, 2000.0)
 	_add(p, g, "Shortest wait between swoops", "bat:REST_MIN", "s", 0.1, 0.2, 20.0)
 	_add(p, g, "Longest wait between swoops", "bat:REST_MAX", "s", 0.1, 0.2, 20.0)
+	g = "Moor boar (leaves you alone until hit)"
+	_add(p, g, "Health", "boar:HP", "", 1.0, 1.0, 10000.0)
+	_add(p, g, "Trotting speed", "boar:TROT", "d", 5.0, 0.0, 600.0)
+	_add(p, g, "What its charge does", "boar:GORE", "", 1.0, 0.0, 1000.0)
+	_add(p, g, "Pawing the ground before it charges", "boar:WINDUP", "s", 0.05, 0.2, 5.0)
+	_add(p, g, "Charge speed", "boar:CHARGE_SPEED", "d", 10.0, 100.0, 2000.0)
+	_add(p, g, "How far it charges", "boar:CHARGE_DIST", "d", 5.0, 50.0, 800.0)
+	_add(p, g, "It charges when you are within", "boar:CHARGE_FROM", "d", 5.0, 20.0, 800.0)
+	_add(p, g, "How hard the charge throws you", "boar:PUSH", "d", 10.0, 0.0, 2000.0)
+	_add(p, g, "Shortest wait between charges", "boar:COOL_MIN", "s", 0.1, 0.2, 20.0)
+	_add(p, g, "Longest wait between charges", "boar:COOL_MAX", "s", 0.1, 0.2, 20.0)
+	_add(p, g, "Dazed after charging into rock", "boar:DAZED", "s", 0.1, 0.2, 10.0)
+	g = "Peat badger (leaves you alone until hit)"
+	_add(p, g, "Health", "badger:HP", "", 1.0, 1.0, 10000.0)
+	_add(p, g, "Speed", "badger:SPEED", "d", 5.0, 0.0, 600.0)
+	_add(p, g, "What its bite does", "badger:BITE", "", 1.0, 0.0, 1000.0)
+	_add(p, g, "Jaw open before it bites", "badger:BITE_WINDUP", "s", 0.05, 0.1, 5.0)
+	_add(p, g, "How far its bite reaches", "badger:BITE_REACH", "d", 2.0, 4.0, 200.0)
+	_add(p, g, "It digs in and is gone when down to", "badger:DIG_AT", "%", 0.05, 0.0, 1.0)
+	_add(p, g, "Digging in takes", "badger:DIG_TIME", "s", 0.05, 0.1, 5.0)
+	g = "Capercaillie (never fights)"
+	_add(p, g, "Health", "capercaillie:HP", "", 1.0, 1.0, 10000.0)
+	_add(p, g, "Strutting speed", "capercaillie:SPEED", "d", 5.0, 0.0, 600.0)
+	_add(p, g, "Running-off speed", "capercaillie:FLEE", "d", 5.0, 0.0, 600.0)
+	_add(p, g, "It runs until nobody is within", "capercaillie:SAFE", "d", 10.0, 50.0, 1500.0)
+	_add(p, g, "Stops where it fans its tail", "capercaillie:DISPLAY", "%", 0.05, 0.0, 1.0)
+	g = "All three moor creatures"
+	_add(p, g, "They amble about home, up to (tiles)", "creature:WANDER", "n", 1.0, 0.0, 12.0)
+	_add(p, g, "Ambling, the share of their speed", "creature:AMBLE", "%", 0.05, 0.1, 1.0)
+	_add(p, g, "Left alone this long, they settle", "creature:SETTLE", "s", 0.5, 1.0, 120.0)
+	_add(p, g, "...if nobody stands within", "creature:SETTLE_GAP", "d", 10.0, 0.0, 1500.0)
 	g = "On the land"
 	_add(p, g, "A killed enemy is back after (with nobody near)", "foes:BACK_AFTER", "s", 10.0, 2.0, 3600.0)
 	_add(p, g, "Goblin ground round the Scrapyard (tiles)", "foe_plan:SCRAP_REACH", "n", 5.0, 0.0, 400.0)
 	_add(p, g, "Goblin groups there a Brute leads", "foe_plan:SCRAP_BRUTE", "%", 0.05, 0.0, 1.0)
 	_add(p, g, "Goblin groups there with a Shaman", "foe_plan:SCRAP_SHAMAN", "%", 0.05, 0.0, 1.0)
 	_add(p, g, "Hound ground past the snow's edge (tiles)", "snow:HOUNDS_NEAR", "n", 5.0, 0.0, 300.0)
+	_add(p, g, "Moor creature places that are boars'", "foe_plan:BOAR_SHARE", "%", 0.05, 0.0, 1.0)
+	_add(p, g, "Moor creature places that are badgers'", "foe_plan:BADGER_SHARE", "%", 0.05, 0.0, 1.0)
 
 	p = "Chests and loot"
 	g = "Chests"
@@ -512,6 +549,9 @@ static func _build_rows() -> void:
 	_add(p, g, "Pebble Slinger", "loot:MEMORY_FOR/slinger", "", 1.0, 0.0, 10000.0)
 	_add(p, g, "Scrap Brute", "loot:MEMORY_FOR/scrap_brute", "", 1.0, 0.0, 10000.0)
 	_add(p, g, "Goblin Shaman", "loot:MEMORY_FOR/shaman", "", 1.0, 0.0, 10000.0)
+	_add(p, g, "Moor boar", "loot:MEMORY_FOR/boar", "", 1.0, 0.0, 10000.0)
+	_add(p, g, "Peat badger", "loot:MEMORY_FOR/badger", "", 1.0, 0.0, 10000.0)
+	_add(p, g, "Capercaillie", "loot:MEMORY_FOR/capercaillie", "", 1.0, 0.0, 10000.0)
 	_add(p, g, "Any elite", "loot:ELITE_MEMORY", "", 1.0, 0.0, 10000.0)
 	g = "What an elite leaves"
 	_add(p, g, "Fewest coins", "loot:ELITE_COINS_MIN", "", 1.0, 0.0, 1000.0)

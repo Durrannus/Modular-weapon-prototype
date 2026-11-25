@@ -640,7 +640,7 @@ func cannot_travel() -> String:
 		return "Already on the way"
 	if foes != null:
 		for k in foes.packs:
-			if foes.packs[k].alert:
+			if foes.packs[k].hunting():
 				return "Not while enemies are after you"
 	return ""
 

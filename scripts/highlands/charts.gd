@@ -663,10 +663,17 @@ func name_spots(dest: Rect2, src: Rect2, scale: float) -> Array:
 	if dest.has_point(cave):
 		want.append({"text": "Your cave", "at": cave + Vector2(0, -11), "col": DIM})
 	var smoke := smoke_tile()
-	if smoke != Vector2.INF and not shows(int(smoke.x), int(smoke.y)):
+	var plume := Vector2.INF       # where the smoke's mark is drawn, if it is (screen)
+	# No name is written over the smoke's mark (version 63: the Overseer saw "Slinger Roost" under it): it counts as
+	# a place already taken, a little wider than the mark itself.
+	var placed: Array = []
+	if smoke != Vector2.INF:
 		var at := dest.position + (smoke - src.position) * scale
 		if dest.has_point(at):
-			want.append({"text": "Smoke", "at": at + Vector2(0, 11), "col": DIM})      # (clear of the spark: 8 until version 60)
+			plume = at
+			placed.append({"rect": Rect2(at.round() + Vector2(-5, -18), Vector2(10, 21)), "mark": true})
+	if plume != Vector2.INF and not shows(int(smoke.x), int(smoke.y)):
+		want.append({"text": "Smoke", "at": plume + Vector2(0, 11), "col": DIM})      # (clear of the spark: 8 until version 60)
 	for name in PLACE_NAMES:
 		if not map.sites.has(name):
 			continue
@@ -674,9 +681,10 @@ func name_spots(dest: Rect2, src: Rect2, scale: float) -> Array:
 		if not shows(int(at.x), int(at.y)):
 			continue
 		var p := dest.position + (at - src.position) * scale
+		if name == "roost" and plume != Vector2.INF:
+			p = plume + Vector2(0, 11)          # the Roost's name, once seen, takes the word "Smoke"'s place under the mark
 		if dest.has_point(p):
 			want.append({"text": str(PLACE_NAMES[name]), "at": p, "col": INK})
-	var placed: Array = []
 	for w in want:
 		var size := Vector2(60, 8)
 		if pix != null:
@@ -697,7 +705,7 @@ func name_spots(dest: Rect2, src: Rect2, scale: float) -> Array:
 			if overlap == 0.0:
 				break
 		placed.append({"text": w["text"], "rect": best, "col": w["col"]})
-	return placed
+	return placed.filter(func(q): return not q.has("mark"))
 
 
 func _words(ci: CanvasItem, f: Font, at: Vector2, text: String, size: int, col: Color, width := -1.0, align := HORIZONTAL_ALIGNMENT_LEFT) -> void:

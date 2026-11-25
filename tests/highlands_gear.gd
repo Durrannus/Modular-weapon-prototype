@@ -1248,6 +1248,18 @@ func _smoke() -> void:
 	if named.size() == 1:
 		var mark: Vector2 = (lay[0] as Rect2).position + (st - (lay[1] as Rect2).position) * float(lay[2])
 		_check((named[0]["rect"] as Rect2).position.y >= mark.round().y + 4.0, "and a few pixels clear of the mark's spark (the word's top at %.0f, the spark at %.0f; the Overseer, version 59)" % [(named[0]["rect"] as Rect2).position.y, mark.round().y])
+	# Once the Roost is seen its name takes the word's place, as clear of the mark (the Overseer, version 62).
+	charts.reveal(folk.smoke_feet())
+	lay = charts.layout()
+	var roost_name: Array = charts.name_spots(lay[0], lay[1], lay[2]).filter(func(n): return str(n["text"]) == "Slinger Roost")
+	var words: Array = charts.name_spots(lay[0], lay[1], lay[2]).filter(func(n): return str(n["text"]) == "Smoke")
+	_check(charts.shows(int(st.x), int(st.y)) and roost_name.size() == 1 and words.is_empty(), "once the Roost has been seen its name is by the smoke, not the word \"Smoke\"")
+	if roost_name.size() == 1:
+		var mark: Vector2 = ((lay[0] as Rect2).position + (st - (lay[1] as Rect2).position) * float(lay[2])).round()
+		var r: Rect2 = roost_name[0]["rect"]
+		_check(r.position.y >= mark.y + 4.0 and not r.intersects(Rect2(mark + Vector2(-4, -17), Vector2(8, 19))), "and \"Slinger Roost\" is as clear of the mark as the word was (its top at %.0f, the spark at %.0f; the Overseer, version 62)" % [r.position.y, mark.y])
+	charts.explored.fill(0)
+	charts.reveal(Vector2(charts.map.mouth) * 32.0)
 	_put(g, p, start)
 	await _frames(2)
 	# At the Roost the real smoke is in sight: no far-off plume.

@@ -47,6 +47,9 @@ const SPAWNABLE := [
 	["scrap_brute_elite", "Elite brute", "Every third attack is a shield bash"],
 	["shaman_elite", "Elite shaman", "Wards another goblin"],
 	["rattlecrown", "Rattlecrown", "The Highlands' boss, on his feet"],
+	["boar", "Moor boar", "Paws the ground, then charges"],
+	["badger", "Peat badger", "Bites; hurt, it digs in and is gone"],
+	["capercaillie", "Capercaillie", "Never fights: runs off flapping"],
 	["dummy", "Training dummy", "Never moves, shows your damage"],
 ]
 var home_dummy = null        # the dummy the room starts with ("Remove every enemy" leaves it)
@@ -370,6 +373,8 @@ func _stand_at_dummy(i: int) -> void:
 
 
 func _on_enemy_died(enemy) -> void:
+	if enemy.get("fled") == true:
+		return             # a badger that dug in and got away (version 63)
 	kills += 1
 	if enemy.kind == "guardian":
 		suits.append([enemy, 6.0])

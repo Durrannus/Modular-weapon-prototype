@@ -91,6 +91,7 @@ func _wake(i: int) -> Pack:
 	pack.nav = nav
 	pack.home = Nav.middle_of(nav.nearest_free(Nav.tile_of((g["home"] as Vector2) * TILE), 6))
 	pack.reach = float(g["r"]) * TILE
+	pack.neutral = str(g["what"]) == "creatures"       # the moor's creatures: only a blow wakes them (version 63)
 	pack.cover = _cover(pack.home, pack.reach + 128.0)
 	packs[i] = pack
 	var members: Array = g["members"]
@@ -255,6 +256,8 @@ func _on_died(e, i: int, k: int) -> void:
 	if not fallen.has(i):
 		fallen[i] = {}
 	fallen[i][k] = BACK_AFTER
+	if e.get("fled") == true:
+		return             # a badger that dug in and got away: back later like the rest, but nobody's kill
 	# What it leaves behind (loot.gd): Memory, and an elite's loot. Those called into a fight never come this way.
 	if game != null and "loot" in game and game.loot != null:
 		game.loot.foe_died(e)
