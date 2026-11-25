@@ -17,6 +17,7 @@ const LootPlan := preload("res://scripts/highlands/loot_plan.gd")
 const Loot := preload("res://scripts/highlands/loot.gd")
 const ItemArt := preload("res://scripts/highlands/item_art.gd")
 const Bag := preload("res://scripts/highlands/bag.gd")
+const Accessories := preload("res://scripts/highlands/accessories.gd")
 const Nav := preload("res://scripts/highlands/nav.gd")
 const Make := preload("res://scripts/foes/make.gd")
 const Rock := preload("res://scripts/foes/rock.gd")
@@ -201,7 +202,7 @@ func _plans() -> void:
 			if int(c["coins"]) < 1 or int(c["memory"]) < 1 or (c["items"] as Array).is_empty():
 				ok_holds = false
 			for it in c["items"]:
-				if not (str(it[0]) in ["tin_bar", "copper_bar"]) or int(it[1]) < 1 or int(it[1]) > 6:
+				if not (str(it[0]) in ["tin_ore", "copper_ore"]) or int(it[1]) < 1 or int(it[1]) > 6:
 					ok_holds = false
 			var d := (p["at"] as Vector2).distance_to(cave)
 			match str(c["kind"]):
@@ -221,7 +222,7 @@ func _plans() -> void:
 		_check(ok_ground, "world %d: every chest stands on open ground with open ground all round it (a sealed place's may have less)" % seed_value)
 		_check(ok_reach, "world %d: every chest can be walked to from the cave, but for the sealed places', which cannot" % seed_value)
 		_check(ok_clear, "world %d: no chest stands in something" % seed_value)
-		_check(ok_holds, "world %d: every chest holds coins, Memory and a few bars" % seed_value)
+		_check(ok_holds, "world %d: every chest holds coins, Memory and a little ore, never bars (Darren, 25 November)" % seed_value)
 		_check(ok_far and firsts == 1, "world %d: one first chest in the safe hills, the guarded ones where somebody lives, the plain ones where nobody does" % seed_value)
 		var sealed := 0
 		var sealed_with := 0
@@ -280,22 +281,49 @@ func _chest() -> void:
 	_check(p.global_position.y > foot_y - 4.0, "a chest stops you (you are at %.0f, its foot is at %.0f)" % [p.global_position.y, foot_y])
 	await _before(g, p, k)
 	var bag: Bag = g.tools.bag_of(0)
+	var packs = g.packs
+	_check(packs != null and packs.loot == loot, "(the game has the inventory's screen, and it knows the chests)")
 	await _press(p, "interact_pressed")
 	_check(int(loot.chests[k]["state"]) == 1 and loot.opened.has(int(c["id"])), "the interact button opens it")
-	_check(purse.coins == int(c["coins"]) and purse.memory == int(c["memory"]), "its coins and Memory are yours at once (%d, %d)" % [purse.coins, purse.memory])
+	_check(purse.memory == int(c["memory"]), "its Memory goes straight into your bar (%d)" % purse.memory)
+	var share: Array = loot.left_in(k, 0)
+	var gift := str(c.get("gift", ""))
+	var want: Array = [["coins", int(c["coins"])]] + (c["items"] as Array) + ([[gift, 1]] if gift != "" else [])
+	_check(str(share) == str(want), "everything else waits in the chest for you (%s)" % str(share))
+	_check(purse.coins == 0 and bag.count("tin_ore") == 0 and bag.count("tin_bar") == 0, "nothing has come out of it")
+	_check(loot.flies.all(func(f): return bool(f["mote"])) and loot.lying.is_empty(), "nothing spills on the floor: only the Memory is seen to rise")
+	await _frames(20)
+	_check((loot.chests[k]["sprite"] as Sprite2D).texture == loot._frame("chest", 3), "the lid is seen to open, a picture at a time")
+	_check(not packs.is_open(0), "(its inventory is not open while the lid is still going up)")
+	_check(await _wait(func(): return packs.in_chest(0), 40) >= 0, "once the lid is up, the chest's own small inventory opens beside yours")
+	var v = packs.views[0]
+	_check(paused and v.side == 1 and v.cslot == 0, "the game stands still, and the cursor is on the chest's first slot")
+	_check(packs.under_cursor(0).get("id") == "coins" and packs.under_cursor(0).get("chest") == true, "which holds its coins")
+	var cr: Rect2 = packs.chest_rect(0, Loot.CHEST_COLS * Loot.CHEST_ROWS - 1)
+	_check(packs.plate(0).encloses(cr.grow(2)) and not cr.intersects(packs.slot_rect(0, 5)) and packs.chest_rect(0, 0).position.x > packs.slot_rect(0, 5).end.x, "its %d slots are on the plate, right of yours (%s)" % [Loot.CHEST_COLS * Loot.CHEST_ROWS, str(cr)])
+	packs.press(0)
+	_check(purse.coins == int(c["coins"]) and loot.left_in(k, 0).size() == share.size() and str(loot.left_in(k, 0)[0][0]) != "coins", "pressing takes the stack under the cursor: the coins are yours (%d)" % purse.coins)
+	packs.move(0, Vector2i(-1, 0))
+	_check(v.side == 0 and v.slot == 5, "left of the chest's first slot is your inventory's last column")
+	var held := str(loot.left_in(k, 0))
+	packs.press(0)
+	_check(str(loot.left_in(k, 0)) == held and v.note.contains("put in a chest"), "nothing can be put in a chest (\"%s\")" % v.note)
+	packs.move(0, Vector2i(1, 0))
+	_check(v.side == 1 and v.cslot == 0, "and back")
+	packs.quick(0)
 	var ok := true
 	for it in c["items"]:
 		if bag.count(str(it[0])) != int(it[1]):
 			ok = false
-	_check(ok, "and its bars are in the bag (%s)" % str(bag.data()))
-	_check(not loot.flies.is_empty(), "what was in it is seen to come out")
+	_check(ok and (gift == "" or bag.count(gift) == 1) and loot.left_in(k, 0).is_empty(), "the other button takes everything: the ore is in your bag (%s)" % str(bag.data()))
+	_check(gift == "" or loot.said == "Found: %s" % Accessories.name_of(gift), "(and the accessory, which the screen will say once it closes)")
+	_check(await _wait(func(): return not packs.is_open(0), 40) >= 0 and not paused, "emptied, its inventory closes by itself, and the game goes on")
 	await _frames(3)
-	_check(not p.interact_ready and g.ui.prompts.is_empty(), "an open chest is not offered again")
-	_check(not loot.open(k, 0) and purse.coins == int(c["coins"]), "and cannot be opened twice")
-	await _frames(20)
-	_check((loot.chests[k]["sprite"] as Sprite2D).texture == loot._frame("chest", 3), "the lid is seen to open, a picture at a time")
+	_check(not p.interact_ready and g.ui.prompts.is_empty(), "an emptied chest is not offered again")
+	_check(not loot.open(k, 0) and not loot.use_chest(k, 0) and purse.coins == int(c["coins"]), "and cannot be opened twice")
 	await _frames(120)
-	_check(int(loot.chests[k]["state"]) == 2 and (loot.chests[k]["sprite"] as Sprite2D).texture == loot._frame("chest_empty") and loot.flies.is_empty(), "then it stands open and empty, and everything has flown to you")
+	_check(int(loot.chests[k]["state"]) == 2 and (loot.chests[k]["sprite"] as Sprite2D).texture == loot._frame("chest_empty") and loot.flies.is_empty(), "then it stands open and empty")
+	_check(g._world_now().get("chest_left") == {}, "(nothing is left in it for the world to keep)")
 	_check(g._world_now().get("chests") == [int(c["id"])], "the world knows which chest was opened")
 	_check(g._character_now(0).get("coins") == purse.coins and g._character_now(0).get("memory") == purse.memory, "the character knows its coins and Memory")
 	# The purse on the screen.
@@ -305,7 +333,7 @@ func _chest() -> void:
 	# A richer chest.
 	var s := _kind(g, "site")
 	var before: int = purse.coins
-	_check(loot.open(s, 0) and purse.coins - before == int(loot.chests[s]["plan"]["coins"]) and bag.count("tin_bar") > 0 and bag.count("copper_bar") > 0, "a named place's chest holds both kinds of bar")
+	_check(loot.open(s, 0) and loot.take_all(s, 0) and purse.coins - before >= int(loot.chests[s]["plan"]["coins"]) and bag.count("tin_ore") > 0 and bag.count("copper_ore") > 0 and bag.count("tin_bar") + bag.count("copper_bar") == 0, "a named place's chest holds both kinds of ore")
 	_check(g._world_now().get("chests").size() == 2, "(two chests opened now)")
 	await _leave(g)
 
@@ -320,7 +348,25 @@ func _two_players() -> void:
 	await _press(g.players[1], "interact_pressed")
 	_check(int(loot.chests[k]["state"]) == 1, "the second player opens a chest")
 	for i in 2:
-		_check(loot.purses[i].coins == int(c["coins"]) and loot.purses[i].memory == int(c["memory"]) and g.tools.bag_of(i).count(str(c["items"][0][0])) == int(c["items"][0][1]), "player %d has their own full share of it" % (i + 1))
+		var share: Array = loot.left_in(k, i)
+		_check(loot.purses[i].memory == int(c["memory"]) and share.size() >= 2 and str(share[0]) == str(["coins", int(c["coins"])]) and str(share[1]) == str(c["items"][0]), "player %d has their own full share of it waiting in it (%s)" % [i + 1, str(share)])
+	var packs = g.packs
+	_check(await _wait(func(): return packs.in_chest(1), 40) >= 0 and not packs.is_open(0), "its inventory opens for the one who opened it")
+	_check(packs.plate(1).position.x > 320.0 - 8.0, "on their side of the screen")
+	packs.quick(1)
+	await _wait(func(): return not packs.is_open(1), 40)
+	_check(g.tools.bag_of(1).count(str(c["items"][0][0])) == int(c["items"][0][1]) and loot.left_in(k, 1).is_empty() and loot.has_left(k, 0), "they take theirs; the first player's is still there")
+	await _before(g, g.players[0], k)
+	g.players[1].global_position += Vector2(400, 0)
+	await _frames(3)
+	_check(g.ui.prompts.any(func(pr): return str(pr["text"]) == "Look in the chest"), "the chest is offered to the first player (\"Look in the chest\")")
+	await _press(g.players[0], "interact_pressed")
+	_check(packs.in_chest(0), "and opens at once for them")
+	packs.quick(0)
+	await _wait(func(): return not packs.is_open(0), 40)
+	_check(loot.purses[0].coins == int(c["coins"]) and g.tools.bag_of(0).count(str(c["items"][0][0])) == int(c["items"][0][1]) and not loot.any_left(k), "who takes their own")
+	await _frames(70)
+	_check((loot.chests[k]["sprite"] as Sprite2D).texture == loot._frame("chest_empty"), "and only then does it stand empty")
 	var a: Rect2 = loot.purse_rect(0)
 	var b: Rect2 = loot.purse_rect(1)
 	_check(Rect2(0, 0, 640, 360).encloses(a.grow(4)) and Rect2(0, 0, 640, 360).encloses(b.grow(4)) and not a.grow(4).intersects(b.grow(4)) and b.position.x > 320.0, "each has a purse on their side of the screen (%s, %s)" % [str(a), str(b)])
@@ -341,31 +387,31 @@ func _bag_full() -> void:
 	_check(bag.add("stone", Bag.SLOTS * Bag.STACK) == Bag.SLOTS * Bag.STACK and bag.room("tin_bar") == 0, "(a bag full of stone)")
 	var k := _kind(g, "site")
 	var c: Dictionary = loot.chests[k]["plan"]
-	var bars := 0
+	var ore := 0
 	for it in c["items"]:
-		bars += int(it[1])
+		ore += int(it[1])
+	var packs = g.packs
 	await _before(g, p, k)
 	await _press(p, "interact_pressed")
-	_check(loot.purses[0].coins == int(c["coins"]) and loot.purses[0].memory == int(c["memory"]), "with a full bag, a chest's coins and Memory are still yours")
-	var bars_lying := func(): return loot.lying.filter(func(l): return str(l["item"]).ends_with("_bar")).size()
-	_check(int(bars_lying.call()) == bars and bag.count("tin_bar") == 0 and bag.count("copper_bar") == 0, "and its bars lie on the ground (%d of %d; %d things in all, with an accessory or a blank stone)" % [int(bars_lying.call()), bars, loot.lying.size()])
-	var spread := true
-	for l in loot.lying:
-		for o in loot.lying:
-			if l != o and (l["at"] as Vector2).distance_to(o["at"]) < 4.0:
-				spread = false
-		if (l["at"] as Vector2).distance_to(loot.mouth_of(k)) > 60.0:
-			spread = false
-	_check(spread, "each in a place of its own, near the chest")
-	await _frames(90)
-	_check(int(bars_lying.call()) == bars, "they stay there while there is no room")
-	_check(bag.take("stone", Bag.STACK * 2), "(room is made)")
-	# Walk over each of them.
-	for l in loot.lying.duplicate():
-		p.global_position = (l["at"] as Vector2) + Vector2(0, 6)
-		await _frames(6)
-	await _frames(40)
-	_check(int(bars_lying.call()) == 0 and bag.count("tin_bar") + bag.count("copper_bar") == bars, "and are picked up by walking over them once there is (%s)" % str(bag.data().slice(18)))
+	await _wait(func(): return packs.in_chest(0), 40)
+	packs.quick(0)
+	_check(loot.purses[0].coins >= int(c["coins"]) and loot.purses[0].memory == int(c["memory"]), "with a full bag, a chest's coins and Memory are still yours")
+	var left := func(): return loot.left_in(k, 0).filter(func(sl): return str(sl[0]).ends_with("_ore")).reduce(func(n, sl): return n + int(sl[1]), 0)
+	_check(int(left.call()) == ore and bag.count("tin_ore") + bag.count("copper_ore") == 0, "and its ore stays in the chest (%d of %d)" % [int(left.call()), ore])
+	_check(loot.lying.is_empty(), "nothing lies on the floor")
+	_check(packs.is_open(0) and packs.views[0].note.contains("full"), "the screen stays open and says why (\"%s\")" % packs.views[0].note)
+	packs.back(0)
+	_check(not packs.is_open(0) and not paused, "(closed)")
+	await _frames(70)
+	_check((loot.chests[k]["sprite"] as Sprite2D).texture == loot._frame("chest", 4), "the chest stands open with its gold showing while something is left in it")
+	await _frames(3)
+	_check(g.ui.prompts.any(func(pr): return str(pr["text"]) == "Look in the chest"), "and is offered again")
+	_check(bag.take("stone", Bag.STACK * 4), "(room is made)")
+	await _press(p, "interact_pressed")
+	_check(packs.in_chest(0), "it opens at once")
+	packs.quick(0)
+	_check(int(left.call()) == 0 and bag.count("tin_ore") + bag.count("copper_ore") == ore, "and the rest comes out now there is room (%s)" % str(bag.data().slice(18)))
+	await _wait(func(): return not packs.is_open(0), 40)
 	await _leave(g)
 
 
@@ -467,7 +513,7 @@ func _drops() -> void:
 			continue
 		var memory: int = purse.memory
 		var coins: int = purse.coins
-		var bars: int = g.tools.bag_of(0).count("tin_bar") + g.tools.bag_of(0).count("copper_bar")
+		var ore: int = g.tools.bag_of(0).count("tin_ore") + g.tools.bag_of(0).count("copper_ore")
 		var other = pair[1]
 		var other_kind := str(other.kind)
 		other.take_hit(9999.0, Vector2.RIGHT, 0.0, false, Color.WHITE)
@@ -484,8 +530,8 @@ func _drops() -> void:
 		var hi: int = g.gear.coins(0, int(Loot.ELITE_COINS_MAX)) if g.gear != null else int(Loot.ELITE_COINS_MAX)
 		var got_coins: int = purse.coins - coins
 		_check(got_coins >= lo and got_coins <= hi, "coins as a chest would (%d; %d to %d, with a Lucky Copper worn or not)" % [got_coins, lo, hi])
-		var got: int = g.tools.bag_of(0).count("tin_bar") + g.tools.bag_of(0).count("copper_bar") - bars
-		_check(got >= int(Loot.ELITE_BARS_MIN) and got <= int(Loot.ELITE_BARS_MAX), "a few bars (%d)" % got)
+		var got: int = g.tools.bag_of(0).count("tin_ore") + g.tools.bag_of(0).count("copper_ore") - ore
+		_check(got >= int(Loot.ELITE_ORE_MIN) and got <= int(Loot.ELITE_ORE_MAX) and g.tools.bag_of(0).count("tin_bar") + g.tools.bag_of(0).count("copper_bar") == 0, "a little ore, as a chest (%d)" % got)
 		_check(purse.kept.has(piece) and purse.kept.size() == pieces, "and its piece of the Warhorn: %s" % piece)
 		_check(loot.clock < loot.said_until and loot.said.contains("(%d of 3)" % pieces), "and the screen says so (\"%s\")" % loot.said)
 		_check(g._character_now(0).get("kept").size() == pieces, "the character keeps it")
@@ -563,7 +609,12 @@ func _saved() -> void:
 	var k := _kind(g, "first")
 	var s := _kind(g, "site")
 	var id := int(loot.chests[k]["plan"]["id"])
+	var shut := _kind(g, "guarded")
 	loot.open(k, 0)
+	loot.take_all(k, 0)
+	loot.open(s, 0)
+	loot.take(s, 0, 0)          # (its coins)
+	var s_left := str(loot.left_in(s, 0))
 	loot.give(0, "horn_bell", 1, g.players[0].global_position)
 	var coins: int = loot.purses[0].coins
 	var memory: int = loot.purses[0].memory
@@ -571,22 +622,26 @@ func _saved() -> void:
 	_check(g.save_now(), "(saved)")
 	var on_disk := Save.read(Save.WORLDS, str(where["id"]))
 	var me := Save.read(Save.CHARACTERS, str(who["id"]))
-	_check(on_disk.get("chests") is Array and (on_disk["chests"] as Array).size() == 1 and int(on_disk["chests"][0]) == id, "the world's file holds the chest that was opened (%s)" % str(on_disk.get("chests")))
+	_check(on_disk.get("chests") is Array and (on_disk["chests"] as Array).size() == 2 and int(on_disk["chests"][0]) == mini(id, int(loot.chests[s]["plan"]["id"])), "the world's file holds the chests that were opened (%s)" % str(on_disk.get("chests")))
+	_check(on_disk.get("chest_left") is Dictionary and (on_disk["chest_left"] as Dictionary).size() == 1 and (on_disk["chest_left"] as Dictionary).has(str(int(loot.chests[s]["plan"]["id"]))), "and what was left in one of them (%s)" % str(on_disk.get("chest_left")))
 	_check(int(me.get("coins", -1)) == coins and int(me.get("memory", -1)) == memory and me.get("kept") == ["horn_bell"], "the character's file holds its coins, Memory and kept things (%s, %s, %s)" % [str(me.get("coins")), str(me.get("memory")), str(me.get("kept"))])
 	await _leave(g)
 	# Played again: the chest is open, the purse is as it was.
 	g = _game(0, 1, false, [Save.read(Save.CHARACTERS, str(who["id"]))], Save.read(Save.WORLDS, str(where["id"])))
 	await _frames(5)
 	loot = g.loot
-	_check(int(loot.chests[k]["state"]) == 2 and (loot.chests[k]["sprite"] as Sprite2D).texture == loot._frame("chest_empty") and not loot.open(k, 0), "played again, the opened chest stands open and empty")
-	_check(int(loot.chests[s]["state"]) == 0, "and the others are shut")
+	_check(int(loot.chests[k]["state"]) == 2 and (loot.chests[k]["sprite"] as Sprite2D).texture == loot._frame("chest_empty") and not loot.open(k, 0) and not loot.has_left(k, 0), "played again, the emptied chest stands open and empty")
+	_check(int(loot.chests[s]["state"]) == 2 and str(loot.left_in(s, 0)) == s_left and (loot.chests[s]["sprite"] as Sprite2D).texture == loot._frame("chest", 4), "the one with things left in it still holds them, its gold showing (%s)" % str(loot.left_in(s, 0)))
+	_check(int(loot.chests[shut]["state"]) == 0, "and the others are shut")
 	_check(loot.purses[0].coins == coins and loot.purses[0].memory == memory and loot.purses[0].kept.has("horn_bell") and loot.purses[0].kept.size() == 1 and str(g.tools.bag_of(0).data()) == bag_text, "the character has its coins, Memory, bars and the Warhorn's bell")
 	var written: int = g.saves_written
 	g.save_now()
 	_check(g.saves_written == written, "nothing is written again while nothing has changed")
 	# What a save might hold that makes no sense is passed over.
 	loot.set_opened(["x", 99999, -3, null])
-	_check(loot.opened.size() == 1, "chest numbers this land does not have are passed over")
+	_check(loot.opened.size() == 2, "chest numbers this land does not have are passed over")
+	loot.set_left({"x": [], "99999": [[["coins", 3]]], str(int(loot.chests[shut]["plan"]["id"])): [[["coins", 3]]], str(id): [[["coins", "lots"], ["crown", 1], ["tin_ore", 2], 7]]})
+	_check(not loot.has_left(shut, 0) and str(loot.left_in(k, 0)) == str([["tin_ore", 2]]), "and what a save says is left in chests is read as far as it makes sense (%s)" % str(loot.left_in(k, 0)))
 	loot.set_purse_data(0, {"coins": "many", "memory": -5, "kept": ["crown", 3, "horn_body"]})
 	_check(loot.purses[0].coins == coins and loot.purses[0].memory == 0 and loot.purses[0].kept.keys() == ["horn_body"], "and a purse that makes no sense is read as far as it does")
 	await _leave(g)
@@ -603,7 +658,7 @@ func _saved() -> void:
 	await _leave(g)
 	# The pick screen shows a character's coins.
 	var with_coins := Save.read(Save.CHARACTERS, str(who["id"]))
-	_check(SavePick.bag_counts(with_coins).any(func(part): return str(part[0]) == "tin_bar"), "the pick screen lists the bars in a character's bag")
+	_check(SavePick.bag_counts(with_coins).any(func(part): return str(part[0]) == "tin_ore"), "the pick screen lists the ore in a character's bag")
 	Save.root = old_root
 
 
@@ -619,7 +674,10 @@ func _blanks() -> void:
 	var c: Dictionary = loot.chests[k]["plan"]
 	c["blank"] = true
 	_check(loot.open(k, 1), "(player two opens a chest with a passive blank in it)")
-	_check(g.tools.bag_of(1).count("passive_blank") == 1 and g.tools.bag_of(0).count("passive_blank") == 0, "ONE stone, for whoever opened it (Claude's: it is meant to be handed round)")
+	_check(str(loot.left_in(k, 1)).contains("passive_blank") and not str(loot.left_in(k, 0)).contains("passive_blank"), "ONE stone, in the share of whoever opened it (Claude's: it is meant to be handed round)")
+	loot.take_all(k, 0)
+	loot.take_all(k, 1)
+	_check(g.tools.bag_of(1).count("passive_blank") == 1 and g.tools.bag_of(0).count("passive_blank") == 0, "(taken: it is theirs)")
 	_check(loot.blanks_found == 1 and loot.said.contains("passive blank stone"), "the world counts it, and the screen says so (\"%s\")" % loot.said)
 	_check(g._world_now().get("blanks") == 1, "(the world save keeps the count)")
 	# Past the cap a chest's blank is simply not there.
@@ -627,6 +685,7 @@ func _blanks() -> void:
 	var k2 := _kind(g, "plain") if _kind(g, "plain") >= 0 else _kind(g, "site")
 	loot.chests[k2]["plan"]["blank"] = true
 	loot.open(k2, 0)
+	loot.take_all(k2, 0)
 	_check(g.tools.bag_of(0).count("passive_blank") == 0 and loot.blanks_found == loot.blank_cap(), "once the world has given its share, no more")
 	loot.blanks_found = 1
 	# What a stone can become.
@@ -698,17 +757,30 @@ func _shots() -> void:
 	var loot = g.loot
 	var p = g.players[0]
 	p.unhurt = true
-	# A chest, opened a step at a time.
+	# A chest, opened a step at a time, and its small inventory (version 60).
+	var packs = g.packs
 	var k := _kind(g, "first")
 	await _before(g, p, k, -40.0)
 	await _frames(30)
 	await _snap("01_chest_shut")
 	await _press(p, "interact_pressed")
-	var marks := {3: "02_unlatched", 12: "03_lifting", 20: "04_thrown_open", 28: "05_loot_out", 42: "06_lying", 56: "07_flying", 64: "08_flying", 78: "09_arrived", 130: "10_empty"}
-	for n in 131:
+	var marks := {3: "02_unlatched", 12: "03_lifting", 20: "04_thrown_open"}
+	for n in 21:
 		await physics_frame
 		if marks.has(n):
 			await _snap(marks[n])
+	await _wait(func(): return packs.in_chest(0), 40)
+	await _frames(4)
+	await _snap("05_chest_inventory")
+	packs.move(0, Vector2i(1, 0))
+	await _frames(2)
+	await _snap("06_chest_inventory_ore")
+	packs.quick(0)
+	await _frames(2)
+	await _snap("07_everything_taken")
+	await _wait(func(): return not packs.is_open(0), 40)
+	await _frames(90)
+	await _snap("08_chest_empty")
 	# A richer chest (the Watchpost's or the Quarry's).
 	var s := _kind(g, "site")
 	g.foes.on = false
@@ -716,22 +788,27 @@ func _shots() -> void:
 	await _frames(30)
 	await _snap("11_site_chest")
 	await _press(p, "interact_pressed")
-	for n in 60:
-		await physics_frame
-		if n == 30 or n == 48:
-			await _snap("12_site_chest_loot_%d" % n)
-	# A full bag: the bars lie there.
+	await _wait(func(): return packs.in_chest(0), 40)
+	await _frames(4)
+	await _snap("12_site_chest_inventory")
+	packs.quick(0)
+	await _wait(func(): return not packs.is_open(0), 40)
+	# A full bag: what does not fit stays in the chest.
 	var s2 := _kind(g, "site", 1)
 	var full: Array = []
 	for n in Bag.SLOTS:
 		full.append(["stone", Bag.STACK])
 	g.tools.bag_of(0).set_data(full)
 	await _before(g, p, s2, -44.0)
-	loot.open(s2, 0)
-	await _frames(100)
-	await _snap("13_bag_full_bars_lie")
-	g.tools.bag_of(0).set_data([["stone", 12], ["wood", 6], ["tin_bar", 3], ["copper_bar", 2]])
-	loot.lying.clear()
+	loot.use_chest(s2, 0)
+	await _wait(func(): return packs.in_chest(0), 40)
+	packs.quick(0)
+	await _frames(4)
+	await _snap("13_bag_full_rest_stays")
+	packs.back(0)
+	await _frames(80)
+	await _snap("14_chest_gold_showing")
+	g.tools.bag_of(0).set_data([["stone", 12], ["wood", 6], ["tin_ore", 3], ["copper_ore", 2]])
 	# An elite falls.
 	g.foes.on = true
 	var pair: Array = await _wake(g, "hound")
@@ -742,17 +819,17 @@ func _shots() -> void:
 		g.rig.snap()
 		await _frames(20)
 		g.land.settle()
-		await _snap("14_elite_hound")
+		await _snap("15_elite_hound")
 		pair[0].take_hit(pair[0].hp, Vector2.RIGHT, 0.0, false, Color.WHITE)
 		for n in 70:
 			await physics_frame
 			if n == 16 or n == 30 or n == 44 or n == 69:
-				await _snap("15_elite_falls_%d" % n)
+				await _snap("16_elite_falls_%d" % n)
 	# The whole Warhorn in the purse.
 	loot.give(0, "horn_body", 1, p.global_position)
 	loot.give(0, "horn_mouthpiece", 1, p.global_position)
 	await _frames(80)
-	await _snap("16_whole_warhorn")
+	await _snap("17_whole_warhorn")
 	# A thrown pebble and the elite's rock, over their shadows.
 	g.foes.on = false
 	for e in g.foes.all():
@@ -772,7 +849,7 @@ func _shots() -> void:
 		for n in 58:
 			await physics_frame
 			if n == 8 or n == 28 or n == 44 or n == 56:
-				await _snap("17_%s_shadow_%02d" % [kind, n])
+				await _snap("18_%s_shadow_%02d" % [kind, n])
 		await _frames(30)
 	# Two players, each with their purse.
 	await _leave(g)
@@ -781,10 +858,13 @@ func _shots() -> void:
 	k = _kind(g, "first")
 	await _before(g, g.players[0], k, -40.0)
 	g.players[1].global_position = g.players[0].global_position + Vector2(80, 6)
-	g.loot.open(k, 0)
+	g.loot.use_chest(k, 1)
 	g.loot.give(1, "horn_bell", 1, g.players[1].global_position)
-	await _frames(26)
-	await _snap("18_two_players_loot_out")
+	await _wait(func(): return g.packs.in_chest(1), 40)
+	await _frames(4)
+	await _snap("19_two_players_chest_inventory")
+	g.packs.quick(1)
+	await _wait(func(): return not g.packs.is_open(1), 40)
 	await _frames(100)
-	await _snap("19_two_players_purses")
+	await _snap("20_two_players_purses")
 	await _leave(g)

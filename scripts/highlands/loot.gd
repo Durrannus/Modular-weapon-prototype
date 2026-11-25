@@ -4,6 +4,12 @@ extends Node
 ## From the Game Bible:
 ##   - Random chests "scattered around": "usually tin or copper bars, coins and Memory (straight into your bar)".
 ##     Which chests have been opened is saved with the world.
+##   - Darren, 25 November 2026: "Chests also need a small inventory so it doesn't just spew all over the floor and
+##     take the bars out of it because it makes it skip the smelter. Add a small amount of ore instead." So since
+##     version 60 a chest OPENS INTO A SMALL INVENTORY of its own (scripts/ui/pack_screen.gd shows it beside yours)
+##     and you take from it what you want; what you leave stays in the chest. It holds coins, a little ore (never
+##     bars: loot_plan.gd), sometimes an accessory or a passive blank stone. Memory still goes straight into your
+##     bar as the lid opens.
 ##   - "Coins are a plain counter." Bars go in the inventory (bag.gd). Both belong to the character.
 ##   - Memory is "earned from everything: killing, mining, chopping and building". What you carry belongs to the
 ##     character; it is shown as a bar under their health, and poured into the forge to level the squad
@@ -12,15 +18,23 @@ extends Node
 ##     from the Elite Scrap Brute, the bell from the Elite Cliff Hound, the mouthpiece from the Elite Pebble Slinger.
 ##
 ## Claude's choices, until Darren says otherwise (they are listed in the README and the Game Bible):
-##   - EVERYONE gets a chest's loot and a kill's Memory, each their own full share: nobody races for it.
+##   - EVERYONE gets a chest's loot and a kill's Memory, each their own full share: nobody races for it. Since
+##     version 60 each player's share waits in the chest for them (CHEST_COLS x CHEST_ROWS slots), and what is left
+##     in it is saved with the world, by player.
+##   - The chest's inventory opens for whoever opened it once the lid is up (SCREEN_AT). Things can only be taken
+##     out of a chest, not put in (storage waits for chests players build). When everything is taken it closes by
+##     itself. A chest stands open showing its gold while anybody has something left in it, and empty after.
+##   - Elites give ore too since version 60 (the Bible: they give "the same kinds of loot as the chests"); theirs
+##     still comes out and flies to you, since an enemy is not a chest. Rattlecrown's hoard keeps its bars (Darren:
+##     "coins and bars can stay") and still hands everything over at once, with its card.
 ##   - The Warhorn's pieces are KEPT THINGS: they take no room in the bag and cannot be lost. An elite gives its
 ##     piece to whoever has not got it yet.
 ##   - Darren, 24 November: the pieces come only from the three world elites (the Old Quarry's brute, the Hound
 ##     Den's hound, the Slinger Roost's slinger; foe_plan.gd marks them), never from chests, the Scrapyard's elites
 ##     or Rattlecrown's champions. The horn cracks when he falls, so for a rematch they drop again from the same
 ##     three. (Claude's: none drops while the squad holds the mended horn.)
-##   - A bar that does not fit in your bag lies where it fell until you have room and walk over it. What still lies
-##     there when you leave is lost.
+##   - What an ELITE leaves that does not fit in your bag lies where it fell until you have room and walk over it.
+##     What still lies there when you leave is lost. (A chest's stays in the chest.)
 ##   - An enemy that was called into a fight (a hound answering a howl, a shaman's bat) gives nothing: howls and
 ##     bats cannot be farmed.
 ##   - Digging plain rock gives no Memory (it would be the safest and fastest way to earn it there is); ore and
@@ -79,8 +93,8 @@ static var MEMORY_FOR := {"hound": 4, "slinger": 4, "scrap_brute": 12, "shaman":
 static var ELITE_MEMORY := 40
 static var ELITE_COINS_MIN := 15
 static var ELITE_COINS_MAX := 30
-static var ELITE_BARS_MIN := 2
-static var ELITE_BARS_MAX := 4
+static var ELITE_ORE_MIN := 3       # an elite leaves a little ore (since version 60; bars before)
+static var ELITE_ORE_MAX := 5
 static var WORK_MEMORY := {"tin_ore": 1, "copper_ore": 1, "wood": 1}
 static var ELITE_GIFT := 0.5       # how often an elite leaves an accessory
 static var GIFT_COINS := 20        # what you get in place of an accessory you already have
@@ -90,6 +104,9 @@ static var BLANK_MEMORY := 100     # breaking a passive blank down at the forge
 static var ACTIVE_MEMORY := 250    # and an active one
 
 const BLANKS := ["passive_blank", "active_blank"]
+const CHEST_COLS := 4              # a chest's own small inventory (version 60)
+const CHEST_ROWS := 2
+const SCREEN_AT := 0.45            # it opens for whoever opened the chest once the lid is up
 
 const INK := Color("#e8e4bc")
 const DIM := Color("#8ba688")
@@ -123,7 +140,9 @@ var players: Array = []
 var tools                          # tools.gd: the bags
 var nav                            # the enemies' way-finding, told where the chests stand (may be null)
 var plan: Array = []               # loot_plan.gd's chests
-var chests: Array = []             # one for each of the plan's: {plan, sprite, state: 0 shut, 1 opening, 2 open, t}
+var chests: Array = []             # one for each of the plan's: {plan, sprite, state: 0 shut, 1 opening, 2 open, t,
+                                   # left: what is still in it for each player ([[what, how many]] each), show: who
+                                   # its inventory opens for once the lid is up (-1: nobody)}
 var opened := {}                   # chest id -> true: what the world save keeps
 var blanks_found := 0              # the passive blanks this world's chests have given (the world save keeps it)
 var purses: Array = []             # a Purse per player
@@ -213,10 +232,11 @@ func _stand(c: Dictionary) -> void:
 	if nav != null:
 		nav.block(c["tile"])
 	var k := chests.size()
-	chests.append({"plan": c, "sprite": s, "state": 0, "t": 0.0})
+	chests.append({"plan": c, "sprite": s, "state": 0, "t": 0.0, "left": [], "show": -1})
 	if game != null and "interactables" in game:
 		game.interactables.append({"at": foot * UNIT - Vector2(0, 10), "radius": REACH, "lift": 46.0, "text": "Open the chest",
-			"can": func(_i): return int(chests[k]["state"]) == 0, "use": func(i): open(k, i)})
+			"words": func(_i): return "Open the chest" if int(chests[k]["state"]) == 0 else "Look in the chest",
+			"can": func(i): return int(chests[k]["state"]) == 0 or has_left(k, i), "use": func(i): use_chest(k, i)})
 	under.queue_redraw()
 
 
@@ -235,7 +255,9 @@ func mouth_of(k: int) -> Vector2:
 
 # --- The rules --------------------------------------------------------------------------
 
-## Somebody opens chest k. Everybody gets what is in it, each their own full share. False if it was open already.
+## Somebody opens chest k: the lid goes up, everybody's Memory goes straight into their bar, and everybody's own
+## full share of what is in it waits there for them (left_in()). False if it was open already. (This is the rule
+## alone: use_chest() is what the interact button does, and opens the chest's inventory too.)
 func open(k: int, _by := -1) -> bool:
 	if k < 0 or k >= chests.size() or int(chests[k]["state"]) != 0:
 		return false
@@ -245,25 +267,172 @@ func open(k: int, _by := -1) -> bool:
 	ch["t"] = 0.0
 	opened[int(c["id"])] = true
 	var at := mouth_of(k)
+	_fill(k, _by)
 	for i in players.size():
-		if not is_instance_valid(players[i]):
-			continue
-		give(i, "coins", _lucky(i, int(c["coins"])), at, OUT_AT, true)
-		for it in c["items"]:
-			give(i, str(it[0]), int(it[1]), at, OUT_AT + 0.05, true)
-		give(i, "memory", int(c["memory"]), at, OUT_AT + 0.25, true)
-	gift(str(c.get("gift", "")), at, OUT_AT + 0.4, true)
-	# A passive blank: one stone, for whoever opened it, while the world has not given its share.
-	if bool(c.get("blank", false)) and blanks_found < blank_cap():
-		var who := _by if _by >= 0 and _by < players.size() and is_instance_valid(players[_by]) else _first()
-		if who >= 0:
-			blanks_found += 1
-			give(who, "passive_blank", 1, at, OUT_AT + 0.45, true)
-			say("Found: a passive blank stone%s. Infuse it at the forge" % ("" if players.size() == 1 else " (player %d)" % (who + 1)))
-			Sfx.play(game, "pickup", -8.0, 1.4)
+		if is_instance_valid(players[i]):
+			give(i, "memory", int(c["memory"]), at, OUT_AT + 0.1, true)
 	Sfx.play(game, "click", -7.0, 0.7)
 	Sfx.play(game, "thud", -12.0, 1.3)
 	return true
+
+
+## Player i uses chest k (the interact button): a shut one is opened and its inventory opens for them once the lid
+## is up; an open one that still holds something for them opens its inventory at once. Where the game has no such
+## screen (online, which is on hold), everybody takes their whole share at once and it flies to them.
+func use_chest(k: int, i: int) -> bool:
+	if k < 0 or k >= chests.size():
+		return false
+	var screen = _screen()
+	if int(chests[k]["state"]) == 0:
+		if not open(k, i):
+			return false
+		if screen == null:
+			for j in players.size():
+				take_all(k, j, true)
+		else:
+			chests[k]["show"] = i
+		return true
+	if has_left(k, i) and screen != null:
+		return bool(screen.open_chest(i, k))
+	return false
+
+
+## The screen the inventory is shown on (scripts/ui/pack_screen.gd), where the game has it.
+func _screen():
+	return game.packs if game != null and "packs" in game and game.packs != null else null
+
+
+## Puts everybody's own share into chest k as its lid first opens: its coins (Lucky Copper counted), its ore, its
+## accessory (coins in its place for whoever has it already), and for whoever opened it a passive blank stone while
+## the world has not given its share.
+func _fill(k: int, by: int) -> void:
+	var ch: Dictionary = chests[k]
+	var c: Dictionary = ch["plan"]
+	var gift := str(c.get("gift", ""))
+	if not Accessories.has(gift) or _gear() == null:
+		gift = ""
+	var left: Array = []
+	var new_to := 0
+	for i in players.size():
+		var share: Array = []
+		if is_instance_valid(players[i]):
+			var coins := _lucky(i, int(c["coins"]))
+			var accessory := ""
+			if gift != "":
+				if owns(i, gift):
+					coins += int(GIFT_COINS)
+				else:
+					accessory = gift
+					new_to += 1
+			share.append(["coins", coins])
+			for it in c["items"]:
+				if int(it[1]) > 0:
+					share.append([str(it[0]), int(it[1])])
+			if accessory != "":
+				share.append([accessory, 1])
+		left.append(share)
+	if gift != "" and new_to == 0:
+		say("%s again: %d coins instead" % [Accessories.name_of(gift), int(GIFT_COINS)])
+	# A passive blank: one stone, for whoever opened it, while the world has not given its share.
+	if bool(c.get("blank", false)) and blanks_found < blank_cap():
+		var who := by if by >= 0 and by < players.size() and is_instance_valid(players[by]) else _first()
+		if who >= 0:
+			blanks_found += 1
+			(left[who] as Array).append(["passive_blank", 1])
+	ch["left"] = left
+
+
+## What chest k still holds for player i: [[what, how many]] ("coins" among them). [] if nothing.
+func left_in(k: int, i: int) -> Array:
+	if k < 0 or k >= chests.size() or i < 0:
+		return []
+	var left: Array = chests[k]["left"]
+	return left[i] if i < left.size() else []
+
+
+## Does chest k still hold something for player i?
+func has_left(k: int, i: int) -> bool:
+	return not left_in(k, i).is_empty()
+
+
+## Does chest k still hold something for anybody?
+func any_left(k: int) -> bool:
+	for share in chests[k]["left"]:
+		if not (share as Array).is_empty():
+			return true
+	return false
+
+
+## Player i takes what is in slot n of their share of chest k: into their purse (coins) or their bag, as much as
+## fits; the rest stays in the chest. How many were taken. `fly`: it is seen to come out and fly to them (looks only).
+func take(k: int, i: int, n: int, fly := false) -> int:
+	var share := left_in(k, i)
+	if n < 0 or n >= share.size():
+		return 0
+	var item := str(share[n][0])
+	var many := int(share[n][1])
+	var got := _hand(i, item, many, mouth_of(k), fly)
+	if got >= many:
+		share.remove_at(n)
+	else:
+		share[n][1] = many - got
+	if got > 0 and not any_left(k) and int(chests[k]["state"]) == 2:
+		(chests[k]["sprite"] as Sprite2D).texture = _frame("chest_empty")
+	return got
+
+
+## Player i takes everything in their share of chest k that fits. How many things were taken (coins count as one).
+## True when the chest is empty for them after.
+func take_all(k: int, i: int, fly := false) -> bool:
+	var share := left_in(k, i)
+	var n := 0
+	var after := 0.0
+	while n < share.size():
+		var many := int(share[n][1])
+		var got := _hand(i, str(share[n][0]), many, mouth_of(k), fly, after)
+		after += 0.05
+		if got >= many:
+			share.remove_at(n)
+		else:
+			share[n][1] = many - got
+			n += 1
+	if not any_left(k) and int(chests[k]["state"]) == 2:
+		(chests[k]["sprite"] as Sprite2D).texture = _frame("chest_empty")
+	return share.is_empty()
+
+
+## Hands player i so many of a thing from a chest: coins to their purse, anything else into their bag as far as it
+## fits (nothing is left lying: what does not fit stays in the chest). How many went. Its number lights up; `fly`
+## shows it coming out and flying to them.
+func _hand(i: int, item: String, n: int, from: Vector2, fly := false, after := 0.0) -> int:
+	if n <= 0 or i < 0 or i >= purses.size():
+		return 0
+	var purse: Purse = purses[i]
+	var got := n
+	if item == "coins":
+		purse.coins += n
+	else:
+		got = tools.bag_of(i).add(item, n) if tools != null else 0
+	if got <= 0:
+		return 0
+	if fly:
+		var shown := clampi(ceili(float(got) / 4.0), 1, 7) if item == "coins" else got
+		for m in shown:
+			var spot := from + Vector2(0, 14) + Vector2.from_angle(dice.randf_range(0.2, PI - 0.2)) * dice.randf_range(14.0, 30.0) * Vector2(1.0, 0.7)
+			flies.append({"item": item, "i": i, "from": from, "spot": spot, "t": -OUT_AT - after - 0.03 * float(m), "wait": LIE + 0.07 * float(m), "mote": false})
+	else:
+		purse.gained[item] = clock
+		if tools != null and i < tools.hands.size():
+			tools.hands[i].gained[item] = tools.clock
+	if Accessories.has(item):
+		if _gear() != null:
+			_gear().nudge(i)      # the screen tells whoever it is for which button opens the inventory
+		say("Found: %s" % Accessories.name_of(item))
+		Sfx.play(game, "pickup", -8.0, 1.2)
+	elif item == "passive_blank":
+		say("Found: a passive blank stone%s. Infuse it at the forge" % ("" if players.size() == 1 else " (player %d)" % (i + 1)))
+		Sfx.play(game, "pickup", -8.0, 1.4)
+	return got
 
 
 ## The first player there is (-1 if none).
@@ -359,20 +528,20 @@ func foe_died(e) -> void:
 	var elite := bool(e.get("elite"))
 	var memory := int(ELITE_MEMORY) if elite else int(MEMORY_FOR.get(str(e.kind), 0))
 	var coins := 0
-	var bars := 0
-	var bar := "tin_bar"
+	var ore := 0
+	var kind := "tin_ore"
 	if elite:
 		# What decides what you get is asked of the game's shared dice, so two computers playing together agree.
 		coins = floori(Sim.between(float(ELITE_COINS_MIN), float(ELITE_COINS_MAX) + 0.999))
-		bars = floori(Sim.between(float(ELITE_BARS_MIN), float(ELITE_BARS_MAX) + 0.999))
-		bar = "copper_bar" if Sim.chance() < 0.6 else "tin_bar"
+		ore = floori(Sim.between(float(ELITE_ORE_MIN), float(maxi(ELITE_ORE_MAX, ELITE_ORE_MIN)) + 0.999))
+		kind = "copper_ore" if Sim.chance() < 0.6 else "tin_ore"
 	var piece := str(HORN.get(str(e.kind), "")) if elite and e.has_meta("horn") and not _horn_mended() else ""
 	for i in players.size():
 		if not is_instance_valid(players[i]):
 			continue
 		give(i, "memory", memory, at, 0.15)
 		give(i, "coins", _lucky(i, coins), at, 0.1)
-		give(i, bar, bars, at, 0.1)
+		give(i, kind, ore, at, 0.1)
 		if piece != "" and not (purses[i] as Purse).kept.has(piece):
 			give(i, piece, 1, at, 0.3)
 			var have := (purses[i] as Purse).kept.size()
@@ -405,9 +574,18 @@ func worked(i: int, item: String, at: Vector2, after := 0.0) -> void:
 ## Once a tick: the lids, and what lies on the ground for somebody who now has room for it.
 func tick(delta: float) -> void:
 	clock += delta
-	for ch in chests:
+	for k in chests.size():
+		var ch: Dictionary = chests[k]
 		if int(ch["state"]) == 1:
 			ch["t"] = float(ch["t"]) + delta
+			if float(ch["t"]) >= SCREEN_AT and int(ch["show"]) >= 0:
+				# The lid is up: its inventory opens for whoever opened it (if they still can: not while they are
+				# down or something else has the screen; then the interact button opens it later).
+				var who := int(ch["show"])
+				ch["show"] = -1
+				var screen = _screen()
+				if screen != null and has_left(k, who):
+					screen.open_chest(who, k)
 			if float(ch["t"]) >= SHOW_TIME:
 				ch["state"] = 2
 	if lying.is_empty() or tools == null:
@@ -541,6 +719,39 @@ func opened_ids() -> Array:
 	return ids
 
 
+## What is still in the opened chests, for the world save: {chest id: [each player's [[what, how many]]]}, only
+## for the chests that hold something for somebody (version 60).
+func left_data() -> Dictionary:
+	var out := {}
+	for k in chests.size():
+		if int(chests[k]["state"]) != 0 and any_left(k):
+			out[str(int(chests[k]["plan"]["id"]))] = (chests[k]["left"] as Array).duplicate(true)
+	return out
+
+
+## And back, after set_opened(): what was left in them is there again. Anything this game does not know, or a chest
+## that is not open, is passed over. (A world saved before version 60 has none: its opened chests are empty, as
+## they were.)
+func set_left(d) -> void:
+	if not (d is Dictionary):
+		return
+	for key in d:
+		var k := chest_of(int(str(key))) if str(key).is_valid_int() else -1
+		if k < 0 or int(chests[k]["state"]) == 0 or not (d[key] is Array):
+			continue
+		var left: Array = []
+		for share in d[key]:
+			var slots: Array = []
+			if share is Array:
+				for slot in share:
+					if slot is Array and slot.size() == 2 and slot[0] is String and (slot[1] is int or slot[1] is float) and int(slot[1]) > 0 \
+							and (str(slot[0]) == "coins" or Bag.NAMES.has(str(slot[0])) or Accessories.has(str(slot[0]))) and slots.size() < CHEST_COLS * CHEST_ROWS:
+						slots.append([str(slot[0]), int(slot[1])])
+			left.append(slots)
+		chests[k]["left"] = left
+		(chests[k]["sprite"] as Sprite2D).texture = _frame("chest", 4) if any_left(k) else _frame("chest_empty")
+
+
 ## And back: those chests stand open and empty. An id this land has no chest for is passed over.
 func set_opened(d) -> void:
 	if not (d is Array):
@@ -559,13 +770,15 @@ func set_opened(d) -> void:
 # --- Looks only ---------------------------------------------------------------------------
 
 func _process(delta: float) -> void:
-	for ch in chests:
+	for k in chests.size():
+		var ch: Dictionary = chests[k]
 		var s: Sprite2D = ch["sprite"]
 		match int(ch["state"]):
 			1:
 				s.texture = _frame("chest", clampi(int(float(ch["t"]) * LID_FPS), 0, 4))
 			2:
-				s.texture = _frame("chest_empty")
+				# Its gold shows while it holds something for somebody.
+				s.texture = _frame("chest", 4) if any_left(k) else _frame("chest_empty")
 	for f in flies:
 		var before: float = f["t"]
 		f["t"] = before + delta

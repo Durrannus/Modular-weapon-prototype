@@ -642,7 +642,7 @@ func name_spots(dest: Rect2, src: Rect2, scale: float) -> Array:
 	if smoke != Vector2.INF and not shows(int(smoke.x), int(smoke.y)):
 		var at := dest.position + (smoke - src.position) * scale
 		if dest.has_point(at):
-			want.append({"text": "Smoke", "at": at + Vector2(0, 8), "col": DIM})
+			want.append({"text": "Smoke", "at": at + Vector2(0, 11), "col": DIM})      # (clear of the spark: 8 until version 60)
 	for name in PLACE_NAMES:
 		if not map.sites.has(name):
 			continue

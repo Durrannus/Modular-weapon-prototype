@@ -45,14 +45,14 @@ The README is the long, plain-words story for Darren; this file is only for find
 | `scripts/highlands/foes.gd`, `foe_plan.gd`, `nav.gd` | Who lives where, waking and coming back; the way round rock. |
 | `scripts/foes/` | The Highlands enemies (`foe.gd` shared; hound, slinger, scrap brute, shaman, bat, rock) and Rattlecrown. |
 | `scripts/highlands/crown.gd`, `crown_plan.gd` | The Scrapyard, the Throne Room fight, traps, hoard. |
-| `scripts/highlands/loot.gd`, `loot_plan.gd` | Chests, drops, coins, Memory. |
+| `scripts/highlands/loot.gd`, `loot_plan.gd` | Chests (each player's share waits in the chest: `left_in`, `take`, `take_all`), drops, coins, Memory. |
 | `scripts/highlands/levels.gd`, `perks.gd` | Memory and the forge's levels, the four role trees and every perk. |
 | `scripts/highlands/folk.gd`, `folk_plan.gd` | Pip, his cage, the quests and their list, the waystone. |
 | `scripts/highlands/bag.gd`, `gear.gd`, `accessories.gd` | The inventory, the Accessory Satchel, what each accessory does. |
 | `scripts/highlands/tools.gd` | Pickaxe, axe, mallet: digging, mining, felling; blows by name (`NEED`) and by make (`POWER`). |
 | `scripts/save.gd` | Saved characters and worlds. |
 | `scripts/lab.gd`, `scripts/ui/lab_screen.gd` | The lab's list of numbers; its screen. |
-| `scripts/ui/` | Screens: forge (`swing_forge.gd`), the Highlands forge (`forge_hall.gd`), HUD, inventory (`pack_screen.gd`), shop, pause, save pick, title, online menu, version corner. |
+| `scripts/ui/` | Screens: forge (`swing_forge.gd`), the Highlands forge (`forge_hall.gd`), HUD, inventory and a chest's inventory (`pack_screen.gd`), shop, pause, save pick, title, online menu, version corner. |
 | `scripts/net/` | Online play for two (on hold). |
 | `scripts/art.gd`, `sfx.gd`, `music.gd`, `sim.gd`, `version.gd` | Loading art by name; sounds made in code; music; the game's dice; the version stamp. |
 | `art/`, `parts/`, `scenes/`, `shaders/` | Pictures and their json; weapon parts as `.tres`; scenes; shaders. |

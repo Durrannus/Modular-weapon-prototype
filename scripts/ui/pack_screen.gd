@@ -12,7 +12,13 @@ extends CanvasLayer
 ## The game stands still while anybody's is open, as it does for the forge and Pip's shop (Claude's choice: a
 ## screen this size over a fight nobody can see through would not be fair to the other player).
 ##
-## The rules are gear.gd's and bag.gd's: this only moves a cursor and asks them. What is in your hand on this
+## A CHEST'S INVENTORY (version 60). Darren, 25 November 2026: "Chests also need a small inventory so it doesn't
+## just spew all over the floor". Opening a chest opens this screen with the chest's own small grid on the right in
+## place of the satchel (open_chest()): what is in it for you, to take a stack at a time or all at once. Things are
+## only taken out (loot.gd's take() and take_all()); what you leave stays in the chest. Emptied, it closes by
+## itself after a moment.
+##
+## The rules are gear.gd's, bag.gd's and loot.gd's: this only moves a cursor and asks them. What is in your hand on this
 ## screen has not left where it was: it moves only when it is put down somewhere it fits, so nothing can be lost
 ## by closing the screen.
 
@@ -41,6 +47,9 @@ const TOP := 38.0                # under the health bars
 const HEAD := 26.0               # the two titles
 const FOOT := 82.0               # what the cursor is on, and what the buttons do
 const MOST_ROWS := 10            # of slots drawn (eight is the largest backpack; more only when things lie past the last slot)
+const CHEST_COLS := 4            # a chest's own small inventory (as loot.gd's)
+const CHEST_ROWS := 2
+const SHUT_AFTER := 0.35         # an emptied chest's screen closes this long after
 
 
 ## One player's screen.
@@ -53,11 +62,15 @@ class View:
 	var note := ""
 	var note_until := -9.0
 	var opened_at := 0.0
+	var chest := -1              # the chest whose inventory is open beside yours (loot.gd's number), or -1: the satchel
+	var cslot := 0               # which of its slots the cursor is on
+	var shut_at := -1.0          # an emptied chest's screen closes by itself at this time
 
 
 var game                         # the Highlands scene
 var gear                         # scripts/highlands/gear.gd
 var tools                        # scripts/highlands/tools.gd (the inventories)
+var loot                         # scripts/highlands/loot.gd (the chests)
 var players: Array = []
 var allowed := true              # the game says whether one may be opened now (not in a dialogue, a journey, the forge)
 var views: Array = []
@@ -112,9 +125,31 @@ func open(i: int) -> bool:
 	v.held = {}
 	v.note = ""
 	v.opened_at = t
+	v.chest = -1
+	v.shut_at = -1.0
 	root.visible = true
 	Sfx.play(self, "click", -10.0, 0.8)
 	return true
+
+
+## Opens player i's screen on chest k's inventory: the chest's slots on the right, the cursor on the first.
+func open_chest(i: int, k: int) -> bool:
+	if loot == null or k < 0 or k >= loot.chests.size():
+		return false
+	if is_open(i):
+		close(i)
+	if not open(i):
+		return false
+	var v: View = views[i]
+	v.chest = k
+	v.side = 1
+	v.cslot = 0
+	return true
+
+
+## Is player i's screen open on a chest?
+func in_chest(i: int) -> bool:
+	return is_open(i) and (views[i] as View).chest >= 0
 
 
 func close(i: int) -> void:
@@ -123,6 +158,8 @@ func close(i: int) -> void:
 	var v: View = views[i]
 	v.open = false
 	v.held = {}
+	v.chest = -1
+	v.shut_at = -1.0
 	Sfx.play(self, "click", -14.0, 0.7)
 	if not any_open():
 		root.visible = false
@@ -137,6 +174,10 @@ func close_all() -> void:
 
 func _process(delta: float) -> void:
 	t += delta
+	for i in views.size():
+		var v: View = views[i]
+		if v.open and v.shut_at >= 0.0 and t >= v.shut_at:
+			close(i)
 	if root.visible:
 		root.queue_redraw()
 
@@ -165,7 +206,8 @@ func _slots(i: int) -> int:
 
 ## The whole plate of player i's screen.
 func plate(i: int) -> Rect2:
-	var grid := maxf(float(rows_of(i)) * SLOT, float(gear.size_of(i).y) * SLOT + 14.0)
+	var right := float(CHEST_ROWS) if (views[i] as View).chest >= 0 else float(gear.size_of(i).y)
+	var grid := maxf(float(rows_of(i)) * SLOT, right * SLOT + 14.0)
 	var x := floorf((SCREEN.x - WIDE) * 0.5)
 	if players.size() > 1:
 		x = 8.0 if i % 2 == 0 else SCREEN.x - 8.0 - WIDE
@@ -192,6 +234,30 @@ func cell_rect(i: int, c: Vector2i) -> Rect2:
 	return Rect2(r.position.x + PAD + SLOT * 6.0 + GAP + float(c.x) * SLOT, r.position.y + HEAD + 14.0 + float(c.y) * SLOT, SLOT, SLOT)
 
 
+## Where slot n of the open chest's inventory is drawn on player i's screen.
+func chest_rect(i: int, n: int) -> Rect2:
+	var r := plate(i)
+	return Rect2(r.position.x + PAD + SLOT * 6.0 + GAP + float(n % CHEST_COLS) * SLOT, r.position.y + HEAD + 14.0 + float(n / CHEST_COLS) * SLOT, SLOT, SLOT)
+
+
+## What is in slot n of the chest open on player i's screen: [id, how many], or [] if it is empty.
+func in_chest_slot(i: int, n: int) -> Array:
+	var v: View = views[i]
+	if loot == null or v.chest < 0:
+		return []
+	var share: Array = loot.left_in(v.chest, i)
+	return share[n] if n >= 0 and n < share.size() else []
+
+
+## What a thing is called on this screen (coins are not carried in the bag, but a chest holds them).
+static func name_of(id: String) -> String:
+	return "Coins" if id == "coins" else Bag.name_of(id)
+
+
+static func text_of(id: String) -> String:
+	return "Spent at Pip's shop. They go straight into your purse." if id == "coins" else Bag.text_of(id)
+
+
 ## What is in inventory slot n of player i: [id, how many], or [] if it is empty.
 func in_slot(i: int, n: int) -> Array:
 	var bag := _bag(i)
@@ -206,6 +272,9 @@ func under_cursor(i: int) -> Dictionary:
 	if v.side == 0:
 		var s := in_slot(i, v.slot)
 		return {"id": str(s[0]), "n": int(s[1]), "worn": false} if not s.is_empty() else {}
+	if v.chest >= 0:
+		var c := in_chest_slot(i, v.cslot)
+		return {"id": str(c[0]), "n": int(c[1]), "worn": false, "chest": true} if not c.is_empty() else {}
 	var k: int = gear.piece_at(i, v.cell)
 	return {"id": str(gear.kits[i].worn[k]["id"]), "n": 1, "worn": true, "k": k} if k >= 0 else {}
 
@@ -219,6 +288,7 @@ func _keep_in(i: int) -> void:
 		box = Accessories.box(str(v.held["id"]), int(v.held["rot"]))
 	v.cell = Vector2i(clampi(v.cell.x, 0, maxi(size.x - box.x, 0)), clampi(v.cell.y, 0, maxi(size.y - box.y, 0)))
 	v.slot = clampi(v.slot, 0, maxi(_slots(i) - 1, 0))
+	v.cslot = clampi(v.cslot, 0, CHEST_COLS * CHEST_ROWS - 1)
 
 
 # --- What the buttons do -------------------------------------------------------------------
@@ -230,12 +300,21 @@ func move(i: int, d: Vector2i) -> void:
 	var v: View = views[i]
 	var rows := rows_of(i)
 	var size: Vector2i = gear.size_of(i)
-	if v.side == 0:
+	if v.chest >= 0 and v.side == 1:
+		var col := v.cslot % CHEST_COLS
+		var row := v.cslot / CHEST_COLS
+		if d.x < 0 and col == 0:
+			v.side = 0
+			v.slot = mini(row, rows - 1) * Bag.COLS + Bag.COLS - 1
+		else:
+			v.cslot = clampi(row + d.y, 0, CHEST_ROWS - 1) * CHEST_COLS + clampi(col + d.x, 0, CHEST_COLS - 1)
+	elif v.side == 0:
 		var col := v.slot % Bag.COLS
 		var row := v.slot / Bag.COLS
 		if d.x > 0 and col == Bag.COLS - 1:
 			v.side = 1
 			v.cell = Vector2i(0, mini(row, size.y - 1))
+			v.cslot = mini(row, CHEST_ROWS - 1) * CHEST_COLS
 		else:
 			col = clampi(col + d.x, 0, Bag.COLS - 1)
 			row = clampi(row + d.y, 0, rows - 1)
@@ -257,6 +336,9 @@ func press(i: int) -> void:
 	if not is_open(i):
 		return
 	var v: View = views[i]
+	if v.chest >= 0:
+		_take(i)
+		return
 	if v.held.is_empty():
 		var u := under_cursor(i)
 		if u.is_empty():
@@ -305,7 +387,7 @@ func press(i: int) -> void:
 
 ## A quarter turn: of what is in hand, or of the piece the cursor is on if it has room to turn where it lies.
 func turn(i: int) -> void:
-	if not is_open(i):
+	if not is_open(i) or (views[i] as View).chest >= 0:
 		return
 	var v: View = views[i]
 	if not v.held.is_empty():
@@ -332,6 +414,9 @@ func quick(i: int) -> void:
 	if not is_open(i):
 		return
 	var v: View = views[i]
+	if v.chest >= 0:
+		_take_all(i)
+		return
 	if not v.held.is_empty():
 		return
 	var u := under_cursor(i)
@@ -357,6 +442,58 @@ func quick(i: int) -> void:
 			say(i, "No room in the satchel. Move or turn something.")
 			Sfx.play(self, "click", -14.0, 0.7)
 	_keep_in(i)
+
+
+## With a chest open: the stack under the cursor goes into your inventory (coins into your purse), as much as fits.
+## On your own inventory's side nothing happens: things cannot be put in a chest.
+func _take(i: int) -> void:
+	var v: View = views[i]
+	if v.side == 0:
+		say(i, "Nothing can be put in a chest yet.")
+		Sfx.play(self, "click", -14.0, 0.7)
+		return
+	var c := in_chest_slot(i, v.cslot)
+	if c.is_empty():
+		return
+	var got: int = loot.take(v.chest, i, v.cslot)
+	if got <= 0:
+		say(i, "Your inventory is full.")
+		Sfx.play(self, "click", -14.0, 0.7)
+		return
+	if got < int(c[1]):
+		say(i, "Your inventory is full: the rest stays in the chest.")
+	Sfx.play(self, "pickup", -9.0, 1.1)
+	_emptied(i)
+
+
+## With a chest open: everything in it that fits.
+func _take_all(i: int) -> void:
+	var v: View = views[i]
+	if not loot.has_left(v.chest, i):
+		return
+	var before := _held_in(i)
+	if not loot.take_all(v.chest, i):
+		var moved := _held_in(i) < before
+		say(i, "Your inventory is full: the rest stays in the chest." if moved else "Your inventory is full.")
+		Sfx.play(self, "pickup" if moved else "click", -9.0 if moved else -14.0, 1.1 if moved else 0.7)
+		return
+	Sfx.play(self, "pickup", -9.0, 1.1)
+	_emptied(i)
+
+
+## How many things the chest open on player i's screen still holds for them.
+func _held_in(i: int) -> int:
+	var n := 0
+	for slot in loot.left_in((views[i] as View).chest, i):
+		n += int(slot[1])
+	return n
+
+
+## An emptied chest's screen closes by itself a moment later.
+func _emptied(i: int) -> void:
+	var v: View = views[i]
+	if v.chest >= 0 and not loot.has_left(v.chest, i):
+		v.shut_at = t + SHUT_AFTER
 
 
 ## Back: lets go of what is in hand (it stays where it was), or closes the screen.
@@ -469,6 +606,13 @@ func _point(i: int, m: Vector2) -> bool:
 			v.side = 0
 			v.slot = n
 			return true
+	if v.chest >= 0:
+		for n in CHEST_COLS * CHEST_ROWS:
+			if chest_rect(i, n).has_point(m):
+				v.side = 1
+				v.cslot = n
+				return true
+		return false
 	var size: Vector2i = gear.size_of(i)
 	for y in size.y:
 		for x in size.x:
@@ -545,7 +689,6 @@ func _draw_screen() -> void:
 func _draw_view(i: int) -> void:
 	var v: View = views[i]
 	var silk := Art.font("Silkscreen-Regular")
-	var pix := Art.font(Art.TEXT)
 	var bag := _bag(i)
 	var r := plate(i)
 	if not Art.draw_nine(root, "swing/ui/panel.png", r, 8):
@@ -553,7 +696,6 @@ func _draw_view(i: int) -> void:
 	var x := r.position.x + PAD
 	var y := r.position.y
 	var sx := x + SLOT * 6.0 + GAP
-	var size: Vector2i = gear.size_of(i)
 
 	# The inventory: its name, the backpack that makes it bigger, and how full it is.
 	_words(silk, Vector2(x, y + 19.0), title_of(i), 8, Art.PLAYER_COLORS[i % Art.PLAYER_COLORS.size()] if players.size() > 1 else AMBER)
@@ -579,7 +721,55 @@ func _draw_view(i: int) -> void:
 			var count := str(int(s[1]))
 			_words(silk, Vector2(at.x, at.y + SLOT - 2.0), count, 8, INK, SLOT - 2.0, HORIZONTAL_ALIGNMENT_RIGHT)
 
-	# The satchel: its name and size, its cells, and what is worn in them.
+	if v.chest >= 0:
+		_draw_chest(i, sx, y)
+	else:
+		_draw_satchel(i, sx, y)
+
+	# The cursor.
+	if v.chest >= 0 and v.side == 1:
+		_draw_cursor(i, chest_rect(i, v.cslot).position)
+	elif v.chest >= 0:
+		_draw_cursor(i, slot_rect(i, v.slot).position)
+	_draw_foot(i)
+
+
+## The open chest's inventory, at the right of player i's screen: its name, how full it is, and what is in it for
+## them. (Its slots are the inventory's slot art: it is a small inventory.)
+func _draw_chest(i: int, sx: float, y: float) -> void:
+	var silk := Art.font("Silkscreen-Regular")
+	var v: View = views[i]
+	var share: Array = loot.left_in(v.chest, i)
+	_words(silk, Vector2(sx, y + 19.0), "CHEST", 8, AMBER)
+	_words(silk, Vector2(sx, y + 32.0), "TAKE WHAT YOU WANT" if not share.is_empty() else "EMPTY", 8, PALE if not share.is_empty() else DIM)
+	_words(silk, Vector2(sx, y + 19.0), "%d / %d" % [share.size(), CHEST_COLS * CHEST_ROWS], 8, DIM, SLOT * 5.0, HORIZONTAL_ALIGNMENT_RIGHT)
+	for n in CHEST_COLS * CHEST_ROWS:
+		var at := chest_rect(i, n).position
+		if ItemArt.draw(root, "slot", at) == Vector2.ZERO:
+			Art.draw_nine(root, "swing/ui/well.png", Rect2(at, Vector2(SLOT, SLOT)), 3)
+		if n >= share.size():
+			continue
+		_draw_thing(str(share[n][0]), int(share[n][1]), at)
+
+
+## One stack in a slot, its top left at `at`: its picture, and how many under it (not for an accessory, alone in its
+## slot).
+func _draw_thing(id: String, n: int, at: Vector2) -> void:
+	var silk := Art.font("Silkscreen-Regular")
+	if Accessories.has(id):
+		var icon := Art.texture("accessories/%s_icon.png" % id)
+		if icon != null:
+			root.draw_texture(icon, at)
+		return
+	ItemArt.draw(root, "item_" + id, at + Vector2(4, 4))
+	_words(silk, Vector2(at.x, at.y + SLOT - 2.0), str(n), 8, INK, SLOT - 2.0, HORIZONTAL_ALIGNMENT_RIGHT)
+
+
+## The satchel: its name and size, its cells, and what is worn in them; what is in hand, and the cursor.
+func _draw_satchel(i: int, sx: float, y: float) -> void:
+	var silk := Art.font("Silkscreen-Regular")
+	var v: View = views[i]
+	var size: Vector2i = gear.size_of(i)
 	_words(silk, Vector2(sx, y + 19.0), str(Gear.SATCHELS[gear.satchel_now(i)]["name"]).to_upper(), 8, AMBER)
 	_words(silk, Vector2(sx, y + 32.0), "WORN: IN USE", 8, PALE)
 	_words(silk, Vector2(sx, y + 32.0), "%d X %d" % [size.x, size.y], 8, DIM, SLOT * 5.0, HORIZONTAL_ALIGNMENT_RIGHT)
@@ -616,22 +806,33 @@ func _draw_view(i: int) -> void:
 	else:
 		_draw_cursor(i, cell_rect(i, v.cell).position)
 
-	# What the cursor is on.
+
+## Under the grids: what the cursor is on, a note, and what the buttons do.
+func _draw_foot(i: int) -> void:
+	var v: View = views[i]
+	var silk := Art.font("Silkscreen-Regular")
+	var pix := Art.font(Art.TEXT)
+	var r := plate(i)
+	var x := r.position.x + PAD
 	var fy := r.end.y - FOOT + 8.0
 	var w := r.size.x - PAD * 2.0
 	root.draw_rect(Rect2(x, fy - 1.0, w, 1.0), Color(FAINT, 0.6))
 	var u := under_cursor(i)
 	if not u.is_empty():
 		var id := str(u["id"])
-		var name := Bag.name_of(id)
+		var name := name_of(id)
 		if int(u["n"]) > 1:
 			name = "%s  x %d" % [name, int(u["n"])]
 		_words(silk, Vector2(x, fy + 12.0), name.to_upper(), 8, AMBER)
-		if Accessories.has(id):
+		if u.has("chest"):
+			_words(silk, Vector2(x, fy + 12.0), "IN THE CHEST", 8, DIM, w, HORIZONTAL_ALIGNMENT_RIGHT)
+		elif Accessories.has(id):
 			_words(silk, Vector2(x, fy + 12.0), "IN USE" if bool(u["worn"]) else "NOT IN USE", 8, PALE if bool(u["worn"]) else DIM, w, HORIZONTAL_ALIGNMENT_RIGHT)
-		var said := lines_of(pix, Bag.text_of(id), Art.TEXT_SIZE, w)
+		var said := lines_of(pix, text_of(id), Art.TEXT_SIZE, w)
 		for n in mini(said.size(), 2):
 			_words(pix, Vector2(x, fy + 25.0 + 11.0 * float(n)), str(said[n]), Art.TEXT_SIZE, INK)
+	elif v.chest >= 0:
+		_words(pix, Vector2(x, fy + 25.0), "Take what you want. What you leave stays in the chest." if loot.has_left(v.chest, i) else "The chest is empty.", Art.TEXT_SIZE, DIM)
 	else:
 		_words(pix, Vector2(x, fy + 25.0), "An accessory works only while it is in the satchel.", Art.TEXT_SIZE, DIM)
 	if t < v.note_until and v.note != "":
@@ -643,6 +844,9 @@ func _draw_view(i: int) -> void:
 	var hold := not v.held.is_empty()
 	var line1 := ("A: %s     X: turn" if pad else "E: %s     R: turn") % ("put down" if hold else "pick up")
 	var line2 := ("B: let go" if hold else "Y: wear or take off     B: close") if pad else ("Esc: let go" if hold else "Q: wear or take off     Tab: close")
+	if v.chest >= 0:
+		line1 = "A: take     Y: take everything" if pad else "E: take     Q: take everything"
+		line2 = "B: close" if pad else "Tab: close"
 	_words(pix, Vector2(x, r.end.y - 21.0), line1, Art.TEXT_SIZE, DIM)
 	_words(pix, Vector2(x, r.end.y - 10.0), line2, Art.TEXT_SIZE, DIM)
 

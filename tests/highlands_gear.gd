@@ -601,6 +601,7 @@ func _effects() -> void:
 	var c: Dictionary = g.loot.chests[k]["plan"]
 	purse.coins = 0
 	g.loot.open(k, 0)
+	g.loot.take(k, 0, 0)     # (the chest's coins: version 60's chests hold what they give until it is taken)
 	_check(purse.coins - (int(Loot.GIFT_COINS) if str(c.get("gift", "")) != "" and false else 0) == roundi(float(int(c["coins"])) * float(Accessories.LUCKY_COINS)), "a chest's coins come to a fifth more (%d for %d)" % [purse.coins, int(c["coins"])])
 	_strip(g, 0)
 	# Banner Pin (alone).
@@ -724,6 +725,8 @@ func _found() -> void:
 	var gift := str(loot.chests[k]["plan"].get("gift", ""))
 	_check(Accessories.POOL.has(gift), "(the first chest holds the %s)" % gift)
 	loot.open(k, 0)
+	_check(str(loot.left_in(k, 0)).contains(gift) and bag.count(gift) == 0, "opened: the accessory waits in the chest's inventory (version 60)")
+	loot.take_all(k, 0)
 	_check(bag.count(gift) == 1 and not gear.has(0, gift), "opened: the accessory is in your inventory, not in use")
 	_check(loot.said == "Found: %s" % Accessories.name_of(gift) and _fits(g, loot.said), "and the screen says so (\"%s\")" % loot.said)
 	_check(is_equal_approx(gear.kits[0].nudged, gear.clock), "(and for a few seconds which button opens the inventory)")
@@ -799,6 +802,8 @@ func _found() -> void:
 	g.tools.bag_of(1).add(gift, 1)
 	coins = loot.purses[1].coins
 	loot.open(_kind(g, "first"), 0)
+	loot.take_all(_kind(g, "first"), 0)
+	loot.take_all(_kind(g, "first"), 1)
 	_check(g.tools.bag_of(0).count(gift) == 1 and g.tools.bag_of(1).count(gift) == 1, "two players: everybody gets the accessory, each their own")
 	_check(loot.said == "Found: %s" % Accessories.name_of(gift), "(the screen says it was found, as it is new to one of them)")
 	_check(g.gear.kits[0].nudged > 0.0 and g.gear.kits[1].nudged < 0.0, "(the button is shown to the one it is new to)")
@@ -1240,6 +1245,9 @@ func _smoke() -> void:
 	var lay: Array = charts.layout()
 	var named: Array = charts.name_spots(lay[0], lay[1], lay[2]).filter(func(n): return str(n["text"]) == "Smoke")
 	_check(named.size() == 1, "with the word \"Smoke\" by it, until the Roost has been seen")
+	if named.size() == 1:
+		var mark: Vector2 = (lay[0] as Rect2).position + (st - (lay[1] as Rect2).position) * float(lay[2])
+		_check((named[0]["rect"] as Rect2).position.y >= mark.round().y + 4.0, "and a few pixels clear of the mark's spark (the word's top at %.0f, the spark at %.0f; the Overseer, version 59)" % [(named[0]["rect"] as Rect2).position.y, mark.round().y])
 	_put(g, p, start)
 	await _frames(2)
 	# At the Roost the real smoke is in sight: no far-off plume.
@@ -1472,6 +1480,7 @@ func _shots() -> void:
 	g.land.settle()
 	await _frames(20)
 	loot.open(k, 0)
+	loot.take_all(k, 0, true)
 	await _frames(70)
 	await _snap("02_an_accessory_found")
 	await _frames(60)

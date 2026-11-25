@@ -492,8 +492,8 @@ static func _build_rows() -> void:
 	_add(p, g, "Chests that hold a passive blank", "loot_plan:BLANK", "%", 0.01, 0.0, 1.0)
 	_add(p, g, "Fewest coins in a chest", "loot_plan:COINS_MIN", "", 1.0, 0.0, 1000.0)
 	_add(p, g, "Most coins in a chest", "loot_plan:COINS_MAX", "", 1.0, 0.0, 1000.0)
-	_add(p, g, "Fewest bars in a chest", "loot_plan:BARS_MIN", "n", 1.0, 1.0, 20.0)
-	_add(p, g, "Most bars in a chest", "loot_plan:BARS_MAX", "n", 1.0, 1.0, 20.0)
+	_add(p, g, "Least ore in a chest", "loot_plan:ORE_MIN", "n", 1.0, 1.0, 20.0)
+	_add(p, g, "Most ore in a chest", "loot_plan:ORE_MAX", "n", 1.0, 1.0, 20.0)
 	_add(p, g, "Memory in a chest", "loot_plan:MEMORY", "", 1.0, 0.0, 10000.0)
 	_add(p, g, "A sealed or named place's chest holds", "loot_plan:RICH", "%", 0.1, 1.0, 10.0)
 	_add(p, g, "The first chest, by the cave, holds", "loot_plan:FIRST", "%", 0.05, 0.1, 2.0)
@@ -506,8 +506,8 @@ static func _build_rows() -> void:
 	g = "What an elite leaves"
 	_add(p, g, "Fewest coins", "loot:ELITE_COINS_MIN", "", 1.0, 0.0, 1000.0)
 	_add(p, g, "Most coins", "loot:ELITE_COINS_MAX", "", 1.0, 0.0, 1000.0)
-	_add(p, g, "Fewest bars", "loot:ELITE_BARS_MIN", "n", 1.0, 1.0, 20.0)
-	_add(p, g, "Most bars", "loot:ELITE_BARS_MAX", "n", 1.0, 1.0, 20.0)
+	_add(p, g, "Least ore", "loot:ELITE_ORE_MIN", "n", 1.0, 1.0, 20.0)
+	_add(p, g, "Most ore", "loot:ELITE_ORE_MAX", "n", 1.0, 1.0, 20.0)
 	g = "Memory for work"
 	_add(p, g, "A tile of tin ore mined", "loot:WORK_MEMORY/tin_ore", "", 1.0, 0.0, 1000.0)
 	_add(p, g, "A tile of copper ore mined", "loot:WORK_MEMORY/copper_ore", "", 1.0, 0.0, 1000.0)

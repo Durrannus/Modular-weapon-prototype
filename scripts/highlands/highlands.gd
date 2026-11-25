@@ -204,6 +204,7 @@ func _ready() -> void:
 	loot.setup(chest_plan)
 	if not world_save.is_empty() and not new_world and not relaid:
 		loot.set_opened(world_save.get("chests"))
+		loot.set_left(world_save.get("chest_left"))
 	if not world_save.is_empty() and not new_world:
 		loot.set_blanks_found(world_save.get("blanks"))
 	levels = Levels.new()
@@ -304,6 +305,7 @@ func _ready() -> void:
 		packs.game = self
 		packs.gear = gear
 		packs.tools = tools
+		packs.loot = loot
 		packs.players = players
 		add_child(packs)
 		packs.closed.connect(_packs_closed)
@@ -463,6 +465,7 @@ func _world_now() -> Dictionary:
 	world_save["land"] = WorldGen.GEN
 	world_save.merge(map.changes(), true)
 	world_save["chests"] = loot.opened_ids()
+	world_save["chest_left"] = loot.left_data()
 	world_save["blanks"] = loot.blanks_found
 	world_save.merge(levels.world_data(), true)
 	if gear != null:

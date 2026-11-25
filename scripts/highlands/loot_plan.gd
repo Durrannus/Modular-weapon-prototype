@@ -6,7 +6,9 @@ extends RefCounted
 ## move a chest.
 ##
 ## The rules, from the Game Bible:
-##   - "Random chests, scattered around": "usually tin or copper bars, coins and Memory".
+##   - "Random chests, scattered around": "usually tin or copper bars, coins and Memory". Darren, 25 November 2026:
+##     "take the bars out of it because it makes it skip the smelter. Add a small amount of ore instead." So since
+##     version 60 a chest holds a little tin or copper ore, never bars.
 ##   - "Not every place is a quest. Some places are just enemies plus a chest with a random, modest reward."
 ##   - Chests opened are saved with the world.
 ##   - FAR FEWER CHESTS (Darren, 24 November, from his test of version 50): "About 272 chests in the Highlands is far
@@ -22,9 +24,11 @@ extends RefCounted
 ##     accessory more often), so the Memory on the way to Rattlecrown stays about what the level curve was set for.
 ##   - The Keeper's Watchpost and the Old Quarry each have a richer one.
 ##   - The open place nearest the cave always has a small one, so the first chest is met in the safe hills.
-##   - Nearer the cave the bars are mostly tin; farther out mostly copper. A richer chest holds both.
+##   - Nearer the cave the ore is mostly tin; farther out mostly copper. A richer chest holds both. (Bars until
+##     version 60: the same dice, so a chest holds the same kind of ore as it held bars, two to four of it, and a
+##     richer one three to five of each.)
 ##   - Since version 49 a chest in the middle ring holds about half as much again as one at the inner ring's edge,
-##     and one in the outer ring about twice as much, with more copper (RING_SHARE, RING_COPPER). The Slinger Roost,
+##     and one in the outer ring about twice as much, with more copper ore (RING_SHARE, RING_COPPER). The Slinger Roost,
 ##     the Hound Den, Cairn Field, Echo Gorge and the Fault's mouth each have a richer one, like the Quarry's.
 ##   - ACCESSORIES are in some chests since version 47 (the Bible: "sometimes a tier 1 accessory"): the first chest
 ##     always holds one, so the satchel is met in the safe hills; a richer chest holds one about half the time
@@ -47,14 +51,14 @@ static var SEALED_SHARE := 0.35    # of the sealed places
 static var RING_FEWER := [1.0, 1.0, 0.65, 0.6]   # in the middle and outer ring, those shares times this
 static var COINS_MIN := 24
 static var COINS_MAX := 50
-static var BARS_MIN := 2
-static var BARS_MAX := 5
+static var ORE_MIN := 2             # a little ore (Darren, 25 November: "a small amount of ore")
+static var ORE_MAX := 4
 static var MEMORY := 40
 static var BLANK := 0.04           # how often a chest holds a passive blank stone (Darren: "about 4% per chest")
 static var RICH := 2.5             # a sealed place's chest and a named place's hold this many times the coins and Memory
 static var FIRST := 0.6            # and the first one, by the cave, this share
 static var RING_SHARE := [1.0, 1.0, 1.25, 1.55]    # in the middle and outer ring, coins and Memory this many times the inner ring's far chests'
-static var RING_COPPER := [0.0, 0.0, 0.75, 0.9]    # and the chance that a plain chest's bars are copper
+static var RING_COPPER := [0.0, 0.0, 0.75, 0.9]    # and the chance that a plain chest's ore is copper
 static var GIFT := 0.35            # how often a chest holds an accessory ...
 static var RICH_GIFT := 0.6        # ... and a richer one (the first chest always does)
 const FIRST_FROM := 12.0           # tiles from the cave: the first chest is in the nearest place at least this far out
@@ -136,15 +140,15 @@ static func _holds(seed_value: int, id: int, kind: String, far: bool, ring := 1)
 	var coins := roundi(float(rng.randi_range(COINS_MIN, COINS_MAX)) * share * (1.3 if far else 1.0) * out_there)
 	var memory := roundi(float(MEMORY) * share * (1.3 if far else 1.0) * out_there)
 	var copper := rng.randf() < (float(RING_COPPER[ring]) if ring >= 2 else (0.6 if far else 0.3))
-	var bars := rng.randi_range(BARS_MIN, BARS_MAX)
-	var more := rng.randi_range(BARS_MIN, BARS_MAX)
+	var ore := rng.randi_range(ORE_MIN, maxi(ORE_MAX, ORE_MIN))
+	var more := rng.randi_range(ORE_MIN, maxi(ORE_MAX, ORE_MIN))
 	var items: Array = []
 	if kind in ["sealed", "site"]:
-		items = [["tin_bar", bars + 1], ["copper_bar", more + 1]]
+		items = [["tin_ore", ore + 1], ["copper_ore", more + 1]]
 	elif kind == "first":
-		items = [["tin_bar", 1]]
+		items = [["tin_ore", ORE_MIN]]
 	else:
-		items = [["copper_bar" if copper else "tin_bar", bars]]
+		items = [["copper_ore" if copper else "tin_ore", ore]]
 	# The accessory: rolled last, so that what chests held before version 47 is what they hold now.
 	var roll := rng.randf()
 	var pick := rng.randi_range(0, Accessories.POOL.size() - 1)
