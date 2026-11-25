@@ -39,7 +39,7 @@ The README is the long, plain-words story for Darren; this file is only for find
 | `scripts/enemy.gd` | Arena and cave enemies (crabs, dummies), damage taking, the Stagger meter. |
 | `scripts/cave/` | The tutorial cave (`cave.gd`), its crawler, burrower, forge guardian, hazards, screen furniture. |
 | `scripts/highlands/highlands.gd` | The Highlands game: makes the world, players, systems, saving hooks, the Highlands-only shares. |
-| `scripts/highlands/world_gen.gd`, `land_map.gd` | Making a map from a seed (rings, places, ore, dressing); the map as tiles. Raise `WorldGen.GEN` when the land changes. |
+| `scripts/highlands/world_gen.gd`, `land_map.gd` | Making a map from a seed (rings, places, ore, dressing, pine groves); the map as tiles. Raise `WorldGen.GEN` when the land changes, then `tests/saving.gd -- ref`. |
 | `scripts/highlands/land_painter.gd`, `land_view.gd`, `veins.gd` | Painting the land from the art kit; showing it near the camera; ore veins. |
 | `scripts/highlands/charts.gd` | The small map, the whole map on M, the seen land, the lab's map switch. |
 | `scripts/highlands/foes.gd`, `foe_plan.gd`, `nav.gd` | Who lives where, waking and coming back; the way round rock. |
@@ -49,7 +49,7 @@ The README is the long, plain-words story for Darren; this file is only for find
 | `scripts/highlands/levels.gd`, `perks.gd` | Memory and the forge's levels, the four role trees and every perk. |
 | `scripts/highlands/folk.gd`, `folk_plan.gd` | Pip, his cage, the quests and their list, the waystone. |
 | `scripts/highlands/bag.gd`, `gear.gd`, `accessories.gd` | The inventory, the Accessory Satchel, what each accessory does. |
-| `scripts/highlands/tools.gd` | Pickaxe, axe, mallet: digging, mining, felling. |
+| `scripts/highlands/tools.gd` | Pickaxe, axe, mallet: digging, mining, felling; blows by name (`NEED`) and by make (`POWER`). |
 | `scripts/save.gd` | Saved characters and worlds. |
 | `scripts/lab.gd`, `scripts/ui/lab_screen.gd` | The lab's list of numbers; its screen. |
 | `scripts/ui/` | Screens: forge (`swing_forge.gd`), the Highlands forge (`forge_hall.gd`), HUD, inventory (`pack_screen.gd`), shop, pause, save pick, title, online menu, version corner. |

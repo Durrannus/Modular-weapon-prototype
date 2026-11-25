@@ -48,8 +48,8 @@ const Painter := preload("res://scripts/highlands/land_painter.gd")
 ## land (tiles, or the things that stand on it): worlds saved before are then laid out again, without what was dug in
 ## them, in place of old holes cut into a land they do not fit. tests/saving.gd keeps a fingerprint of one land and
 ## fails if the land changes while this number does not.
-const GEN := 2
-const NEWS := "The land now goes out past the inner ring, through the middle ring to the outer one, where Rattlecrown's Scrapyard is."   # what this making of the land brought (the card of a world laid out again says it)
+const GEN := 3
+const NEWS := "There are about twice as many pines now, in small groves through the open places."   # what this making of the land brought (the card of a world laid out again says it)
 
 const MID := LandMap.MID
 const RINGS := [24.0, 125.0, 240.0, 350.0]   # where the base hills, the inner, the middle and the outer ring end (tiles from the cave)
@@ -101,6 +101,15 @@ const SPACING := 18.0          # tiles between the middles of two open places
 const HILL_KEEP := 9.0         # nothing but the gaps comes this close to the clearing's edge
 const BIG_MOST := 6            # never more big open places than this (Darren: "not big open areas")
 const DEEP_ORE := 28           # clusters of ore buried in the rock, away from every open place
+## Small groves of pines in the open places (version 58; Darren, 25 November: "We need more trees also for wood because
+## it seems a bit bare and they are a basic material"). They are stood after everything else, with dice of their own,
+## so how many there are (the lab: Players > In the Highlands) moves nothing else on the land. See _groves.
+static var GROVES := 2.5       # this times a ring's "pine" share is how many groves an open place has (2.5: about twice the pines)
+static var GROVE_MOST := 4     # the most pines in one grove (the fewest is two)
+const GROVE_REACH := 2.8       # a grove's pines stand within this many tiles of its first one ...
+const GROVE_APART := 1.9       # ... and at least this far from each other: their crowns overlap, so it reads as one grove
+const GROVE_ROOM := 2.4        # nothing else that stands in the place is nearer than this to one of its pines
+const GROVE_WAY := 2.0         # no pine is nearer than this to the way from the place's middle to a place it is joined to
 
 const GRASS := LandMap.GRASS
 const SCRUB := LandMap.SCRUB
@@ -126,6 +135,7 @@ var rng := RandomNumberGenerator.new()
 var ore := RandomNumberGenerator.new()    # the ore's own dice (see _ore)
 var far := RandomNumberGenerator.new()    # the middle and outer rings' own dice: nothing done out there moves the inner ring's
 var far_ore := RandomNumberGenerator.new()
+var grove := RandomNumberGenerator.new()  # the pine groves' own dice (see _groves)
 var inner_n := 0               # the open places before this number are the base's and the inner ring's
 var rings := true              # are the middle and outer rings made? (Always, but for one of the tools.)
 var yard := Rect2i()           # the Scrapyard's block of rock (tiles)
@@ -286,6 +296,7 @@ func _build(seed_value: int, attempt: int) -> LandMap:
 	ore.seed = _mix(seed_value & 0xffffffff, seed_value >> 32, 2000 + attempt)
 	far.seed = _mix(seed_value & 0xffffffff, seed_value >> 32, 5000 + attempt)
 	far_ore.seed = _mix(seed_value & 0xffffffff, seed_value >> 32, 6000 + attempt)
+	grove.seed = _mix(seed_value & 0xffffffff, seed_value >> 32, 7000 + attempt)
 	ns = rng.randi() & 0xffff
 	m.turn = rng.randf() * TAU
 	rings = not OS.has_environment("HL_INNER_ONLY")      # (for checking that the rings beyond did not move the inner one: tools/land_mark.gd)
@@ -327,6 +338,7 @@ func _build(seed_value: int, attempt: int) -> LandMap:
 	_ore()
 	t.append(Time.get_ticks_usec())
 	_dress()
+	_groves()
 	t.append(Time.get_ticks_usec())
 	_cover_plants()
 	t.append(Time.get_ticks_usec())
@@ -1639,6 +1651,110 @@ func _dress() -> void:
 					_animal("crow", at.x * 16 + 19, at.y * 16 + 14, true)
 					if dice.randf() < 0.4 and _roomy(at.x + 2, at.y):
 						_animal("crow", at.x * 16 + 36, at.y * 16 + 8, false)
+
+
+## The pine groves (see GROVES). In each open place that is not a named one, nor the ground in front of a pass, a
+## ring's "pine" share times GROVES says how many groves stand there (2.3 is two, and a third one time in three). A
+## grove is two pines or more, close enough for their crowns to overlap. Each pine stands:
+##   - on grass with grass two tiles all round it: never on a footpath or a dug floor, in a gap between two places or
+##     at its mouth, nor right against the rock;
+##   - in the back half of the place or out at its sides, never in front of its middle (a tall tree hides what is
+##     behind it; they also fade while somebody is behind them: land_view.gd), and at least two tiles from the middle,
+##     where a chest or a camp is put;
+##   - clear of the way from the place's middle to each place it is joined to, so a way through is never shut or
+##     hidden, and clear of what already stands there.
+## A pine that finds no such spot is not stood (a small place may get a grove of one, or none).
+func _groves() -> void:
+	# The ways between places, the places' middles and what already stands, sorted into squares of 8 tiles, so a
+	# spot only looks at what is near it. A way is in every square within one of the box round it.
+	var ways := {}
+	var middles := {}
+	var standing := {}
+	for link in m.links:
+		var a := int(link["a"])
+		var b := int(link["b"])
+		if a < 0 or b < 0 or a >= m.pockets.size() or b >= m.pockets.size():
+			continue
+		var pa: Vector2 = m.pockets[a]["at"]
+		var pb: Vector2 = m.pockets[b]["at"]
+		for cy in range(floori(minf(pa.y, pb.y) / 8.0) - 1, floori(maxf(pa.y, pb.y) / 8.0) + 2):
+			for cx in range(floori(minf(pa.x, pb.x) / 8.0) - 1, floori(maxf(pa.x, pb.x) / 8.0) + 2):
+				_file(ways, Vector2i(cx, cy), [pa, pb])
+	for p in m.pockets:
+		var at: Vector2 = p["at"]
+		_file(middles, Vector2i(floori(at.x / 8.0), floori(at.y / 8.0)), at)
+	for t in m.things:
+		var at := Vector2(float(t["x"]) / 16.0, float(t["y"]) / 16.0)
+		_file(standing, Vector2i(floori(at.x / 8.0), floori(at.y / 8.0)), at)
+	for idx in m.pockets.size():
+		var p: Dictionary = m.pockets[idx]
+		if str(p["site"]) != "" or bool(p["gate"]):
+			continue
+		var share := GROVES * float(RING[int(p["ring"])]["pine"])
+		var n := floori(share) + (1 if grove.randf() < share - floorf(share) else 0)
+		if n <= 0:
+			continue
+		var mid: Vector2 = p["at"]
+		var glen := bool(p["glen"])
+		var spots: Array = []
+		for at: Vector2i in _spots(p)["roomy"]:
+			var here := Vector2(at) + Vector2(0.5, 0.5)
+			if not glen and here.y > mid.y + 0.5 and absf(here.x - mid.x) < float(p["rx"]) * 0.5:
+				continue
+			var open := true
+			for j in range(-3, 2):
+				for i in range(-1, 2):
+					var k := K[(at.y + j) * S + at.x + i]
+					if open and (k == PATH or k == YARD or k == FLOOR or k == WATER):
+						open = false
+			if open and _grove_clear(here, Vector2i(floori(here.x / 8.0), floori(here.y / 8.0)), ways, middles, standing):
+				spots.append(at)
+		for g in n:
+			# A grove starts where at least one more pine can stand beside the first: a lone pine is no grove.
+			var firsts: Array = spots.filter(func(s): return spots.any(func(o): return Vector2(o).distance_to(Vector2(s)) >= GROVE_APART \
+				and Vector2(o).distance_to(Vector2(s)) <= GROVE_REACH))
+			if firsts.is_empty():
+				break
+			var first: Vector2i = firsts[grove.randi() % firsts.size()]
+			var stood: Array = []
+			var many := 2 + grove.randi() % maxi(1, GROVE_MOST - 1)
+			for k in many:
+				var at := first
+				if k > 0:
+					var close: Array = spots.filter(func(s): return Vector2(s).distance_to(Vector2(first)) <= GROVE_REACH \
+						and stood.all(func(o): return Vector2(s).distance_to(Vector2(o)) >= GROVE_APART))
+					if close.is_empty():
+						break
+					at = close[grove.randi() % close.size()]
+				stood.append(at)
+				_thing("pine_%d" % (grove.randi() % 6), at, 4 + grove.randi() % 9, 9 + grove.randi() % 5)
+				var foot := Vector2(float(m.things[-1]["x"]), float(m.things[-1]["y"])) / 16.0
+				_file(standing, Vector2i(floori(foot.x / 8.0), floori(foot.y / 8.0)), foot)
+			# The next grove keeps clear of this one, as of everything else.
+			spots = spots.filter(func(s): return stood.all(func(o): return Vector2(s).distance_to(Vector2(o)) >= GROVE_ROOM + GROVE_REACH))
+
+
+func _file(cells_of: Dictionary, key: Vector2i, what) -> void:
+	if not cells_of.has(key):
+		cells_of[key] = []
+	cells_of[key].append(what)
+
+
+## Is a grove pine's spot clear of every way, every place's middle (two tiles: a chest or a camp goes there) and
+## everything that stands, near it?
+func _grove_clear(here: Vector2, c: Vector2i, ways: Dictionary, middles: Dictionary, standing: Dictionary) -> bool:
+	for w in ways.get(c, []):
+		if Geometry2D.get_closest_point_to_segment(here, w[0], w[1]).distance_to(here) < GROVE_WAY:
+			return false
+	for j in range(-1, 2):
+		for i in range(-1, 2):
+			for o: Vector2 in middles.get(c + Vector2i(i, j), []):
+				if here.distance_to(o) < 2.0:
+					return false
+			for o: Vector2 in standing.get(c + Vector2i(i, j), []):
+				if here.distance_to(o) < GROVE_ROOM:
+					return false
+	return true
 
 
 ## The Watchpost's ground for now: a scrap of the keepers' road, two of their

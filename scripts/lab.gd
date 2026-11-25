@@ -44,6 +44,8 @@ const SCRIPTS := {
 	"crown": "res://scripts/highlands/crown.gd",
 	"highlands": "res://scripts/highlands/highlands.gd",
 	"charts": "res://scripts/highlands/charts.gd",
+	"tools": "res://scripts/highlands/tools.gd",
+	"world_gen": "res://scripts/highlands/world_gen.gd",
 }
 
 ## How a number is shown and stepped:
@@ -379,6 +381,15 @@ static func _build_rows() -> void:
 	_add(p, g, "The squad's blows do", "highlands:DAMAGE_DEALT", "%", 0.05, 0.1, 3.0)
 	_add(p, g, "Enemies' blows, traps and falls do", "highlands:DAMAGE_TAKEN", "%", 0.05, 0.1, 3.0)
 	_add(p, g, "Show the whole map, click it to go (1 = on)", "charts:LAB_MAP", "n", 1.0, 0.0, 1.0)
+	_add(p, g, "Pine groves in new worlds (0 = none)", "world_gen:GROVES", "", 0.25, 0.0, 10.0)
+	g = "Tools (blows of a basic tool)"
+	_add(p, g, "Rock", "tools:NEED/rock", "n", 1.0, 1.0, 20.0)
+	_add(p, g, "Tin", "tools:NEED/tin", "n", 1.0, 1.0, 20.0)
+	_add(p, g, "Copper", "tools:NEED/copper", "n", 1.0, 1.0, 20.0)
+	_add(p, g, "A boulder", "tools:NEED/boulder", "n", 1.0, 1.0, 20.0)
+	_add(p, g, "A pine", "tools:NEED/pine", "n", 1.0, 1.0, 20.0)
+	_add(p, g, "One blow of a basic tool counts as", "tools:POWER/basic", "", 0.25, 0.25, 10.0)
+	_add(p, g, "One blow of a bronze tool (none yet)", "tools:POWER/bronze", "", 0.25, 0.25, 10.0)
 
 	p = "Enemies"
 	g = "The arena"

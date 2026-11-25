@@ -71,6 +71,7 @@ func _run() -> void:
 		quit()
 		return
 	_rules()
+	_groves()
 	_painting()
 	_veins()
 	await _walking()
@@ -81,6 +82,96 @@ func _run() -> void:
 
 
 # --- The generator ------------------------------------------------------------------
+
+## Version 58. Darren, 25 November: "We need more trees also for wood because it seems a bit bare and they are a
+## basic material". About twice the pines, in small groves, stood last with dice of their own: off the footpaths, the
+## gaps and the ways through a place, clear of what stands there, and never in a named place.
+func _groves() -> void:
+	var was := WorldGen.GROVES
+	_check(is_equal_approx(was, 2.5), "the lab's pine groves are at 2.5, about twice the pines there were (%s)" % str(was))
+	var none := 0          # the inner ring's pines without the groves, and with them
+	var with := 0
+	var grove_pines := 0
+	var in_company := 0
+	var bad := {"spot": 0, "path": 0, "named": 0, "middle": 0, "way": 0, "crowd": 0, "moved": 0}
+	for seed_value in [4242, 77, 1]:
+		WorldGen.GROVES = 0.0
+		var a := WorldGen.make(seed_value)
+		WorldGen.GROVES = was
+		var b := WorldGen.make(seed_value)
+		# The groves move nothing else: the same rock, ore and ground, and every other thing where it was.
+		if a.kinds != b.kinds or _seams(a) != _seams(b) or a.tones != b.tones or str(b.things.slice(0, a.things.size())) != str(a.things) or a.spawn != b.spawn:
+			bad["moved"] += 1
+		for pair in [[a, 0], [b, 1]]:
+			for t in (pair[0] as LandMap).things:
+				var n := str(t["n"])
+				if n.begins_with("pine_") and Vector2(float(t["x"]) / 16.0 - LandMap.MID, float(t["y"]) / 16.0 - LandMap.MID).length() < WorldGen.RINGS[1]:
+					if int(pair[1]) == 0:
+						none += 1
+					else:
+						with += 1
+		var joined := {}
+		for link in b.links:
+			for e in [[int(link["a"]), int(link["b"])], [int(link["b"]), int(link["a"])]]:
+				if not joined.has(e[0]):
+					joined[e[0]] = []
+				joined[e[0]].append(b.pockets[e[1]]["at"])
+		var added: Array = b.things.slice(a.things.size())
+		for t in added:
+			grove_pines += 1
+			var foot := Vector2(float(t["x"]), float(t["y"])) / 16.0
+			var tile := Vector2i(floori(foot.x), floori(foot.y))
+			var here := Vector2(tile) + Vector2(0.5, 0.5)
+			if not str(t["n"]).begins_with("pine_") or str(t["n"]) == "pine_stump":
+				bad["spot"] += 1
+			var open := true
+			for j in range(-1, 2):
+				for i in range(-1, 2):
+					var k := b.kind(tile.x + i, tile.y + j)
+					if k != LandMap.GRASS and k != LandMap.SCRUB and k != LandMap.HEATH:
+						open = false
+			if not open:
+				bad["spot"] += 1
+			for j in range(-3, 2):
+				for i in range(-1, 2):
+					var k := b.kind(tile.x + i, tile.y + j)
+					if k == LandMap.PATH or k == LandMap.YARD or k == LandMap.FLOOR or k == LandMap.WATER:
+						open = false
+			if not open:
+				bad["path"] += 1
+			# Its place: the one whose middle is nearest.
+			var best := -1
+			var best_d := INF
+			for idx in b.pockets.size():
+				var d := here.distance_to(b.pockets[idx]["at"])
+				if d < best_d:
+					best = idx
+					best_d = d
+			var p: Dictionary = b.pockets[best]
+			if str(p["site"]) != "" or bool(p["gate"]):
+				bad["named"] += 1
+			if best_d < 2.0:
+				bad["middle"] += 1
+			for o: Vector2 in joined.get(best, []):
+				if Geometry2D.get_closest_point_to_segment(here, p["at"], o).distance_to(here) < WorldGen.GROVE_WAY - 0.01:
+					bad["way"] += 1
+			for o in a.things:
+				if here.distance_to(Vector2(float(o["x"]), float(o["y"])) / 16.0) < WorldGen.GROVE_ROOM - 0.01:
+					bad["crowd"] += 1
+			for o in added:
+				if o != t and Vector2(o["x"], o["y"]).distance_to(Vector2(t["x"], t["y"])) / 16.0 <= WorldGen.GROVE_REACH + 1.5:
+					in_company += 1
+					break
+	_check(bad["moved"] == 0, "the groves move nothing else on the land: rock, ore, ground and every other thing stay where they were")
+	_check(float(with) >= float(none) * 1.7, "the inner ring has about twice the pines (%d, without the groves %d)" % [with, none])
+	_check(grove_pines > 0 and in_company == grove_pines, "the new pines stand in groves, not one by one (%d of %d have another close by)" % [in_company, grove_pines])
+	_check(bad["spot"] == 0, "every grove pine stands on grass with grass all round it (%d do not)" % bad["spot"])
+	_check(bad["path"] == 0, "none stands on or right over a footpath, a track, a dug floor or water (%d do)" % bad["path"])
+	_check(bad["named"] == 0, "none stands in a named place or in the ground before a pass (%d do)" % bad["named"])
+	_check(bad["middle"] == 0, "none stands in the middle of its place, where a chest or a camp goes (%d do)" % bad["middle"])
+	_check(bad["way"] == 0, "none stands in the way from its place's middle to a place it is joined to (%d do)" % bad["way"])
+	_check(bad["crowd"] == 0, "none crowds what already stood there (%d do)" % bad["crowd"])
+	WorldGen.GROVES = was
 
 func _rules() -> void:
 	var a := WorldGen.make(4242)

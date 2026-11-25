@@ -34,7 +34,11 @@ const CHUNK := LandMap.CHUNK * TILE
 
 const TOOLS := ["pickaxe", "axe", "mallet"]
 const NAMES := {"pickaxe": "Pickaxe", "axe": "Axe", "mallet": "Mallet"}
-const POWER := {"basic": 1}         # what one blow of a tool of that make is worth
+## What one blow of a tool of each make is worth: the blows a thing takes (NEED) are basic blows. Darren, 25 November:
+## "Think we make the stone easier to mine seeing as it's the starter biome also", "Then even easier when we upgrade
+## tools to bronze". So bronze is ready here, at twice a basic blow (a bronze pickaxe digs rock in one blow and ore in
+## two), but nothing gives a bronze tool yet: that comes with the workbench and the anvil. Both are in the lab.
+static var POWER := {"basic": 1.0, "bronze": 2.0}
 const SWING := 0.42                 # seconds one swing takes
 const STRIKE := 0.2                 # how far into it the blow lands
 const HIT_STOP := 0.05              # a blow that lands holds the tool there this long
@@ -52,9 +56,11 @@ const HOP := 0.16                   # what you win hops out of the tile ...
 const LIE := 0.22                   # ... lies there a moment ...
 const FLY := 0.34                   # ... and flies to you
 const SWAY := [0.05, 0.06]          # a struck pine leans one way this long, then the other (the Art builder's times)
-## How many blows of a basic tool it takes.
-const TILE_NEED := {LandMap.ROCK: 3, LandMap.TIN: 4, LandMap.COPPER: 4}
-const THING_NEED := {"pine": 5, "boulder": 4}
+## How many blows of a basic tool it takes, by name (TILE_NAME names the tiles). Version 58, Darren's "easier to mine"
+## above: rock 2 (was 3), tin and copper 3 (were 4), a boulder 2 (was 4); a pine stays at 5 (Claude's: Darren asked
+## for more pines, not for quicker felling). All in the lab.
+static var NEED := {"rock": 2, "tin": 3, "copper": 3, "boulder": 2, "pine": 5}
+const TILE_NAME := {LandMap.ROCK: "rock", LandMap.TIN: "tin", LandMap.COPPER: "copper"}
 ## What it gives: [item, how many].
 const TILE_GIVES := {LandMap.ROCK: ["stone", 1], LandMap.TIN: ["tin_ore", 2], LandMap.COPPER: ["copper_ore", 2]}
 const THING_GIVES := {"pine": ["wood", 3], "boulder": ["stone", 2]}
@@ -376,16 +382,16 @@ func _strike(i: int) -> void:
 		Sfx.play(game, "click", -10.0, 0.6)
 		return
 	var key := _wear_key(t)
-	var need: int = TILE_NEED[int(t["kind"])] if t.has("tile") else THING_NEED[str(t["class"])]
-	var w: Dictionary = wear.get(key, {"hits": 0})
-	w["hits"] = int(w["hits"]) + int(POWER.get(str(h.belt[tool]), 1))
+	var need := need_of(t)
+	var w: Dictionary = wear.get(key, {"hits": 0.0})
+	w["hits"] = float(w["hits"]) + float(POWER.get(str(h.belt[tool]), 1.0))
 	w["at"] = clock
 	w["need"] = need
 	w["target"] = t
 	wear[key] = w
 	# What a blow looks, sounds and feels like: chips in the stuff's own colours fly back at you, the tile jolts
 	# (a pine or a boulder shivers), a spark off stone, and a sound for stone, for ore and for wood.
-	var gives_way := int(w["hits"]) >= need
+	var gives_way := float(w["hits"]) >= need - 0.001
 	_chip(at, p.global_position, 5 if what == "wood" else 8, _cols(what))
 	_sound(what)
 	h.pause = HIT_STOP
@@ -778,21 +784,27 @@ func _draw() -> void:
 		if (w["target"] as Dictionary).has("tile"):
 			_draw_crack(w)
 		elif not live.has(key):
-			_draw_corners(_mark(w["target"]), DIM, float(w["hits"]) / float(maxi(int(w["need"]), 1)), 0.6 * clampf(FORGET - (clock - float(w["at"])), 0.0, 1.0))
+			_draw_corners(_mark(w["target"]), DIM, float(w["hits"]) / maxf(float(w["need"]), 1.0), 0.6 * clampf(FORGET - (clock - float(w["at"])), 0.0, 1.0))
 	for key in live:
 		var share := 0.0
 		if wear.has(key):
-			share = float(wear[key]["hits"]) / float(maxi(int(wear[key]["need"]), 1))
+			share = float(wear[key]["hits"]) / maxf(float(wear[key]["need"]), 1.0)
 		_draw_corners(_mark(live[key][0]), live[key][1], share, 0.9)
 
 
+## How many basic blows a struck tile or thing takes (NEED; never less than one).
+func need_of(t: Dictionary) -> float:
+	var name: String = TILE_NAME.get(int(t["kind"]), "rock") if t.has("tile") else str(t["class"])
+	return maxf(float(NEED.get(name, 1)), 1.0)
+
+
 ## Which crack a tile shows after so many blows: the Art builder's list for its stuff, the last one just before it
-## gives way. "" before the first blow.
-func crack_of(kind: int, hits: int, need: int) -> String:
+## gives way. "" before the first blow. (Blows are counted in basic blows: a bronze one is two.)
+func crack_of(kind: int, hits: float, need: float) -> String:
 	var list: Array = fx_rules.get("cracks", {}).get({LandMap.TIN: "tin", LandMap.COPPER: "copper"}.get(kind, "rock"), [])
-	if list.is_empty() or hits <= 0 or need <= 0:
+	if list.is_empty() or hits <= 0.0 or need <= 0.0:
 		return ""
-	return str(list[clampi(hits * (list.size() + 1) / need - 1, 0, list.size() - 1)])
+	return str(list[clampi(floori(hits * float(list.size() + 1) / need + 0.001) - 1, 0, list.size() - 1)])
 
 
 ## The crack over a struck tile's 16 by 16 (turned over on every other tile, so that no two side by side match). It
@@ -800,7 +812,7 @@ func crack_of(kind: int, hits: int, need: int) -> String:
 func _draw_crack(w: Dictionary) -> void:
 	var t: Dictionary = w["target"]
 	var tile: Vector2i = t["tile"]
-	var tex := _fx_texture(crack_of(int(t["kind"]), int(w["hits"]), int(w["need"])))
+	var tex := _fx_texture(crack_of(int(t["kind"]), float(w["hits"]), float(w["need"])))
 	if tex == null:
 		return
 	var at := Vector2(tile) * TILE

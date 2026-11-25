@@ -60,6 +60,7 @@ func _run() -> void:
 	await _digging()
 	await _mining()
 	await _felling()
+	await _bronze()
 	await _limits()
 	await _two_players()
 	print("%s  the Highlands' tools: %d checks, %d failed" % ["PASS" if fails == 0 else "FAIL", checks, fails])
@@ -326,11 +327,11 @@ func _digging() -> void:
 	# Left alone, the mark goes.
 	await _frames(int(Tools.FORGET * 60.0) + 10)
 	_check(tools.wear.is_empty(), "rock left alone is whole again")
-	# Three blows dig it.
+	# Two blows dig it (Darren's "easier to mine", version 58: it was three).
 	var chunk := LandMap.chunk_key(floori(tile.x / 16.0), floori(tile.y / 16.0))
 	var before: Image = (g.land.chunks[chunk]["sprite"] as Sprite2D).texture.get_image()
-	await _work(p, int(Tools.TILE_NEED[LandMap.ROCK]))
-	_check(m.kind(tile.x, tile.y) == LandMap.FLOOR, "three blows of the pickaxe dig a rock tile out (it is %s)" % LandMap.NAMES[m.kind(tile.x, tile.y)])
+	await _work(p, int(Tools.NEED["rock"]))
+	_check(m.kind(tile.x, tile.y) == LandMap.FLOOR, "%d blows of the pickaxe dig a rock tile out (it is %s)" % [int(Tools.NEED["rock"]), LandMap.NAMES[m.kind(tile.x, tile.y)]])
 	_check(tools.bag_of(0).count("stone") == 1, "and one stone goes in the bag (%d)" % tools.bag_of(0).count("stone"))
 	_check(m.dug.has(tile.y * LandMap.SIZE + tile.x) and m.dug.size() == 1, "the map remembers what was dug, for the world save")
 	await _frames(3)
@@ -413,11 +414,12 @@ func _mining() -> void:
 		await _stand(g, p, tile, face[1])
 		var chunk := LandMap.chunk_key(floori(tile.x / 16.0), floori(tile.y / 16.0))
 		var before: Image = (g.land.chunks[chunk]["sprite"] as Sprite2D).texture.get_image()
-		await _work(p, int(Tools.TILE_NEED[int(pair[0])]) - 1)
+		var need := int(Tools.NEED[Tools.TILE_NAME[int(pair[0])]])
+		await _work(p, need - 1)
 		_check(m.kind(tile.x, tile.y) == int(pair[0]) and tools.bag_of(0).count(str(pair[1])) == 0, "ore takes one more blow than rock")
 		await _frames(2)
-		await _work(p, int(Tools.TILE_NEED[int(pair[0])]))
-		_check(m.kind(tile.x, tile.y) == LandMap.FLOOR, "four blows mine a tile of %s" % LandMap.NAMES[int(pair[0])])
+		await _work(p, need)
+		_check(m.kind(tile.x, tile.y) == LandMap.FLOOR, "%d blows mine a tile of %s" % [need, LandMap.NAMES[int(pair[0])]])
 		_check(tools.bag_of(0).count(str(pair[1])) == 2 and tools.bag_of(0).count("stone") == 0, "and two %s go in the bag, not stone" % str(pair[1]).replace("_", " "))
 		_check(_shown(m, vein) == all - mine, "the mined tile's own part of the seam is gone and the rest stays (%d of %d left)" % [_shown(m, vein), all])
 		_check((vein["px"] as Dictionary).size() == all, "and the seam is not worked out again")
@@ -451,11 +453,11 @@ func _felling() -> void:
 	_check(m.things.has(pine) and tools.bag_of(0).count("wood") == 0, "the pickaxe does not fell a pine")
 	await _press(p, "tool_next_pressed")
 	_check(tools.tool_of(0) == "axe", "the axe is picked by hand")
-	await _work(p, int(Tools.THING_NEED["pine"]) - 1)
-	_check(m.things.has(pine), "a pine stands until the fifth blow")
+	await _work(p, int(Tools.NEED["pine"]) - 1)
+	_check(m.things.has(pine), "a pine stands until the last blow")
 	await _frames(2)
-	await _work(p, int(Tools.THING_NEED["pine"]))
-	_check(not m.things.has(pine), "five blows of the axe fell a pine")
+	await _work(p, int(Tools.NEED["pine"]))
+	_check(not m.things.has(pine), "%d blows of the axe fell a pine" % int(Tools.NEED["pine"]))
 	_check(tools.bag_of(0).count("wood") == 3, "and three wood go in the bag (%d)" % tools.bag_of(0).count("wood"))
 	var stump := {}
 	for t in m.things:
@@ -477,12 +479,61 @@ func _felling() -> void:
 		await _work(p, 5)
 		_check(m.things.has(rock), "the axe does not break a boulder")
 		await _press(p, "tool_prev_pressed")
-		await _work(p, int(Tools.THING_NEED["boulder"]))
-		_check(not m.things.has(rock) and tools.bag_of(0).count("stone") == 2, "four blows of the pickaxe break a boulder into two stone (%d)" % tools.bag_of(0).count("stone"))
+		await _work(p, int(Tools.NEED["boulder"]))
+		_check(not m.things.has(rock) and tools.bag_of(0).count("stone") == 2, "%d blows of the pickaxe break a boulder into two stone (%d)" % [int(Tools.NEED["boulder"]), tools.bag_of(0).count("stone")])
 		p.input.move = Vector2.RIGHT
 		await _frames(40)
 		p.input.move = Vector2.ZERO
 		_check(p.global_position.x > float(rock["x"]) * 2.0 - 4.0, "and you can walk where it was")
+	g.queue_free()
+	await _frames(3)
+
+
+# --- Darren's numbers (version 58), and bronze ---------------------------------------------
+
+## Darren, 25 November: "Think we make the stone easier to mine seeing as it's the starter biome also", "Then even
+## easier when we upgrade tools to bronze". The blows are his ask made into numbers (Claude's: rock 2, ore 3, a boulder
+## 2, a pine still 5), and a bronze tool's blow is worth two basic ones. Nothing gives a bronze tool yet.
+func _bronze() -> void:
+	_check(Tools.NEED == {"rock": 2, "tin": 3, "copper": 3, "boulder": 2, "pine": 5}, "a basic tool digs rock in 2 blows, mines tin and copper in 3, breaks a boulder in 2 and fells a pine in 5 (%s)" % str(Tools.NEED))
+	_check(is_equal_approx(float(Tools.POWER["basic"]), 1.0) and is_equal_approx(float(Tools.POWER["bronze"]), 2.0), "a bronze tool's blow is worth two of a basic one's (%s)" % str(Tools.POWER))
+	var g = _game(77)
+	await _frames(5)
+	var p = g.players[0]
+	var tools = g.tools
+	var m: LandMap = g.map
+	_check(tools.hand_data(0)["belt"] == {"pickaxe": "basic", "axe": "basic", "mallet": "basic"}, "everyone still starts with the basic three, and nothing gives bronze (%s)" % str(tools.hand_data(0)["belt"]))
+	# A character saved with a bronze pickaxe (as one will be, once the anvil makes them) keeps it.
+	tools.set_hand_data(0, {"belt": {"pickaxe": "bronze"}, "tool": 0})
+	_check(tools.tool_of(0) == "pickaxe" and str(tools.hand_data(0)["belt"]["pickaxe"]) == "bronze", "a bronze pickaxe on the belt stays bronze")
+	var face := _face(m, LandMap.ROCK, false, 3)
+	_check(not face.is_empty(), "there is rock to try a bronze pickaxe on")
+	if not face.is_empty():
+		await _stand(g, p, face[0], face[1])
+		await _work(p, 1)
+		_check(m.kind(face[0].x, face[0].y) == LandMap.FLOOR, "one blow of a bronze pickaxe digs rock")
+	for kind in [LandMap.TIN, LandMap.COPPER]:
+		face = _face(m, kind)
+		_check(not face.is_empty(), "there is %s to try it on" % LandMap.NAMES[kind])
+		if face.is_empty():
+			continue
+		await _stand(g, p, face[0], face[1])
+		await _work(p, 1)
+		var after_one := m.kind(face[0].x, face[0].y)
+		await _work(p, 1)
+		_check(after_one == kind and m.kind(face[0].x, face[0].y) == LandMap.FLOOR, "a bronze pickaxe mines %s in two blows" % LandMap.NAMES[kind])
+	var rock := _thing(m, "boulder_", 1)
+	_check(not rock.is_empty(), "there is a boulder to try it on")
+	if not rock.is_empty():
+		p.global_position = _beside(rock)
+		p.input.stick_aim = Vector2.RIGHT
+		g.rig.snap()
+		await _frames(4)
+		await _work(p, 1)
+		_check(not m.things.has(rock), "and breaks a boulder in one")
+	# A make this game does not know becomes basic again.
+	tools.set_hand_data(0, {"belt": {"pickaxe": "mithril"}})
+	_check(str(tools.hand_data(0)["belt"]["pickaxe"]) == "basic", "a make the game does not have is the basic one")
 	g.queue_free()
 	await _frames(3)
 
