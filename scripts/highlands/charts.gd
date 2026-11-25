@@ -23,6 +23,12 @@ extends Node
 ## world's save (switched off, the map is what the squad has really seen again); and while it is on, a click on the
 ## whole map takes the squad there. Only to ground somebody can stand on: a click on rock, water or a trunk goes to the
 ## nearest such ground within GO_NEAR tiles, or else the map says "Can't go there" and stays open. (Claude's choices.)
+##
+## Version 59, Darren, 25 November: "the smoke signal should show on the map not just floating there". While Pip is
+## caged, the Roost's smoke is on both maps, seen or not: a small grey plume rising over a spark of its fire. On the
+## small map it stays just inside the edge while the Roost is farther off, so it shows the way; the whole map always
+## takes the Roost in, with the word "Smoke" by it until the Roost itself has been seen. (Claude's choices: the look,
+## the word, and that the map widens to take it in.)
 
 const LandMap := preload("res://scripts/highlands/land_map.gd")
 const Art := preload("res://scripts/art.gd")
@@ -43,6 +49,9 @@ const SHADOW := Color(0.06, 0.04, 0.09, 0.9)
 const FOG := 15                    # the palette's entry for land nobody has seen
 const GO_NEAR := 3                 # the lab's click: how far (tiles) it looks for ground to stand on
 const NOTE_TIME := 2.0
+## The smoke's mark (the Art builder's smoke and fire colours).
+const SMOKE_COLS := [Color8(168, 174, 152), Color8(140, 136, 148), Color8(108, 122, 124)]
+const FIRE_COLS := [Color8(255, 200, 80), Color8(240, 106, 42)]
 
 ## The lab (version 57): 1 shows the whole map, and a click on the whole map takes the squad there.
 static var LAB_MAP := 0
@@ -440,6 +449,12 @@ func _draw_corner_marks() -> void:
 ## Marks past the edge are kept just inside it.
 func _draw_marks(ci: CanvasItem, r: Rect2, top_left: Vector2, scale: float) -> void:
 	var inside := r.grow(-2.0)
+	# The Roost's smoke (version 59): kept inside the edge, its plume included, when it is farther off.
+	var smoke := smoke_tile()
+	if smoke != Vector2.INF:
+		var at := r.position + (smoke - top_left) * scale
+		var room := Rect2(r.position + Vector2(4.0, 13.0), r.size - Vector2(8.0, 15.0))
+		_draw_smoke(ci, Vector2(clampf(at.x, room.position.x, room.end.x), clampf(at.y, room.position.y, room.end.y)))
 	var cave := r.position + (Vector2(map.mouth) + Vector2(0.5, 1.0) - top_left) * scale
 	if inside.has_point(cave):
 		# A small pale arch: the way down to the forge.
@@ -458,6 +473,43 @@ func _draw_marks(ci: CanvasItem, r: Rect2, top_left: Vector2, scale: float) -> v
 			col = Color(col, 0.5)
 		ci.draw_rect(Rect2(at - Vector2(2, 2), Vector2(5, 5)), PLATE)
 		ci.draw_rect(Rect2(at - Vector2(1, 1), Vector2(3, 3)), col)
+
+
+## Where the Roost's smoke rises from (tiles), while Pip is caged; INF when there is none (he is out, or this land has
+## no Roost).
+func smoke_tile() -> Vector2:
+	var folk = game.folk if game != null and "folk" in game else null
+	if folk == null or not is_instance_valid(folk) or int(folk.pip) != 0 or not folk.has_roost():
+		return Vector2.INF
+	return folk.smoke_feet() / TILE
+
+
+## The smoke's mark, its fire at `foot` (screen pixels): a spark of fire and three small puffs going up from it, each a
+## little paler as it goes and gone at the top, with the plates' dark under every pixel so it reads on any ground.
+func _draw_smoke(ci: CanvasItem, foot: Vector2) -> void:
+	var c := foot.round()
+	var shapes: Array = []          # [rect, colour]
+	var flick := int(clock * 5.0) % 2
+	shapes.append([Rect2(c + Vector2(-1, -1), Vector2(3, 2)), FIRE_COLS[1]])
+	shapes.append([Rect2(c + Vector2(0, -2 + flick), Vector2(1, 2 - flick)), FIRE_COLS[0]])
+	for k in 4:
+		var t := fposmod(clock * 0.5 + float(k) / 4.0, 1.0)
+		var at := c + Vector2(-roundf(t * 2.0), -4.0 - roundf(t * 10.0))
+		var col: Color = SMOKE_COLS[mini(int(t * 3.0), 2)]
+		col.a = 1.0 if t < 0.7 else (1.0 - t) / 0.3
+		if t < 0.3:
+			shapes.append([Rect2(at + Vector2(-1, -1), Vector2(2, 2)), col])
+		elif t < 0.6:
+			shapes.append([Rect2(at + Vector2(-1, -1), Vector2(3, 2)), col])
+			shapes.append([Rect2(at + Vector2(0, -2), Vector2(1, 1)), col])
+		else:
+			shapes.append([Rect2(at + Vector2(-2, -1), Vector2(4, 2)), col])
+			shapes.append([Rect2(at + Vector2(-1, -2), Vector2(2, 1)), col])
+	for sh in shapes:
+		var back := Color(PLATE, (sh[1] as Color).a)
+		ci.draw_rect((sh[0] as Rect2).grow(1.0), back)
+	for sh in shapes:
+		ci.draw_rect(sh[0], sh[1])
 
 
 ## The whole map: the land somebody has seen, as big as it fits.
@@ -484,6 +536,10 @@ func shown_tiles() -> Rect2:
 		lo = map.mouth - Vector2i(20, 12)
 		hi = map.mouth + Vector2i(20, 12)
 	var r := Rect2(Vector2(lo), Vector2(hi - lo) + Vector2.ONE).grow(6.0)
+	# The Roost's smoke, while there is any, is always on it (version 59), with room for its plume above it.
+	var smoke := smoke_tile()
+	if smoke != Vector2.INF:
+		r = r.merge(Rect2(smoke - Vector2(8.0, 10.0), Vector2(16.0, 14.0)))
 	# Never closer than three screen pixels a tile.
 	var a := area()
 	var least := a.size / 3.0
@@ -582,6 +638,11 @@ func name_spots(dest: Rect2, src: Rect2, scale: float) -> Array:
 	var cave := dest.position + (Vector2(map.mouth) + Vector2(0.5, 1.0) - src.position) * scale
 	if dest.has_point(cave):
 		want.append({"text": "Your cave", "at": cave + Vector2(0, -11), "col": DIM})
+	var smoke := smoke_tile()
+	if smoke != Vector2.INF and not shows(int(smoke.x), int(smoke.y)):
+		var at := dest.position + (smoke - src.position) * scale
+		if dest.has_point(at):
+			want.append({"text": "Smoke", "at": at + Vector2(0, 8), "col": DIM})
 	for name in PLACE_NAMES:
 		if not map.sites.has(name):
 			continue

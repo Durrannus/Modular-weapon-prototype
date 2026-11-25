@@ -191,7 +191,13 @@ func _whole_map() -> void:
 	var at: Vector2 = p.global_position / TILE
 	_check(shown.has_point(at) and shown.has_point(Vector2(g.map.mouth)), "it shows the land that has been seen, with the player and the cave in it")
 	var a: Rect2 = c.area()
-	_check(minf(a.size.x / shown.size.x, a.size.y / shown.size.y) >= 3.0 - 0.001, "a small seen land is drawn big (three pixels a tile at least)")
+	# (While Pip is caged the whole map also takes in the Roost's smoke, far off: version 59. Without it:)
+	_check(c.smoke_tile() != Vector2.INF and shown.has_point(c.smoke_tile()), "while Pip is caged it takes in the Roost's smoke too")
+	var was: int = g.folk.pip
+	g.folk.pip = 2
+	var small: Rect2 = c.shown_tiles()
+	g.folk.pip = was
+	_check(minf(a.size.x / small.size.x, a.size.y / small.size.y) >= 3.0 - 0.001, "a small seen land is drawn big (three pixels a tile at least)")
 	await process_frame
 	c._input(_key(KEY_M))
 	_check(c.is_open, "(a press the moment it opens does not shut it)")

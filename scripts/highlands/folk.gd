@@ -54,7 +54,22 @@ const CAGE_AT := Vector2(20, -27)  # the cage's middle from the foot of its post
 const DROP_AT := Vector2(20, 0)    # where Pip lands
 const SMOKE_AT := Vector2(-15, -2) # where the camp's smoke rises from, from the foot of the cage's post (art pixels), if the art has no fire for it
 const FIRE_AT := Vector2(-15, 6)   # where the camp's fire stands, from the foot of the cage's post (art pixels): beside it, away from the cage
-const SMOKE_LIFE := 26.0           # seconds a puff of it lasts: twice the art's own 13, so the plume stands about 156 art pixels tall
+## The Roost's own smoke (version 59; Darren, 25 November: "actually have big smoke coming from the camp fire when u get
+## to the location"): a thick column, not the one thread it was. Five strands of the art's puffs side by side, a puff
+## in each every COLUMN_EVERY seconds, that move apart as they rise: about two puffs wide at the fire, four or five
+## where it breaks up, and it climbs past the top of the screen. Embers rise from the fire into it. (column())
+const SMOKE_LIFE := 36.0           # seconds a puff of it lasts (the art's own plume: 13)
+const COLUMN_EVERY := 0.5          # a new puff in each strand this often
+const COLUMN_RISE := 7.0           # art pixels a second, so it stands about 250 art pixels tall (the art's own rises 6)
+const COLUMN_SPREAD := Vector3(4.0, 1.4, 22.0)   # the side strands start this far out (art pixels), move out this much a second, up to this
+const COLUMN_AGES := [0.0, 1.0, 4.0]   # a puff is the art's fresh one, then opened, then wide from these ages; it breaks up for the last fifth of its life
+const SMOKE_THIN := 0.4            # how much of the column shows while somebody stands in it (it is drawn over them)
+const EMBERS := 9                  # sparks rising off the fire at a time
+## The camp fire is bigger too: the Art builder's fire three times over, its stone rings run together into one hearth,
+## two of them a little behind and to the sides of the first, each a beat apart (art pixels from the fire's foot).
+## (A stand-in until the Art builder draws a big camp fire.)
+const FIRE_MORE := [Vector2(-8, -3), Vector2(8, -2)]
+const EMBER_COLS := [Color8(255, 236, 152), Color8(255, 200, 80), Color8(255, 156, 50), Color8(240, 106, 42)]   # the fire's own colours
 const FACE := "folk/pip_portrait.png"
 
 static var CAGE_BLOWS := 3
@@ -187,6 +202,7 @@ var pip_actor: Actor
 var stone: Actor
 var smoke: Plume
 var fire: Actor                    # the camp fire at the smoke's foot
+var fires: Array = []              # and the two behind it (FIRE_MORE)
 var body: StaticBody2D
 var pip_shape: CollisionShape2D
 var layer: CanvasLayer
@@ -297,6 +313,12 @@ func setup(plan_: Dictionary) -> void:
 		# land's things, burns while Pip is caged, and is nothing anybody bumps into.
 		var its_fire: Dictionary = Art.json("smoke/smoke.json").get("sprites", {}).get("roost_fire", {})
 		if its_fire.has("box"):
+			for n in FIRE_MORE.size():
+				var more := _actor(Art.texture("smoke/smoke.png"), {"strips": {"burn": its_fire}, "origin_feet": its_fire.get("origin", [10, 17])}, fire_feet() + (FIRE_MORE[n] as Vector2) * UNIT)
+				more.play("burn")
+				more.at = 0.2 * float(n + 1)
+				more.flip = n == 0
+				fires.append(more)
 			fire = _actor(Art.texture("smoke/smoke.png"), {"strips": {"burn": its_fire}, "origin_feet": its_fire.get("origin", [10, 17])}, fire_feet())
 			fire.play("burn")
 		smoke = Plume.new()
@@ -675,15 +697,19 @@ func _arrive() -> void:
 
 func tick(delta: float) -> void:
 	clock += delta
-	for a in [cage, pip_actor, stone, fire]:
+	for a in [cage, pip_actor, stone, fire] + fires:
 		if a != null:
 			a.step(delta)
-	if fire != null:
-		fire.visible = smoke_until == INF      # (once the cage is broken the fire is left to die)
+	for f in [fire] + fires:
+		if f != null:
+			f.visible = smoke_until == INF      # (once the cage is broken the fire is left to die)
 	if smoke != null:
 		smoke.visible = smoking()
 		if smoke.visible:
 			smoke.queue_redraw()
+			# Nobody is lost in it: while somebody stands in the column it thins to see-through (looks only).
+			var thin := 1.0 if players.any(func(q): return is_instance_valid(q) and in_smoke(q.global_position)) else 0.0
+			smoke.modulate.a = move_toward(smoke.modulate.a, lerpf(1.0, SMOKE_THIN, thin), delta * 3.0)
 	# A journey: dark, somewhere else, light.
 	if not travel.is_empty():
 		travel["t"] = float(travel["t"]) + delta
@@ -817,7 +843,55 @@ func _draw_puffs(ci: CanvasItem, foot: Vector2, px: float, list: Array) -> void:
 
 
 func draw_plume(ci: CanvasItem) -> void:
-	_draw_puffs(ci, Vector2.ZERO, UNIT, puffs(clock, SMOKE_LIFE, smoke_until))
+	# Embers first, under the smoke: while the fire burns, a few sparks in its own colours go up off it, a pixel each,
+	# and die out within about 20 pixels.
+	if smoke_until == INF:
+		for k in EMBERS:
+			var t := fposmod(clock * 0.7 + float(k) / float(EMBERS) + 0.37 * float(k * k % 5), 1.0)
+			var up := t * (14.0 + float(k % 3) * 4.0)
+			var at := Vector2(roundf(sin(float(k) * 1.7 + clock * 1.3) * (1.5 + t * 3.0)), -roundf(up) + 4.0)
+			var col: Color = EMBER_COLS[mini(int(t * 4.0), 3)]
+			ci.draw_rect(Rect2(at * UNIT, Vector2(UNIT, UNIT)), Color(col, 1.0 - t * 0.6))
+	_draw_puffs(ci, Vector2.ZERO, UNIT, column(clock, smoke_until))
+
+
+## Is this spot (world units) in the Roost's column, or just round it?
+func in_smoke(at: Vector2) -> bool:
+	var d := (at - smoke_feet()) / UNIT
+	var lean := 1.5 * SMOKE_LIFE * clampf(-d.y / (COLUMN_RISE * SMOKE_LIFE), 0.0, 1.0)
+	return d.y < 16.0 and d.y > -COLUMN_RISE * SMOKE_LIFE and d.x > -lean - COLUMN_SPREAD.z - 12.0 and d.x < -lean + COLUMN_SPREAD.z + 12.0
+
+
+## The Roost's column (see SMOKE_LIFE): [[where from its foot (art pixels), which of the art's four ages, mirrored]],
+## the oldest and highest first. Five strands, each its own puffs a part of a beat apart; now and then a side strand
+## leaves out a puff, so the edges are ragged. `until` is the last moment a puff was made (the cage broken).
+func column(now: float, until := INF) -> Array:
+	var rules: Dictionary = Art.json("smoke/smoke.json").get("plume", {})
+	var drift := float(rules.get("drift_px_per_s", 1.5))
+	var sway := float(rules.get("sway_px", 1.0))
+	var all: Array = []
+	for j in [-2, -1, 0, 1, 2]:
+		var phase: float = COLUMN_EVERY * float([0.0, 0.6, 0.3, 0.8, 0.45][j + 2])
+		var newest := floori((minf(now, until) - phase) / COLUMN_EVERY)
+		var oldest := floori((now - SMOKE_LIFE - phase) / COLUMN_EVERY) + 1
+		for k in range(oldest, newest + 1):
+			var age := now - (float(k) * COLUMN_EVERY + phase)
+			if age < 0.0 or age >= SMOKE_LIFE:
+				continue
+			if j != 0 and posmod(k * 7 + j * 3, 5 if absi(j) == 1 else 3) == 0:
+				continue
+			var frame := 3 if age >= SMOKE_LIFE * 0.8 else 0
+			if frame == 0:
+				for n in COLUMN_AGES.size():
+					if age >= float(COLUMN_AGES[n]):
+						frame = n
+			var out := float(j) * 0.5 * minf(COLUMN_SPREAD.x + COLUMN_SPREAD.y * age, COLUMN_SPREAD.z)
+			var at := Vector2(out - drift * age + sway * sin(age * 0.6 + float(k) * 2.4 + float(j)), -COLUMN_RISE * age).round()
+			all.append([at, frame, posmod(k + j, 2) == 1, age])
+	all.sort_custom(func(a, b): return float(a[3]) > float(b[3]))
+	for q in all:
+		q.resize(3)
+	return all
 
 
 ## Where the far-off plume stands on the screen (art pixels), or [] when there is none: Pip is out, or the Roost's
@@ -827,7 +901,7 @@ func smoke_sign() -> Array:
 	if int(SMOKE_SIGN) < 1 or pip != 0 or not has_roost():
 		return []
 	# (Not while its foot, or the top of the plume, is on the screen.)
-	return edge_spot(smoke_feet(), sign_height(), Rect2(-40.0, 0.0, SIZE.x + 80.0, SIZE.y + 140.0))
+	return edge_spot(smoke_feet(), sign_height(), Rect2(-40.0, 0.0, SIZE.x + 80.0, SIZE.y + COLUMN_RISE * SMOKE_LIFE - 20.0))
 
 
 ## Where a far-off sign for a place on the land stands on the screen (art pixels), or [] when the place is in `seen`

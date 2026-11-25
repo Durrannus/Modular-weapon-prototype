@@ -1150,11 +1150,17 @@ func _smoke() -> void:
 	p.unhurt = true
 	_check(folk.has_roost() and folk.pip == 0 and folk.smoke != null and folk.smoking() and folk.smoke.visible, "while Pip is caged, smoke stands over the Roost")
 	_check(folk.smoke.z_index > 40 and folk.smoke.position == folk.smoke_feet(), "(over everything on the land, rising from beside the cage)")
-	var list: Array = folk.puffs(100.0, Folk.SMOKE_LIFE)
-	_check(list.size() == int(Folk.SMOKE_LIFE), "a puff a second: %d in the plume" % list.size())
+	# Version 59 (Darren: "actually have big smoke coming from the camp fire when u get to the location"): a thick
+	# column of five strands from a bigger hearth, not one thread.
+	var list: Array = folk.column(100.0)
+	var per_strand := int(Folk.SMOKE_LIFE / Folk.COLUMN_EVERY)
+	_check(list.size() > per_strand * 3 and list.size() <= per_strand * 5, "five strands of puffs, the side ones ragged: %d in the column" % list.size())
 	var ordered := true
 	var whole := true
 	var top := 0.0
+	var low_wide := 0.0
+	var high_wide := 0.0
+	var mirrored := 0
 	for n in list.size():
 		var at: Vector2 = list[n][0]
 		if at != at.round():
@@ -1164,21 +1170,41 @@ func _smoke() -> void:
 			ordered = false
 		if n > 0 and int(list[n][1]) > int(list[n - 1][1]):
 			ordered = false
-		if n > 0 and bool(list[n][2]) == bool(list[n - 1][2]):
-			ordered = false
-	_check(ordered, "the oldest and highest first, the newest and lowest drawn last, every other one mirrored")
+		if bool(list[n][2]):
+			mirrored += 1
+	var lows: Array = list.filter(func(q): return (q[0] as Vector2).y > -14.0)
+	var highs: Array = list.filter(func(q): return (q[0] as Vector2).y < -150.0 and (q[0] as Vector2).y > -170.0)
+	for group in [[lows, 0], [highs, 1]]:
+		var xs: Array = (group[0] as Array).map(func(q): return (q[0] as Vector2).x)
+		if not xs.is_empty():
+			var w: float = float(xs.max()) - float(xs.min())
+			if int(group[1]) == 0:
+				low_wide = w
+			else:
+				high_wide = w
+	_check(ordered, "the oldest and highest first, the newest and lowest drawn last")
+	_check(mirrored > list.size() / 3 and mirrored < list.size() * 2 / 3, "about every other puff mirrored (%d of %d)" % [mirrored, list.size()])
 	_check(whole, "always on whole pixels")
-	_check(top < -140.0 and top > -160.0, "the plume stands about half a screen tall (%d pixels)" % int(-top))
+	_check(top < -240.0 and top > -260.0, "the column climbs about 250 art pixels, past the top of the screen (%d)" % int(-top))
+	_check(low_wide <= 16.0 and high_wide >= 30.0, "it widens as it rises: %d pixels across at the fire, %d up high" % [int(low_wide), int(high_wide)])
 	_check(int(list[0][1]) == 3 and int(list[list.size() - 1][1]) == 0, "a puff opens out as it ages: fresh at the foot, breaking up at the top")
+	_check(list.filter(func(q): return int(q[1]) == 2).size() > list.size() / 2, "most of the column is the art's wide puffs")
+	_check(folk.fire != null and folk.fire.visible and folk.fires.size() == 2 and folk.fires.all(func(f): return f.visible), "the camp fire is a bigger hearth: three of the Art builder's fires together")
 	var slow := true
 	for step in 120:
-		var a: Array = folk.puffs(50.0 + float(step) / 60.0, Folk.SMOKE_LIFE)
-		var b: Array = folk.puffs(50.0 + float(step + 1) / 60.0, Folk.SMOKE_LIFE)
-		if a.size() == b.size() and str(a[a.size() - 1][2]) == str(b[b.size() - 1][2]):
-			for n in a.size():
-				var d: Vector2 = (b[n][0] as Vector2) - (a[n][0] as Vector2)
-				if absf(d.x) > 2.0 or absf(d.y) > 1.0:
-					slow = false
+		var a: Array = folk.column(50.0 + float(step) / 60.0)
+		var b: Array = folk.column(50.0 + float(step + 1) / 60.0)
+		for q in b:
+			if (q[0] as Vector2).y > -4.0:
+				continue          # (a puff just made)
+			var near := false
+			for o in a:
+				var d: Vector2 = (q[0] as Vector2) - (o[0] as Vector2)
+				if absf(d.x) <= 2.0 and absf(d.y) <= 1.0:
+					near = true
+					break
+			if not near:
+				slow = false
 	_check(slow, "small, slow movement: from one tick to the next no puff moves more than a pixel up")
 	# The far-off plume at the screen's edge.
 	var sign: Array = folk.smoke_sign()
@@ -1196,6 +1222,26 @@ func _smoke() -> void:
 	Folk.SMOKE_SIGN = 0
 	_check(folk.smoke_sign().is_empty() and str(folk.quests()[0]["text"]).begins_with("Find the"), "the lab can turn the far-off plume off (the quest's words follow)")
 	Folk.SMOKE_SIGN = was
+	# Nobody is lost in it.
+	var start: Vector2 = p.global_position
+	_put(g, p, folk.smoke_feet() + Vector2(-20.0, -120.0))
+	await _frames(60)
+	_check(folk.in_smoke(p.global_position) and folk.smoke.modulate.a < 0.5, "standing in the column, it thins so you can see yourself (%.2f)" % folk.smoke.modulate.a)
+	_put(g, p, folk.smoke_feet() + Vector2(260.0, 120.0))
+	await _frames(60)
+	_check(not folk.in_smoke(p.global_position) and folk.smoke.modulate.a > 0.99, "and it thickens again once you step out")
+	# The smoke on the maps (version 59; Darren: "the smoke signal should show on the map not just floating there").
+	var charts = g.charts
+	_check(charts.smoke_tile() == folk.smoke_feet() / 32.0, "while Pip is caged, the maps know where the smoke rises")
+	var st: Vector2 = charts.smoke_tile()
+	charts.explored.fill(0)
+	charts.reveal(Vector2(charts.map.mouth) * 32.0)
+	_check(not charts.shows(int(st.x), int(st.y)) and charts.shown_tiles().has_point(st), "the whole map takes the smoke in even where nobody has been")
+	var lay: Array = charts.layout()
+	var named: Array = charts.name_spots(lay[0], lay[1], lay[2]).filter(func(n): return str(n["text"]) == "Smoke")
+	_check(named.size() == 1, "with the word \"Smoke\" by it, until the Roost has been seen")
+	_put(g, p, start)
+	await _frames(2)
 	# At the Roost the real smoke is in sight: no far-off plume.
 	g.foes.on = false
 	_put(g, p, folk.pip_landing() + Vector2(0, 60))
@@ -1240,9 +1286,13 @@ func _smoke() -> void:
 	for n in int(Folk.CAGE_BLOWS):
 		folk.strike_cage(0)
 	_check(folk.pip == 1 and is_equal_approx(folk.smoke_until, folk.clock), "the cage broken: no new smoke")
-	_check(folk.smoking() and folk.puffs(folk.clock + 5.0, Folk.SMOKE_LIFE, folk.smoke_until).size() == int(Folk.SMOKE_LIFE) - 5, "what is in the air drifts up and away")
-	_check(folk.puffs(folk.clock + Folk.SMOKE_LIFE + 1.0, Folk.SMOKE_LIFE, folk.smoke_until).is_empty(), "and then there is none")
+	var still: int = folk.column(folk.clock + 5.0, folk.smoke_until).size()
+	_check(folk.smoking() and still > 0 and still < folk.column(folk.clock, folk.smoke_until).size(), "what is in the air drifts up and away")
+	_check(folk.column(folk.clock + Folk.SMOKE_LIFE + 1.0, folk.smoke_until).is_empty(), "and then there is none")
 	_check(folk.smoke_sign().is_empty(), "(and no far-off plume: Pip is out)")
+	await _frames(2)
+	_check(not folk.fire.visible and folk.fires.all(func(f): return not f.visible), "the fire is left to die")
+	_check(g.charts.smoke_tile() == Vector2.INF, "and the maps have no smoke on them")
 	# Pip speaks with his face beside his words.
 	await _wait(func(): return g.ui.talking(), 400)
 	_check(g.ui.talking() and str(g.ui.portrait) == Folk.FACE, "Pip speaks with his portrait in the speech box")
