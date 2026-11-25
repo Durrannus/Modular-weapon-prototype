@@ -277,7 +277,7 @@ static func thing_class(t: Dictionary) -> String:
 
 ## What stops you at the foot of a thing, a little grown and a little taller, so that aiming at a trunk finds it.
 static func thing_box(t: Dictionary) -> Rect2:
-	var solid: Array = Painter.things.get(str(t["n"]), {}).get("solid", [8, 4])
+	var solid: Array = Painter.thing_info(str(t["n"])).get("solid", [8, 4])
 	var size := Vector2(float(solid[0]), float(solid[1])) * UNIT
 	var foot := Vector2(float(t["x"]), float(t["y"])) * UNIT
 	return Rect2(foot - Vector2(size.x * 0.5 + 5.0, size.y + 19.0), size + Vector2(10.0, 24.0))
@@ -652,8 +652,9 @@ func _pose(s: Sprite2D, name: String) -> void:
 func _unpose(s: Sprite2D, name: String) -> void:
 	if not is_instance_valid(s) or not Painter.things.has(name):
 		return
-	var f: Array = Painter.things[name]["foot"]
-	s.texture = land.thing_texture(name)
+	var snow := bool(s.get_meta("snow", false))      # its snowy picture, in the snow round the Hound Den (version 62)
+	var f: Array = (Painter.snow_things if snow else Painter.things)[name]["foot"]
+	s.texture = land.thing_texture(name, 0, snow)
 	var x := float(f[0])
 	if s.flip_h:
 		x = s.texture.region.size.x - 1.0 - x

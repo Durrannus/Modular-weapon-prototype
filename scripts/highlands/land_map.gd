@@ -190,6 +190,15 @@ func stamp_lamp(l: Dictionary) -> void:
 	(_lamps_by_chunk[key] as Array).append(l)
 
 
+## A flat piece painted into the ground, put there the same way (the Hound Den's trodden snow and paw prints: snow.gd).
+func stamp_decal(d: Dictionary) -> void:
+	decals.append(d)
+	var key := chunk_key(int(d["x"]) / (CHUNK * TILE_PX), int(d["y"]) / (CHUNK * TILE_PX))
+	if not _decals_by_chunk.has(key):
+		_decals_by_chunk[key] = []
+	(_decals_by_chunk[key] as Array).append(d)
+
+
 ## A picture painted into dug floor, put there the same way (CrownPlan.stamp).
 func stamp_floor_decal(d: Dictionary) -> void:
 	floor_decals.append(d)

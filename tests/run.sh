@@ -5,7 +5,7 @@
 #   tests/run.sh [--full] [--jobs N] [area or suite ...]
 #
 # Areas (more than one may be named; nothing named means "all"):
-#   highlands  the Highlands: land, map, enemies, loot, Rattlecrown, Pip, gear, tools, levels, saving
+#   highlands  the Highlands: land, map, snow, enemies, loot, Rattlecrown, Pip, gear, tools, levels, saving
 #   weapons    the weapons, their runes and threads, the forge's numbers, the lab, combat rules
 #   cave       the tutorial cave played through, the forge guardian, the title, the arena's switches
 #   all        all three (about five minutes)
@@ -29,7 +29,7 @@ LOG="${CHECKS_LOG:-/tmp/checks}"
 FULL=0
 JOBS=3
 
-HIGHLANDS="highlands highlands_map highlands_foes highlands_loot highlands_crown highlands_folk highlands_gear highlands_tools highlands_levels saving"
+HIGHLANDS="highlands highlands_map highlands_snow highlands_foes highlands_loot highlands_crown highlands_folk highlands_gear highlands_tools highlands_levels saving"
 WEAPONS="test_swing_build blade_shapes bow bow_runes hammer hammer_runes staff staff_runes active_runes combat_rules feel_check spirit check_parts lab"
 CAVE="cave_playthrough cave_words smoke_forge title_screen arena_switches"
 

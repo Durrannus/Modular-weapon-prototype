@@ -34,6 +34,7 @@ const SCRIPTS := {
 	"bat": "res://scripts/foes/bat.gd",
 	"foes": "res://scripts/highlands/foes.gd",
 	"foe_plan": "res://scripts/highlands/foe_plan.gd",
+	"snow": "res://scripts/highlands/snow.gd",
 	"loot": "res://scripts/highlands/loot.gd",
 	"loot_plan": "res://scripts/highlands/loot_plan.gd",
 	"levels": "res://scripts/highlands/levels.gd",
@@ -383,6 +384,10 @@ static func _build_rows() -> void:
 	_add(p, g, "Enemies' blows, traps and falls do", "highlands:DAMAGE_TAKEN", "%", 0.05, 0.1, 3.0)
 	_add(p, g, "Show the whole map, click it to go (1 = on)", "charts:LAB_MAP", "n", 1.0, 0.0, 1.0)
 	_add(p, g, "Pine groves in new worlds (0 = none)", "world_gen:GROVES", "", 0.25, 0.0, 10.0)
+	g = "The snow round the Hound Den"
+	_add(p, g, "How far it reaches (tiles, 0 = no snow)", "snow:REACH", "n", 5.0, 0.0, 300.0)
+	_add(p, g, "How wide its thinning edge is (tiles)", "snow:EDGE", "n", 1.0, 1.0, 40.0)
+	_add(p, g, "Falling snow: 0 none, 1 as drawn, 2 thick", "snow:FALL", "n", 1.0, 0.0, 2.0)
 	g = "Tools (blows of a basic tool)"
 	_add(p, g, "Rock", "tools:NEED/rock", "n", 1.0, 1.0, 20.0)
 	_add(p, g, "Tin", "tools:NEED/tin", "n", 1.0, 1.0, 20.0)
@@ -487,6 +492,7 @@ static func _build_rows() -> void:
 	_add(p, g, "Goblin ground round the Scrapyard (tiles)", "foe_plan:SCRAP_REACH", "n", 5.0, 0.0, 400.0)
 	_add(p, g, "Goblin groups there a Brute leads", "foe_plan:SCRAP_BRUTE", "%", 0.05, 0.0, 1.0)
 	_add(p, g, "Goblin groups there with a Shaman", "foe_plan:SCRAP_SHAMAN", "%", 0.05, 0.0, 1.0)
+	_add(p, g, "Hound ground past the snow's edge (tiles)", "snow:HOUNDS_NEAR", "n", 5.0, 0.0, 300.0)
 
 	p = "Chests and loot"
 	g = "Chests"

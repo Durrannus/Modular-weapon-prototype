@@ -40,9 +40,10 @@ The README is the long, plain-words story for Darren; this file is only for find
 | `scripts/cave/` | The tutorial cave (`cave.gd`), its crawler, burrower, forge guardian, hazards, screen furniture. |
 | `scripts/highlands/highlands.gd` | The Highlands game: makes the world, players, systems, saving hooks, the Highlands-only shares. |
 | `scripts/highlands/world_gen.gd`, `land_map.gd` | Making a map from a seed (rings, places, ore, dressing, pine groves); the map as tiles. Raise `WorldGen.GEN` when the land changes, then `tests/saving.gd -- ref`. |
-| `scripts/highlands/land_painter.gd`, `land_view.gd`, `veins.gd` | Painting the land from the art kit; showing it near the camera; ore veins. |
+| `scripts/highlands/land_painter.gd`, `land_view.gd`, `veins.gd` | Painting the land from the art kit (and the snow kit round the Den: `_snow_edge`); showing it near the camera; ore veins. |
 | `scripts/highlands/charts.gd` | The small map, the whole map on M, the seen land, the lab's map switch. |
-| `scripts/highlands/foes.gd`, `foe_plan.gd`, `nav.gd` | Who lives where (goblin ground round the Scrapyard: `SCRAP_REACH`), waking and coming back; the way round rock. |
+| `scripts/highlands/foes.gd`, `foe_plan.gd`, `nav.gd` | Who lives where (goblin ground round the Scrapyard: `SCRAP_REACH`; hound ground in and near the snow), waking and coming back; the way round rock. |
+| `scripts/highlands/snow.gd` | The snowy section round the Hound Den: where snow lies (`depth`, `chunk`), the Den's mouth (`stamp`), the falling snow. The painter paints `art/highlands/snow/` there (`bake.py --snow`). |
 | `scripts/foes/` | The Highlands enemies (`foe.gd` shared; hound, slinger, scrap brute, shaman, bat, rock) and Rattlecrown. |
 | `scripts/highlands/crown.gd`, `crown_plan.gd` | The Scrapyard, the Throne Room fight, traps, hoard. |
 | `scripts/highlands/loot.gd`, `loot_plan.gd` | Chests (each player's share waits in the chest: `left_in`, `take`, `take_all`), drops, coins, Memory. |

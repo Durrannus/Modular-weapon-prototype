@@ -20,6 +20,10 @@ extends RefCounted
 ##     it (none is left empty, no hounds), a Scrap Brute leads most of them and a Shaman stands at the back of more
 ##     (SCRAP_BRUTE, SCRAP_SHAMAN), and the watch on the gate is bigger. (Claude's: how far, and those shares. The
 ##     Old Quarry and the Watchpost keep theirs; the Den and the Roost are not that near.)
+##   - HOUND GROUND IN AND NEAR THE SNOW (Darren, 25 November 2026: "let's have a snowy section for the wolfs to spawn
+##     in and near"; version 62). Every open place in the snow round the Hound Den (snow.gd) and within HOUNDS_NEAR
+##     tiles of its edge has a pack of hounds in it: none is left empty, and no goblins. (Claude's: how near, and that
+##     the goblin ground round the Scrapyard wins where the two meet.)
 ##   - Farther out is harder (the research's rings; the numbers are Claude's): in the middle ring hound packs are
 ##     three or four and more goblin groups have a Brute or a Shaman; in the outer ring packs are up to five,
 ##     goblin groups are bigger still, and fewer places are empty. See RINGS.
@@ -28,6 +32,7 @@ extends RefCounted
 
 const LandMap := preload("res://scripts/highlands/land_map.gd")
 const WorldGen := preload("res://scripts/highlands/world_gen.gd")
+const Snow := preload("res://scripts/highlands/snow.gd")
 
 const SAFE := 40.0             # tiles from the cave: nothing lives nearer
 const NEAR := 72.0             # out to here the groups are small
@@ -52,6 +57,7 @@ static func make(map: LandMap) -> Array:
 	rng.seed = WorldGen._mix(map.seed_value & 0xffffffff, map.seed_value >> 32, 3000)
 	var cave := Vector2(LandMap.MID + 0.5, LandMap.MID + 0.5)
 	var yard: Vector2 = map.sites["scrapyard"]["at"] if map.sites.has("scrapyard") else Vector2.INF
+	var snow := Snow.centre(map)
 	var out: Array = []
 	for i in map.pockets.size():
 		var p: Dictionary = map.pockets[i]
@@ -94,6 +100,17 @@ static func make(map: LandMap) -> Array:
 				g["members"].append(["slinger", false])
 			if shaman:
 				g["members"].append(["shaman", false])
+		elif not (g["site"] in ["watchpost", "quarry"]) and snow != Vector2.INF and at.distance_to(snow) < Snow.REACH + Snow.HOUNDS_NEAR:
+			# Hound ground in and near the snow round the Den: never empty, never goblins (version 62).
+			g["what"] = "hounds"
+			var rule: Dictionary = RINGS[maxi(ring, 2)]
+			var lo: int = rule["hounds"][0]
+			var hi: int = rule["hounds"][1]
+			var n := lo + mini(int(size_roll * float(hi - lo + 1)), hi - lo)
+			if small or ring < 2:
+				n = 2
+			for k in n:
+				g["members"].append(["hound", false])
 		elif ring >= 2:
 			var rule: Dictionary = RINGS[ring]
 			if roll < float(rule["empty"]):

@@ -18,6 +18,7 @@ extends RefCounted
 const LandMap := preload("res://scripts/highlands/land_map.gd")
 const Art := preload("res://scripts/art.gd")
 const Veins := preload("res://scripts/highlands/veins.gd")
+const Snow := preload("res://scripts/highlands/snow.gd")
 
 const T := 16                  # one tile, in art pixels
 const CH := LandMap.CHUNK
@@ -70,6 +71,13 @@ static var tuft_lit: Image
 static var tuft_shade: Image
 static var tuft_size: Array = []   # per pattern: Vector2i
 static var vein_cols := {}         # ore veins: "tin", "copper", "verd", "face", "cap" -> that ramp's colours, step 0 upward
+## The snow kit (version 62, art/highlands/snow/): the same pieces with snow lying in them, for round the Hound Den.
+static var snow_ready := false
+static var snow_things := {}       # as `things`, from the snow kit's sheet ("snow/things")
+static var snow_cols: Array = []   # the snow's ramp, dark to light
+static var snow32 := {}            # a snow colour (rgba32) -> its step on the ramp
+static var snow_lit: Image         # plain snowy ground, a tileable 64 x 64 patch (the Art builder's snow_ground.png)
+static var snow_shade: Image       # and the same in shadow, two steps darker
 
 
 static func load_kit() -> void:
@@ -122,6 +130,7 @@ static func load_kit() -> void:
 		for h in kit["vein"][name]:
 			ramp.append(Color(str(h)))
 		vein_cols[name] = ramp
+	_load_snow()
 	# The tufts, drawn once for each grass they can stand on (a hollow, plain, a rise).
 	var pats: Array = TUFTS + LONG
 	tuft_lit = Image.create(pats.size() * 10, 18, false, Image.FORMAT_RGBA8)
@@ -139,6 +148,52 @@ static func load_kit() -> void:
 					tuft_lit.set_pixel(p * 10 + i, b * 6 + j, grass[step])
 					tuft_shade.set_pixel(p * 10 + i, b * 6 + j, grass[maxi(step - 2, 0)])
 	ready = true
+
+
+## The snow kit, beside the plain one: its sheets go in `sheets` as "snow/<name>".
+static func _load_snow() -> void:
+	var sk: Dictionary = Art.json("highlands/snow/kit.json")
+	if sk.is_empty():
+		return
+	snow_things = sk.get("things", {})
+	for group in sk.get("sheets", {}).values():
+		for file in group:
+			sheets["snow/" + str(file).get_basename()] = _rgba(Art.image(KIT + "snow/" + str(file)))
+	sheets["snow/things"] = _rgba(Art.image(KIT + "snow/things.png"))
+	for h in sk.get("snow", {}).get("ramp", []):
+		snow_cols.append(Color(str(h)))
+	for k in snow_cols.size():
+		snow32[(snow_cols[k] as Color).to_rgba32()] = k
+	snow_lit = _rgba(Art.image(KIT + "snow/snow_ground.png"))
+	if snow_lit == null or snow_cols.size() < 6:
+		return
+	snow_shade = snow_lit.duplicate()
+	for y in snow_shade.get_height():
+		for x in snow_shade.get_width():
+			var k: int = snow32.get(snow_lit.get_pixel(x, y).to_rgba32(), -1)
+			if k >= 0:
+				snow_shade.set_pixel(x, y, snow_cols[maxi(k - 2, 0)])
+			else:
+				snow_shade.set_pixel(x, y, snow_lit.get_pixel(x, y).darkened(0.3))
+	for name in ["rock_nat", "rock_dug", "rock_nat_foot", "rock_dug_foot", "rock_shadow", "rock_core", "hollow", "rise", "path", "yard",
+			"scree", "water", "floor", "things"]:
+		if sheets.get("snow/" + name) == null:
+			return
+	snow_ready = true
+
+
+## Does this thing on the land stand in the snow (and so show its snowy picture)? The Hound Den's mouth is only in the
+## snow kit, so it always does.
+static func snowy_thing(m: LandMap, t: Dictionary) -> bool:
+	var name := str(t["n"])
+	if not snow_ready or not snow_things.has(name) or things.get(name, {}).has("frames"):
+		return false             # (an animal is never snowed on)
+	return not things.has(name) or Snow.snowy_px(m, Vector2(float(t["x"]), float(t["y"])))
+
+
+## What the kit says of a thing: from the plain kit, or the snow kit's if only that has it (the Hound Den's mouth).
+static func thing_info(name: String) -> Dictionary:
+	return things.get(name, snow_things.get(name, {}))
 
 
 static func _rgba(img: Image) -> Image:
@@ -216,9 +271,23 @@ static func _lay(lit: Image, shade: Image, name: String, a: PackedByteArray, k: 
 
 
 ## The picture of chunk (cx, cy) of the map: PX x PX, with the chunk's top left
-## tile at its top left.
+## tile at its top left. Round the Hound Den it is painted from the snow kit (snow.gd); where the snow's edge crosses
+## the chunk it is painted both ways, and each pixel shows the one the snow says.
 static func paint(m: LandMap, cx: int, cy: int) -> Image:
 	load_kit()
+	var snow := Snow.chunk(m, cx, cy) if snow_ready else 0
+	if snow == 0:
+		return _paint(m, cx, cy, false)
+	if snow == 2:
+		return _paint(m, cx, cy, true)
+	var plain := _paint(m, cx, cy, false)
+	_snow_edge(plain, _paint(m, cx, cy, true), m, cx, cy)
+	return plain
+
+
+static func _paint(m: LandMap, cx: int, cy: int, snow: bool) -> Image:
+	var pre := "snow/" if snow else ""
+	var kit_things: Dictionary = snow_things if snow else things
 	var x0 := cx * CH
 	var y0 := cy * CH
 	var ox := x0 * T
@@ -240,7 +309,7 @@ static func paint(m: LandMap, cx: int, cy: int) -> Image:
 			if not LandMap.rocky(k):
 				any_open = true
 	var lit := Image.create(PX, PX, false, Image.FORMAT_RGBA8)
-	var core: Image = sheets["rock_core"]
+	var core: Image = sheets[pre + "rock_core"]
 	if not any_open:
 		# The heart of a hill: nothing but the dark rock top.
 		for j in CH:
@@ -249,30 +318,37 @@ static func paint(m: LandMap, cx: int, cy: int) -> Image:
 				lit.blit_rect(core, Rect2i((n % 8) * T, (n / 8) * T, T, T), Vector2i(i * T, j * T))
 		_veins(lit, m, cx, cy)        # (a seam can still reach in from a rock face just past the tiles looked at)
 		return lit
-	lit.fill(grass[3])
 	var shade := Image.create(PX, PX, false, Image.FORMAT_RGBA8)
-	shade.fill(grass[1])
+	if snow:
+		# Plain ground under snow: the Art builder's snowy patch, laid edge to edge (64 pixels: four to a chunk each way).
+		for j in PX / 64:
+			for i in PX / 64:
+				lit.blit_rect(snow_lit, Rect2i(0, 0, 64, 64), Vector2i(i * 64, j * 64))
+				shade.blit_rect(snow_shade, Rect2i(0, 0, 64, 64), Vector2i(i * 64, j * 64))
+	else:
+		lit.fill(grass[3])
+		shade.fill(grass[1])
 	var mask := Image.create(PX, PX, false, Image.FORMAT_RGBA8)
-	var th: Image = sheets["things"]
+	var th: Image = sheets[pre + "things"]
 	# 1. The ground: hollows and rises in the grass, then what lies on it.
-	_lay(lit, shade, "hollow", TN, 0, x0, y0)
-	_lay(lit, shade, "rise", TN, 2, x0, y0)
-	_lay(lit, shade, "path", K, PATH, x0, y0)
-	_lay(lit, shade, "yard", K, YARD, x0, y0)
-	_lay(lit, shade, "scree", K, SCREE, x0, y0)
+	_lay(lit, shade, pre + "hollow", TN, 0, x0, y0)
+	_lay(lit, shade, pre + "rise", TN, 2, x0, y0)
+	_lay(lit, shade, pre + "path", K, PATH, x0, y0)
+	_lay(lit, shade, pre + "yard", K, YARD, x0, y0)
+	_lay(lit, shade, pre + "scree", K, SCREE, x0, y0)
 	for dj in range(-1, 2):
 		for di in range(-1, 2):
 			for d in m.decals_in(cx + di, cy + dj):
-				var info: Dictionary = things.get(str(d["n"]), {})
+				var info: Dictionary = kit_things.get(str(d["n"]), {})
 				if info.is_empty():
 					continue
 				var r: Array = info["rect"]
 				var at: Array = info.get("at", [0, 0])
 				var dst := Vector2i(int(d["x"]) + int(at[0]) - ox, int(d["y"]) + int(at[1]) - oy)
 				lit.blend_rect(th, Rect2i(r[0], r[1], r[2], r[3]), dst)
-				var r2: Array = things[str(d["n"]) + "~"]["rect"]
+				var r2: Array = kit_things[str(d["n"]) + "~"]["rect"]
 				shade.blend_rect(th, Rect2i(r2[0], r2[1], r2[2], r2[3]), dst)
-	_lay(lit, shade, "water", K, WATER, x0, y0)
+	_lay(lit, shade, pre + "water", K, WATER, x0, y0)
 	# Lamps near this chunk. Where there are any, `floored` remembers which pixels are dug floor,
 	# so the light falls on the floor and not on the grass at its ragged edge.
 	var lamps: Array = []
@@ -310,9 +386,9 @@ static func paint(m: LandMap, cx: int, cy: int) -> Image:
 						var b := Rect2i(px + int(q[1]), py + int(q[2]), int(q[3]), int(q[4]))
 						lit.fill_rect(b, floor_lit)
 						shade.fill_rect(b, floor_shade)
-	_lay(lit, shade, "floor", K, FLOOR, x0, y0)
+	_lay(lit, shade, pre + "floor", K, FLOOR, x0, y0)
 	if floored != null:
-		_lay(floored, null, "floor", K, FLOOR, x0, y0)
+		_lay(floored, null, pre + "floor", K, FLOOR, x0, y0)
 	# Pictures painted into the dug floor (the Throne Room's paving, sunk traps and stands, version 50), so the rock's
 	# shadow and the lamplight fall on them as on the floor itself.
 	for dj in range(-1, 2):
@@ -328,11 +404,12 @@ static func paint(m: LandMap, cx: int, cy: int) -> Image:
 				shade.blend_rect(art, Rect2i(r2[0], r2[1], r2[2], r2[3]), dst)
 	# 2. Tufts in the grass. Nearly every tile has one; long grass stands in clumps in the hollows, against the rock and
 	# in patches of its own; the rises are grazed short; and flowers grow in drifts, each drift one colour.
+	# (Under snow there are none: the snowy patch has the lumps where tufts lie under it and the odd grass head.)
 	var world := int(m.seed_value & 0xffff) * 31
 	for lj in range(1, KW - 1):
 		for li in range(1, KW - 1):
 			var i := lj * KW + li
-			if not _grassy(K[i]):
+			if snow or not _grassy(K[i]):
 				continue
 			var wx := x0 + li - PAD
 			var wy := y0 + lj - PAD
@@ -400,14 +477,14 @@ static func paint(m: LandMap, cx: int, cy: int) -> Image:
 				plants.append([int(pl["y"]) - oy, int(pl["x"]) - ox, str(pl["n"])])
 	plants.sort()
 	for p in plants:
-		var info: Dictionary = things[p[2]]
+		var info: Dictionary = kit_things[p[2]]
 		var r: Array = info["rect"]
 		var foot: Array = info["foot"]
 		var px := int(p[1])
 		var py := int(p[0])
 		var dst := Vector2i(px - int(foot[0]), py - int(foot[1]))
 		lit.blend_rect(th, Rect2i(r[0], r[1], r[2], r[3]), dst)
-		var r2: Array = things[str(p[2]) + "~"]["rect"]
+		var r2: Array = kit_things[str(p[2]) + "~"]["rect"]
 		shade.blend_rect(th, Rect2i(r2[0], r2[1], r2[2], r2[3]), dst)
 		var s: Array = info["shadow"]
 		var sat: Array = info["shadow_at"]
@@ -416,13 +493,15 @@ static func paint(m: LandMap, cx: int, cy: int) -> Image:
 	for dj in range(-1, 2):
 		for di in range(-1, 2):
 			for t in m.things_in(cx + di, cy + dj):
-				var info: Dictionary = things.get(str(t["n"]), {})
+				# (A thing throws the shadow of the picture the view stands for it: snowy in the snow, as snow.gd says.)
+				var sn := snowy_thing(m, t)
+				var info: Dictionary = (snow_things if sn else things).get(str(t["n"]), {})
 				if not info.has("shadow"):
 					continue
 				var s: Array = info["shadow"]
 				var sat: Array = info["shadow_at"]
-				mask.blend_rect(th, Rect2i(s[0], s[1], s[2], s[3]), Vector2i(int(t["x"]) + int(sat[0]) - ox, int(t["y"]) + int(sat[1]) - oy))
-	var rock_shadow: Image = sheets["rock_shadow"]
+				mask.blend_rect(sheets["snow/things" if sn else "things"], Rect2i(s[0], s[1], s[2], s[3]), Vector2i(int(t["x"]) + int(sat[0]) - ox, int(t["y"]) + int(sat[1]) - oy))
+	var rock_shadow: Image = sheets[pre + "rock_shadow"]
 	var rocks: Array = []       # [local index, piece number, dug]
 	for lj in range(1, KW - 1):
 		for li in range(1, KW - 1):
@@ -443,7 +522,7 @@ static func paint(m: LandMap, cx: int, cy: int) -> Image:
 			continue
 		var i: int = r[0]
 		var n: int = r[1]
-		lit.blend_rect(sheets["rock_dug_foot" if r[2] else "rock_nat_foot"], Rect2i((n % COLS) * RW, (n / COLS) * RH, RW, RH), Vector2i((i % KW - PAD) * T - RM_L, (i / KW - PAD) * T - RM_T))
+		lit.blend_rect(sheets[pre + ("rock_dug_foot" if r[2] else "rock_nat_foot")], Rect2i((n % COLS) * RW, (n / COLS) * RH, RW, RH), Vector2i((i % KW - PAD) * T - RM_L, (i / KW - PAD) * T - RM_T))
 	for r in rocks:
 		var i: int = r[0]
 		var n: int = r[1]
@@ -455,12 +534,71 @@ static func paint(m: LandMap, cx: int, cy: int) -> Image:
 			continue
 		var src := Rect2i((n % COLS) * RW, (n / COLS) * RH, RW, RH)
 		var dst := Vector2i(px - RM_L, py - RM_T)
-		lit.blend_rect(sheets["rock_dug" if r[2] else "rock_nat"], src, dst)
+		lit.blend_rect(sheets[pre + ("rock_dug" if r[2] else "rock_nat")], src, dst)
 	_veins(lit, m, cx, cy)
 	# 6. Lamplight on dug floor and the cut rock beside it.
 	if floored != null:
 		_light(lit, floored, lamps, K, ox, oy)
 	return lit
+
+
+## Where the snow's edge crosses a chunk (version 62): each pixel of `plain` becomes the snow picture's where snow lies
+## there. The edge wanders and breaks into patches (snow.gd), and each pixel's own jitter keeps it ragged. Where the
+## snow stops on open ground, its thin side shows on the near edge and its far rim catches the light, as round the
+## scoured patches in the Art builder's snow (hl3_snow.py).
+static func _snow_edge(plain: Image, snow: Image, m: LandMap, cx: int, cy: int) -> void:
+	var x0 := cx * CH
+	var y0 := cy * CH
+	var W1 := CH + 1
+	# How deep in the snow each tile corner is; a pixel's is worked out from the four round it.
+	var D := PackedFloat32Array()
+	D.resize(W1 * W1)
+	for j in W1:
+		for i in W1:
+			D[j * W1 + i] = Snow.depth(m, float(x0 + i), float(y0 + j))
+	var on := PackedByteArray()
+	on.resize(PX * PX)
+	for py in PX:
+		var j := py / T
+		var fy := (float(py % T) + 0.5) / T
+		for px in PX:
+			var k := j * W1 + px / T
+			var fx := (float(px % T) + 0.5) / T
+			var v := lerpf(lerpf(D[k], D[k + 1], fx), lerpf(D[k + W1], D[k + W1 + 1], fx), fy)
+			if v + float(hsh((x0 * T + px) >> 1, (y0 * T + py) >> 1, 41) & 63) * 0.0006 - 0.02 > 0.0:
+				on[py * PX + px] = 1
+	var a := plain.get_data()
+	var b := snow.get_data()
+	var green := {}
+	for c in grass32:
+		green[c] = true
+	var thin: Color = snow_cols[2]
+	for q in PX * PX:
+		var o := q * 4
+		var up_on := q >= PX and on[q - PX] == 1
+		if on[q] == 1:
+			if q >= PX and not up_on and green.has(_rgba32(a, o - PX * 4)):
+				var st: int = snow32.get(_rgba32(b, o), -1)
+				if st >= 0:
+					var c: Color = snow_cols[mini(st + 1, 5)]       # the far rim of the snow, lit
+					a[o] = c.r8
+					a[o + 1] = c.g8
+					a[o + 2] = c.b8
+					a[o + 3] = 255
+					continue
+			a[o] = b[o]
+			a[o + 1] = b[o + 1]
+			a[o + 2] = b[o + 2]
+			a[o + 3] = b[o + 3]
+		elif up_on and green.has(_rgba32(a, o)):
+			a[o] = thin.r8                                       # open grass just under the snow: the snow's thin side
+			a[o + 1] = thin.g8
+			a[o + 2] = thin.b8
+	plain.set_data(PX, PX, false, Image.FORMAT_RGBA8, a)
+
+
+static func _rgba32(d: PackedByteArray, o: int) -> int:
+	return (d[o] << 24) | (d[o + 1] << 16) | (d[o + 2] << 8) | d[o + 3]
 
 
 ## Ore, as seams of metal through the rock (Darren, 21 and 22 November: "I want it like veins through the rock",

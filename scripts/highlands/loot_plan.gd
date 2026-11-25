@@ -220,7 +220,7 @@ static func _stand(map: LandMap, middle: Vector2, want: Vector2, r: float, need 
 		var box := Rect2(foot.x - 12.0, foot.y - 16.0, 24.0 + wide, 20.0)      # the chest and a little room round it
 		var clear := true
 		for th in things:
-			var info: Dictionary = Painter.things.get(str(th["n"]), {})
+			var info: Dictionary = Painter.thing_info(str(th["n"]))
 			if info.is_empty():
 				continue
 			var tf := Vector2(float(th["x"]), float(th["y"]))

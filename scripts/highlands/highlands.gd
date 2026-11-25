@@ -62,6 +62,7 @@ const Charts := preload("res://scripts/highlands/charts.gd")
 const FolkPlan := preload("res://scripts/highlands/folk_plan.gd")
 const Crown := preload("res://scripts/highlands/crown.gd")
 const CrownPlan := preload("res://scripts/highlands/crown_plan.gd")
+const Snow := preload("res://scripts/highlands/snow.gd")
 const ForgeHall := preload("res://scripts/ui/forge_hall.gd")
 const CaveUi := preload("res://scripts/cave/cave_ui.gd")
 const Music := preload("res://scripts/music.gd")
@@ -79,6 +80,7 @@ var world_seed := 0             # 0 = a new one every time
 var carry := {}                 # from the cave: {builds: [a weapon each], owned: [part ids each], spirit: [bool each]}
 var map: LandMap
 var land
+var snowfall                    # the snow falling round the Hound Den, and where the snow lies (snow.gd)
 var tools                       # the tool belts and the materials bags (tools.gd)
 var foes                        # the land's enemies (foes.gd)
 var with_foes := true           # false: the land is empty of enemies (the tests of other things)
@@ -144,6 +146,13 @@ func _ready() -> void:
 		CrownPlan.stamp(map, crown_plan)
 		if crown_plan.get("ok", false):
 			chest_plan.append_array(crown_plan["chests"])
+	# The snowy section round the Hound Den (version 62): its mouth, trodden ground and paw prints are put on the land
+	# the same way, clear of the chests. The snow itself is only paint: nothing on the land changes.
+	var chest_tiles: Array = []
+	for c in chest_plan:
+		if c.get("tile") is Vector2i:
+			chest_tiles.append(c["tile"])
+	Snow.stamp(map, chest_tiles)
 	if not world_save.is_empty() and not new_world:
 		# The land is made again from its number, and then what was dug, mined and felled is done to it again. If
 		# this game makes the land differently from the one that saved it, the old changes would not fit: they are
@@ -158,6 +167,11 @@ func _ready() -> void:
 	land.world = world
 	land.rig = rig
 	add_child(land)
+	snowfall = Snow.new()
+	snowfall.name = "Snowfall"
+	snowfall.map = map
+	snowfall.rig = rig
+	add_child(snowfall)
 	_add_players(map.spawn * TILE)
 	land.players = players
 	for i in players.size():

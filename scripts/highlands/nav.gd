@@ -74,7 +74,7 @@ func setup(map_: LandMap) -> void:
 
 
 static func _broad(t: Dictionary) -> bool:
-	var info: Dictionary = Painter.things.get(str(t.get("n", "")), {})
+	var info: Dictionary = Painter.thing_info(str(t.get("n", "")))
 	return info.has("solid") and int(info["solid"][0]) >= BROAD
 
 

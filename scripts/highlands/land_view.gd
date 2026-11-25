@@ -28,6 +28,7 @@ var tall: Array = []                    # [sprite, Rect2 in world units, feet y]
 var ground: Node2D
 var _atlas := {}
 var _things_tex: Texture2D
+var _snow_tex: Texture2D                # the snow kit's things (version 62): what stands in the snow round the Hound Den
 var _tools_tex: Texture2D
 var _mutex := Mutex.new()
 var _painted: Array = []                # [[key, Image]], filled by the painting threads
@@ -43,6 +44,8 @@ func _ready() -> void:
 	ground.z_index = -10
 	add_child(ground)
 	_things_tex = ImageTexture.create_from_image(Painter.sheets["things"])
+	if Painter.snow_ready:
+		_snow_tex = ImageTexture.create_from_image(Painter.sheets["snow/things"])
 	_tools_tex = Art.texture("tools/tools.png")     # the stump a felled pine leaves is on the tool art's sheet
 
 
@@ -54,26 +57,28 @@ func _exit_tree() -> void:
 	_asked.clear()
 
 
-## The picture of one thing from the kit's sheet.
-func thing_texture(name: String, frame := 0) -> AtlasTexture:
-	var key := "%s#%d" % [name, frame]
+## The picture of one thing from the kit's sheet (or the snow kit's: its snowy picture).
+func thing_texture(name: String, frame := 0, snow := false) -> AtlasTexture:
+	var key := "%s#%d%s" % [name, frame, "@snow" if snow else ""]
 	if not _atlas.has(key):
-		var info: Dictionary = Painter.things[name]
+		var info: Dictionary = Painter.snow_things[name] if snow else Painter.things[name]
 		var r: Array = info["rect"]
 		var w := int(info.get("frame_w", r[2]))
 		var t := AtlasTexture.new()
-		t.atlas = _tools_tex if str(info.get("sheet", "")) == "tools" else _things_tex
+		t.atlas = _snow_tex if snow else (_tools_tex if str(info.get("sheet", "")) == "tools" else _things_tex)
 		t.region = Rect2(int(r[0]) + frame * w, r[1], w, r[3])
 		_atlas[key] = t
 	return _atlas[key]
 
 
-## A thing standing on the land, with its feet at `foot` (art pixels on the map).
-func stand(name: String, foot: Vector2, flip := false) -> Sprite2D:
-	var info: Dictionary = Painter.things[name]
+## A thing standing on the land, with its feet at `foot` (art pixels on the map). `snow`: its snowy picture.
+func stand(name: String, foot: Vector2, flip := false, snow := false) -> Sprite2D:
+	var info: Dictionary = Painter.snow_things[name] if snow else Painter.things[name]
 	var f: Array = info["foot"]
 	var s := Sprite2D.new()
-	s.texture = thing_texture(name)
+	s.texture = thing_texture(name, 0, snow)
+	if snow:
+		s.set_meta("snow", true)
 	s.centered = false
 	s.flip_h = flip
 	var fx := float(f[0])
@@ -155,11 +160,12 @@ func _stand_things(c: Dictionary) -> void:
 	var at: Vector2i = c["at"]
 	for t in map.things_in(at.x, at.y):
 		var name := str(t["n"])
-		var info: Dictionary = Painter.things.get(name, {})
+		var snow := Painter.snowy_thing(map, t)
+		var info: Dictionary = Painter.snow_things.get(name, {}) if snow else Painter.things.get(name, {})
 		if info.is_empty():
 			continue
 		var foot := Vector2(float(t["x"]), float(t["y"]))
-		var s := stand(name, foot, bool(t.get("f", false)))
+		var s := stand(name, foot, bool(t.get("f", false)), snow)
 		c["things"].append(s)
 		c["by_thing"][LandMap.thing_key(t)] = s
 		if info.has("frames"):
@@ -323,7 +329,7 @@ func _renew() -> void:
 		c["body"].queue_free()
 		c["body"] = _make_body(at.x, at.y)
 		for t in map.things_in(at.x, at.y):
-			var info: Dictionary = Painter.things.get(str(t["n"]), {})
+			var info: Dictionary = Painter.thing_info(str(t["n"]))
 			if info.has("solid"):
 				var size := Vector2(float(info["solid"][0]), float(info["solid"][1])) * UNIT
 				_box(c["body"], Vector2(float(t["x"]), float(t["y"])) * UNIT - Vector2(0, size.y * 0.5), size)

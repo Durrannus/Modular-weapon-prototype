@@ -204,7 +204,7 @@ func _cover(home: Vector2, far: float) -> Array:
 		for di in range(-span, span + 1):
 			for t in map.things_in(cx + di, cy + dj):
 				var name := str(t["n"])
-				var info: Dictionary = Painter.things.get(name, {})
+				var info: Dictionary = Painter.thing_info(name)
 				if not info.has("solid") or not COVER.any(func(w): return name.begins_with(w)):
 					continue
 				var solid: Array = info["solid"]

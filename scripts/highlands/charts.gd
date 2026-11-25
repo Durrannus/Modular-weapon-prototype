@@ -33,6 +33,7 @@ extends Node
 const LandMap := preload("res://scripts/highlands/land_map.gd")
 const Art := preload("res://scripts/art.gd")
 const Sfx := preload("res://scripts/sfx.gd")
+const Snow := preload("res://scripts/highlands/snow.gd")
 
 const SCREEN := Vector2(640, 360)
 const MARGIN := 10.0
@@ -62,6 +63,11 @@ const COLOURS := {
 	LandMap.YARD: "6a5642", LandMap.WATER: "1a5654", LandMap.ROCK: "2b3247", LandMap.TIN: "2b3247",
 	LandMap.COPPER: "2b3247", LandMap.FLOOR: "446264", LandMap.SCREE: "6e6a7c",
 }
+## And under the snow round the Hound Den (version 62): the snow's own ramp (art/highlands/snow/kit.json), the water
+## frozen to ice; rock, paths, the yard and dug floor as they are.
+const SNOW_COLOURS := {
+	LandMap.GRASS: "b6c0c4", LandMap.SCRUB: "8a96a8", LandMap.HEATH: "8a96a8", LandMap.WATER: "6a8a9c", LandMap.SCREE: "8a96a8",
+}
 ## What the named places are called on the whole map.
 const PLACE_NAMES := {
 	"quarry": "Old Quarry", "watchpost": "Keeper's Watchpost", "roost": "Slinger Roost", "den": "Hound Den",
@@ -72,11 +78,13 @@ const SHADER := """
 shader_type canvas_item;
 uniform sampler2D seen : filter_nearest;
 uniform sampler2D palette : filter_nearest;
+uniform sampler2D snow : filter_nearest;
 uniform bool all_seen = false;
 void fragment() {
 	int k = int(texture(TEXTURE, UV).r * 255.0 + 0.5);
-	float s = texture(seen, UV).r;
-	COLOR = texelFetch(palette, ivec2((s > 0.5 || all_seen) ? k : 15, 0), 0);
+	bool s = texture(seen, UV).r > 0.5 || all_seen;
+	int row = texture(snow, UV).r > 0.5 ? 1 : 0;
+	COLOR = texelFetch(palette, ivec2(s ? k : 15, s ? row : 0), 0);
 }
 """
 
@@ -108,15 +116,30 @@ var note_until := -9.0
 var nav                            # the enemies' way-finding grid (nav.gd): which tiles can be stood on
 
 
+## Where the snow lies, a tile to a pixel (255 under snow), for the maps to show it.
+static func snow_image(m: LandMap) -> Image:
+	var data := PackedByteArray()
+	data.resize(LandMap.SIZE * LandMap.SIZE)
+	var c := Snow.centre(m)
+	if c != Vector2.INF:
+		var r := int(Snow.REACH + Snow.EDGE * 4.0) + 2
+		for y in range(maxi(int(c.y) - r, 0), mini(int(c.y) + r + 1, LandMap.SIZE)):
+			for x in range(maxi(int(c.x) - r, 0), mini(int(c.x) + r + 1, LandMap.SIZE)):
+				if Snow.depth(m, x + 0.5, y + 0.5) > 0.0:
+					data[y * LandMap.SIZE + x] = 255
+	return Image.create_from_data(LandMap.SIZE, LandMap.SIZE, false, Image.FORMAT_R8, data)
+
+
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	if explored.size() != LandMap.SIZE * LandMap.SIZE:
 		explored = PackedByteArray()
 		explored.resize(LandMap.SIZE * LandMap.SIZE)
-	var pal := Image.create(16, 1, false, Image.FORMAT_RGBA8)
+	var pal := Image.create(16, 2, false, Image.FORMAT_RGBA8)
 	pal.fill(Color(PLATE, 0.86))
 	for k in COLOURS:
 		pal.set_pixel(int(k), 0, Color(str(COLOURS[k])))
+		pal.set_pixel(int(k), 1, Color(str(SNOW_COLOURS.get(k, COLOURS[k]))))
 	pal.set_pixel(FOG, 0, Color(PLATE, 0.86))
 	seen_img = Image.create_from_data(LandMap.SIZE, LandMap.SIZE, false, Image.FORMAT_R8, explored)
 	seen_tex = ImageTexture.create_from_image(seen_img)
@@ -129,6 +152,7 @@ func _ready() -> void:
 	mat.shader = shader
 	mat.set_shader_parameter("seen", seen_tex)
 	mat.set_shader_parameter("palette", ImageTexture.create_from_image(pal))
+	mat.set_shader_parameter("snow", ImageTexture.create_from_image(snow_image(map)))
 	# The small map, with the HUD.
 	var low := CanvasLayer.new()
 	low.layer = 5
