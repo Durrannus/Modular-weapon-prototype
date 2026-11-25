@@ -89,7 +89,7 @@ const HORN := {"scrap_brute": "horn_body", "hound": "horn_bell", "slinger": "hor
 const KEPT := ["horn_body", "horn_bell", "horn_mouthpiece"]
 const KEPT_NAMES := {"horn_body": "the Warhorn's body", "horn_bell": "the Warhorn's bell", "horn_mouthpiece": "the Warhorn's mouthpiece"}
 
-static var MEMORY_FOR := {"hound": 4, "slinger": 4, "scrap_brute": 12, "shaman": 8, "boar": 5, "badger": 3, "capercaillie": 2}
+static var MEMORY_FOR := {"hound": 4, "slinger": 4, "scrap_brute": 12, "shaman": 8, "boar": 5, "badger": 3, "capercaillie": 2, "scrap_hound": 5}
 static var ELITE_MEMORY := 40
 static var ELITE_COINS_MIN := 15
 static var ELITE_COINS_MAX := 30

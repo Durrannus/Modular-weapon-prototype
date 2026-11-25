@@ -225,7 +225,7 @@ static func make(map: LandMap) -> Dictionary:
 static func groups(rooms: Dictionary) -> Array:
 	var out: Array = []
 	var rows := [
-		["gatehouse", "hounds", [["hound", false], ["hound", false], ["hound", false], ["hound", false], ["slinger", true, "handler"]]],
+		["gatehouse", "hounds", [["scrap_hound", false], ["scrap_hound", false], ["scrap_hound", false], ["scrap_hound", false], ["slinger", true, "handler"]]],
 		["crane", "goblins", [["slinger", false], ["slinger", false], ["slinger", false], ["slinger", false]]],
 		["furnace", "goblins", [["shaman", false], ["shaman", false], ["scrap_brute", false], ["scrap_brute", false]]],
 		["side_a", "goblins", [["scrap_brute", false], ["slinger", false], ["slinger", false]]],

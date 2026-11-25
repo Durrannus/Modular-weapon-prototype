@@ -1,0 +1,151 @@
+{
+ "note": "Cliff Hounds, 25 Nov 2026 (Darren: wild hounds without armour; the goblin camps' hounds in scrap armour with red eyes). The enemies sheet's form: faces right, 40x32 frames, feet (19,28), outline drawn in. 'hound' is the wild one already in the game, unchanged; 'scrap_hound' is new and has the same strips and frame counts. See README.md.",
+ "enemies": {
+  "hound": {
+   "frame": [
+    40,
+    32
+   ],
+   "origin_feet": [
+    19,
+    28
+   ],
+   "note": "The Cliff Hound: a lean grey wild dog with a black mane. Circles (move); crouch: rump up, chest down, tail up; then lunges with its jaws open.",
+   "strips": {
+    "idle": {
+     "frames": 4,
+     "fps": 5,
+     "box": [
+      0,
+      0,
+      160,
+      32
+     ]
+    },
+    "move": {
+     "frames": 6,
+     "fps": 12,
+     "box": [
+      160,
+      0,
+      240,
+      32
+     ]
+    },
+    "crouch": {
+     "frames": 2,
+     "fps": 6,
+     "box": [
+      400,
+      0,
+      80,
+      32
+     ]
+    },
+    "lunge": {
+     "frames": 3,
+     "fps": 12,
+     "box": [
+      0,
+      32,
+      120,
+      32
+     ]
+    },
+    "hit": {
+     "frames": 2,
+     "fps": 12,
+     "box": [
+      120,
+      32,
+      80,
+      32
+     ]
+    },
+    "death": {
+     "frames": 4,
+     "fps": 8,
+     "box": [
+      200,
+      32,
+      160,
+      32
+     ]
+    }
+   }
+  },
+  "scrap_hound": {
+   "frame": [
+    40,
+    32
+   ],
+   "origin_feet": [
+    19,
+    28
+   ],
+   "note": "The goblins' war dog: the Cliff Hound with scrap strapped on (a rusted iron saddle plate, a spiked collar, a brow plate) and red eyes. Kept at the goblin camps and the Scrapyard. The same moves as the wild hound: circles (move); crouch; lunge with its jaws open.",
+   "strips": {
+    "idle": {
+     "frames": 4,
+     "fps": 5,
+     "box": [
+      0,
+      64,
+      160,
+      32
+     ]
+    },
+    "move": {
+     "frames": 6,
+     "fps": 12,
+     "box": [
+      160,
+      64,
+      240,
+      32
+     ]
+    },
+    "crouch": {
+     "frames": 2,
+     "fps": 6,
+     "box": [
+      400,
+      64,
+      80,
+      32
+     ]
+    },
+    "lunge": {
+     "frames": 3,
+     "fps": 12,
+     "box": [
+      0,
+      96,
+      120,
+      32
+     ]
+    },
+    "hit": {
+     "frames": 2,
+     "fps": 12,
+     "box": [
+      120,
+      96,
+      80,
+      32
+     ]
+    },
+    "death": {
+     "frames": 4,
+     "fps": 8,
+     "box": [
+      200,
+      96,
+      160,
+      32
+     ]
+    }
+   }
+  }
+ }
+}

@@ -521,6 +521,8 @@ func _plans() -> void:
 		var furnace: Array = groups.filter(func(g): return str(g["room"]) == "furnace")
 		var kinds: Array = (furnace[0]["members"] as Array).map(func(m): return str(m[0])) if furnace.size() == 1 else []
 		_check(groups.size() == 5 and homes and handler == 1 and kinds == ["shaman", "shaman", "scrap_brute", "scrap_brute"], "seed %d: a group in each of the five rooms that fight (the Gatehouse's with its handler, the Furnace's two Shamans and two Brutes)" % seed_value)
+		var dogs := (groups[0]["members"] as Array).filter(func(m): return str(m[0]) == "scrap_hound").size()
+		_check(dogs == 4, "seed %d: the Gatehouse's four hounds are the goblins' war dogs, in scrap armour (version 64)" % seed_value)
 		var chests: Array = plan["chests"]
 		var ids := {}
 		var placed := true

@@ -42,6 +42,7 @@ const SPAWNABLE := [
 	["slinger", "Pebble Slinger", "Keeps away, lobs pebbles"],
 	["scrap_brute", "Scrap Brute", "Blocks in front, open after its swing"],
 	["shaman", "Goblin Shaman", "Keeps back, calls bats"],
+	["scrap_hound", "Scrap hound", "The goblins' war dog: a hound in scrap armour"],
 	["hound_elite", "Elite hound (pack leader)", "Howls for more hounds"],
 	["slinger_elite", "Elite slinger", "Its rock bursts into shards"],
 	["scrap_brute_elite", "Elite brute", "Every third attack is a shield bash"],

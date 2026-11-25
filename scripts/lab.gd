@@ -36,6 +36,7 @@ const SCRIPTS := {
 	"boar": "res://scripts/foes/boar.gd",
 	"badger": "res://scripts/foes/badger.gd",
 	"capercaillie": "res://scripts/foes/capercaillie.gd",
+	"scrap_hound": "res://scripts/foes/scrap_hound.gd",
 	"foes": "res://scripts/highlands/foes.gd",
 	"foe_plan": "res://scripts/highlands/foe_plan.gd",
 	"snow": "res://scripts/highlands/snow.gd",
@@ -441,6 +442,8 @@ static func _build_rows() -> void:
 	_add(p, g, "The howl takes (hit it to cut it off)", "hound:HOWL_TIME", "s", 0.05, 0.3, 5.0)
 	_add(p, g, "Hounds that answer a howl", "hound:HOWL_CALLS", "n", 1.0, 1.0, 6.0)
 	_add(p, g, "Howls in one fight", "hound:HOWL_MOST", "n", 1.0, 1.0, 20.0)
+	g = "Scrap hound (the goblins' war dog)"
+	_add(p, g, "Health, against a wild hound's", "scrap_hound:HP_MORE", "%", 0.05, 0.5, 5.0)
 	g = "Pebble Slinger"
 	_add(p, g, "Health", "slinger:HP", "", 1.0, 1.0, 10000.0)
 	_add(p, g, "Walking speed", "slinger:SPEED", "d", 5.0, 0.0, 600.0)
@@ -527,6 +530,7 @@ static func _build_rows() -> void:
 	_add(p, g, "Goblin ground round the Scrapyard (tiles)", "foe_plan:SCRAP_REACH", "n", 5.0, 0.0, 400.0)
 	_add(p, g, "Goblin groups there a Brute leads", "foe_plan:SCRAP_BRUTE", "%", 0.05, 0.0, 1.0)
 	_add(p, g, "Goblin groups there with a Shaman", "foe_plan:SCRAP_SHAMAN", "%", 0.05, 0.0, 1.0)
+	_add(p, g, "Goblin groups there with war dogs", "foe_plan:SCRAP_HOUNDS", "%", 0.05, 0.0, 1.0)
 	_add(p, g, "Hound ground past the snow's edge (tiles)", "snow:HOUNDS_NEAR", "n", 5.0, 0.0, 300.0)
 	_add(p, g, "Moor creature places that are boars'", "foe_plan:BOAR_SHARE", "%", 0.05, 0.0, 1.0)
 	_add(p, g, "Moor creature places that are badgers'", "foe_plan:BADGER_SHARE", "%", 0.05, 0.0, 1.0)
@@ -552,6 +556,7 @@ static func _build_rows() -> void:
 	_add(p, g, "Moor boar", "loot:MEMORY_FOR/boar", "", 1.0, 0.0, 10000.0)
 	_add(p, g, "Peat badger", "loot:MEMORY_FOR/badger", "", 1.0, 0.0, 10000.0)
 	_add(p, g, "Capercaillie", "loot:MEMORY_FOR/capercaillie", "", 1.0, 0.0, 10000.0)
+	_add(p, g, "Scrap hound", "loot:MEMORY_FOR/scrap_hound", "", 1.0, 0.0, 10000.0)
 	_add(p, g, "Any elite", "loot:ELITE_MEMORY", "", 1.0, 0.0, 10000.0)
 	g = "What an elite leaves"
 	_add(p, g, "Fewest coins", "loot:ELITE_COINS_MIN", "", 1.0, 0.0, 1000.0)

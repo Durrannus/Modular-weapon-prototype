@@ -34,6 +34,7 @@ const SEEDS := [424242, 1, 7, 123456, 987654, 55]
 var fails := 0
 var checks := 0
 var shot_dir := ""
+var only := ""                         # "-- only=dogs" with shots=: just the goblins' war dogs (version 64)
 var m                                  # the arena
 var p                                  # its player
 
@@ -42,6 +43,8 @@ func _init() -> void:
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("shots="):
 			shot_dir = a.substr(6)
+		elif a.begins_with("only="):
+			only = a.substr(5)
 	_run()
 
 
@@ -449,6 +452,11 @@ func _shots() -> void:
 	var q = g.player
 	q.unhurt = true
 	var foes = g.foes
+	if only == "dogs":
+		await _dog_shots(g)
+		g.queue_free()
+		await _frames(3)
+		return
 	var n := 1
 	for kind in Make.CREATURES:
 		var gr := _nearest(foes, q.global_position, kind)
@@ -498,3 +506,36 @@ func _shots() -> void:
 	g.charts.close()
 	g.queue_free()
 	await _frames(3)
+
+
+## The goblins' war dogs (version 64): a goblin group round the Scrapyard that keeps them, and the wild hounds' look
+## beside theirs.
+func _dog_shots(g) -> void:
+	var foes = g.foes
+	var q = g.player
+	var best := {}
+	var bd := INF
+	for gr in foes.plan:
+		var dogs: int = (gr["members"] as Array).filter(func(mm): return str(mm[0]) == "scrap_hound").size()
+		if dogs < 1 or str(gr["site"]) != "":
+			continue
+		var d: float = ((gr["home"] as Vector2) * TILE).distance_to(q.global_position) - float(dogs) * 400.0
+		if d < bd:
+			bd = d
+			best = gr
+	if best.is_empty():
+		return
+	var home: Vector2 = (best["home"] as Vector2) * TILE
+	foes.on = true
+	_go_to(g, home + Vector2(0, 300))
+	await _wait(func(): return foes.packs.has(int(best["id"])), 600)
+	var pack = foes.packs.get(int(best["id"]))
+	if pack == null:
+		return
+	_go_to(g, pack.members[0].global_position + Vector2(-260, 40))
+	await _frames(4)
+	g.land.settle()
+	await _frames(24)
+	await _snap("01_goblins_with_their_war_dogs")
+	await _frames(70)
+	await _snap("02_the_war_dogs_come_round")

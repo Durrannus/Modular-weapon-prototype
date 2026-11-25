@@ -19,7 +19,9 @@ extends RefCounted
 ##     boss area"; version 61). Every open place within SCRAP_REACH tiles of the Scrapyard gate has goblins living in
 ##     it (none is left empty, no hounds), a Scrap Brute leads most of them and a Shaman stands at the back of more
 ##     (SCRAP_BRUTE, SCRAP_SHAMAN), and the watch on the gate is bigger. (Claude's: how far, and those shares. The
-##     Old Quarry and the Watchpost keep theirs; the Den and the Roost are not that near.)
+##     Old Quarry and the Watchpost keep theirs; the Den and the Roost are not that near.) Since version 64 some of those
+##     groups (SCRAP_HOUNDS) keep a war dog or two, a hound in scrap armour (scrap_hound.gd: Darren, 25 November: "the
+##     wolfs at the goblin camp can have scrap armour and red eyes"), and one stands with the watch on the gate.
 ##   - HOUND GROUND IN AND NEAR THE SNOW (Darren, 25 November 2026: "let's have a snowy section for the wolfs to spawn
 ##     in and near"; version 62). Every open place in the snow round the Hound Den (snow.gd) and within HOUNDS_NEAR
 ##     tiles of its edge has a pack of hounds in it: none is left empty, and no goblins. (Claude's: how near, and that
@@ -51,6 +53,7 @@ static var EMPTY_FAR := 0.3
 static var SCRAP_REACH := 90.0 # tiles round the Scrapyard gate that are goblin ground (version 61)
 static var SCRAP_BRUTE := 0.8  # there, how many groups a Scrap Brute leads ...
 static var SCRAP_SHAMAN := 0.6 # ... and how many have a Shaman at the back
+static var SCRAP_HOUNDS := 0.5 # ... and how many keep war dogs, hounds in scrap armour (version 64)
 static var BOAR_SHARE := 0.35  # of the places the moor's creatures live in, how many are boars' ...
 static var BADGER_SHARE := 0.3 # ... and how many badgers' (the rest are capercaillies') (version 63)
 ## The middle and the outer ring: the share of empty places; how many hounds a pack has at least and at most; of goblin
@@ -90,7 +93,7 @@ static func make(map: LandMap) -> Array:
 		elif g["site"] == "scrapyard":
 			# The ground in front of the gate: goblins on watch (a bigger watch since version 61).
 			g["what"] = "goblins"
-			g["members"] = [["scrap_brute", false], ["slinger", false], ["slinger", false], ["slinger", false], ["shaman", false]]
+			g["members"] = [["scrap_brute", false], ["slinger", false], ["slinger", false], ["scrap_hound", false], ["shaman", false]]
 		elif not (g["site"] in ["watchpost", "quarry"]) and at.distance_to(yard) < SCRAP_REACH:
 			# Goblin ground round the Scrapyard: never empty, never hounds, mostly led by a Brute (version 61).
 			g["what"] = "goblins"
@@ -102,10 +105,19 @@ static func make(map: LandMap) -> Array:
 			var slingers := lo + mini(int(size_roll * float(hi - lo + 1)), hi - lo)
 			if small or ring < 2:
 				slingers = 2
+			# Some keep war dogs, hounds in scrap armour (version 64), each in a slinger's place. (`roll` decides: in the
+			# goblin ground no place is left empty, so it is free here, and no other place's dice move.)
+			var dogs := 0
+			if roll < float(SCRAP_HOUNDS):
+				dogs = 2 if roll < float(SCRAP_HOUNDS) * 0.35 and not small else 1
+			dogs = mini(dogs, slingers - 1)
+			slingers -= dogs
 			if brute:
 				g["members"].append(["scrap_brute", false])
 			for k in slingers:
 				g["members"].append(["slinger", false])
+			for k in dogs:
+				g["members"].append(["scrap_hound", false])
 			if shaman:
 				g["members"].append(["shaman", false])
 		elif not (g["site"] in ["watchpost", "quarry"]) and snow != Vector2.INF and at.distance_to(snow) < Snow.REACH + Snow.HOUNDS_NEAR:

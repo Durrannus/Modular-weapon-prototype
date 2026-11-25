@@ -109,3 +109,10 @@ Everything here: slate-blue goblins, the hound's colours, the brute's boulder, t
 `highlands-moor-creatures-v1/`, made by its `code/hl_moor.py`): the boar, the badger and the capercaillie, in the wildlife
 sheet's form (`"actors"` by name, everything facing right, the outline drawn in, no shadows). `scripts/foes/creature.gd`
 cuts their strips from it. Copied in unchanged.
+
+## The goblins' war dog (version 64)
+
+`hounds.png` and `hounds.json` are the Art builder's "Cliff Hounds: wild and scrap" (25 Nov 2026, `highlands-hounds-v1/`,
+made by its `code/hl_hounds.py`), in the `enemies.json` form. Its "hound" is the wild hound already in `enemies.png`
+(unchanged; the game still draws wild hounds from there). Its "scrap_hound" is the goblins' war dog: `scripts/foes/scrap_hound.gd`
+cuts its strips from this sheet. Copied in unchanged.

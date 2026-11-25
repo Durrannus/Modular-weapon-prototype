@@ -22,6 +22,7 @@ const Nav := preload("res://scripts/highlands/nav.gd")
 const Make := preload("res://scripts/foes/make.gd")
 const Foe := preload("res://scripts/foes/foe.gd")
 const Hound := preload("res://scripts/foes/hound.gd")
+const ScrapHound := preload("res://scripts/foes/scrap_hound.gd")
 const Slinger := preload("res://scripts/foes/slinger.gd")
 const ScrapBrute := preload("res://scripts/foes/scrap_brute.gd")
 const Shaman := preload("res://scripts/foes/shaman.gd")
@@ -97,6 +98,7 @@ func _run() -> void:
 	await _elite_slinger()
 	await _elite_brute()
 	await _elite_shaman()
+	await _scrap_hound()
 	await _arena_close()
 	await _land()
 	await _long_fights(43)
@@ -184,6 +186,10 @@ func _plans() -> void:
 			var grounds := at.distance_to(yard_at) < FoePlan.SCRAP_REACH or (snow_at != Vector2.INF and at.distance_to(snow_at) < Snow.REACH + Snow.HOUNDS_NEAR)
 			if str(g["site"]) in ["", "cairns", "gorge", "fault"] and not grounds:
 				_check(str(g["what"]) == "creatures", "seed %d: away from the goblins' and the hounds' ground only moor creatures live (%s at %s)" % [seed_value, str(kinds), str(at)])
+			if "scrap_hound" in kinds:
+				_check(at.distance_to(yard_at) < FoePlan.SCRAP_REACH and str(g["what"]) == "goblins" and kinds.count("scrap_hound") <= 2 and "slinger" in kinds, "seed %d: war dogs live only with goblins round the Scrapyard, one or two to a group, beside a slinger (%s)" % [seed_value, str(kinds)])
+			if "hound" in kinds:
+				_check(str(g["what"]) == "hounds", "seed %d: wild hounds live in packs of their own" % seed_value)
 			if "shaman" in kinds and bool(g["members"][0][1]):
 				_check(at.distance_to(yard_at) < FoePlan.SCRAP_REACH, "seed %d: the elite shaman holds a place in the goblin ground" % seed_value)
 			if str(g["site"]) == "watchpost":
@@ -225,6 +231,10 @@ func _plans() -> void:
 			_check(ok_kind and near_groups > 0, "seed %d: round the Scrapyard every group is goblins (%d groups)" % [seed_value, near_groups])
 			_check(empty == 0, "seed %d: and no open place there is left empty (%d empty)" % [seed_value, empty])
 			_check(far_groups == 0 or float(near_goblins) / float(near_groups) > float(far_goblins) / float(far_groups), "seed %d: and its groups are bigger than the rest of the outer ring's goblins (%.1f against %.1f a place)" % [seed_value, float(near_goblins) / float(maxi(near_groups, 1)), float(far_goblins) / float(maxi(far_groups, 1))])
+			var dogs := 0
+			for g in plan:
+				dogs += (g["members"] as Array).filter(func(mm): return str(mm[0]) == "scrap_hound").size()
+			_check(dogs >= 3, "seed %d: some goblin groups round the Scrapyard keep war dogs (%d)" % [seed_value, dogs])
 			var gate: Array = plan.filter(func(g): return str(g["site"]) == "scrapyard")
 			_check(gate.size() == 1 and (gate[0]["members"] as Array).size() == 5, "seed %d: a bigger watch on the Scrapyard gate (%s)" % [seed_value, str(gate[0]["members"]) if gate.size() == 1 else "none"])
 		var c := FoePlan.count(plan)
@@ -235,7 +245,7 @@ func _plans() -> void:
 
 ## Darren, 23 November: "Not every enemy has to have telegraph markers for its moves, only bosses."
 func _no_marks() -> void:
-	for f in ["foe", "hound", "slinger", "scrap_brute", "shaman", "bat", "rock", "creature", "boar", "badger", "capercaillie"]:
+	for f in ["foe", "hound", "slinger", "scrap_brute", "shaman", "bat", "rock", "creature", "boar", "badger", "capercaillie", "scrap_hound"]:
 		var src: String = (load("res://scripts/foes/%s.gd" % f) as GDScript).source_code
 		_check(not src.contains("Warn.") and not src.contains("warn_ring") and not src.contains("func _draw_ground"), "%s.gd draws no warning mark (only bosses have them)" % f)
 
@@ -362,6 +372,26 @@ func _hound() -> void:
 	_strike(h, 999.0)
 	await _frames(2)
 	_check(not is_instance_valid(h) or h.dead, "a hound can be killed")
+
+
+## The goblins' war dog (version 64; Darren: "the wolfs at the goblin camp can have scrap armour and red eyes"): a
+## hound in scrap armour, from the Art builder's hound sheet, that fights as a hound does.
+func _scrap_hound() -> void:
+	await _reset()
+	var h = _put("scrap_hound", Vector2(260, 0))
+	await _frames(2)
+	_check(h.kind == "scrap_hound" and h.is_in_group("hounds") and not h.elite, "a scrap hound is a hound of its own kind")
+	_check(is_equal_approx(h.max_hp, Hound.HP * ScrapHound.HP_MORE), "its plate gives it more health than a wild hound (%.0f against %.0f)" % [h.max_hp, Hound.HP])
+	var sp: Dictionary = h._sprite()
+	_check(not sp.is_empty() and Art.json(ScrapHound.HOUND_BOOK).get("enemies", {}).has("scrap_hound"), "it is drawn from the Art builder's hound sheet")
+	var wild = _put("hound", Vector2(-260, 0))
+	await _frames(2)
+	_check(wild._art_info() != h._art_info() and not wild._sprite().is_empty(), "and a wild hound keeps its own pictures")
+	wild.queue_free()
+	var t := await _wait(func(): return h.mode == "crouch", 400)
+	_check(t >= 0, "it circles and crouches as a hound does")
+	_check(str(h._sprite().get("anim", "")) == "crouch", "with its own crouch")
+	_check(not Make.knows("scrap_hound_elite"), "it has no elite")
 
 
 func _hound_pack() -> void:

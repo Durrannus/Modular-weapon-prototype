@@ -44,7 +44,7 @@ The README is the long, plain-words story for Darren; this file is only for find
 | `scripts/highlands/charts.gd` | The small map, the whole map on M, the seen land, the lab's map switch. |
 | `scripts/highlands/foes.gd`, `foe_plan.gd`, `nav.gd` | Who lives where (goblin ground round the Scrapyard: `SCRAP_REACH`; hound ground in and near the snow; the moor's creatures everywhere else: `_creatures`), waking and coming back; the way round rock. |
 | `scripts/highlands/snow.gd` | The snowy section round the Hound Den: where snow lies (`depth`, `chunk`), the Den's mouth (`stamp`), the falling snow. The painter paints `art/highlands/snow/` there (`bake.py --snow`). |
-| `scripts/foes/` | The Highlands enemies (`foe.gd` shared; hound, slinger, scrap brute, shaman, bat, rock), Rattlecrown, and the moor's neutral creatures (`creature.gd` shared: ambling, the moor sheet; boar, badger, capercaillie). `pack.gd`: a group; `neutral` ones wake only when hit. |
+| `scripts/foes/` | The Highlands enemies (`foe.gd` shared; hound, slinger, scrap brute, shaman, bat, rock), Rattlecrown, the moor's neutral creatures (`creature.gd` shared: ambling, the moor sheet; boar, badger, capercaillie), and the goblins' war dog (`scrap_hound.gd`, a hound from `art/foes/hounds.png`). `pack.gd`: a group; `neutral` ones wake only when hit. |
 | `scripts/highlands/crown.gd`, `crown_plan.gd` | The Scrapyard, the Throne Room fight, traps, hoard. |
 | `scripts/highlands/loot.gd`, `loot_plan.gd` | Chests (each player's share waits in the chest: `left_in`, `take`, `take_all`), drops, coins, Memory. |
 | `scripts/highlands/levels.gd`, `perks.gd` | Memory and the forge's levels, the four role trees and every perk. |
