@@ -181,6 +181,38 @@ func _plans() -> void:
 					elites[str(mm[0])] = int(elites.get(str(mm[0]), 0)) + 1
 		for kind in ["hound", "slinger", "scrap_brute", "shaman"]:
 			_check(int(elites.get(kind, 0)) == 1, "seed %d: one elite %s on the land (%d)" % [seed_value, kind, int(elites.get(kind, 0))])
+		# Goblin ground round the Scrapyard (Darren, 25 November: "I want the goblins to spawn more around the scrap
+		# boss area"; version 61): every open place near its gate has goblins, none has hounds.
+		if map.sites.has("scrapyard"):
+			var yard: Vector2 = map.sites["scrapyard"]["at"]
+			var lived := {}
+			var near_goblins := 0
+			var near_groups := 0
+			var far_goblins := 0
+			var far_groups := 0
+			var ok_kind := true
+			for g in plan:
+				lived[int(g["pocket"])] = true
+				var ring := int(map.pockets[int(g["pocket"])].get("ring", 1))
+				var n: int = (g["members"] as Array).filter(func(mm): return str(mm[0]) != "hound").size()
+				if (g["home"] as Vector2).distance_to(yard) < FoePlan.SCRAP_REACH and not (str(g["site"]) in ["watchpost", "quarry", "den", "roost"]):
+					if str(g["what"]) != "goblins":
+						ok_kind = false
+					near_groups += 1
+					near_goblins += n
+				elif ring == 3:
+					far_groups += 1
+					far_goblins += n
+			var empty := 0
+			for i in map.pockets.size():
+				var pk: Dictionary = map.pockets[i]
+				if not bool(pk.get("sealed", false)) and (pk["at"] as Vector2).distance_to(yard) < FoePlan.SCRAP_REACH and (pk["at"] as Vector2).distance_to(cave) >= FoePlan.SAFE and not lived.has(i):
+					empty += 1
+			_check(ok_kind and near_groups > 0, "seed %d: round the Scrapyard every group is goblins (%d groups)" % [seed_value, near_groups])
+			_check(empty == 0, "seed %d: and no open place there is left empty (%d empty)" % [seed_value, empty])
+			_check(far_groups == 0 or float(near_goblins) / float(near_groups) > float(far_goblins) / float(far_groups), "seed %d: and its groups are bigger than the rest of the outer ring's goblins (%.1f against %.1f a place)" % [seed_value, float(near_goblins) / float(maxi(near_groups, 1)), float(far_goblins) / float(maxi(far_groups, 1))])
+			var gate: Array = plan.filter(func(g): return str(g["site"]) == "scrapyard")
+			_check(gate.size() == 1 and (gate[0]["members"] as Array).size() == 5, "seed %d: a bigger watch on the Scrapyard gate (%s)" % [seed_value, str(gate[0]["members"]) if gate.size() == 1 else "none"])
 		var c := FoePlan.count(plan)
 		for k in c:
 			totals[k] = int(totals.get(k, 0)) + int(c[k])

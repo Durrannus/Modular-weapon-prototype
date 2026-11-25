@@ -18,6 +18,7 @@ var hint_w := 360.0             # how wide the tip may be before it breaks into 
 var boss = null                 # the guardian, while its bar shows
 var boss_shown := 1.0           # the pale "lost health" bar catches up to this
 var prompts: Array = []         # [{at: world position, text, pad: bool, side: 0 centred on `at`, -1 ending there, 1 starting there}], rebuilt every tick
+var covered: Callable           # the game says whether a screen is open over it (version 60's note: then no prompt is drawn under it)
 var picks: Array = []           # the weapons on show over the crate: [{at: world position, kind, locked, who: [colours]}], rebuilt every tick
 var picks_age := 0.0            # seconds the row has been up (it rises out of the crate)
 var cam: Camera2D
@@ -426,8 +427,8 @@ func _draw_ui() -> void:
 			var lock := Art.texture("swing/ui/padlock.png")
 			if lock != null:
 				root.draw_texture(lock, box.end - lock.get_size() - Vector2(2, 2), fade_in)
-	# Prompts over things you can use.
-	for pr in prompts:
+	# Prompts over things you can use (none while a screen is open over the game: nothing prints under a panel).
+	for pr in ([] if covered.is_valid() and bool(covered.call()) else prompts):
 		var at := _to_screen(pr["at"])
 		var text: String = pr["text"]
 		var w := silk.get_string_size(text.to_upper(), HORIZONTAL_ALIGNMENT_LEFT, -1, 8).x

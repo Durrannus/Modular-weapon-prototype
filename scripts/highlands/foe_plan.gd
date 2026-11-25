@@ -15,6 +15,11 @@ extends RefCounted
 ##   - Elites are rare. Since version 49 the Hound Den is "a pack fight led by the Elite Cliff Hound", and the Slinger
 ##     Roost is "led by the Elite Pebble Slinger". The elite shaman has no place of its own yet, so it holds one open
 ##     place in the outer ring (Claude's choice).
+##   - GOBLIN GROUND ROUND THE SCRAPYARD (Darren, 25 November 2026: "I want the goblins to spawn more around the scrap
+##     boss area"; version 61). Every open place within SCRAP_REACH tiles of the Scrapyard gate has goblins living in
+##     it (none is left empty, no hounds), a Scrap Brute leads most of them and a Shaman stands at the back of more
+##     (SCRAP_BRUTE, SCRAP_SHAMAN), and the watch on the gate is bigger. (Claude's: how far, and those shares. The
+##     Old Quarry and the Watchpost keep theirs; the Den and the Roost are not that near.)
 ##   - Farther out is harder (the research's rings; the numbers are Claude's): in the middle ring hound packs are
 ##     three or four and more goblin groups have a Brute or a Shaman; in the outer ring packs are up to five,
 ##     goblin groups are bigger still, and fewer places are empty. See RINGS.
@@ -30,6 +35,9 @@ const ELITE_FAR := 84.0        # the roaming elites live at least this far out
 const ELITE_APART := 40.0      # and this far from each other and from the Quarry
 static var EMPTY_NEAR := 0.5   # the share of open places with nothing in them, near the base and farther out
 static var EMPTY_FAR := 0.3
+static var SCRAP_REACH := 90.0 # tiles round the Scrapyard gate that are goblin ground (version 61)
+static var SCRAP_BRUTE := 0.8  # there, how many groups a Scrap Brute leads ...
+static var SCRAP_SHAMAN := 0.6 # ... and how many have a Shaman at the back
 static var BRUTE_SHARE := 0.3  # of goblin groups, how many a Scrap Brute leads
 static var SHAMAN_SHARE := 0.3 # and how many have a Shaman at the back
 ## The middle and the outer ring: the share of empty places; how many hounds a pack has at least and at most; of goblin
@@ -43,6 +51,7 @@ static func make(map: LandMap) -> Array:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = WorldGen._mix(map.seed_value & 0xffffffff, map.seed_value >> 32, 3000)
 	var cave := Vector2(LandMap.MID + 0.5, LandMap.MID + 0.5)
+	var yard: Vector2 = map.sites["scrapyard"]["at"] if map.sites.has("scrapyard") else Vector2.INF
 	var out: Array = []
 	for i in map.pockets.size():
 		var p: Dictionary = map.pockets[i]
@@ -65,9 +74,26 @@ static func make(map: LandMap) -> Array:
 			g["what"] = "hounds"
 			g["members"] = [["hound", true], ["hound", false], ["hound", false], ["hound", false]]
 		elif g["site"] == "scrapyard":
-			# The ground in front of the gate: a few goblins on watch.
+			# The ground in front of the gate: goblins on watch (a bigger watch since version 61).
 			g["what"] = "goblins"
-			g["members"] = [["scrap_brute", false], ["slinger", false], ["slinger", false]]
+			g["members"] = [["scrap_brute", false], ["slinger", false], ["slinger", false], ["slinger", false], ["shaman", false]]
+		elif not (g["site"] in ["watchpost", "quarry"]) and at.distance_to(yard) < SCRAP_REACH:
+			# Goblin ground round the Scrapyard: never empty, never hounds, mostly led by a Brute (version 61).
+			g["what"] = "goblins"
+			var rule: Dictionary = RINGS[maxi(ring, 2)]
+			var brute := brute_roll < float(SCRAP_BRUTE) and not small
+			var shaman := shaman_roll < float(SCRAP_SHAMAN) and not small
+			var lo: int = rule["slingers"][0]
+			var hi: int = rule["slingers"][1]
+			var slingers := lo + mini(int(size_roll * float(hi - lo + 1)), hi - lo)
+			if small or ring < 2:
+				slingers = 2
+			if brute:
+				g["members"].append(["scrap_brute", false])
+			for k in slingers:
+				g["members"].append(["slinger", false])
+			if shaman:
+				g["members"].append(["shaman", false])
 		elif ring >= 2:
 			var rule: Dictionary = RINGS[ring]
 			if roll < float(rule["empty"]):

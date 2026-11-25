@@ -42,7 +42,7 @@ The README is the long, plain-words story for Darren; this file is only for find
 | `scripts/highlands/world_gen.gd`, `land_map.gd` | Making a map from a seed (rings, places, ore, dressing, pine groves); the map as tiles. Raise `WorldGen.GEN` when the land changes, then `tests/saving.gd -- ref`. |
 | `scripts/highlands/land_painter.gd`, `land_view.gd`, `veins.gd` | Painting the land from the art kit; showing it near the camera; ore veins. |
 | `scripts/highlands/charts.gd` | The small map, the whole map on M, the seen land, the lab's map switch. |
-| `scripts/highlands/foes.gd`, `foe_plan.gd`, `nav.gd` | Who lives where, waking and coming back; the way round rock. |
+| `scripts/highlands/foes.gd`, `foe_plan.gd`, `nav.gd` | Who lives where (goblin ground round the Scrapyard: `SCRAP_REACH`), waking and coming back; the way round rock. |
 | `scripts/foes/` | The Highlands enemies (`foe.gd` shared; hound, slinger, scrap brute, shaman, bat, rock) and Rattlecrown. |
 | `scripts/highlands/crown.gd`, `crown_plan.gd` | The Scrapyard, the Throne Room fight, traps, hoard. |
 | `scripts/highlands/loot.gd`, `loot_plan.gd` | Chests (each player's share waits in the chest: `left_in`, `take`, `take_all`), drops, coins, Memory. |

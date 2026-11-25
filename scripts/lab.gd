@@ -33,6 +33,7 @@ const SCRIPTS := {
 	"shaman": "res://scripts/foes/shaman.gd",
 	"bat": "res://scripts/foes/bat.gd",
 	"foes": "res://scripts/highlands/foes.gd",
+	"foe_plan": "res://scripts/highlands/foe_plan.gd",
 	"loot": "res://scripts/highlands/loot.gd",
 	"loot_plan": "res://scripts/highlands/loot_plan.gd",
 	"levels": "res://scripts/highlands/levels.gd",
@@ -483,6 +484,9 @@ static func _build_rows() -> void:
 	_add(p, g, "Longest wait between swoops", "bat:REST_MAX", "s", 0.1, 0.2, 20.0)
 	g = "On the land"
 	_add(p, g, "A killed enemy is back after (with nobody near)", "foes:BACK_AFTER", "s", 10.0, 2.0, 3600.0)
+	_add(p, g, "Goblin ground round the Scrapyard (tiles)", "foe_plan:SCRAP_REACH", "n", 5.0, 0.0, 400.0)
+	_add(p, g, "Goblin groups there a Brute leads", "foe_plan:SCRAP_BRUTE", "%", 0.05, 0.0, 1.0)
+	_add(p, g, "Goblin groups there with a Shaman", "foe_plan:SCRAP_SHAMAN", "%", 0.05, 0.0, 1.0)
 
 	p = "Chests and loot"
 	g = "Chests"

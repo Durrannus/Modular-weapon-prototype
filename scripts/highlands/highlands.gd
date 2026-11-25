@@ -320,6 +320,7 @@ func _ready() -> void:
 	add_child(ui)
 	ui.cam = rig.camera
 	ui.hint_w = Crown.TIP_W                   # a tip stays between the corners' bars and the quests
+	ui.covered = _covered
 	_load_hands()
 	_make_note()
 	pause_menu.opened.connect(save_now)
@@ -626,6 +627,13 @@ func _left_stick_down() -> bool:
 		if Input.is_joy_button_pressed(device, JOY_BUTTON_LEFT_STICK):
 			return true
 	return false
+
+
+## Is a screen open over the game (an inventory or a chest's, the whole map, the forge, Pip's shop)? Then the cave
+## UI draws no "press E" prompt, which would show under its panel (the Overseer's note on version 60).
+func _covered() -> bool:
+	return (packs != null and packs.any_open()) or (charts != null and charts.is_open) or (hall != null and hall.is_open) \
+		or (folk != null and folk.shop != null and folk.shop.is_open)
 
 
 ## Somebody has closed their inventory: what was moved is saved.
