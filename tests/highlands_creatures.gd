@@ -471,6 +471,7 @@ func _shots() -> void:
 		e.take_hit(1.0, (e.global_position - q.global_position).normalized(), 0.0, false, Color.WHITE)
 		match kind:
 			"boar":
+				_go_to(g, e.global_position + Vector2(180, 10))      # (out in the open, beside it)
 				await _wait(func(): return e.mode == "windup", 300)
 				await _frames(12)
 				await _snap("%02d_boar_paws_the_ground" % n)
