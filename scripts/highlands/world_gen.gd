@@ -1327,10 +1327,13 @@ func _scree() -> void:
 			K[i] = SCREE
 
 
-## Heather and scrub are plants, not paint: every bush stands on its own with
-## ground showing all round it, thick in the middle of a patch and thinning to
-## single plants at its edge. This is the art's own way of placing them (hl3.py,
-## "scatter"): try a spot, and keep the plant only if it touches no other.
+## Heather and scrub are plants, not paint: packed in the middle of a patch, where
+## they crowd and overlap and hide parts of each other (concept v4's heather, and the
+## Overseer's review of version 66: never evenly spaced), and thinning to single
+## plants with ground all round them at its edge (hl3.py's "scatter": try a spot,
+## keep the plant only if it touches no other).
+const PACKED_AT := 7          # a heather or scrub tile with this many of its 3x3 the same is a patch's middle
+const PACKED_GAP := Vector2i(6, 4)   # there two plants' feet are at least this far apart across, or down
 func _cover_plants() -> void:
 	Painter.load_kit()
 	var feet := {}                         # tile index -> [feet of the things standing there]
@@ -1339,7 +1342,7 @@ func _cover_plants() -> void:
 		if not feet.has(key):
 			feet[key] = []
 		feet[key].append(Vector2i(int(t["x"]), int(t["y"])))
-	var placed := {}                       # tile index -> [Rect2i of each plant whose foot is there]
+	var placed := {}                       # tile index -> [[its Rect2i, its foot, packed] of each plant whose foot is there]
 	var names := {HEATH: [], SCRUB: []}
 	var boxes := {HEATH: [], SCRUB: []}
 	for n in 12:
@@ -1364,9 +1367,10 @@ func _cover_plants() -> void:
 					if K[row + x + j + i] == k:
 						same += 1
 			var chance := clampf((float(same) / 9.0 - 0.28) / 0.36, 0.04, 1.0)
+			var packed := same >= PACKED_AT
 			var its_names: Array = names[k]
 			var its_boxes: Array = boxes[k]
-			for t in (26 if k == HEATH else 9):
+			for t in ((44 if k == HEATH else 16) if packed else (26 if k == HEATH else 9)):
 				var px := x * 16 + dice.randi() % 16
 				var py := y * 16 + dice.randi() % 16
 				var which := dice.randi() % 12
@@ -1379,15 +1383,19 @@ func _cover_plants() -> void:
 				if not (_grassy(wide.position.x >> 4, wide.position.y >> 4) and _grassy(wide.end.x >> 4, wide.position.y >> 4) and _grassy(wide.position.x >> 4, wide.end.y >> 4) \
 						and _grassy(wide.end.x >> 4, wide.end.y >> 4) and _grassy(px >> 4, py >> 4)):
 					continue
-				# Never touching another plant (a pixel of ground between them at least), nor under a thing's feet.
+				# In a patch's middle two packed plants may overlap, never on the same foot; anywhere else never
+				# touching another plant (a pixel of ground between them at least). Never under a thing's feet.
 				var mine := r.grow(1)
 				var ok := true
 				for j in range(-2, 3):
 					for i in range(-2, 3):
 						var key := (y + j) * S + x + i
 						if placed.has(key):
-							for other in placed[key]:
-								if mine.intersects(other):
+							for other: Array in placed[key]:
+								if packed and bool(other[2]):
+									if absi(px - int(other[1].x)) < PACKED_GAP.x and absi(py - int(other[1].y)) < PACKED_GAP.y:
+										ok = false
+								elif mine.intersects(other[0]):
 									ok = false
 						if feet.has(key):
 							for f in feet[key]:
@@ -1398,7 +1406,7 @@ func _cover_plants() -> void:
 				var home := row + x
 				if not placed.has(home):
 					placed[home] = []
-				placed[home].append(r)
+				placed[home].append([r, Vector2i(px, py), packed])
 				m.plants.append({"n": its_names[which], "x": px, "y": py})
 
 

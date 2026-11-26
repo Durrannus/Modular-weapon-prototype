@@ -369,26 +369,41 @@ func _rules() -> void:
 			if not Painter.things.has(str(t["n"])):
 				_check(false, "%s: the kit has no '%s'" % [who, str(t["n"])])
 				break
-		# Heather and scrub are separate bushes: no two touch, and each stands on its own patch.
+		# Heather and scrub: packed in a patch's middle (overlapping, but never two on one foot), single plants with
+		# ground round them at its edge, each on its own patch (version 66, after the Overseer's review).
 		var by_tile := {}
 		var touching := 0
+		var stacked := 0
 		var astray := 0
+		var packed_n := 0
 		for pl in m.plants:
 			var box: Rect2i = Painter.boxes[str(pl["n"])]
-			var r := Rect2i(int(pl["x"]) + box.position.x, int(pl["y"]) + box.position.y, box.size.x, box.size.y)
-			var key := Vector2i(int(pl["x"]) >> 4, int(pl["y"]) >> 4)
+			var foot := Vector2i(int(pl["x"]), int(pl["y"]))
+			var r := Rect2i(foot.x + box.position.x, foot.y + box.position.y, box.size.x, box.size.y)
+			var key := Vector2i(foot.x >> 4, foot.y >> 4)
 			var k := m.kind(key.x, key.y)
 			if k != LandMap.HEATH and k != LandMap.SCRUB:
 				astray += 1
+			var same := 0
+			for j in range(-1, 2):
+				for i in range(-1, 2):
+					if m.kind(key.x + i, key.y + j) == k:
+						same += 1
+			var packed := same >= WorldGen.PACKED_AT
+			if packed:
+				packed_n += 1
 			for j in range(-2, 3):
 				for i in range(-2, 3):
-					for other in by_tile.get(key + Vector2i(i, j), []):
-						if r.intersects(other):
+					for other: Array in by_tile.get(key + Vector2i(i, j), []):
+						if packed and bool(other[2]):
+							if absi(foot.x - other[1].x) < WorldGen.PACKED_GAP.x and absi(foot.y - other[1].y) < WorldGen.PACKED_GAP.y:
+								stacked += 1
+						elif r.intersects(other[0]):
 							touching += 1
 			if not by_tile.has(key):
 				by_tile[key] = []
-			by_tile[key].append(r)
-		_check(touching == 0 and astray == 0, "%s: %d heather and scrub bushes, none touching another (%d do) and all on their own patch (%d are not)" % [who, m.plants.size(), touching, astray])
+			by_tile[key].append([r, foot, packed])
+		_check(touching == 0 and stacked == 0 and astray == 0 and packed_n > 0, "%s: %d heather and scrub plants, %d packed in a patch's middle with none on another's foot (%d are), none touching at the edges (%d do), all on their own patch (%d are not)" % [who, m.plants.size(), packed_n, stacked, touching, astray])
 		# Scree lies against the rock, never out in the open.
 		var scree := 0
 		var loose := 0

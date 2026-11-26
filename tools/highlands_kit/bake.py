@@ -428,6 +428,7 @@ def bake_things(hl3, PR, K, out, SN=None, L=None):
     # Walk-through foliage for each section (the Art builder's hl_foliage.SETS, concept v4; version 66): bare, with no
     # outline, for the game to draw into the ground in drifts (land_grow.gd, as hl_grow.drift does). The plain kit has
     # the moor's, the goblin ground's and the dark tunnels'; the snow kit the snow's and the dark tunnels'.
+    FOL_VARIANTS = 8          # pictures of each kind (8 since the Overseer's review of 66: drifts of mixed plants)
     def darker(a, drop):
         a = a.copy()
         for y in range(a.shape[0]):
@@ -440,7 +441,7 @@ def bake_things(hl3, PR, K, out, SN=None, L=None):
             for kind, fn in FO.SETS[sec]:
                 if kind == "wildflowers":
                     continue                                   # (the flower beds' clumps are flower_0 to flower_5)
-                for k in range(4 if sec == "dark" else 3):
+                for k in range(FOL_VARIANTS):                 # (each its own seed, so its own shape and size)
                     im, (fx, fy) = fn(k * 11 + 5)
                     a = im.a.copy()
                     TH.items["fol_%s_%d" % (kind, k)] = {"img": a, "foot": [int(fx), int(fy)]}

@@ -36,6 +36,7 @@ const BLADE := [[0, 0, 1], [0, -1, 1], [1, 0, -1]]
 const VTUFT := [[0, 0, 1], [-1, -1, 1], [1, -1, 1], [0, 1, -1], [1, 1, -1]]
 const LONGB := [[0, 0, 1], [0, -1, 1], [0, -2, 2], [1, 0, -1], [2, -1, 1], [2, 0, 1], [3, 0, -1]]
 const SPECK := [[0, 0, -1]]
+const SPECK_UP := [[0, 0, 1]]
 const PRESSED := [[0, 0, 1], [1, 0, 1], [1, 1, -1]]
 const CRUMB := [[0, 0, 1], [1, 0, 1]]
 ## The ground kinds a mark or a stamp may change, first to last (a colour two ramps share is the first one's).
@@ -862,7 +863,7 @@ static func _pixels(things: Dictionary, th: Image, name: String) -> Array:
 ## One small plant drawn into the ground with its foot at (x, y) in the chunk's pixels: a damp bed under it, the
 ## ground's own dark steps on its shaded side (no outline), its own pixels (lit, and its "~" picture in shadow), and
 ## the ground's blades over its foot (hl_grow.plant and soften_plants). `thin`: sage, whose shade is broken.
-static func _soft(lit: PackedInt32Array, shade: PackedInt32Array, ox: int, oy: int, things: Dictionary, th: Image, name: String, x: int, y: int, sides: Array, green: bool, thin := false, hide := 0) -> void:
+static func _soft(lit: PackedInt32Array, shade: PackedInt32Array, ox: int, oy: int, things: Dictionary, th: Image, name: String, x: int, y: int, sides: Array, green: bool, thin := false, hide := 0, flip := false) -> void:
 	var info: Dictionary = things.get(name, {})
 	if info.is_empty() or th == null:
 		return
@@ -871,13 +872,15 @@ static func _soft(lit: PackedInt32Array, shade: PackedInt32Array, ox: int, oy: i
 	var w := int(r[2])
 	var cut := int(foot[1]) - hide        # its rows from here down are lost in the turf (hl_grow.plant's hide)
 	var hgt := mini(int(r[3]), cut)
-	var left := x - int(foot[0])
+	var left := x - (w - 1 - int(foot[0]) if flip else int(foot[0]))
 	var top := y - int(foot[1]) + hide
 	if hgt <= 0 or left + w < -2 or top + hgt < -2 or left > PX + 2 or top > PX + 4:
 		return
 	var pix := _pixels(things, th, name)
 	if hide > 0:
 		pix = pix.filter(func(p): return int(p[1]) < cut)
+	if flip:                              # (mirrored: one more shape from the same picture)
+		pix = pix.map(func(p): return [w - 1 - int(p[0]), p[1], p[2], p[3]])
 	if pix.is_empty():
 		return
 	_bed(lit, shade, ox, oy, left + w * 0.5, top + hgt + 0.5, w * 0.5 + 2.5, 2.0, green, 1, 0.5)
@@ -933,6 +936,7 @@ const FOLIAGE_SETS := {
 }
 ## A drift starts on about one tile in this many (moor, goblin ground, snow; a tunnel's floor by the wall).
 const DRIFT_EVERY := {"moor": 34.0, "scrap": 26.0, "snow": 40.0, "dark": 7.0}
+const FOL_VARIANTS := 8          # pictures of each kind in the kit (bake.py), each its own shape
 
 
 ## The drifts whose plants can reach chunk c: [centre x, centre y (the chunk's own pixels), set, seed]. Each one comes
@@ -1035,19 +1039,29 @@ static func _foliage(lit: PackedInt32Array, shade: PackedInt32Array, m: LandMap,
 		var kinds: Array = FOLIAGE_SETS[sec]
 		var dark := sec == "dark"
 		var green := not snow and not dark
-		var nvar := 4 if dark else 3
 		var k1: String = kinds[_h(h, 1, 402) % kinds.size()]
 		var k2: String = kinds[_h(h, 2, 402) % kinds.size()]
-		var per := (2 + _h(h, 3, 402) % 3) if dark else (3 + _h(h, 3, 402) % 5)
+		var per := (3 + _h(h, 3, 402) % 3) if dark else (4 + _h(h, 3, 402) % 5)
 		var sp := 5.0 if dark else spread
+		# one or two knots in the drift, the plants crowding round them (never a ring, never a step)
+		var knots: Array = [Vector2(cx, cy)]
+		if not dark and _h(h, 4, 402) % 3 != 0:
+			var ka := float(_h(h, 5, 402) & 1023) / 1023.0 * TAU
+			knots.append(Vector2(cx + cos(ka) * sp * 0.9, cy + sin(ka) * sp * 0.45))
 		var placed: Array = []
-		for j in per:
+		for j in per * 2:
+			if placed.size() >= per:
+				break
 			var hj := _h(h, j + 10, 403)
-			var r := sp * pow(float(j) / 7.0, 0.8)
+			var hk := _h(h, j + 10, 405)
+			var knot: Vector2 = knots[j % knots.size()]
+			# mostly near the knot, a few further out: the sum of two dice, folded
+			var u := absf(float(hk & 1023) / 1023.0 + float((hk >> 10) & 1023) / 1023.0 - 1.0)
+			var r := sp * 1.3 * u
 			var a := float(hj & 1023) / 1023.0 * TAU
-			var x := cx + int(cos(a) * r * 1.4)
-			var y := cy + int(sin(a) * r * 0.8)
-			# its foot must be on the ground it grows on, with room
+			var x := int(knot.x + cos(a) * r * 1.4) + ((hk >> 20) % 3) - 1
+			var y := int(knot.y + sin(a) * r * 0.8)
+			# its foot must be on the ground it grows on
 			var ti := floori(float(x) / T) + FR
 			var tj := floori(float(y) / T) + FR
 			if ti < 1 or tj < 1 or ti >= n - 1 or tj >= n - 1:
@@ -1063,40 +1077,50 @@ static func _foliage(lit: PackedInt32Array, shade: PackedInt32Array, m: LandMap,
 				if absf(o.x - x) < o.z and absf(o.y - y) < o.z * 0.6:
 					ok = false
 					break
+			# packed: plants touch and hide parts of each other, but each keeps its own foot and some of its shape
 			for q: Array in placed:
 				if absi(int(q[0]) - x) < 5 and absi(int(q[1]) - y) < 3:
 					ok = false
 			if not ok:
 				continue
-			var name := "fol_%s_%d" % [k1 if (hj >> 10) % 10 < 7 else k2, (hj >> 14) % nvar]
+			var name := "fol_%s_%d" % [k1 if (hj >> 10) % 10 < 7 else k2, (hj >> 14) % FOL_VARIANTS]
 			if not things.has(name):
 				continue
-			var hide := 0 if r < sp * 0.45 else 1 + (hj >> 18) % 3
+			# further out, lower in the turf (and now and then a young one anywhere)
+			var hide := 0 if r < sp * 0.4 else 1 + (hj >> 18) % 3
 			if (hj >> 20) % 10 < 3:
-				hide = maxi(hide, 1 + (hj >> 22) % 2)
+				hide = maxi(hide, 1 + (hj >> 22) % 3)
 			if dark:
 				hide = 0
-			placed.append([x, y, name, hide])
+			placed.append([x, y, name, hide, (hj >> 26) & 1 == 1])
 		if placed.is_empty():
 			continue
-		if dark:
-			_bed(lit, shade, ox, oy, cx, cy + 1, 7.0, 3.0, false, 1, 0.7, true, [G_FLOOR])
-		else:     # (the bed stays on the grass or the snow: never on a path or on the rock's foot)
-			_bed(lit, shade, ox, oy, cx, cy + 1, spread * 1.6, spread * 0.85, green, 1, 0.7, true, [G_SNOW] if snow else [G_GRASS, G_TURF, G_MIXG])
+		for kn: Vector2 in knots:
+			if dark:
+				_bed(lit, shade, ox, oy, kn.x, kn.y + 1, 7.0, 3.0, false, 1, 0.7, true, [G_FLOOR])
+			else:     # (the bed stays on the grass or the snow: never on a path or on the rock's foot)
+				# (damp: a step darker, but the moor's own colour, so green plants keep their shapes against it)
+				_bed(lit, shade, ox, oy, kn.x, kn.y + 1, spread * 1.4, spread * 0.75, false, 1, 0.8, false, [G_SNOW] if snow else [G_GRASS, G_TURF, G_MIXG])
 		placed.sort_custom(func(p, q): return int(p[1]) < int(q[1]))
 		for p in placed:
-			_soft(lit, shade, ox, oy, things, th, str(p[2]), int(p[0]), int(p[1]), [[1, 0, 2], [0, 1, 2], [1, 1, 1], [-1, 0, 1]], green, false, int(p[3]))
+			# (one step of the ground's dark on the shaded side, not two: packed plants would sink into a dark mass)
+			_soft(lit, shade, ox, oy, things, th, str(p[2]), int(p[0]), int(p[1]), [[1, 0, 1], [0, 1, 1], [1, 1, 1]], green, false, int(p[3]), bool(p[4]))
 			if note:
 				noted.append([ox + int(p[0]), oy + int(p[1]), str(p[2]), snow])
 		if not dark:
-			for b in per * 4:                # the drift thinning into single blades
+			# the drift thinning out unevenly into single blades and specks: further in some directions than others
+			var lobes := 2 + _h(h, 6, 404) % 2
+			var phase := float(_h(h, 7, 404) & 1023) / 1023.0 * TAU
+			for b in per * 6:
 				var hb := _h(h, b + 40, 404)
-				var rr := spread * (0.7 + float(hb & 255) / 255.0 * 1.3)
+				var knot: Vector2 = knots[b % knots.size()]
 				var aa := float((hb >> 8) & 1023) / 1023.0 * TAU
-				var bx := cx + int(cos(aa) * rr * 1.5)
-				var by := cy + 1 + int(sin(aa) * rr * 0.8)
+				var reach := 0.7 + 0.55 * sin(aa * lobes + phase)
+				var rr := spread * (0.5 + pow(float(hb & 255) / 255.0, 0.7) * 1.6) * reach
+				var bx := int(knot.x + cos(aa) * rr * 1.5)
+				var by := int(knot.y + 1 + sin(aa) * rr * 0.8)
 				if bx >= 0 and by >= 2 and bx < PX - 4 and by < PX:
-					_stamp(lit, shade, bx, by, [BLADE, VTUFT, LONGB][(hb >> 18) % 3])
+					_stamp(lit, shade, bx, by, [BLADE, VTUFT, LONGB, SPECK, SPECK_UP][(hb >> 18) % 5])
 
 
 # --- marks ---------------------------------------------------------------------------------------------------------
