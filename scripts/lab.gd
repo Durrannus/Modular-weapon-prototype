@@ -40,6 +40,7 @@ const SCRIPTS := {
 	"foes": "res://scripts/highlands/foes.gd",
 	"foe_plan": "res://scripts/highlands/foe_plan.gd",
 	"snow": "res://scripts/highlands/snow.gd",
+	"land_light": "res://scripts/highlands/land_light.gd",
 	"loot": "res://scripts/highlands/loot.gd",
 	"loot_plan": "res://scripts/highlands/loot_plan.gd",
 	"levels": "res://scripts/highlands/levels.gd",
@@ -393,6 +394,10 @@ static func _build_rows() -> void:
 	_add(p, g, "A grove's last tree is a rowan", "world_gen:GROVE_ROWAN", "%", 0.05, 0.0, 1.0)
 	_add(p, g, "How far turf spreads from damp ground", "land_grow:DAMP_REACH", "%", 0.1, 0.3, 2.0)
 	_add(p, g, "Drifts of foliage (0 = none)", "land_grow:FOLIAGE", "%", 0.1, 0.0, 3.0)
+	g = "Light in the Highlands"
+	_add(p, g, "Day and night go round (1 = on)", "land_light:CYCLE", "n", 1.0, 0.0, 1.0)
+	_add(p, g, "One day and night lasts (minutes)", "land_light:DAY_MINUTES", "n", 1.0, 2.0, 60.0)
+	_add(p, g, "How dark deep tunnels get", "land_light:DEEP", "%", 0.05, 0.0, 0.9)
 	g = "The snow round the Hound Den"
 	_add(p, g, "How far it reaches (tiles, 0 = no snow)", "snow:REACH", "n", 5.0, 0.0, 300.0)
 	_add(p, g, "How wide its thinning edge is (tiles)", "snow:EDGE", "n", 1.0, 1.0, 40.0)

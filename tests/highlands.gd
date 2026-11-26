@@ -15,6 +15,7 @@ const LandMap := preload("res://scripts/highlands/land_map.gd")
 const Painter := preload("res://scripts/highlands/land_painter.gd")
 const LandGrow := preload("res://scripts/highlands/land_grow.gd")
 const Veins := preload("res://scripts/highlands/veins.gd")
+const LandLight := preload("res://scripts/highlands/land_light.gd")
 const Highlands := preload("res://scripts/highlands/highlands.gd")
 const Title := preload("res://scripts/ui/title.gd")
 const TILE := 32.0
@@ -76,7 +77,9 @@ func _run() -> void:
 	_painting()
 	_foliage()
 	_veins()
+	_light()
 	await _walking()
+	await _light_in_game()
 	await _from_the_cave()
 	_title()
 	print("%s  the Highlands: %d checks, %d failed" % ["PASS" if fails == 0 else "FAIL", checks, fails])
@@ -831,6 +834,229 @@ func _game(seed_value: int, players := 1, carry := {}):
 	return g
 
 
+# --- The light (version 68) -----------------------------------------------------------------
+
+## Step 3 of the new look (the Art builder's light concept): daylight in the open, dark under the hill in three steps,
+## lamps lighting pools that the rock's top stops, a lab switch for day and night.
+func _light() -> void:
+	var m := WorldGen.make(1)
+	m.index()
+	# A tunnel deep under the hill: its middle is dark, the open land round the base is not.
+	var deep := Vector2i(-1, -1)
+	for l in m.links:
+		if not bool(l["tunnel"]):
+			continue
+		var a: Vector2 = m.pockets[int(l["a"])]["at"]
+		var b: Vector2 = m.pockets[int(l["b"])]["at"]
+		for k in range(1, 40):
+			var t := Vector2i(a.lerp(b, float(k) / 40.0))
+			if m.kind(t.x, t.y) != LandMap.FLOOR:
+				continue
+			var near_open := false
+			for dj in range(-5, 6):
+				for di in range(-5, 6):
+					var kk := m.kind(t.x + di, t.y + dj)
+					near_open = near_open or (not LandMap.rocky(kk) and kk != LandMap.FLOOR)
+			if not near_open:
+				deep = t
+				break
+		if deep.x >= 0:
+			break
+	_check(deep.x >= 0, "a tunnel runs more than five tiles from open ground somewhere")
+	var d := LandLight.make(m, floori(float(deep.x) / LandMap.CHUNK), floori(float(deep.y) / LandMap.CHUNK), [])
+	var o: Vector2 = d["origin"]
+	var t0 := (deep.y - floori(o.y / 16.0) + LandLight.PADT) * LandLight.W + deep.x - floori(o.x / 16.0) + LandLight.PADT
+	_check(float(d["dark"][t0]) > 0.99, "the middle of a tunnel far from open ground is as dark as it gets (%.2f)" % float(d["dark"][t0]))
+	var base := Vector2i(m.base_at)
+	var bd := LandLight.make(m, floori(float(base.x) / LandMap.CHUNK), floori(float(base.y) / LandMap.CHUNK), [])
+	var bo: Vector2 = bd["origin"]
+	var bt := (base.y - floori(bo.y / 16.0) + LandLight.PADT) * LandLight.W + base.x - floori(bo.x / 16.0) + LandLight.PADT
+	_check(float(bd["dark"][bt]) == 0.0, "the base's clearing is open land, not dark")
+	# The light there: dark away from lamps, but never black; full by a lamp; daylight in the open.
+	LandLight.night = 0.0
+	var at := Vector2(deep) * 16.0 + Vector2(8, 8)
+	var lamps := LandLight.lamps_now(d)
+	var c := LandLight.sample(d, lamps, at)
+	var lit_by_lamp := false
+	for l in lamps:
+		if l.z > 0.0 and Vector2(l.x, l.y).distance_to(at - o) < l.z:
+			lit_by_lamp = true
+	if not lit_by_lamp:
+		_check(c.r < 0.5 and c.r >= 0.2, "a tunnel's floor away from its lamps is dark, not black (%.2f)" % c.r)
+	var by_lamp := Color.BLACK
+	var lamp_at := Vector2.ZERO
+	for l in m.lamps:
+		var lp := Vector2(float(l["x"]), float(l["y"]))
+		if m.kind(int(lp.x) / 16, int(lp.y) / 16) == LandMap.FLOOR:
+			var ld := LandLight.make(m, int(lp.x) / 256, int(lp.y) / 256, [])
+			by_lamp = LandLight.sample(ld, LandLight.lamps_now(ld), lp + Vector2(0, 4))
+			lamp_at = lp
+			break
+	_check(by_lamp.r > 0.95, "beside a lantern the floor is in full light (%.2f)" % by_lamp.r)
+	var open := LandLight.sample(bd, LandLight.lamps_now(bd), Vector2(base) * 16.0 + Vector2(8, 8))
+	_check(open.r > 0.99 and open.b > 0.99, "out in the open it is daylight, and the land looks as it is painted")
+	# The rock's top stops a lamp's light: a wall of rock between a lamp and a point leaves it dark.
+	var rock := PackedByteArray()
+	rock.resize(LandLight.W * LandLight.W)
+	for j in LandLight.W:
+		rock[j * LandLight.W + 18] = 2
+	var flat := PackedFloat32Array()
+	flat.resize(LandLight.W * LandLight.W)
+	flat.fill(1.0)
+	var fake := {"origin": Vector2.ZERO, "dark": flat, "snow": PackedFloat32Array(flat).duplicate(), "rock": rock}
+	(fake["snow"] as PackedFloat32Array).fill(0.0)
+	var one := PackedVector4Array([Vector4(150, 100, 60, 1.0)])
+	var near_side := LandLight.sample(fake, one, Vector2(160, 100))
+	var far_side := LandLight.sample(fake, one, Vector2(185, 100))
+	_check(near_side.r > 0.9 and far_side.r < 0.5, "the rock's top stops a lamp's light (this side %.2f, behind the rock %.2f)" % [near_side.r, far_side.r])
+	# Nobody is ever drawn darker than ACTOR_MIN, however dark it is.
+	var t := LandLight.actor_tint(Color(0.0, 0.0, 0.0))
+	_check(t.r >= LandLight.ACTOR_MIN and t.g >= LandLight.ACTOR_MIN and t.b >= LandLight.ACTOR_MIN, "nobody is drawn darker than %.2f in the dark" % LandLight.ACTOR_MIN)
+	# Ore on a lit face shines, and fungi glow: what glows is in the chunk's light.
+	var glows := 0
+	for l in m.links:
+		if glows > 0:
+			break
+		if not bool(l["tunnel"]):
+			continue
+		var a: Vector2 = m.pockets[int(l["a"])]["at"]
+		var b: Vector2 = m.pockets[int(l["b"])]["at"]
+		for k in range(0, 20):
+			var q := Vector2i(a.lerp(b, float(k) / 20.0))
+			if not LandGrow.glow_spots(m, q.x - 8, q.y - 8, q.x + 8, q.y + 8).is_empty():
+				var gd := LandLight.make(m, q.x / 16, q.y / 16, [])
+				glows += 1 if gd["glow"] != null else 0
+				break
+	_check(glows > 0, "the glowing fungi of the old tunnels glow")
+	var ore: Array = []
+	var od := {}
+	var tried := {}
+	for v in m.veins:
+		if not ore.is_empty():
+			break
+		for cell: Vector2i in v["cells"]:
+			var ck := Vector2i(cell.x / 16, cell.y / 16)
+			if not m.walkable(cell.x, cell.y + 1) or tried.has(ck):
+				continue
+			tried[ck] = true
+			Painter.paint(m, ck.x, ck.y, ore)
+			if not ore.is_empty():
+				od = LandLight.make(m, ck.x, ck.y, ore)
+				break
+	var shine := 0
+	if not od.is_empty() and od["glow"] != null:
+		for e: Vector3i in ore:
+			if (od["glow"] as Image).get_pixel(e.x, e.y).r > 0.99:
+				shine += 1
+	_check(not ore.is_empty() and shine == ore.size(), "ore on a lit face of rock shines in its own colour (%d of %d)" % [shine, ore.size()])
+	# The Scrapyard's rooms are no darker than one step: its fights must read.
+	var yard: Rect2i = m.sites["scrapyard"]["rect"]
+	var yc := yard.get_center()
+	var yd := LandLight.make(m, yc.x / 16, yc.y / 16, [])
+	var worst := 0.0
+	var yo: Vector2 = yd["origin"]
+	for j in LandLight.W:
+		for i in LandLight.W:
+			var tile := Vector2i(floori(yo.x / 16.0) + i - LandLight.PADT, floori(yo.y / 16.0) + j - LandLight.PADT)
+			if yard.has_point(tile):
+				worst = maxf(worst, float(yd["dark"][j * LandLight.W + i]))
+	_check(worst <= LandLight.YARD_DIM + 0.001, "the Scrapyard's rooms grow no darker than one step (%.2f)" % worst)
+	# Day and night: always day unless the lab says so; then six tenths day, a tenth dusk, two night, a tenth dawn.
+	_check(LandLight.CYCLE == 0, "day and night does not go round unless the lab says so")
+	LandLight.night = 0.5
+	LandLight.tick(1.0)
+	_check(LandLight.night == 0.0, "with the lab's day and night off it is always day")
+	_check(LandLight.night_at(0.3) == 0.0 and LandLight.night_at(0.8) == 1.0 and LandLight.night_at(0.65) == 0.5 and LandLight.night_at(0.95) == 0.5, "a day is day, dusk, night and dawn")
+	LandLight.CYCLE = 1
+	LandLight.clock = 0.0
+	LandLight.tick(LandLight.DAY_MINUTES * 60.0 * 0.8)
+	_check(LandLight.night == 1.0, "with the lab's day and night on, night falls (%.2f)" % LandLight.night)
+	LandLight.CYCLE = 0
+	LandLight.reset()
+
+
+## In the game: the land is drawn through the light, things and everybody take it, and the boss and the HUD do not.
+func _light_in_game() -> void:
+	var g = _game(1, 1)
+	await _frames(20)
+	var shaded := 0
+	var all := 0
+	for key in g.land.chunks:
+		var c: Dictionary = g.land.chunks[key]
+		if c["sprite"] != null:
+			all += 1
+			if c["sprite"].material is ShaderMaterial and c.has("light"):
+				shaded += 1
+	_check(all > 0 and shaded == all, "every painted chunk is drawn through the light (%d of %d)" % [shaded, all])
+	# Down a dark tunnel, the player is tinted but never darker than ACTOR_MIN.
+	var m: LandMap = g.map
+	var dark_at := Vector2.ZERO
+	for l in m.links:
+		if dark_at != Vector2.ZERO:
+			break
+		if not bool(l["tunnel"]):
+			continue
+		var a: Vector2 = m.pockets[int(l["a"])]["at"]
+		var b: Vector2 = m.pockets[int(l["b"])]["at"]
+		for k in range(1, 40):
+			var t := Vector2i(a.lerp(b, float(k) / 40.0))
+			if m.kind(t.x, t.y) != LandMap.FLOOR:
+				continue
+			var near_open := false
+			for dj in range(-5, 6):
+				for di in range(-5, 6):
+					var kk := m.kind(t.x + di, t.y + dj)
+					near_open = near_open or (not LandMap.rocky(kk) and kk != LandMap.FLOOR)
+			for lamp in m.lamps:
+				near_open = near_open or Vector2(float(lamp["x"]), float(lamp["y"])).distance_to(Vector2(t) * 16.0 + Vector2(8, 8)) < float(lamp["r"]) + 24.0
+			if not near_open:
+				dark_at = (Vector2(t) + Vector2(0.5, 0.5)) * 32.0
+				break
+	var p = g.players[0]
+	p.global_position = dark_at
+	g.rig.snap()
+	await _frames(6)
+	g.land.settle()
+	await _frames(6)
+	var sm: Color = p.self_modulate
+	_check(sm.r < 0.999 and sm.r >= LandLight.ACTOR_MIN - 0.001 and sm.g >= LandLight.ACTOR_MIN - 0.001, "down a dark tunnel the player is a little darker, never under %.2f (%s)" % [LandLight.ACTOR_MIN, str(sm)])
+	var lantern_ok := true
+	for key in g.land.chunks:
+		for s in g.land.chunks[key]["things"]:
+			if str(s.get_meta("land", "")) == "lantern" and s.modulate.r < 0.999:
+				lantern_ok = false
+	_check(lantern_ok, "a lantern is a light itself and is never dimmed")
+	var there: Color = g.land.light_at(dark_at + Vector2(0, 40))
+	_check(there.r < 0.5, "what stands down there takes the dark (%.2f)" % there.r)
+	# Night (held, as the lab's day and night would bring it): the open land and its things go blue-violet.
+	p.global_position = (m.spawn + Vector2(0, 3.5)) * 32.0
+	g.rig.snap()
+	await _frames(6)
+	g.land.settle()
+	LandLight.fixed = 1.0
+	await _frames(30)
+	var bluish := 0
+	var outdoors := 0
+	for key in g.land.chunks:
+		for s in g.land.chunks[key]["things"]:
+			if str(s.get_meta("land", "")) != "lantern" and g.rig.view_rect().has_point(s.position):
+				outdoors += 1
+				if s.modulate.b > s.modulate.r + 0.1:
+					bluish += 1
+	_check(outdoors > 0 and bluish * 2 > outdoors, "at night the things on the open land take the night's blue-violet (%d of %d)" % [bluish, outdoors])
+	var mat: ShaderMaterial = null
+	for key in g.land.chunks:
+		if g.land.chunks[key]["sprite"] != null:
+			mat = g.land.chunks[key]["sprite"].material
+			break
+	_check(mat != null and float(mat.get_shader_parameter("night")) == 1.0, "the land's shader hears that it is night")
+	_check(p.self_modulate.r >= LandLight.ACTOR_MIN - 0.001, "at night the player is still drawn at %.2f or brighter" % LandLight.ACTOR_MIN)
+	LandLight.fixed = -1.0
+	g.queue_free()
+	await _frames(3)
+	_check(LandLight.extra.is_empty() and LandLight.night == 0.0, "leaving the Highlands takes their lights with them")
+
+
 func _walking() -> void:
 	var g = _game(77, 2)
 	await _frames(5)
@@ -1022,22 +1248,52 @@ func _shots() -> void:
 		var name := "tin" if int(v["kind"]) == Veins.TIN else "copper"
 		if face and middle.distance_to(m.spawn) > 24.0 and not views.has(name):
 			views[name] = middle + Vector2(-3.0, 5.0)
+	# The light (version 68): a lantern-lit tunnel far from open ground, and ore on a face in the dark.
+	for l in m.lamps:
+		var lt := Vector2(float(l["x"]), float(l["y"])) / 16.0
+		if lt.distance_to(m.spawn) > 30.0 and m.kind(int(lt.x), int(lt.y)) == LandMap.FLOOR:
+			views["light_lantern_tunnel"] = lt + Vector2(0, 1)
+			break
+	for v in m.veins:
+		if views.has("light_ore_in_the_dark"):
+			break
+		for t: Vector2i in v["cells"]:
+			if m.kind(t.x, t.y + 1) != LandMap.FLOOR or Vector2(t).distance_to(m.spawn) < 24.0:
+				continue
+			var deep := true
+			for dj in range(-3, 4):
+				for di in range(-3, 4):
+					var kk := m.kind(t.x + di, t.y + dj)
+					deep = deep and (LandMap.rocky(kk) or kk == LandMap.FLOOR)
+			if deep:
+				views["light_ore_in_the_dark"] = Vector2(t) + Vector2(0.5, 2.5)
+				break
 	for name in views:
-		var at := _stand_near(m, views[name])
-		g.players[0].global_position = at
-		g.players[1].global_position = _stand_near(m, at / TILE + Vector2(1.6, 0.4))
-		for q in g.players:
-			q.face_dir = Vector2.DOWN
-		g.rig.snap()
-		await _frames(8)
-		g.land.settle()
-		await _frames(40)
-		await RenderingServer.frame_post_draw
-		var img: Image = root.get_texture().get_image()
-		if img.get_width() != 640:
-			img.resize(640, 360, Image.INTERPOLATE_NEAREST)
-		img.save_png("%s/seed%d_%s.png" % [shot_dir, shot_seed, name])
-		print("saved %s/seed%d_%s.png" % [shot_dir, shot_seed, name])
+		await _shot(g, m, name, views[name])
+	# And night, as the lab's day and night brings it.
+	LandLight.fixed = 1.0
+	for name in ["base", "roost", "den", "light_lantern_tunnel"]:
+		if views.has(name):
+			await _shot(g, m, "night_" + name, views[name])
+	LandLight.fixed = -1.0
+
+
+func _shot(g, m: LandMap, name: String, tile: Vector2) -> void:
+	var at := _stand_near(m, tile)
+	g.players[0].global_position = at
+	g.players[1].global_position = _stand_near(m, at / TILE + Vector2(1.6, 0.4))
+	for q in g.players:
+		q.face_dir = Vector2.DOWN
+	g.rig.snap()
+	await _frames(8)
+	g.land.settle()
+	await _frames(40)
+	await RenderingServer.frame_post_draw
+	var img: Image = root.get_texture().get_image()
+	if img.get_width() != 640:
+		img.resize(640, 360, Image.INTERPOLATE_NEAREST)
+	img.save_png("%s/seed%d_%s.png" % [shot_dir, shot_seed, name])
+	print("saved %s/seed%d_%s.png" % [shot_dir, shot_seed, name])
 
 
 ## The middle of the nearest tile to `tile` that somebody could stand on, in world units.

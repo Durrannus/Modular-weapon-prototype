@@ -318,9 +318,11 @@ func setup(plan_: Dictionary) -> void:
 				more.play("burn")
 				more.at = 0.2 * float(n + 1)
 				more.flip = n == 0
+				more.add_to_group("unlit")    # the fire is a light itself (version 68)
 				fires.append(more)
 			fire = _actor(Art.texture("smoke/smoke.png"), {"strips": {"burn": its_fire}, "origin_feet": its_fire.get("origin", [10, 17])}, fire_feet())
 			fire.play("burn")
+			fire.add_to_group("unlit")
 		smoke = Plume.new()
 		smoke.folk = self
 		smoke.z_index = 41             # over everything that stands on the land, and over the rock tops

@@ -282,19 +282,21 @@ static func _lay(lit: Image, shade: Image, name: String, a: PackedByteArray, k: 
 ## The picture of chunk (cx, cy) of the map: PX x PX, with the chunk's top left
 ## tile at its top left. Round the Hound Den it is painted from the snow kit (snow.gd); where the snow's edge crosses
 ## the chunk it is painted both ways, and each pixel shows the one the snow says.
-static func paint(m: LandMap, cx: int, cy: int) -> Image:
+## `glow` (if given) is filled with the ore that shines on the lit face of the rock: [x, y (the chunk's own pixels),
+## copper?] each, for the light (land_light.gd, version 68).
+static func paint(m: LandMap, cx: int, cy: int, glow = null) -> Image:
 	load_kit()
 	var snow := Snow.chunk(m, cx, cy) if snow_ready else 0
 	if snow == 0:
-		return _paint(m, cx, cy, false)
+		return _paint(m, cx, cy, false, glow)
 	if snow == 2:
-		return _paint(m, cx, cy, true)
-	var plain := _paint(m, cx, cy, false)
+		return _paint(m, cx, cy, true, glow)
+	var plain := _paint(m, cx, cy, false, glow)
 	_snow_edge(plain, _paint(m, cx, cy, true), m, cx, cy)
 	return plain
 
 
-static func _paint(m: LandMap, cx: int, cy: int, snow: bool) -> Image:
+static func _paint(m: LandMap, cx: int, cy: int, snow: bool, glow = null) -> Image:
 	var pre := "snow/" if snow else ""
 	var kit_things: Dictionary = snow_things if snow else things
 	var x0 := cx * CH
@@ -507,7 +509,7 @@ static func _paint(m: LandMap, cx: int, cy: int, snow: bool) -> Image:
 		var src := Rect2i((n % COLS) * RW, (n / COLS) * RH, RW, RH)
 		var dst := Vector2i(px - RM_L, py - RM_T)
 		lit.blend_rect(sheets[pre + ("rock_dug" if r[2] else "rock_nat")], src, dst)
-	_veins(lit, m, cx, cy)
+	_veins(lit, m, cx, cy, glow)
 	# 6. Lamplight on dug floor and the cut rock beside it.
 	if floored != null:
 		_light(lit, floored, lamps, K, ox, oy)
@@ -607,7 +609,7 @@ static func _rgba32(d: PackedByteArray, o: int) -> int:
 ## on the lit face, plain near the edge of the dark top, thinner and broken further in, and gone 21 pixels in. So a
 ## seam shows where rock meets open ground, and the heart of a hill shows nothing until somebody digs towards it.
 ## Both rules are the art thread's own (veins.gd).
-static func _veins(lit: Image, m: LandMap, cx: int, cy: int) -> void:
+static func _veins(lit: Image, m: LandMap, cx: int, cy: int, glow = null) -> void:
 	var seams: Array = m.veins_in(cx, cy)
 	if seams.is_empty() or vein_cols.is_empty() or not sheets.has("rock_nat_part"):
 		return
@@ -680,6 +682,8 @@ static func _veins(lit: Image, m: LandMap, cx: int, cy: int) -> void:
 				Veins.M_FACE: ramp = vein_cols["face"]
 				Veins.M_CAP: ramp = vein_cols["cap"]
 			lit.set_pixel(p.x - ox, p.y - oy, ramp[mini(code % 8, ramp.size() - 1)])
+			if glow != null and on_face:
+				(glow as Array).append(Vector3i(p.x - ox, p.y - oy, 1 if kind != Veins.TIN else 0))
 
 
 ## The rock of tw x th tiles from tile (tx0, ty0), as a picture: clear where there is no rock, black where it is the

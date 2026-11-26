@@ -63,6 +63,7 @@ const FolkPlan := preload("res://scripts/highlands/folk_plan.gd")
 const Crown := preload("res://scripts/highlands/crown.gd")
 const CrownPlan := preload("res://scripts/highlands/crown_plan.gd")
 const Snow := preload("res://scripts/highlands/snow.gd")
+const LandLight := preload("res://scripts/highlands/land_light.gd")
 const ForgeHall := preload("res://scripts/ui/forge_hall.gd")
 const CaveUi := preload("res://scripts/cave/cave_ui.gd")
 const Music := preload("res://scripts/music.gd")
@@ -120,6 +121,7 @@ var _saved_at := {}             # a save's name -> when
 func _ready() -> void:
 	_rules()
 	Art.solid_backings = true          # (the HUD's backings are solid over the Highlands' busy ground: version 66)
+	LandLight.reset()                  # morning, and none of the last game's lights (version 68)
 	randomize()
 	if not Net.online():
 		Sim.shuffle()
@@ -299,6 +301,12 @@ func _ready() -> void:
 	# The cave mouth, set into the hill north of the clearing.
 	var mouth_feet := Vector2(map.mouth.x * 16 + 8, (map.mouth.y + 1) * 16)
 	land.stand("cave_mouth", mouth_feet)
+	# The light (version 68): when night falls, the forge's light spills out of the cave mouth, and the Roost's fire
+	# lights the camp.
+	LandLight.extra = [{"x": mouth_feet.x, "y": mouth_feet.y + 2.0, "r": LandLight.MOUTH_REACH, "night": true, "strength": 0.67}]
+	if folk != null:
+		var fire: Vector2 = folk.fire_feet() / Art.PIXEL
+		LandLight.extra.append({"x": fire.x, "y": fire.y - 3.0, "r": LandLight.FIRE_REACH, "night": true, "fire": true})
 	interactables.append({"at": mouth_feet * Art.PIXEL + Vector2(0, 26), "radius": 74.0, "lift": 86.0, "text": "Go down to the forge",
 		"words": func(i): return forge_words(i), "can": func(_i): return true, "use": func(i): _use_forge(i)})
 	_make_ui()
@@ -393,6 +401,7 @@ func _rules() -> void:
 
 func _exit_tree() -> void:
 	Art.solid_backings = false
+	LandLight.reset()
 	PlayerScript.SIZE = 1.0
 	PlayerScript.PACE = 1.0
 	PlayerScript.HURT_SHARE = 1.0

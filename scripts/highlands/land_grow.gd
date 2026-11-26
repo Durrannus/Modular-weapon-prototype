@@ -939,6 +939,27 @@ const DRIFT_EVERY := {"moor": 34.0, "scrap": 26.0, "snow": 40.0, "dark": 7.0}
 const FOL_VARIANTS := 8          # pictures of each kind in the kit (bake.py), each its own shape
 
 
+## Where the glowing fungi of the old tunnels grow (the "dark" drifts of _drift_list, by the same rule), as points on
+## the map (art pixels), for tiles x0 to x1 and y0 to y1 (not including x1 and y1). The light (land_light.gd, version
+## 68) makes each one glow.
+static func glow_spots(m: LandMap, x0: int, y0: int, x1: int, y1: int) -> Array:
+	var out: Array = []
+	if FOLIAGE <= 0.0 or not ready or off:
+		return out
+	var world := int(m.seed_value & 0xffff) * 31     # (as the painter's)
+	for Y in range(y0, y1):
+		for X in range(x0, x1):
+			if m.kind(X, Y) != LandMap.FLOOR or m.dug.has(Y * LandMap.SIZE + X):
+				continue
+			if not (LandMap.rocky(m.kind(X - 1, Y)) or LandMap.rocky(m.kind(X + 1, Y)) or LandMap.rocky(m.kind(X, Y - 1)) or LandMap.rocky(m.kind(X, Y + 1))):
+				continue
+			var h := _h(X, Y, 401 + world)
+			if float(h & 0xffff) / 65536.0 >= FOLIAGE / float(DRIFT_EVERY["dark"]):
+				continue
+			out.append(Vector2(X * T + 2 + (h >> 16) % 12, Y * T + 2 + (h >> 20) % 12))
+	return out
+
+
 ## The drifts whose plants can reach chunk c: [centre x, centre y (the chunk's own pixels), set, seed]. Each one comes
 ## from its own tile (with the world's own number), so every chunk finds the same drifts.
 static func _drift_list(m: LandMap, c: Ctx, snow: bool, world: int) -> Array:

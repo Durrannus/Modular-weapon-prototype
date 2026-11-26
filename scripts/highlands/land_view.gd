@@ -11,6 +11,8 @@ const LandMap := preload("res://scripts/highlands/land_map.gd")
 const Painter := preload("res://scripts/highlands/land_painter.gd")
 const Art := preload("res://scripts/art.gd")
 const Animal := preload("res://scripts/highlands/animal.gd")
+const LandLight := preload("res://scripts/highlands/land_light.gd")
+const LIGHT_SHADER := preload("res://shaders/highlands_light.gdshader")
 
 const UNIT := Art.PIXEL                 # world units per art pixel
 const TILE := 16.0 * UNIT
@@ -18,6 +20,9 @@ const CHUNK := LandMap.CHUNK * TILE
 const SORT_BIAS := 14.0                 # as the cave's props: players sort by their middle, things by their feet
 const TALL := 44                        # things at least this tall (art pixels) fade when somebody walks behind them
 const GIVE := 4.0                       # how far rock and water stand back from open ground (world units: two art pixels)
+const UNLIT := ["lantern"]              # things that are lights themselves: never dimmed (version 68)
+const SKIP_GROUPS := ["unlit", "hazards", "crown_shots"]   # what stands in the world and is never dimmed: danger marks, the boss
+const RELIGHT_EVERY := 12               # frames between two tints of somebody who is not a player or a foe (chests, folk)
 
 var map: LandMap
 var world: Node2D                       # the y-sorted layer the players are in
@@ -35,6 +40,9 @@ var _painted: Array = []                # [[key, Image]], filled by the painting
 var _asked := {}                        # key -> task id
 var _dirty := {}                        # key -> true: the map changed there, paint it again
 var _closing := false
+var _frame := 0
+var _night_shown := 0.0                 # the night the chunks' things were last tinted for
+var _no_glow: ImageTexture              # (a chunk with nothing glowing)
 
 
 func _ready() -> void:
@@ -47,6 +55,7 @@ func _ready() -> void:
 	if Painter.snow_ready:
 		_snow_tex = ImageTexture.create_from_image(Painter.sheets["snow/things"])
 	_tools_tex = Art.texture("tools/tools.png")     # the stump a felled pine leaves is on the tool art's sheet
+	_no_glow = ImageTexture.create_from_image(Image.create_empty(1, 1, false, Image.FORMAT_RG8))
 
 
 func _exit_tree() -> void:
@@ -141,6 +150,7 @@ func _process(delta: float) -> void:
 			if is_instance_valid(p) and (t[1] as Rect2).has_point(p.global_position) and p.global_position.y < float(t[2]) - SORT_BIAS - 6.0:
 				hidden = true
 		s.modulate.a = move_toward(s.modulate.a, 0.4 if hidden else 1.0, delta * 4.0)
+	_light(delta)
 
 
 func _ensure(cx: int, cy: int) -> void:
@@ -166,6 +176,7 @@ func _stand_things(c: Dictionary) -> void:
 			continue              # (a small plant drawn into the ground has no picture of its own: land_grow.gd)
 		var foot := Vector2(float(t["x"]), float(t["y"]))
 		var s := stand(name, foot, bool(t.get("f", false)), snow)
+		s.set_meta("land", name)
 		c["things"].append(s)
 		c["by_thing"][LandMap.thing_key(t)] = s
 		if info.has("frames"):
@@ -208,6 +219,7 @@ func things_changed(foot: Vector2) -> void:
 	c["body"].queue_free()
 	c["body"] = _make_body(c["at"].x, c["at"].y)
 	_stand_things(c)
+	_tint_things(c)
 	for k in c["by_thing"]:
 		if faded.has(k):
 			(c["by_thing"][k] as Sprite2D).modulate.a = faded[k]
@@ -217,9 +229,11 @@ func things_changed(foot: Vector2) -> void:
 func _paint(key: int, cx: int, cy: int) -> void:
 	if _closing:
 		return
-	var img := Painter.paint(map, cx, cy)
+	var ore: Array = []
+	var img := Painter.paint(map, cx, cy, ore)
+	var light := LandLight.make(map, cx, cy, ore)
 	_mutex.lock()
-	_painted.append([key, img])
+	_painted.append([key, img, light])
 	_mutex.unlock()
 
 
@@ -244,6 +258,7 @@ func _take_painted() -> void:
 			ground.add_child(s)
 			c["sprite"] = s
 		(c["sprite"] as Sprite2D).texture = ImageTexture.create_from_image(pair[1])
+		_lit(c, pair[2])
 
 
 func _drop(key: int) -> void:
@@ -334,3 +349,132 @@ func _renew() -> void:
 				var size := Vector2(float(info["solid"][0]), float(info["solid"][1])) * UNIT
 				_box(c["body"], Vector2(float(t["x"]), float(t["y"])) * UNIT - Vector2(0, size.y * 0.5), size)
 		_asked[key] = WorkerThreadPool.add_task(_paint.bind(key, at.x, at.y))
+
+
+# --- The light (version 68: land_light.gd) ------------------------------------------------------------------------
+
+
+## A chunk's light has come with its picture: the land is drawn through the light's shader, and its things tinted.
+func _lit(c: Dictionary, light: Dictionary) -> void:
+	c["light"] = light
+	var s: Sprite2D = c["sprite"]
+	var mat: ShaderMaterial = s.material
+	if mat == null:
+		mat = ShaderMaterial.new()
+		mat.shader = LIGHT_SHADER
+		s.material = mat
+	mat.set_shader_parameter("tiles", ImageTexture.create_from_image(light["tiles"]))
+	var glow: Image = light["glow"]
+	mat.set_shader_parameter("glow", ImageTexture.create_from_image(glow) if glow != null else _no_glow)
+	mat.set_shader_parameter("has_glow", glow != null)
+	mat.set_shader_parameter("origin", light["origin"])
+	mat.set_shader_parameter("night_col", LandLight.NIGHT)
+	mat.set_shader_parameter("snow_day", LandLight.SNOW_DAY)
+	mat.set_shader_parameter("snow_night", LandLight.SNOW_NIGHT)
+	mat.set_shader_parameter("lamp_warm", LandLight.LAMP_WARM)
+	mat.set_shader_parameter("fire_warm", LandLight.FIRE_WARM)
+	mat.set_shader_parameter("player_reach", LandLight.PLAYER_REACH)
+	mat.set_shader_parameter("player_light", LandLight.PLAYER_LIGHT)
+	_lamps_of(c)
+	_shared(mat)
+	_tint_things(c)
+
+
+## The lights reaching chunk c now (the night changes which of them are lit), into its shader.
+func _lamps_of(c: Dictionary) -> void:
+	var lamps := LandLight.lamps_now(c["light"])
+	c["lamps"] = lamps
+	if c["sprite"] != null and c["sprite"].material != null:
+		var mat: ShaderMaterial = c["sprite"].material
+		mat.set_shader_parameter("lamps", lamps)
+		mat.set_shader_parameter("lamp_n", LandLight.lamp_count(lamps))
+
+
+## What every chunk's shader shares: the night, how dark the deep is, where everybody carries their small light.
+func _shared(mat: ShaderMaterial) -> void:
+	mat.set_shader_parameter("night", LandLight.night if LandLight.on else 0.0)
+	var deep := LandLight.deep_col() if LandLight.on else Vector3.ONE
+	mat.set_shader_parameter("deep_col", deep)
+	var carried := PackedVector4Array()
+	carried.resize(4)
+	var k := 0
+	for p in players:
+		if k < 4 and is_instance_valid(p) and p.visible:
+			var at: Vector2 = p.global_position / UNIT
+			carried[k] = Vector4(at.x, at.y, 0, 0)
+			k += 1
+	mat.set_shader_parameter("players", carried)
+	mat.set_shader_parameter("player_n", k if LandLight.on else 0)
+
+
+## The light at a point (world units) as a tint; `carried`: count everybody's small light too.
+func light_at(at: Vector2, carried := false) -> Color:
+	var art := at / UNIT
+	var key := LandMap.chunk_key(floori(art.x / Painter.PX), floori(art.y / Painter.PX))
+	var c: Dictionary = chunks.get(key, {})
+	var lights: Array = []
+	if carried:
+		for p in players:
+			if is_instance_valid(p) and p.visible:
+				lights.append(p.global_position / UNIT)
+	if c.is_empty() or not c.has("light"):
+		return LandLight.sample(null, PackedVector4Array(), art, lights)
+	return LandLight.sample(c["light"], c["lamps"], art, lights)
+
+
+## Tints chunk c's things for the light they stand in (a lantern is a light itself: never).
+func _tint_things(c: Dictionary) -> void:
+	c["night"] = LandLight.night
+	if not c.has("light"):
+		return
+	for s: Sprite2D in c["things"]:
+		if not is_instance_valid(s):
+			continue
+		var tint := Color.WHITE if UNLIT.has(str(s.get_meta("land", ""))) else light_at(s.position + Vector2(0, SORT_BIAS))
+		s.modulate = Color(tint.r, tint.g, tint.b, s.modulate.a)
+
+
+## Every frame: the day moves on, the shaders hear where everybody is, and those who move take the light they are in.
+## (Others standing in the world, such as chests and Pip, every RELIGHT_EVERY frames; the land's own things when the
+## night changes.)
+func _light(delta: float) -> void:
+	LandLight.tick(delta)
+	_frame += 1
+	var night_moved := absf(LandLight.night - _night_shown) > 0.001
+	_night_shown = LandLight.night
+	var redo := 0
+	for key in chunks:
+		var c: Dictionary = chunks[key]
+		if c["sprite"] == null or c["sprite"].material == null:
+			continue
+		if night_moved:
+			_lamps_of(c)
+		_shared(c["sprite"].material)
+		if redo < 2 and absf(float(c.get("night", 0.0)) - LandLight.night) > 0.001:
+			_tint_things(c)
+			redo += 1
+	if world == null:
+		return
+	var view: Rect2 = rig.view_rect().grow(96.0) if rig != null else Rect2()
+	var i := 0
+	for n in world.get_children():
+		i += 1
+		if not (n is CanvasItem) or n.has_meta("land"):
+			continue
+		var mover: bool = n is CharacterBody2D
+		if not mover and (i + _frame) % RELIGHT_EVERY != 0:
+			continue
+		var ci := n as CanvasItem
+		var skip := false
+		for g in SKIP_GROUPS:
+			if ci.is_in_group(g):
+				skip = true
+				break
+		if skip:
+			ci.self_modulate = Color(1, 1, 1, ci.self_modulate.a)
+			continue
+		var at: Vector2 = (ci as Node2D).global_position if ci is Node2D else Vector2.ZERO
+		if rig != null and not view.has_point(at):
+			continue
+		var tint := LandLight.actor_tint(light_at(at, true)) if LandLight.on else Color.WHITE
+		ci.self_modulate = Color(tint.r, tint.g, tint.b, ci.self_modulate.a)

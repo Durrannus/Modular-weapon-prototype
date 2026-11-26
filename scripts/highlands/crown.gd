@@ -538,6 +538,7 @@ func setup(plan_: Dictionary) -> void:
 		tr.book = book
 		tr.position = (Vector2(tile) + Vector2(0.5, 0.5)) * TILE
 		tr.z_index = -4
+		tr.add_to_group("unlit")          # a trap's warning is a danger mark: never dimmed by the light (version 68)
 		if world != null:
 			world.add_child(tr)
 		else:
@@ -548,6 +549,7 @@ func setup(plan_: Dictionary) -> void:
 			tr.spikes = Spikes.new()
 			tr.spikes.of = tr
 			tr.spikes.position = tr.position
+			tr.spikes.add_to_group("unlit")
 			if world != null:
 				world.add_child(tr.spikes)
 			else:
@@ -590,6 +592,8 @@ func setup(plan_: Dictionary) -> void:
 	for d in plan["dress"]:
 		var info: Dictionary = book.get(str(d[0]), {})
 		var a := _actor(yard, {"idle": info}, info.get("origin", [0, 0]), (d[1] as Vector2) * UNIT)
+		if str(d[0]) == "brazier":
+			a.add_to_group("unlit")       # a light itself (version 68)
 		a.play("idle")
 		a.face(bool(d[3]))
 		dress.append(a)
@@ -968,6 +972,7 @@ func _scatter() -> void:
 ## He is on his feet, in front of what is left of the throne.
 func _stand_boss() -> void:
 	boss = Rattlecrown.new()
+	boss.add_to_group("unlit")           # the boss and his marks are never dimmed by the light (version 68)
 	var n := 0
 	for p in players:
 		if is_instance_valid(p):

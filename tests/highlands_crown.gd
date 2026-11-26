@@ -771,6 +771,7 @@ func _gate() -> void:
 	for r: Rect2i in CrownPlan.TRAPS:
 		want += r.size.x * r.size.y
 	_check(crown.traps.size() == want and crown.traps.all(func(tr): return tr.state == "down"), "its %d spike traps lie in the floor, down" % want)
+	_check(crown.traps.all(func(tr): return tr.is_in_group("unlit") and (tr.spikes == null or tr.spikes.is_in_group("unlit"))), "a trap's warning is never dimmed by the light (version 68)")
 	var rim := 0
 	var corners_kerbed := 0
 	for tr in crown.traps:
@@ -1120,6 +1121,7 @@ func _fight() -> void:
 	_check(boss != null and crown.phase() == 2 and crown.throne.anim == "wreck" and g.ui.hint == Crown.SAYS["foot"], "he is on his feet, in front of the wreck of the throne")
 	_check(is_equal_approx(boss.max_hp, Rattlecrown.HP) and boss.hp == boss.max_hp, "with his full health for one player (%.0f)" % boss.max_hp)
 	_check(g.ui.boss == boss and not boss.show_bar and boss.knock_resist == 0.0, "his health is the bar at the top of the screen, and nothing knocks him back")
+	_check(boss.is_in_group("unlit") and boss.self_modulate == Color.WHITE, "he and the marks of his attacks are never dimmed by the light (version 68)")
 	# Seen through him (version 50, the Overseer's review): at his size his body would hide his own rings and whoever
 	# is just behind him, so both show through it, clipped to it.
 	await physics_frame
