@@ -80,7 +80,8 @@ func _kit() -> void:
 	_check(Painter.snow_ready, "the snow kit is there (art/highlands/snow/, baked from the Art builder's hl3_snow.py)")
 	var missing: Array = []
 	for name in Painter.things:
-		if not Painter.snow_things.has(name) and not str(name).begins_with("pine_stump"):
+		# (flower_: drawn into the moor's flower beds, which the snow has none of; heap_: only in front of the Scrapyard)
+		if not Painter.snow_things.has(name) and not str(name).begins_with("pine_stump") and not str(name).begins_with("flower_") and not str(name).begins_with("heap_"):
 			missing.append(name)
 	_check(missing.is_empty(), "every thing on the land has its snowy picture (missing: %s)" % str(missing))
 	for name in ["den", "trample", "tracks_e", "tracks_se", "tracks_ne"]:

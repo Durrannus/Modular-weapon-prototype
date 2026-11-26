@@ -389,6 +389,7 @@ static func _build_rows() -> void:
 	_add(p, g, "Enemies' blows, traps and falls do", "highlands:DAMAGE_TAKEN", "%", 0.05, 0.1, 3.0)
 	_add(p, g, "Show the whole map, click it to go (1 = on)", "charts:LAB_MAP", "n", 1.0, 0.0, 1.0)
 	_add(p, g, "Pine groves in new worlds (0 = none)", "world_gen:GROVES", "", 0.25, 0.0, 10.0)
+	_add(p, g, "A grove's last tree is a rowan", "world_gen:GROVE_ROWAN", "%", 0.05, 0.0, 1.0)
 	g = "The snow round the Hound Den"
 	_add(p, g, "How far it reaches (tiles, 0 = no snow)", "snow:REACH", "n", 5.0, 0.0, 300.0)
 	_add(p, g, "How wide its thinning edge is (tiles)", "snow:EDGE", "n", 1.0, 1.0, 40.0)

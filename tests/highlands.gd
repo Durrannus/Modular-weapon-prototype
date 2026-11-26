@@ -13,6 +13,7 @@ const PlayerInput := preload("res://scripts/player_input.gd")
 const WorldGen := preload("res://scripts/highlands/world_gen.gd")
 const LandMap := preload("res://scripts/highlands/land_map.gd")
 const Painter := preload("res://scripts/highlands/land_painter.gd")
+const LandGrow := preload("res://scripts/highlands/land_grow.gd")
 const Veins := preload("res://scripts/highlands/veins.gd")
 const Highlands := preload("res://scripts/highlands/highlands.gd")
 const Title := preload("res://scripts/ui/title.gd")
@@ -122,8 +123,9 @@ func _groves() -> void:
 			var foot := Vector2(float(t["x"]), float(t["y"])) / 16.0
 			var tile := Vector2i(floori(foot.x), floori(foot.y))
 			var here := Vector2(tile) + Vector2(0.5, 0.5)
-			if not str(t["n"]).begins_with("pine_") or str(t["n"]) == "pine_stump":
-				bad["spot"] += 1
+			var gn := str(t["n"])
+			if not (gn.begins_with("pine_") or gn.begins_with("rowan_") or gn.begins_with("juniper_")) or gn == "pine_stump":
+				bad["spot"] += 1     # (a grove is pines, and since version 65 a rowan and junipers under them)
 			var open := true
 			for j in range(-1, 2):
 				for i in range(-1, 2):
@@ -469,11 +471,19 @@ func _painting() -> void:
 	_check(a.get_size() == Vector2i(256, 256), "a chunk's picture is 256 pixels a side")
 	_check(a.get_data() == b.get_data(), "painting a chunk twice gives the same picture")
 	# Only the kit's colours: nothing blended, nothing soft. (Lamplight is the one thing that makes new colours; this chunk has none.)
+	var kit_cols := {}
+	for ramp in Painter.kit.get("palette", {}).values():
+		for h in ramp:
+			kit_cols[Color(str(h)).to_rgba32()] = true
 	var colours := {}
+	var off := 0
 	for y in 256:
 		for x in 256:
-			colours[a.get_pixel(x, y).to_rgba32()] = true
-	_check(colours.size() <= 64, "the picture uses a small palette (%d colours)" % colours.size())
+			var v := a.get_pixel(x, y).to_rgba32()
+			colours[v] = true
+			if not kit_cols.has(v):
+				off += 1
+	_check(off == 0 and colours.size() <= 96, "the picture uses only the kit's palette (%d colours, %d pixels off it)" % [colours.size(), off])
 	# Deep rock is the dark top; the ground outside the cave is the yard or grass.
 	var deep := Painter.paint(m, m.region.position.x / LandMap.CHUNK, m.region.position.y / LandMap.CHUNK)
 	var dark := 0
@@ -484,6 +494,18 @@ func _painting() -> void:
 	_check(dark > 1000, "the heart of a hill is the dark rock top (%d of 1024 samples)" % dark)
 	# Ore is never drawn as dots on the rock (Darren turned that down on 21 November): the kit holds no such sheets.
 	_check(not Painter.sheets.has("ore_tin_nat") and not Painter.sheets.has("ore_copper_nat"), "no ore dots are drawn on the rock")
+	# The ground answering what grows in it (concept v4, version 65): turf, texture, flower beds, plants and marks.
+	LandGrow.off = true
+	var plain := Painter.paint(m, cx, cy)
+	LandGrow.off = false
+	_check(LandGrow.ready and plain.get_data() != a.get_data(), "the ground pass (land_grow.gd) is ready and changes the picture")
+	var mats := {}
+	for y in range(0, 256, 2):
+		for x in range(0, 256, 2):
+			var cd: int = LandGrow.code_of.get(LandGrow.c32(a.get_pixel(x, y)), -1)
+			if cd >= 0:
+				mats[str(LandGrow.names[cd >> 4])] = true
+	_check(mats.has("grass") and mats.has("earth"), "the base's chunk shows moor grass and the earth of its paths (%s)" % str(mats.keys()))
 	print("      one chunk painted in %d ms" % ms)
 
 

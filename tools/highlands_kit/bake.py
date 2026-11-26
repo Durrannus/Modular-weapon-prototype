@@ -19,6 +19,8 @@ Needs numpy and Pillow. Nothing here runs in the game.
 import argparse, json, os, sys, time
 import numpy as np
 from PIL import Image
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import look                 # the look of version 65 (the Art builder's concept v4): look.py
 
 ART_CODE = "/mnt/project-files/art/highlands-concept/v3/code"
 T = 16                      # one tile, in art pixels
@@ -47,10 +49,17 @@ def cell_px(m):
 
 
 class Kit:
-    def __init__(s, hl3, variants, SN=None):
+    def __init__(s, hl3, variants, SN=None, L=None):
         s.hl3 = hl3; s.V = variants
         s.SN = SN                                        # hl3_snow, for the snow kit (then every World has snow lying in it)
         s.World = SN.SnowWorld if SN else hl3.World
+        s.L = L                                          # the look of version 65 (look.py): its rock has the detail pass
+        if L is None:
+            s.RockWorld = s.World
+        elif SN:
+            s.RockWorld = lambda rows, seed=1, tone=False: L.GR.GrowSnowWorld(rows, seed=seed, bold=False, tone=tone)
+        else:
+            s.RockWorld = lambda rows, seed=1, tone=False: L.GR.GrowWorld(rows, seed=seed, bold=False, tone=tone)
         s.x0 = s.y0 = C * T
         yy, xx = np.mgrid[0:N * T, 0:N * T]
         s.yy, s.xx = yy, xx
@@ -96,7 +105,7 @@ class Kit:
     def rock(s, cfg, v, dug):
         hl3 = s.hl3
         rows = rows_for(cfg, "#", "o" if dug else ".")
-        W = s.World(rows, seed=v + 1, tone=False)
+        W = s.RockWorld(rows, seed=v + 1, tone=False)    # chisel marks, cracks, moss hanging from the lip, rubble at the foot
         cells = [[ch == "#" for ch in r] for r in rows]
         incell = cell_px(cells)
         mine = s.own | (~incell & s.nearest_own(cells, ROCK_M[0]))
@@ -130,7 +139,7 @@ class Kit:
     def rock_core(s, n):
         """The heart of a hill: the cave's own dark wall top with a few strokes. Cut from one big block of rock."""
         hl3 = s.hl3
-        W = s.World(["#" * 12] * 12, seed=3, tone=False)
+        W = s.RockWorld(["#" * 12] * 12, seed=3, tone=False)
         rgb = s.rgb(W); out = []
         k = 0
         for j in range(2, 10):
@@ -151,6 +160,14 @@ class Kit:
         changed = ~W.plain & ~((W.mat == hl3.MID["grass"]) & (W.step == 3))
         if s.SN: changed &= ~((W.mat == hl3.MID["snow"]) & (W.step == 4))     # the snow's plain ground (its README)
         if ch == "o": changed = W.floor
+        if ch == "e" and s.L is not None and not s.SN:
+            # The bold look's footpath (hl_detail.detail and hl_grow.land_pass): the path's own grass becomes worn earth,
+            # and its edge blends into the grass over 2 to 3 px through a mixed band.
+            GR, M = s.L.GR, hl3.MID
+            pm = W.path & (W.mat == M["grass"]); W.mat[pm] = M["earth"]
+            em = W.mat == M["earth"]
+            GR.ragged(W, em & ~W.rock, [M["grass"]], M["mixe"], np.random.RandomState(v * 31 + cfg), out_p=(0.55, 0.25, 0.08), in_p=(0.5, 0.2))
+            changed = changed | (W.mat == M["mixe"]) | (W.mat == M["earth"])
         mine = s.own | (~incell & s.nearest_own(cells, GROUND_M[0]))
         keep = changed & mine
         return s.cut(s.rgb(W), keep, GROUND_M), s.cut(s.rgb(W, 2), keep, GROUND_M)
@@ -258,19 +275,20 @@ class Things:
     def decal(s, name, lit, shade, at):
         s.items[name] = {"img": lit, "foot": [0, 0], "at": at}; s.items[name + "~"] = {"img": shade, "foot": [0, 0], "at": at}
 
-    def pack(s, path_png, width=768):
-        """Shelves, tallest first. Returns where everything went."""
+    def pack(s, path_png, width=768, keys=("img", "shadow_img")):
+        """Shelves, tallest first. Returns where everything went. keys: which pictures of each thing go on this sheet
+        (the marks go on a sheet of their own: they are numbers, not colours)."""
         todo = []
         for name, it in s.items.items():
-            todo.append((name, "img", it["img"]))
-            if "shadow_img" in it: todo.append((name, "shadow_img", it["shadow_img"]))
+            for key in keys:
+                if key in it: todo.append((name, key, it[key]))
         todo.sort(key=lambda t: (-t[2].shape[0], t[0], t[1]))
         x = y = shelf = 0; places = []
         for name, key, a in todo:
             h, w = a.shape[:2]
             if x + w > width: x = 0; y += shelf + 1; shelf = 0
             places.append((name, key, x, y, a)); x += w + 1; shelf = max(shelf, h)
-        out = np.zeros((y + shelf, width, 4), np.uint8); table = {}
+        out = np.zeros((max(1, y + shelf), width, 4), np.uint8); table = {}
         for name, key, x, y, a in places:
             h, w = a.shape[:2]; out[y:y + h, x:x + w] = a
             e = table.setdefault(name, {})
@@ -278,8 +296,10 @@ class Things:
                 e["rect"] = [x, y, w, h]; e["foot"] = s.items[name]["foot"]
                 for k in ("frames", "frame_w", "solid", "at"):
                     if k in s.items[name]: e[k] = s.items[name][k]
-            else:
+            elif key == "shadow_img":
                 e["shadow"] = [x, y, w, h]; e["shadow_at"] = s.items[name]["shadow_at"]
+            elif key == "mark_img":
+                e["mark"] = [x, y, w, h]; e["mark_at"] = s.items[name]["mark_at"]
         Image.fromarray(out, "RGBA").save(path_png)
         return table
 
@@ -295,23 +315,79 @@ def drop_snow(SN, hl3, a):
     return a
 
 
-def bake_things(hl3, PR, K, out, SN=None):
+def bake_things(hl3, PR, K, out, SN=None, L=None):
     import hl_flora as FL
     TH = Things(hl3, PR, SN)
-    for k, tall in enumerate((60, 62, 64, 66, 44, 46)): TH.add("pine_%d" % k, PR.pine(k * 7 + 3, tall), seed=k, solid=[6, 4])
-    for k, (w, h) in enumerate(((14, 10), (16, 11), (18, 12), (12, 8), (11, 8), (13, 9))): TH.add("boulder_%d" % k, PR.boulder(k * 5 + 1, w, h), sink=1, seed=k, solid=[w - 2, 5])
-    for k, fl in enumerate((None, True, False, True)): TH.add("bush_%d" % k, PR.bush(k * 3 + 2, fl), seed=k, solid=[14, 5])
-    for k in range(2): TH.add("stone_%d" % k, PR.stone(k * 4 + 1), seed=k, solid=[8, 4])
-    for k in range(2): TH.add("cairn_%d" % k, PR.cairn(k + 1), foot="peb", seed=k, solid=[10, 4])
-    TH.add("post", PR.keeper_post(), solid=[5, 3]); TH.add("stump", PR.stump(), solid=[6, 3])
-    for k in range(4): TH.add("bracken_%d" % k, PR.bracken(k + 1), foot="none", shadow=False)
-    for k in range(4): TH.add("reeds_%d" % k, PR.reeds(k + 1), foot="none", shadow=False)
-    for k in range(3): TH.add("cotton_%d" % k, PR.cotton(k + 1), foot="none", shadow=False)
-    TH.add("bones", PR.bones(), foot="none", shadow=False)
+    GR = L.GR; D = L.D; FO = L.FO
+    snowy = SN is not None
+    ground = "snow" if snowy else "grass"
+    dress = (lambda pr, k=0: SN.snowy(pr, seed=k)) if snowy else (lambda pr, k=0: pr)
+
+    def keep(name, P, solid=None, shadow=True, slen=20.0, ground_only=False):
+        """What standing a thing on the patch left: its picture (unless it is drawn into the ground), its shadow, its mark."""
+        item = {}
+        pic = None if ground_only else P.picture()
+        if pic is not None:
+            item["img"], item["foot"] = pic
+            if shadow:
+                sh = look.sprite_shadow(item["img"], item["foot"], slen)
+                if sh is not None: item["shadow_img"], item["shadow_at"] = sh
+            if solid: item["solid"] = solid
+        else:
+            item["ground"] = True; item["foot"] = [0, 0]
+        mk = P.mark()
+        if mk is not None: item["mark_img"], item["mark_at"] = mk
+        TH.items[name] = item
+
+    def stand(pair, k, lip=False, sink=0, slen=20.0, on="grass"):
+        """One thing seated in the land by the Art builder's own code (hl_grow.seat): a damp bed round its foot, and the
+        ground's blades in front of it, or a lip of soil heaped against it."""
+        P = look.Patch(L, ground=("snow" if snowy else on), seed=k)
+        P.W.add(dress(pair, k), P.x, P.y, sink=sink, slen=slen)
+        GR.seat(P.W, P.W.sprites[-1], np.random.RandomState(k * 13 + 5), green=not snowy and on == "grass", lip=lip, snow=snowy)
+        return P
+
+    # Trees: the Scots pine and the rowan, rooted, their canopy's shadow laid on the ground with litter under it
+    # (hl_grow.tree); the juniper and gorse drawn into the ground like the small plants (hl_grow.bush).
+    for k, tall in enumerate((84, 88, 80, 90, 78, 86)):
+        P = look.Patch(L, ground=ground, seed=k)
+        GR.tree(P.W, dress(D.pine2(k * 7 + 3, tall), k), P.x, P.y, np.random.RandomState(905 + k), "pine", green=not snowy, snow=snowy)
+        keep("pine_%d" % k, P, solid=[6, 4], shadow=False)
+    for k in range(3):
+        P = look.Patch(L, ground=ground, seed=k + 10)
+        GR.tree(P.W, dress(D.rowan(k * 5 + 2), k), P.x, P.y, np.random.RandomState(915 + k), "rowan", green=not snowy, snow=snowy)
+        keep("rowan_%d" % k, P, solid=[6, 4], shadow=False)
+    for name, fn in (("juniper", D.juniper), ("gorse", D.gorse2)):
+        for k in range(3):
+            P = look.Patch(L, ground=ground, seed=k + 20)
+            GR.bush(P.W, dress(fn(k * 3 + 1), k), P.x, P.y, np.random.RandomState(925 + k), green=not snowy)
+            keep("%s_%d" % (name, k), P, ground_only=True)
+    # Stones and the rest that stand on the land: seated with a damp bed and blades, or a soil lip.
+    for k, (w, h) in enumerate(((14, 10), (16, 11), (18, 12), (12, 8), (11, 8), (13, 9))):
+        keep("boulder_%d" % k, stand(PR.boulder(k * 5 + 1, w, h), k, sink=2, slen=8.0), solid=[w - 2, 5], slen=8.0)
+    for k in range(2): keep("stone_%d" % k, stand(PR.stone(k * 4 + 1), k + 6, sink=1, slen=8.0), solid=[8, 4], slen=8.0)
+    for k in range(2): keep("cairn_%d" % k, stand(PR.cairn(k + 1), k + 8, lip=True), solid=[10, 4])
+    keep("post", stand(PR.keeper_post(), 11, lip=True), solid=[5, 3])
+    keep("stump", stand(PR.stump(), 12), solid=[6, 3])
+    keep("barrel", stand(PR.barrel(), 13, lip=True), solid=[10, 5])
+    keep("bones", stand(PR.bones(), 14, lip=True), shadow=False)
+    keep("rubble", stand(PR.rubble(), 15, lip=True), shadow=False)
     TH.add("cave_mouth", PR.cave_mouth(), foot="peb", shadow=False)
     TH.add("lantern", PR.lantern(), foot="none")
-    TH.add("barrel", PR.barrel(), foot="peb", solid=[10, 5])
-    TH.add("rubble", PR.rubble(), foot="none", shadow=False)
+    # Bracken, reeds and cotton grass: small plants, drawn into the ground with no outline (hl_grow.plant): the
+    # ground's dark steps on their shaded side, a damp bed, blades over their foot, the lowest row lost in the turf.
+    for name, fn, n in (("bracken", PR.bracken, 4), ("reeds", PR.reeds, 4), ("cotton", PR.cotton, 3)):
+        for k in range(n):
+            P = look.Patch(L, ground=ground, seed=k + 30)
+            GR.plant(P.W, GR.strip_ink(fn(k + 1)), P.x, P.y, np.random.RandomState(935 + k), hide=1, green=not snowy)
+            keep("%s_%d" % (name, k), P, ground_only=True)
+    # Scrap heaps out in the Scrapyard's yard (v4.1): piled anyhow, half sunk in the trodden earth, rust in the soil
+    # round them running downhill, weeds coming up out of the soil line, bits lying half buried round the foot.
+    if not snowy:
+        for k, (w, h) in enumerate(((66, 30), (56, 26), (44, 20))):
+            P = look.Patch(L, ground="earth", seed=k + 40)
+            GR.bury(P.W, GR.heap(w, h, k + 4), P.x, P.y, np.random.RandomState(945 + k))
+            keep("heap_%d" % k, P, solid=[int(w * 0.62), 7], slen=10.0)
     for name, fn in (("cow", PR.cow), ("hare", PR.hare), ("crow", PR.crow)):
         order = []
         for f, _t in PR.ANIMALS[name]:
@@ -319,18 +395,36 @@ def bake_things(hl3, PR, K, out, SN=None):
         TH.strip(name, [fn(f) for f in order], foot="none")
         TH.items[name]["order"] = order
     TH.items["cow"]["solid"] = [22, 6]
-    def plant(kind, seed, drop):
-        """The art's own bush (hl3_props.ground_plant), and the same bush two steps darker for when it stands in a shadow."""
-        R = np.random.RandomState(seed); cells = (hl3.heath_plant if kind == "heath" else hl3.scrub_plant)(R)
+
+    def plant(cells, drop):
+        """A heather or sage plant as sprigs (hl_detail.heath_sprigs, hl_grow.scrub_sprigs2) with no outline: the game
+        draws it into the ground (land_grow.gd), its shaded side taking the ground's own dark steps. drop: in shadow."""
         xs = [c[0] for c in cells]; ys = [c[1] for c in cells]; x0, y0 = min(xs), min(ys)
         o = PR.Im(max(xs) - x0 + 1, max(ys) - y0 + 1)
         for (dx, dy), (mt, st_) in cells.items(): o.px(dx - x0, dy - y0, hl3.PAL[mt][max(0, st_ - drop)])
-        return PR.ink(o), (-x0 + 1, -y0 + 2)
-    for kind in ("heath", "scrub"):
+        return o, (-x0, -y0)
+    for kind, gen in (("heath", D.heath_sprigs), ("scrub", GR.scrub_sprigs2)):
         for k in range(12):
-            TH.add("%s_%d" % (kind, k), plant(kind, k * 3 + 1, 0), foot="none", shadow=False, drift=False, seed=k); TH.low_shadow("%s_%d" % (kind, k))
-            TH.add("%s_%d~" % (kind, k), plant(kind, k * 3 + 1, 2), foot="none", shadow=False, drift=False, seed=k)
-            if SN: TH.items["%s_%d~" % (kind, k)]["img"] = drop_snow(SN, hl3, TH.items["%s_%d~" % (kind, k)]["img"])
+            cells = gen(np.random.RandomState(k * 3 + 1))
+            for suffix, drop in (("", 0), ("~", 2)):
+                im, (fx, fy) = plant(cells, drop)
+                a = im.a.copy()
+                if suffix and snowy: a = drop_snow(SN, hl3, a)
+                TH.items["%s_%d%s" % (kind, k, suffix)] = {"img": a, "foot": [int(fx), int(fy)]}
+    # Taller wildflower clumps, one or two standing out of a drift of flower specks (hl_grow.flowerbed).
+    if not snowy:
+        with GR.Bare():
+            for k in range(6):
+                im, (fx, fy) = FO.wildflowers(k * 7 + 3)
+                im, (fx, fy) = GR.strip_ink((im, (fx, fy)))
+                for suffix, drop in (("", 0), ("~", 2)):
+                    a = im.a.copy()
+                    if drop:
+                        for y in range(a.shape[0]):
+                            for x in range(a.shape[1]):
+                                if a[y, x, 3]:
+                                    mid, st = GR.lookup(a[y, x, :3]); a[y, x, :3] = hl3.LUT[mid, max(0, st - drop)]
+                    TH.items["flower_%d%s" % (k, suffix)] = {"img": a, "foot": [int(fx), int(fy)]}
     # scraps of the keepers' road: whole pieces, because its flagstones do not follow the tile grid
     roads = [[(2, 3), (8, 3)], [(2, 3), (7, 3), (7, 4), (2, 4)], [(3, 2), (3, 7)], [(2, 2), (5, 3), (8, 5)], [(2, 3), (4, 3), (4, 4), (2, 4)], [(2, 4), (6, 3), (10, 3)]]
     for k, pts in enumerate(roads):
@@ -356,13 +450,20 @@ def bake_things(hl3, PR, K, out, SN=None):
             a = SN.tracks(*args)
             TH.decal(name, a, drop_snow(SN, hl3, a), [0, 0])
     table = TH.pack(os.path.join(out, "things.png"))
+    marks = TH.pack(os.path.join(out, "marks.png"), width=512, keys=("mark_img",))
+    for name, e in marks.items():
+        table.setdefault(name, {}).update(e)
+    for name, it in TH.items.items():
+        if it.get("ground"):
+            table.setdefault(name, {})["ground"] = True
     for name in ("cow", "hare", "crow"):
         table[name]["order"] = TH.items[name]["order"]; table[name]["times"] = [[f, t] for f, t in PR.ANIMALS[name]]
     return table
 
 
 def palette(hl3):
-    hexs = lambda cs: ["%02x%02x%02x" % tuple(c) for c in cs]
+    """Every ramp hl3 knows now (the bold ones swapped in, the turf, earth, foliage and mixed ones added by the look)."""
+    hexs = lambda cs: ["%02x%02x%02x" % tuple(int(x) for x in c) for c in cs]
     return {k: hexs(v) for k, v in hl3.PAL.items()}
 
 
@@ -383,16 +484,18 @@ def main():
     ap.add_argument("--only", default="")
     ap.add_argument("--snow", action="store_true", help="the snow kit, into art/highlands/snow/ unless --out says")
     ap.add_argument("--snow-art", default="/mnt/project-files/art/highlands-snow-v1")
+    ap.add_argument("--look", default=look.LOOK_CODE, help="the Art builder's concept v4 code (version 65's look)")
     a = ap.parse_args()
     sys.dont_write_bytecode = True
     sys.path.insert(0, a.art)
-    import hl3, hl3_props as PR
+    LOOK = look.load(a.art, a.look)
+    hl3, PR = LOOK.hl3, LOOK.PR
     SN = None
     if a.snow:
-        import hl3_snow as SN
+        SN = LOOK.SN
         if a.out == ap.get_default("out"): a.out = os.path.join(a.out, "snow")
     os.makedirs(a.out, exist_ok=True)
-    K = Kit(hl3, a.variants, SN); V = a.variants
+    K = Kit(hl3, a.variants, SN, LOOK); V = a.variants
     only = set(a.only.split(",")) - {""}
     info = {"tile": T, "cols": COLS, "variants": V, "rock_margins": ROCK_M, "ground_margins": GROUND_M,
             "bits": "N NE E SE S SW W NW", "sheets": {}}
@@ -437,8 +540,10 @@ def main():
         sheet(L).save(os.path.join(a.out, "%s.png" % name)); sheet(D).save(os.path.join(a.out, "%s_shade.png" % name))
         info["sheets"][name] = ["%s.png" % name, "%s_shade.png" % name]
     if want("things"):
-        info["things"] = bake_things(hl3, PR, K, a.out, SN)
+        info["things"] = bake_things(hl3, PR, K, a.out, SN, LOOK)
         info["palette"] = palette(hl3)
+        info["mats"] = list(hl3.MATS)               # a mark's material is its place in this list (marks.png, look.py)
+        info["look"] = "v4"
         print("things", round(time.time() - t0, 1), flush=True)
     if SN:
         # The Art builder's own pictures, as they are: plain snowy ground (tileable, for the plain ground the game fills

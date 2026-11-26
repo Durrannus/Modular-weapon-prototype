@@ -19,6 +19,7 @@ const LandMap := preload("res://scripts/highlands/land_map.gd")
 const Art := preload("res://scripts/art.gd")
 const Veins := preload("res://scripts/highlands/veins.gd")
 const Snow := preload("res://scripts/highlands/snow.gd")
+const LandGrow := preload("res://scripts/highlands/land_grow.gd")
 
 const T := 16                  # one tile, in art pixels
 const CH := LandMap.CHUNK
@@ -100,6 +101,11 @@ static func load_kit() -> void:
 		for file in group:
 			sheets[str(file).get_basename()] = _rgba(Art.image(KIT + str(file)))
 	sheets["things"] = _rgba(Art.image(KIT + "things.png"))
+	# What each thing leaves in the ground under it (version 65: land_grow.gd); numbers, not colours.
+	var marks_art: Image = Art.image(KIT + "marks.png")
+	if marks_art != null:
+		sheets["marks"] = _rgba(marks_art)
+	LandGrow.setup(kit)
 	# The Throne Room's floor, painted into the dug floor where the map says (version 50; tools/rattlecrown_kit).
 	var floor_art: Image = Art.image(Art.ART_DIR + "scrapyard/throne_floor.png")
 	if floor_art != null:
@@ -160,6 +166,9 @@ static func _load_snow() -> void:
 		for file in group:
 			sheets["snow/" + str(file).get_basename()] = _rgba(Art.image(KIT + "snow/" + str(file)))
 	sheets["snow/things"] = _rgba(Art.image(KIT + "snow/things.png"))
+	var snow_marks: Image = Art.image(KIT + "snow/marks.png")
+	if snow_marks != null:
+		sheets["snow/marks"] = _rgba(snow_marks)
 	for h in sk.get("snow", {}).get("ramp", []):
 		snow_cols.append(Color(str(h)))
 	for k in snow_cols.size():
@@ -333,8 +342,17 @@ static func _paint(m: LandMap, cx: int, cy: int, snow: bool) -> Image:
 	# 1. The ground: hollows and rises in the grass, then what lies on it.
 	_lay(lit, shade, pre + "hollow", TN, 0, x0, y0)
 	_lay(lit, shade, pre + "rise", TN, 2, x0, y0)
-	_lay(lit, shade, pre + "path", K, PATH, x0, y0)
-	_lay(lit, shade, pre + "yard", K, YARD, x0, y0)
+	if snow or not LandGrow.ready:
+		_lay(lit, shade, pre + "path", K, PATH, x0, y0)
+		_lay(lit, shade, pre + "yard", K, YARD, x0, y0)
+	else:
+		# Out on the moor a trodden track is a path like the others (the concept's tracks), joining them; the
+		# Scrapyard's yard is trodden into the moor round its heaps (land_grow.gd).
+		var KP := K.duplicate()
+		for i in KP.size():
+			if KP[i] == YARD:
+				KP[i] = PATH
+		_lay(lit, shade, pre + "path", KP, PATH, x0, y0)
 	_lay(lit, shade, pre + "scree", K, SCREE, x0, y0)
 	for dj in range(-1, 2):
 		for di in range(-1, 2):
@@ -436,59 +454,13 @@ static func _paint(m: LandMap, cx: int, cy: int, snow: bool) -> Image:
 				var src := Rect2i(p * 10, tone * 6, size.x, size.y)
 				lit.blend_rect(tuft_lit, src, Vector2i(px, py))
 				shade.blend_rect(tuft_shade, src, Vector2i(px, py))
-			if cover or tone == 0:
-				continue
-			# Flowers: three kinds, each in drifts of its own a few tiles across, and a stray clump here and there on the rises.
-			var kind := -1
-			var clumps := 1
-			for c in 3:
-				var f := _field(wx, wy, 6, 310 + c * 7 + world)
-				if f > 0.76:
-					kind = c
-					clumps = 2 if f > 0.86 else 1
-			var stray := (h >> 21) % 100
-			if kind < 0 and ((rise and stray < 10) or (not rise and stray < 2)):
-				kind = stray % 3
-			if kind < 0:
-				continue
-			for g2 in clumps:
-				var hc := _mix(wx * 2 + g2, wy, 9)
-				var fx := (li - PAD) * T + 2 + hc % 11
-				var fy := (lj - PAD) * T + 2 + (hc >> 5) % 10
-				for q in 4 + (hc >> 10) % 5:
-					var hq := _mix(wx * 16 + q + g2 * 8, wy, 8)
-					var px := fx + hq % 9 - 4
-					var py := fy + (hq >> 4) % 7 - 3
-					if px < 0 or py < 0 or px >= PX or py + 1 >= PX:
-						continue
-					var g := grass32.find(lit.get_pixel(px, py).to_rgba32())
-					if g < 2 or g > 4 or lit.get_pixel(px, py + 1).to_rgba32() != grass32[g]:
-						continue
-					lit.set_pixel(px, py, flowers[kind][0])
-					shade.set_pixel(px, py, flowers[kind][1])
-					lit.set_pixel(px, py + 1, grass[g - 1])
-					shade.set_pixel(px, py + 1, grass[maxi(g - 3, 0)])
-	# 3. Heather and sage: separate bushes standing on the grass, each one a plant of the map's own (the map made
-	# sure no two touch). The ones further up the picture go down first, so a nearer bush stands in front.
-	var plants: Array = []
-	for dj in range(-1, 2):
-		for di in range(-1, 2):
-			for pl in m.plants_in(cx + di, cy + dj):
-				plants.append([int(pl["y"]) - oy, int(pl["x"]) - ox, str(pl["n"])])
-	plants.sort()
-	for p in plants:
-		var info: Dictionary = kit_things[p[2]]
-		var r: Array = info["rect"]
-		var foot: Array = info["foot"]
-		var px := int(p[1])
-		var py := int(p[0])
-		var dst := Vector2i(px - int(foot[0]), py - int(foot[1]))
-		lit.blend_rect(th, Rect2i(r[0], r[1], r[2], r[3]), dst)
-		var r2: Array = kit_things[str(p[2]) + "~"]["rect"]
-		shade.blend_rect(th, Rect2i(r2[0], r2[1], r2[2], r2[3]), dst)
-		var s: Array = info["shadow"]
-		var sat: Array = info["shadow_at"]
-		mask.blend_rect(th, Rect2i(s[0], s[1], s[2], s[3]), Vector2i(px + int(sat[0]), py + int(sat[1])))
+	# 3. What grows in the ground (version 65, land_grow.gd): the trodden yard, turf where the ground is damp, the
+	# ground's texture, flowers in drifts of specks, the heather and sage drawn into the ground, and the mark each thing
+	# standing on the land leaves in it (roots, canopy shadow, litter, a damp bed, rust).
+	if LandGrow.ready:
+		LandGrow.grow(lit, shade, m, cx, cy, snow, kit_things, th, sheets.get(pre + "marks"), world)
+	else:
+		_old_plants(lit, shade, mask, m, cx, cy, kit_things, th)
 	# 4. Shadows: what stands on the land throws one down and to the right, and so does the rock.
 	for dj in range(-1, 2):
 		for di in range(-1, 2):
@@ -542,6 +514,30 @@ static func _paint(m: LandMap, cx: int, cy: int, snow: bool) -> Image:
 	return lit
 
 
+## Heather and sage as separate bushes standing on the grass (the land before version 65, for a kit without marks).
+static func _old_plants(lit: Image, shade: Image, mask: Image, m: LandMap, cx: int, cy: int, kit_things: Dictionary, th: Image) -> void:
+	var ox := cx * PX
+	var oy := cy * PX
+	var plants: Array = []
+	for dj in range(-1, 2):
+		for di in range(-1, 2):
+			for pl in m.plants_in(cx + di, cy + dj):
+				plants.append([int(pl["y"]) - oy, int(pl["x"]) - ox, str(pl["n"])])
+	plants.sort()
+	for p in plants:
+		var info: Dictionary = kit_things[p[2]]
+		var r: Array = info["rect"]
+		var foot: Array = info["foot"]
+		var dst := Vector2i(int(p[1]) - int(foot[0]), int(p[0]) - int(foot[1]))
+		lit.blend_rect(th, Rect2i(r[0], r[1], r[2], r[3]), dst)
+		var r2: Array = kit_things[str(p[2]) + "~"]["rect"]
+		shade.blend_rect(th, Rect2i(r2[0], r2[1], r2[2], r2[3]), dst)
+		if info.has("shadow"):
+			var s: Array = info["shadow"]
+			var sat: Array = info["shadow_at"]
+			mask.blend_rect(th, Rect2i(s[0], s[1], s[2], s[3]), Vector2i(int(p[1]) + int(sat[0]), int(p[0]) + int(sat[1])))
+
+
 ## Where the snow's edge crosses a chunk (version 62): each pixel of `plain` becomes the snow picture's where snow lies
 ## there. The edge wanders and breaks into patches (snow.gd), and each pixel's own jitter keeps it ragged. Where the
 ## snow stops on open ground, its thin side shows on the near edge and its far rim catches the light, as round the
@@ -572,6 +568,10 @@ static func _snow_edge(plain: Image, snow: Image, m: LandMap, cx: int, cy: int) 
 	var green := {}
 	for c in grass32:
 		green[c] = true
+	for name in ["turf", "mixg", "mixe", "earth"]:          # (version 65: the moor's turf and worn ground are open ground too)
+		for k in LandGrow.ramps.get(name, PackedInt32Array()):
+			var v: int = k & 0xffffffff
+			green[((v & 0xff) << 24) | (((v >> 8) & 0xff) << 16) | (((v >> 16) & 0xff) << 8) | ((v >> 24) & 0xff)] = true
 	var thin: Color = snow_cols[2]
 	for q in PX * PX:
 		var o := q * 4

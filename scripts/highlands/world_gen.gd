@@ -48,8 +48,8 @@ const Painter := preload("res://scripts/highlands/land_painter.gd")
 ## land (tiles, or the things that stand on it): worlds saved before are then laid out again, without what was dug in
 ## them, in place of old holes cut into a land they do not fit. tests/saving.gd keeps a fingerprint of one land and
 ## fails if the land changes while this number does not.
-const GEN := 3
-const NEWS := "There are about twice as many pines now, in small groves through the open places."   # what this making of the land brought (the card of a world laid out again says it)
+const GEN := 4
+const NEWS := "The land has its new look: turf where the ground is damp, Scots pine, rowan and juniper groves, a trodden Scrapyard yard."   # what this making of the land brought (the card of a world laid out again says it)
 
 const MID := LandMap.MID
 const RINGS := [24.0, 125.0, 240.0, 350.0]   # where the base hills, the inner, the middle and the outer ring end (tiles from the cave)
@@ -106,6 +106,7 @@ const DEEP_ORE := 28           # clusters of ore buried in the rock, away from e
 ## so how many there are (the lab: Players > In the Highlands) moves nothing else on the land. See _groves.
 static var GROVES := 2.5       # this times a ring's "pine" share is how many groves an open place has (2.5: about twice the pines)
 static var GROVE_MOST := 4     # the most pines in one grove (the fewest is two)
+static var GROVE_ROWAN := 0.5  # how often a grove's last tree is a rowan (version 65)
 const GROVE_REACH := 2.8       # a grove's pines stand within this many tiles of its first one ...
 const GROVE_APART := 1.9       # ... and at least this far from each other: their crowns overlap, so it reads as one grove
 const GROVE_ROOM := 2.4        # nothing else that stands in the place is nearer than this to one of its pines
@@ -1145,6 +1146,13 @@ func _take(list: Array, taken: Array, apart: float, dice: RandomNumberGenerator 
 	return Vector2i(-1, -1)
 
 
+## A tree standing at the back of a place: a Scots pine, or a rowan one time in three (version 65).
+func _tree(dice: RandomNumberGenerator, _i: int) -> String:
+	if dice.randf() < 0.33:
+		return "rowan_%d" % (dice.randi() % 3)
+	return "pine_%d" % (dice.randi() % 6)
+
+
 ## Things are never mirrored: the light comes from the upper left on every one of them.
 func _thing(name: String, tile: Vector2i, dx := 8, dy := 11, _flip := false) -> void:
 	m.things.append({"n": name, "x": tile.x * 16 + dx, "y": tile.y * 16 + dy, "f": false})
@@ -1535,7 +1543,7 @@ func _dress() -> void:
 		if d > 0.62 and Vector2(at).distance_to(Vector2(MID, MID + 2)) > 5.0:
 			edge.append(at)
 	var taken: Array = []
-	for name in ["boulder_%d" % (rng.randi() % 3), "boulder_%d" % (3 + rng.randi() % 3), "bush_%d" % (rng.randi() % 4), "bush_%d" % (rng.randi() % 4), "pine_%d" % (4 + rng.randi() % 2)]:
+	for name in ["boulder_%d" % (rng.randi() % 3), "boulder_%d" % (3 + rng.randi() % 3), "gorse_%d" % (rng.randi() % 3), "juniper_%d" % (rng.randi() % 3), "pine_%d" % (4 + rng.randi() % 2)]:
 		var at := _take(edge, taken, 5.0)
 		if at.x >= 0:
 			_thing(name, at, 4 + rng.randi() % 9, 9 + rng.randi() % 5, rng.randf() < 0.5)
@@ -1589,7 +1597,7 @@ func _dress() -> void:
 			for i in 1 + dice.randi() % 3:
 				var at := _take(back, taken, 2.6, dice)
 				if at.x >= 0:
-					_thing("pine_%d" % (dice.randi() % 6), at, 4 + dice.randi() % 9, 9 + dice.randi() % 5, dice.randf() < 0.5)
+					_thing(_tree(dice, i), at, 4 + dice.randi() % 9, 9 + dice.randi() % 5, dice.randf() < 0.5)
 		var boulders: Array = rule["boulder"]
 		if dice.randf() < float(boulders[0]):
 			for i in int(boulders[1]) + dice.randi() % (int(boulders[2]) - int(boulders[1]) + 1):
@@ -1600,7 +1608,7 @@ func _dress() -> void:
 			for i in 1 + dice.randi() % 2:
 				var at := _take(spots["roomy"], taken, 3.2, dice)
 				if at.x >= 0:
-					_thing("bush_%d" % (dice.randi() % 4), at, 4 + dice.randi() % 9, 9 + dice.randi() % 5, dice.randf() < 0.5)
+					_thing(("gorse_%d" if int(p["ring"]) < 2 and dice.randf() < 0.5 else "juniper_%d") % (dice.randi() % 3), at, 4 + dice.randi() % 9, 9 + dice.randi() % 5, dice.randf() < 0.5)
 		if dice.randf() < float(rule["bracken"]):
 			for i in 2 + dice.randi() % 3:
 				var at := _take(spots["foot"], taken, 2.0, dice)
@@ -1727,9 +1735,20 @@ func _groves() -> void:
 						break
 					at = close[grove.randi() % close.size()]
 				stood.append(at)
-				_thing("pine_%d" % (grove.randi() % 6), at, 4 + grove.randi() % 9, 9 + grove.randi() % 5)
+				var kind := "rowan_%d" % (grove.randi() % 3) if k > 0 and k == many - 1 and grove.randf() < GROVE_ROWAN else "pine_%d" % (grove.randi() % 6)
+				_thing(kind, at, 4 + grove.randi() % 9, 9 + grove.randi() % 5)
 				var foot := Vector2(float(m.things[-1]["x"]), float(m.things[-1]["y"])) / 16.0
 				_file(standing, Vector2i(floori(foot.x / 8.0), floori(foot.y / 8.0)), foot)
+			# Junipers under the grove (concept v4: "Scots pine, rowan and juniper groves"): low, drawn into the ground,
+			# you walk through them; in the grove's own room, beside a trunk but not on it.
+			for k in 1 + grove.randi() % 2:
+				var under: Array = spots.filter(func(s): return stood.any(func(o): return Vector2(s).distance_to(Vector2(o)) <= GROVE_REACH) \
+					and stood.all(func(o): return Vector2(s).distance_to(Vector2(o)) >= 1.0))
+				if under.is_empty():
+					break
+				var at: Vector2i = under[grove.randi() % under.size()]
+				_thing("juniper_%d" % (grove.randi() % 3), at, 4 + grove.randi() % 9, 9 + grove.randi() % 5)
+				stood.append(at)
 			# The next grove keeps clear of this one, as of everything else.
 			spots = spots.filter(func(s): return stood.all(func(o): return Vector2(s).distance_to(Vector2(o)) >= GROVE_ROOM + GROVE_REACH))
 
@@ -1888,6 +1907,10 @@ func _dress_forecourt(p: Dictionary, spots: Dictionary, taken: Array) -> void:
 	for t: Vector2i in spots["roomy"]:
 		if absi(t.x - gate_x) >= 3 and absf(float(t.y) + 0.5 - p["at"].y) < float(p["ry"]) + 1.0:
 			sides.append(t)
+	# Two heaps of scrap out in the yard first (concept v4.1: piled anyhow, half sunk in the trodden earth), each with
+	# room all round it (moor two tiles either side and one above and below), so no way is shut.
+	var room: Array = sides.filter(func(t): return _roomy(t.x - 1, t.y) and _roomy(t.x + 1, t.y))
+	_strew(["heap_0", "heap_1", "heap_2"], 2, room, taken, 6.0)
 	_strew(["barrel"], 2, sides, taken, 2.6)
 	_strew(["rubble"], 3, sides, taken, 2.2)
 	_strew(["bones"], 2, sides, taken, 2.2)

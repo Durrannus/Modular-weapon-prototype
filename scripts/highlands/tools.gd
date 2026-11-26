@@ -268,8 +268,8 @@ func _pick(h: Hand, step: int) -> void:
 
 static func thing_class(t: Dictionary) -> String:
 	var n := str(t["n"])
-	if n.begins_with("pine_") and n != "pine_stump":
-		return "pine"
+	if (n.begins_with("pine_") and n != "pine_stump") or n.begins_with("rowan_"):
+		return "pine"             # (a rowan is felled like a pine, version 65)
 	if n.begins_with("boulder_"):
 		return "boulder"
 	return ""

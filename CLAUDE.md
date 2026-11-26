@@ -41,6 +41,7 @@ The README is the long, plain-words story for Darren; this file is only for find
 | `scripts/highlands/highlands.gd` | The Highlands game: makes the world, players, systems, saving hooks, the Highlands-only shares. |
 | `scripts/highlands/world_gen.gd`, `land_map.gd` | Making a map from a seed (rings, places, ore, dressing, pine groves); the map as tiles. Raise `WorldGen.GEN` when the land changes, then `tests/saving.gd -- ref`. |
 | `scripts/highlands/land_painter.gd`, `land_view.gd`, `veins.gd` | Painting the land from the art kit (and the snow kit round the Den: `_snow_edge`); showing it near the camera; ore veins. |
+| `scripts/highlands/land_grow.gd` | The ground answering what grows in it (concept v4, version 65): turf by the damp rule, texture, flower beds, the Scrapyard's trodden yard, plants drawn into the ground, each thing's mark (`art/highlands/marks.png`). The painter calls `grow` per chunk. |
 | `scripts/highlands/charts.gd` | The small map, the whole map on M, the seen land, the lab's map switch. |
 | `scripts/highlands/foes.gd`, `foe_plan.gd`, `nav.gd` | Who lives where (goblin ground round the Scrapyard: `SCRAP_REACH`; hound ground in and near the snow; the moor's creatures everywhere else: `_creatures`), waking and coming back; the way round rock. |
 | `scripts/highlands/snow.gd` | The snowy section round the Hound Den: where snow lies (`depth`, `chunk`), the Den's mouth (`stamp`), the falling snow. The painter paints `art/highlands/snow/` there (`bake.py --snow`). |
@@ -57,5 +58,5 @@ The README is the long, plain-words story for Darren; this file is only for find
 | `scripts/net/` | Online play for two (on hold). |
 | `scripts/art.gd`, `sfx.gd`, `music.gd`, `sim.gd`, `version.gd` | Loading art by name; sounds made in code; music; the game's dice; the version stamp. |
 | `art/`, `parts/`, `scenes/`, `shaders/` | Pictures and their json; weapon parts as `.tres`; scenes; shaders. |
-| `tools/` | Bakers and picture makers (map overviews, Rattlecrown kit, perk icons, the Windows exe). Not part of the game. |
+| `tools/` | Bakers and picture makers (map overviews, Rattlecrown kit, perk icons, the Windows exe). Not part of the game. `tools/highlands_kit/bake.py` bakes `art/highlands/` from the Art builder's code (`look.py` loads the concept v4 code and cuts each thing's picture and mark). |
 | `tests/` | One suite per area (named after it), `run.sh`, `online.sh`, `version_check.gd`. |

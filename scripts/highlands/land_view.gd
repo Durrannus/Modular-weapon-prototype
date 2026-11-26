@@ -162,8 +162,8 @@ func _stand_things(c: Dictionary) -> void:
 		var name := str(t["n"])
 		var snow := Painter.snowy_thing(map, t)
 		var info: Dictionary = Painter.snow_things.get(name, {}) if snow else Painter.things.get(name, {})
-		if info.is_empty():
-			continue
+		if info.is_empty() or not info.has("rect"):
+			continue              # (a small plant drawn into the ground has no picture of its own: land_grow.gd)
 		var foot := Vector2(float(t["x"]), float(t["y"]))
 		var s := stand(name, foot, bool(t.get("f", false)), snow)
 		c["things"].append(s)

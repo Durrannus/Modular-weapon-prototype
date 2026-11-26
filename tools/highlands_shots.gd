@@ -96,6 +96,8 @@ static func picture(m: LandMap, c: Vector2, size: Vector2i) -> Image:
 	var th: Image = Painter.sheets["things"]
 	for s in stand:
 		var info: Dictionary = Painter.things[s[2]]
+		if not info.has("rect"):
+			continue
 		var r: Array = info["rect"]
 		var foot: Array = info["foot"]
 		var src := Rect2i(r[0], r[1], int(info.get("frame_w", r[2])), r[3])
