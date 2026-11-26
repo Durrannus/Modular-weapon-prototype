@@ -75,8 +75,13 @@ static func glow_texture(rel_path: String) -> Texture2D:
 ## crowd, version 50, after the Overseer's review); scripts/highlands/crown.gd says when.
 static var busy_ground := false
 const BUSY_SHADE := 0.82
+## In the Highlands the HUD's backings are solid (version 66, after the Overseer's review of the new look: the ground
+## is busier, and text must never sit on the land).
+static var solid_backings := false
 
 static func shade(base: Color) -> Color:
+	if solid_backings:
+		return Color(base.r, base.g, base.b, 1.0)
 	return Color(base.r, base.g, base.b, BUSY_SHADE) if busy_ground else base
 
 

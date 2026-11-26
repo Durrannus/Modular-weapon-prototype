@@ -9,6 +9,7 @@ extends SceneTree
 const WorldGen := preload("res://scripts/highlands/world_gen.gd")
 const LandMap := preload("res://scripts/highlands/land_map.gd")
 const Painter := preload("res://scripts/highlands/land_painter.gd")
+const LandGrow := preload("res://scripts/highlands/land_grow.gd")
 
 
 func _init() -> void:
@@ -32,6 +33,8 @@ func _init() -> void:
 			views = ["at"]
 		elif a.begins_with("scale="):
 			scale = int(a.substr(6))
+		elif a.begins_with("foliage="):          # (the lab's "Drifts of foliage": 0 = none)
+			LandGrow.FOLIAGE = float(a.substr(8))
 	DirAccess.make_dir_recursive_absolute(out)
 	var m: LandMap = WorldGen.make(seed_value)
 	var t0 := Time.get_ticks_msec()

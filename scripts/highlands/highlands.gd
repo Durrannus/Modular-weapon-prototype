@@ -119,6 +119,7 @@ var _saved_at := {}             # a save's name -> when
 
 func _ready() -> void:
 	_rules()
+	Art.solid_backings = true          # (the HUD's backings are solid over the Highlands' busy ground: version 66)
 	randomize()
 	if not Net.online():
 		Sim.shuffle()
@@ -391,6 +392,7 @@ func _rules() -> void:
 
 
 func _exit_tree() -> void:
+	Art.solid_backings = false
 	PlayerScript.SIZE = 1.0
 	PlayerScript.PACE = 1.0
 	PlayerScript.HURT_SHARE = 1.0

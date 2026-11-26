@@ -22,11 +22,13 @@ extends RefCounted
 ## Everything is chosen from the pixel's own place on the map, so chunks meet without a seam.
 
 const LandMap := preload("res://scripts/highlands/land_map.gd")
+const Snow := preload("res://scripts/highlands/snow.gd")
+const FoePlan := preload("res://scripts/highlands/foe_plan.gd")
 
 const T := 16
 const CH := LandMap.CHUNK
 const PX := CH * T
-const FR := 5                    # tiles looked at past the chunk for the damp rule
+const FR := 8                    # tiles looked at past the chunk for the damp rule
 const TURF_AT := 0.42            # the damp rule's line (hl_detail.turf_rule)
 const STAMPS := 10               # texture stamps to a tile: one to about every 26 open pixels (hl_detail.detail)
 ## The ground's own blades and tufts (hl_detail): [dx, dy, steps up or down].
@@ -49,12 +51,18 @@ static var code_of := {}         # colour -> ramp number * 16 + step, for the gr
 static var names: Array = []     # ramp number -> name (the kit's "mats": a mark's material is its place in this list)
 static var num := {}             # name -> ramp number
 static var off := false          # (a check can switch the whole pass off, to compare)
+static var DAMP_REACH := 1.0     # how far the damp rule reaches from water, hollows and rock (the lab; version 66)
+static var FOLIAGE := 1.0        # how many drifts of foliage (the lab; 0 = none; version 66)
+static var note := false         # (for the checks: while on, every foliage plant laid is noted in `noted`)
+static var noted: Array = []     # [x, y (the land's pixels), picture's name, in the snow's picture]
 static var G_GRASS := -1         # the numbers of the ramps used most
 static var G_TURF := -1
 static var G_MIXG := -1
 static var G_EARTH := -1
 static var G_MIXE := -1
 static var G_FACE := -1
+static var G_SNOW := -1
+static var G_FLOOR := -1
 static var open_ids := {}        # the open ground's ramps: texture goes on these
 
 
@@ -86,6 +94,8 @@ static func setup(kit: Dictionary) -> void:
 	G_EARTH = _rid("earth")
 	G_MIXE = _rid("mixe")
 	G_FACE = _rid("face")
+	G_SNOW = _rid("snow")
+	G_FLOOR = _rid("floor")
 	for n in [G_GRASS, G_TURF, G_EARTH, G_MIXG, G_MIXE]:
 		if n >= 0:
 			open_ids[n] = true
@@ -224,6 +234,8 @@ static func grow(lit_img: Image, shade_img: Image, m: LandMap, cx: int, cy: int,
 		t = _tick("flowers", t)
 	_plants(lit, shade, m, cx, cy, things, th, snow)
 	t = _tick("plants", t)
+	_foliage(lit, shade, m, c, things, th, snow, world)
+	t = _tick("foliage", t)
 	_marks(lit, shade, m, cx, cy, things, mk)
 	t = _tick("marks", t)
 	lit_img.set_data(PX, PX, false, Image.FORMAT_RGBA8, lit.to_byte_array())
@@ -399,9 +411,9 @@ static func _damp(c: Ctx) -> PackedFloat32Array:
 			hol[q] = 1.0
 	var out := PackedFloat32Array()
 	out.resize(n * n)
-	var bw := _blur(wet, n, 22.0 / T)
-	var bh := _blur(hol, n, 14.0 / T)
-	var bl := _blur(lee, n, 10.0 / T)
+	var bw := _blur(wet, n, 22.0 / T * DAMP_REACH)
+	var bh := _blur(hol, n, 14.0 / T * DAMP_REACH)
+	var bl := _blur(lee, n, 10.0 / T * DAMP_REACH)
 	var bk := _blur(walk, n, 7.0 / T)
 	for q in n * n:
 		out[q] = bw[q] * 3.2 + bh[q] * 0.45 + bl[q] * 0.75 - bk[q] * 2.4
@@ -690,12 +702,12 @@ static func _stamps(lit: PackedInt32Array, shade: PackedInt32Array, c: Ctx) -> v
 
 ## The ground under a plant or a drift (hl_grow.bed): damper and darker toward the middle, greener where it was moor
 ## grass; the edge breaks up into single pixels, never a line. (cx, cy, rx, ry in the chunk's own pixels.)
-static func _bed(lit: PackedInt32Array, shade: PackedInt32Array, ox: int, oy: int, cx: float, cy: float, rx: float, ry: float, green: bool, deep: int, edge: float, core := true) -> void:
+static func _bed(lit: PackedInt32Array, shade: PackedInt32Array, ox: int, oy: int, cx: float, cy: float, rx: float, ry: float, green: bool, deep: int, edge: float, core := true, only: Array = []) -> void:
 	for y in range(maxi(0, floori(cy - ry - 2)), mini(PX, ceili(cy + ry + 3))):
 		for x in range(maxi(0, floori(cx - rx - 2)), mini(PX, ceili(cx + rx + 3))):
 			var q := y * PX + x
 			var cd: int = code_of.get(lit[q], -1)
-			if cd < 0:
+			if cd < 0 or (not only.is_empty() and not only.has(cd >> 4)):
 				continue
 			var X := ox + x
 			var Y := oy + y
@@ -850,19 +862,22 @@ static func _pixels(things: Dictionary, th: Image, name: String) -> Array:
 ## One small plant drawn into the ground with its foot at (x, y) in the chunk's pixels: a damp bed under it, the
 ## ground's own dark steps on its shaded side (no outline), its own pixels (lit, and its "~" picture in shadow), and
 ## the ground's blades over its foot (hl_grow.plant and soften_plants). `thin`: sage, whose shade is broken.
-static func _soft(lit: PackedInt32Array, shade: PackedInt32Array, ox: int, oy: int, things: Dictionary, th: Image, name: String, x: int, y: int, sides: Array, green: bool, thin := false) -> void:
+static func _soft(lit: PackedInt32Array, shade: PackedInt32Array, ox: int, oy: int, things: Dictionary, th: Image, name: String, x: int, y: int, sides: Array, green: bool, thin := false, hide := 0) -> void:
 	var info: Dictionary = things.get(name, {})
 	if info.is_empty() or th == null:
 		return
 	var r: Array = info["rect"]
 	var foot: Array = info["foot"]
 	var w := int(r[2])
-	var hgt := int(r[3])
+	var cut := int(foot[1]) - hide        # its rows from here down are lost in the turf (hl_grow.plant's hide)
+	var hgt := mini(int(r[3]), cut)
 	var left := x - int(foot[0])
-	var top := y - int(foot[1])
-	if left + w < -2 or top + hgt < -2 or left > PX + 2 or top > PX + 4:
+	var top := y - int(foot[1]) + hide
+	if hgt <= 0 or left + w < -2 or top + hgt < -2 or left > PX + 2 or top > PX + 4:
 		return
 	var pix := _pixels(things, th, name)
+	if hide > 0:
+		pix = pix.filter(func(p): return int(p[1]) < cut)
 	if pix.is_empty():
 		return
 	_bed(lit, shade, ox, oy, left + w * 0.5, top + hgt + 0.5, w * 0.5 + 2.5, 2.0, green, 1, 0.5)
@@ -900,6 +915,188 @@ static func _soft(lit: PackedInt32Array, shade: PackedInt32Array, ox: int, oy: i
 				continue
 		lit[q] = int(p[2])
 		shade[q] = int(p[3])
+
+
+# --- foliage -------------------------------------------------------------------------------------------------------
+
+## Walk-through foliage for each section (Darren, 25 November: "Add some foliage also for each zone ... like core keeper
+## does"; the Art builder's hl_foliage.SETS, concept v4): kinds by the ground they grow on.
+const FOLIAGE_SETS := {
+	"lee": ["bracken", "bracken_rust", "fern"],         # in the lee under the rock
+	"wet": ["cotton_grass", "tall_grass"],              # by water
+	"heath": ["bilberry", "fern"],                      # among the heather and sage
+	"open": ["tall_grass", "fern", "bracken"],          # out on the moor
+	"stone": ["moss_stone"],                            # near the rock, now and then
+	"scrap": ["nettles", "thistle", "dock", "rust_weeds"],   # the goblin ground round the Scrapyard
+	"snow": ["frosted_heather", "frozen_grass", "snowdrops", "lichen_stone"],
+	"dark": ["glow_fungi", "glowbell"],                 # old tunnels' floors, against the wall
+}
+## A drift starts on about one tile in this many (moor, goblin ground, snow; a tunnel's floor by the wall).
+const DRIFT_EVERY := {"moor": 34.0, "scrap": 26.0, "snow": 40.0, "dark": 7.0}
+
+
+## The drifts whose plants can reach chunk c: [centre x, centre y (the chunk's own pixels), set, seed]. Each one comes
+## from its own tile (with the world's own number), so every chunk finds the same drifts.
+static func _drift_list(m: LandMap, c: Ctx, snow: bool, world: int) -> Array:
+	var out: Array = []
+	if FOLIAGE <= 0.0:
+		return out
+	var n := CH + FR * 2
+	var site: Dictionary = m.sites.get("scrapyard", {})
+	var yard: Vector2 = site.get("at", Vector2.INF)
+	var snow_near := false            # (this chunk or one beside it: a drift's plants reach three tiles over)
+	for dj in range(-1, 2):
+		for di in range(-1, 2):
+			snow_near = snow_near or Snow.chunk(m, floori(float(c.ox) / PX) + di, floori(float(c.oy) / PX) + dj) > 0
+	for tj in range(-3, CH + 3):
+		for ti in range(-3, CH + 3):
+			var i := (tj + FR) * n + ti + FR
+			var k := c.kinds[i]
+			var X := c.x0 + ti
+			var Y := c.y0 + tj
+			var h := _h(X, Y, 401 + world)
+			var r := float(h & 0xffff) / 65536.0
+			var sec := ""
+			if k == LandMap.FLOOR:
+				if m.dug.has(Y * LandMap.SIZE + X):
+					continue                 # (only the old tunnels: nothing grows yet where you have just dug)
+				var wall := false
+				for d in [-1, 1, -n, n]:
+					if LandMap.rocky(c.kinds[i + d]):
+						wall = true
+				if not wall or r >= FOLIAGE / float(DRIFT_EVERY["dark"]):
+					continue
+				sec = "dark"
+			elif _turf_ground(k):
+				if r >= FOLIAGE / 26.0:
+					continue
+				sec = "moor"
+			else:
+				continue
+			var cx := ti * T + 2 + (h >> 16) % 12
+			var cy := tj * T + 2 + (h >> 20) % 12
+			var snowy := snow_near and Snow.snowy_px(m, Vector2(c.ox + cx, c.oy + cy))
+			if snowy != snow:
+				continue                     # (the other picture of this chunk draws it)
+			if sec == "moor":
+				var near_yard := yard != Vector2.INF and Vector2(X, Y).distance_to(yard) < FoePlan.SCRAP_REACH
+				sec = "snow" if snowy else ("scrap" if near_yard and (h >> 24) % 10 < 7 else "moor")
+				if r >= FOLIAGE / float(DRIFT_EVERY[sec]):
+					continue
+				if sec == "moor":
+					# which moor kinds: by the ground round it (hl_light_concept4: bracken in the lee, cotton grass by
+					# water, bilberry among the heather)
+					var rock := false
+					var water := false
+					for dj in range(-2, 3):
+						for di in range(-2, 3):
+							var kk := c.kinds[i + dj * n + di]
+							rock = rock or LandMap.rocky(kk)
+							water = water or kk == LandMap.WATER
+					if water:
+						sec = "wet"
+					elif rock:
+						sec = "stone" if (h >> 8) % 6 == 0 else "lee"
+					elif k == LandMap.HEATH or k == LandMap.SCRUB:
+						sec = "heath"
+					else:
+						sec = "open"
+			out.append([cx, cy, sec, h])
+	return out
+
+
+## Lays the drifts (hl_grow.drift): a damp greener bed, three to seven plants packed in the middle and half hidden
+## further out, and the drift thinning into single blades with no edge. Never on a path, in water or on rock, never
+## under a thing standing on the land or on top of a heather or sage plant.
+static func _foliage(lit: PackedInt32Array, shade: PackedInt32Array, m: LandMap, c: Ctx, things: Dictionary, th: Image, snow: bool, world: int) -> void:
+	var drifts := _drift_list(m, c, snow, world)
+	if drifts.is_empty():
+		return
+	var ox := c.ox
+	var oy := c.oy
+	var ccx := floori(float(ox) / PX)
+	var ccy := floori(float(oy) / PX)
+	var keep_off: Array = []         # [x, y, how far] in the chunk's pixels
+	for dj in range(-1, 2):
+		for di in range(-1, 2):
+			for t in m.things_in(ccx + di, ccy + dj):
+				keep_off.append(Vector3(float(t["x"]) - ox, float(t["y"]) - oy, 8.0))
+			for pl in m.plants_in(ccx + di, ccy + dj):
+				keep_off.append(Vector3(float(pl["x"]) - ox, float(pl["y"]) - oy, 5.0))
+	var n := CH + FR * 2
+	var spread := 10.0
+	for d in drifts:
+		var cx: int = d[0]
+		var cy: int = d[1]
+		var sec: String = d[2]
+		var h: int = d[3]
+		if cx < -60 or cy < -40 or cx > PX + 60 or cy > PX + 40:
+			continue
+		var kinds: Array = FOLIAGE_SETS[sec]
+		var dark := sec == "dark"
+		var green := not snow and not dark
+		var nvar := 4 if dark else 3
+		var k1: String = kinds[_h(h, 1, 402) % kinds.size()]
+		var k2: String = kinds[_h(h, 2, 402) % kinds.size()]
+		var per := (2 + _h(h, 3, 402) % 3) if dark else (3 + _h(h, 3, 402) % 5)
+		var sp := 5.0 if dark else spread
+		var placed: Array = []
+		for j in per:
+			var hj := _h(h, j + 10, 403)
+			var r := sp * pow(float(j) / 7.0, 0.8)
+			var a := float(hj & 1023) / 1023.0 * TAU
+			var x := cx + int(cos(a) * r * 1.4)
+			var y := cy + int(sin(a) * r * 0.8)
+			# its foot must be on the ground it grows on, with room
+			var ti := floori(float(x) / T) + FR
+			var tj := floori(float(y) / T) + FR
+			if ti < 1 or tj < 1 or ti >= n - 1 or tj >= n - 1:
+				continue
+			var kk := c.kinds[tj * n + ti]
+			if dark:
+				if kk != LandMap.FLOOR or m.dug.has((c.y0 + tj - FR) * LandMap.SIZE + c.x0 + ti - FR):
+					continue
+			elif not _turf_ground(kk):
+				continue
+			var ok := true
+			for o: Vector3 in keep_off:
+				if absf(o.x - x) < o.z and absf(o.y - y) < o.z * 0.6:
+					ok = false
+					break
+			for q: Array in placed:
+				if absi(int(q[0]) - x) < 5 and absi(int(q[1]) - y) < 3:
+					ok = false
+			if not ok:
+				continue
+			var name := "fol_%s_%d" % [k1 if (hj >> 10) % 10 < 7 else k2, (hj >> 14) % nvar]
+			if not things.has(name):
+				continue
+			var hide := 0 if r < sp * 0.45 else 1 + (hj >> 18) % 3
+			if (hj >> 20) % 10 < 3:
+				hide = maxi(hide, 1 + (hj >> 22) % 2)
+			if dark:
+				hide = 0
+			placed.append([x, y, name, hide])
+		if placed.is_empty():
+			continue
+		if dark:
+			_bed(lit, shade, ox, oy, cx, cy + 1, 7.0, 3.0, false, 1, 0.7, true, [G_FLOOR])
+		else:     # (the bed stays on the grass or the snow: never on a path or on the rock's foot)
+			_bed(lit, shade, ox, oy, cx, cy + 1, spread * 1.6, spread * 0.85, green, 1, 0.7, true, [G_SNOW] if snow else [G_GRASS, G_TURF, G_MIXG])
+		placed.sort_custom(func(p, q): return int(p[1]) < int(q[1]))
+		for p in placed:
+			_soft(lit, shade, ox, oy, things, th, str(p[2]), int(p[0]), int(p[1]), [[1, 0, 2], [0, 1, 2], [1, 1, 1], [-1, 0, 1]], green, false, int(p[3]))
+			if note:
+				noted.append([ox + int(p[0]), oy + int(p[1]), str(p[2]), snow])
+		if not dark:
+			for b in per * 4:                # the drift thinning into single blades
+				var hb := _h(h, b + 40, 404)
+				var rr := spread * (0.7 + float(hb & 255) / 255.0 * 1.3)
+				var aa := float((hb >> 8) & 1023) / 1023.0 * TAU
+				var bx := cx + int(cos(aa) * rr * 1.5)
+				var by := cy + 1 + int(sin(aa) * rr * 0.8)
+				if bx >= 0 and by >= 2 and bx < PX - 4 and by < PX:
+					_stamp(lit, shade, bx, by, [BLADE, VTUFT, LONGB][(hb >> 18) % 3])
 
 
 # --- marks ---------------------------------------------------------------------------------------------------------

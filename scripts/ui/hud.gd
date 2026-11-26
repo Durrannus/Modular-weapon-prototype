@@ -426,6 +426,8 @@ func _draw_path(p, i: int, right: bool) -> void:
 	if right:
 		title_x = minf(x, SIZE.x - MARGIN - _head_width(title))
 	panel.draw_rect(Rect2(title_x - 4, y - 14, _head_width(title) + 8, 12), Art.shade(SHADE))
+	if Art.solid_backings:
+		panel.draw_rect(Rect2(x - 2, y - 2, total + 4, CHIP_H + 4), PLATE)     # (the arrows between the chips too)
 	_head(title, Vector2(title_x, y - 5), DIM)
 	for s in line.size():
 		var id: String = line[s]

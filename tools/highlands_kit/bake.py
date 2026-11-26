@@ -425,6 +425,26 @@ def bake_things(hl3, PR, K, out, SN=None, L=None):
                                 if a[y, x, 3]:
                                     mid, st = GR.lookup(a[y, x, :3]); a[y, x, :3] = hl3.LUT[mid, max(0, st - drop)]
                     TH.items["flower_%d%s" % (k, suffix)] = {"img": a, "foot": [int(fx), int(fy)]}
+    # Walk-through foliage for each section (the Art builder's hl_foliage.SETS, concept v4; version 66): bare, with no
+    # outline, for the game to draw into the ground in drifts (land_grow.gd, as hl_grow.drift does). The plain kit has
+    # the moor's, the goblin ground's and the dark tunnels'; the snow kit the snow's and the dark tunnels'.
+    def darker(a, drop):
+        a = a.copy()
+        for y in range(a.shape[0]):
+            for x in range(a.shape[1]):
+                if a[y, x, 3]:
+                    mid, st = GR.lookup(a[y, x, :3]); a[y, x, :3] = hl3.LUT[mid, max(0, st - drop)]
+        return a
+    with GR.Bare():
+        for sec in (("snow", "dark") if snowy else ("moor", "scrapyard", "dark")):
+            for kind, fn in FO.SETS[sec]:
+                if kind == "wildflowers":
+                    continue                                   # (the flower beds' clumps are flower_0 to flower_5)
+                for k in range(4 if sec == "dark" else 3):
+                    im, (fx, fy) = fn(k * 11 + 5)
+                    a = im.a.copy()
+                    TH.items["fol_%s_%d" % (kind, k)] = {"img": a, "foot": [int(fx), int(fy)]}
+                    TH.items["fol_%s_%d~" % (kind, k)] = {"img": darker(a, 2), "foot": [int(fx), int(fy)]}
     # scraps of the keepers' road: whole pieces, because its flagstones do not follow the tile grid
     roads = [[(2, 3), (8, 3)], [(2, 3), (7, 3), (7, 4), (2, 4)], [(3, 2), (3, 7)], [(2, 2), (5, 3), (8, 5)], [(2, 3), (4, 3), (4, 4), (2, 4)], [(2, 4), (6, 3), (10, 3)]]
     for k, pts in enumerate(roads):

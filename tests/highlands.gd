@@ -74,6 +74,7 @@ func _run() -> void:
 	_rules()
 	_groves()
 	_painting()
+	_foliage()
 	_veins()
 	await _walking()
 	await _from_the_cave()
@@ -507,6 +508,76 @@ func _painting() -> void:
 				mats[str(LandGrow.names[cd >> 4])] = true
 	_check(mats.has("grass") and mats.has("earth"), "the base's chunk shows moor grass and the earth of its paths (%s)" % str(mats.keys()))
 	print("      one chunk painted in %d ms" % ms)
+
+
+# --- Foliage (version 66) ----------------------------------------------------------------
+
+## Drifts of the Art builder's foliage drawn into the ground (step 2 of concept v4): on the moor's open ground round the
+## base, against the wall of old tunnels (never on dug floor), the same every time, none with the lab's 0.
+func _foliage() -> void:
+	var m := WorldGen.make(1)
+	var b := Vector2i(m.base_at / float(LandMap.CHUNK))
+	LandGrow.note = true
+	LandGrow.noted.clear()
+	for dy in range(-1, 2):
+		for dx in range(-1, 2):
+			Painter.paint(m, b.x + dx, b.y + dy)
+	var moor: Array = LandGrow.noted.duplicate()
+	var off := 0
+	var kinds := {}
+	for p in moor:
+		kinds[str(p[2]).get_slice("_", 1)] = true
+		if not LandGrow._turf_ground(m.kind(floori(float(p[0]) / LandGrow.T), floori(float(p[1]) / LandGrow.T))):
+			off += 1
+	_check(moor.size() >= 8 and kinds.size() >= 2, "foliage grows in drifts round the base (%d plants, kinds %s)" % [moor.size(), str(kinds.keys())])
+	_check(off == 0, "every foliage plant stands on the moor's open ground, never on a path, water or rock (%d not)" % off)
+	# The lab's 0: none.
+	var fc := b if moor.is_empty() else Vector2i(int(moor[0][0]) / LandGrow.PX, int(moor[0][1]) / LandGrow.PX)
+	LandGrow.FOLIAGE = 0.0
+	LandGrow.noted.clear()
+	var none := Painter.paint(m, fc.x, fc.y)
+	var none_n := LandGrow.noted.size()
+	LandGrow.FOLIAGE = 1.0
+	_check(none_n == 0 and none.get_data() != Painter.paint(m, fc.x, fc.y).get_data(), "the lab's \"Drifts of foliage\" at 0 grows none")
+	# Glowing fungi against the wall of old tunnels, never where somebody has dug.
+	var dark: Array = []
+	var dark_chunk := Vector2i(-99, -99)
+	for l in m.links:
+		if not bool(l["tunnel"]):
+			continue
+		var at: Vector2 = (m.pockets[int(l["a"])]["at"] + m.pockets[int(l["b"])]["at"]) * 0.5
+		var ch := Vector2i(at / float(LandMap.CHUNK))
+		LandGrow.noted.clear()
+		Painter.paint(m, ch.x, ch.y)
+		for p in LandGrow.noted:
+			if str(p[2]).begins_with("fol_glow"):
+				dark.append(p)
+		if not dark.is_empty():
+			dark_chunk = ch
+			break
+	var dark_off := 0
+	for p in dark:
+		if m.kind(floori(float(p[0]) / LandGrow.T), floori(float(p[1]) / LandGrow.T)) != LandMap.FLOOR:
+			dark_off += 1
+	_check(not dark.is_empty() and dark_off == 0, "glowing fungi grow on an old tunnel's floor (%d, %d not on floor)" % [dark.size(), dark_off])
+	if dark_chunk.x > -99:
+		var dug: Array = []
+		for p in dark:
+			var key := floori(float(p[1]) / LandGrow.T) * LandMap.SIZE + floori(float(p[0]) / LandGrow.T)
+			if not m.dug.has(key):
+				m.dug[key] = true
+				dug.append(key)
+		LandGrow.noted.clear()
+		Painter.paint(m, dark_chunk.x, dark_chunk.y)
+		var left := 0
+		for p in LandGrow.noted:
+			if m.dug.has(floori(float(p[1]) / LandGrow.T) * LandMap.SIZE + floori(float(p[0]) / LandGrow.T)):
+				left += 1
+		for key in dug:
+			m.dug.erase(key)
+		_check(left == 0, "nothing grows yet on floor that has been dug")
+	LandGrow.note = false
+	LandGrow.noted.clear()
 
 
 # --- Ore veins ------------------------------------------------------------------------

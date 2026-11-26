@@ -17,6 +17,7 @@ const FoePlan := preload("res://scripts/highlands/foe_plan.gd")
 const Charts := preload("res://scripts/highlands/charts.gd")
 const Snow := preload("res://scripts/highlands/snow.gd")
 const Lab := preload("res://scripts/lab.gd")
+const LandGrow := preload("res://scripts/highlands/land_grow.gd")
 const TILE := 32.0
 const SEEDS := [424242, 77, 1234, 99999, 555, 31337]
 
@@ -80,8 +81,9 @@ func _kit() -> void:
 	_check(Painter.snow_ready, "the snow kit is there (art/highlands/snow/, baked from the Art builder's hl3_snow.py)")
 	var missing: Array = []
 	for name in Painter.things:
-		# (flower_: drawn into the moor's flower beds, which the snow has none of; heap_: only in front of the Scrapyard)
-		if not Painter.snow_things.has(name) and not str(name).begins_with("pine_stump") and not str(name).begins_with("flower_") and not str(name).begins_with("heap_"):
+		# (flower_: drawn into the moor's flower beds, which the snow has none of; heap_: only in front of the Scrapyard;
+		# fol_: the moor's foliage, while the snow has its own)
+		if not Painter.snow_things.has(name) and not str(name).begins_with("pine_stump") and not str(name).begins_with("flower_") and not str(name).begins_with("heap_") and not str(name).begins_with("fol_"):
 			missing.append(name)
 	_check(missing.is_empty(), "every thing on the land has its snowy picture (missing: %s)" % str(missing))
 	for name in ["den", "trample", "tracks_e", "tracks_se", "tracks_ne"]:
@@ -168,6 +170,8 @@ func _paint(m: LandMap) -> void:
 	_check(full.x >= 0 and not edges.is_empty() and plain.x >= 0, "there are open chunks under snow, at its edge and clear of it")
 	if full.x < 0 or edges.is_empty() or plain.x < 0:
 		return
+	LandGrow.note = true
+	LandGrow.noted.clear()
 	var t := Time.get_ticks_usec()
 	var s_full := _shares(Painter.paint(m, full.x, full.y))
 	var ms_full := (Time.get_ticks_usec() - t) / 1000.0
@@ -183,6 +187,21 @@ func _paint(m: LandMap) -> void:
 			s_edge = sh
 			edge = e
 	var s_plain := _shares(Painter.paint(m, plain.x, plain.y))
+	# The snow's own foliage (version 66): frosted heather, frozen grass, snowdrops, lichen stones; the moor's out of it.
+	var snow_kinds := ["fol_frosted", "fol_frozen", "fol_snowdrops", "fol_lichen", "fol_glow"]
+	var in_snow := 0
+	var wrong := 0
+	for p in LandGrow.noted:
+		var snowy := false
+		for k in snow_kinds:
+			snowy = snowy or str(p[2]).begins_with(k)
+		if bool(p[3]):
+			in_snow += 1
+		if bool(p[3]) != snowy and not str(p[2]).begins_with("fol_glow"):
+			wrong += 1
+	LandGrow.note = false
+	LandGrow.noted.clear()
+	_check(in_snow > 0 and wrong == 0, "the snow has its own foliage and the moor's stays out of it (%d plants in the snow, %d wrong)" % [in_snow, wrong])
 	print("      painted: under snow %s in %.0f ms, at the edge %s in %.0f ms, clear %s (snow, grass)" % [str(s_full), ms_full, str(s_edge), ms_edge, str(s_plain)])
 	_check(s_full[0] > 0.4 and s_full[1] < 0.12, "a chunk under snow is painted snowy (%.0f%% snow, %.0f%% grass: dry heads and trodden paths)" % [s_full[0] * 100.0, s_full[1] * 100.0])
 	_check(s_plain[0] < 0.02 and s_plain[1] > 0.2, "a chunk clear of it is painted as before (%.0f%% snow)" % [s_plain[0] * 100.0])

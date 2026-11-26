@@ -1264,7 +1264,7 @@ func _fight() -> void:
 	await _frames(3)
 	_check(not room.has_point(p.global_position) and crown.standing_in_room() == 0, "(you fall, and wake where you set out from)")
 	await physics_frame
-	_check(not Art.busy_ground and Art.shade(Color(0, 0, 0, 0.5)).a == 0.5, "(and out of the room the HUD's backings are as everywhere else)")
+	_check(not Art.busy_ground and Art.shade(Color(0, 0, 0, 0.5)).a == (1.0 if Art.solid_backings else 0.5), "(and out of the room the HUD's backings are as everywhere else in the Highlands: solid since version 66)")
 	n = await _wait(func(): return crown.stage == "wait", int(Crown.RESET_AFTER * 60.0) + 60)
 	_check(n >= int(Crown.RESET_AFTER * 60.0) - 20, "nobody on their feet in the room for %.0f seconds: the fight is called off" % Crown.RESET_AFTER)
 	await _frames(3)
