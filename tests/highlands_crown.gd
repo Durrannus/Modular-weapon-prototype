@@ -1381,6 +1381,7 @@ func _lab_bosses() -> void:
 	_check(bool(fights[0]["can_end"]) and bool(fights[0]["can_back"]) and not bool(fights[0]["can_start"]), "now the page offers End and Take everybody back")
 	await _wait(func(): return crown.stage == "elites", 240)
 	_check(crown.stage == "elites" and crown.elites.size() == 3, "the three elites come in, as in a fight begun with the horn")
+	_check(g.folk.quests_shown() == "none", "during a boss fight the quest list is put away, so it never hides a foe (version 70)")
 	_check(crown.elites.all(func(e): return e.radius > 0.0 and e.art_scale >= 1.0), "(drawn as elites, version 69)")
 	_check(g.end_boss("rattlecrown") != "", "End")
 	await _frames(3)
@@ -1388,6 +1389,33 @@ func _lab_bosses() -> void:
 	_check(p.global_position.distance_to(home) < 1.0, "and the squad is back where it stood")
 	fights = g.boss_fights()
 	_check(bool(fights[0]["can_start"]) and not bool(fights[0]["can_back"]), "Start again, and nobody to take back")
+	await _frames(int(g.folk.QUESTS_BACK * 60.0) + 10)
+	_check(g.folk.quests_shown() == "all" and not g.folk.quests().is_empty(), "the fight over, the quest list is back a moment later")
+	# A foe that is fighting, standing under the list: it shrinks to the names, or goes.
+	var mid: Vector2 = g.rig.camera.get_screen_center_position()
+	var box: Rect2 = g.folk.track_rect()
+	var under: Vector2 = mid + (box.get_center() + Vector2(0, box.size.y * 0.3) - g.folk.SIZE * 0.5) * g.folk.UNIT
+	var foe = load("res://scripts/foes/make.gd").make("hound")
+	foe.position = under
+	g.world.add_child(foe)
+	foe.set_physics_process(false)
+	await _frames(3)
+	_check(g.folk.quests_shown() != "all", "a foe in a fight under the quest list: it shrinks or goes (%s)" % g.folk.quests_shown())
+	foe.queue_free()
+	await _frames(int(g.folk.QUESTS_BACK * 60.0) + 10)
+	_check(g.folk.quests_shown() == "all", "and comes back once the foe has gone")
+	# And under the hotbar: it fades, and comes back.
+	mid = g.rig.camera.get_screen_center_position()
+	var belt: Rect2 = g.tools.belt_rect(0)
+	var foe2 = load("res://scripts/foes/make.gd").make("hound")
+	foe2.position = mid + (belt.get_center() - g.folk.SIZE * 0.5) * g.folk.UNIT
+	g.world.add_child(foe2)
+	foe2.set_physics_process(false)
+	await _frames(20)
+	_check(is_equal_approx(g.tools.hands[0].fade, g.tools.HIDE_UNDER), "a foe in a fight under the hotbar: it fades to %d%% (%.2f)" % [roundi(g.tools.HIDE_UNDER * 100.0), g.tools.hands[0].fade])
+	foe2.queue_free()
+	await _frames(20)
+	_check(is_equal_approx(g.tools.hands[0].fade, 1.0), "and comes back once the foe has gone")
 	# Ending a fight begun with the horn leaves everybody where they are.
 	_put(g, p, crown.blow_spot() + Vector2(0, 10))
 	crown.start()

@@ -26,6 +26,8 @@ const PLATE := Color("#19142a")
 const SHADOW := Color(0.06, 0.04, 0.11, 0.9)
 const BOX := Rect2(140, 38, 360, 284)
 const BARS := ["tin_bar", "copper_bar"]
+const SIPS := ["potion"]      # version 70: the healing potion, under the bars
+const ROWS_AT := 104.0        # the rows' top, down from the plate's (version 70: what you have went up beside his name)
 const ASK := "Ask about the Scrap Crown"
 const MEND := "Mend the Rusted Warhorn"
 const LEAVE := "Leave"
@@ -55,9 +57,9 @@ func _ready() -> void:
 	root.draw.connect(_draw_screen)
 
 
-## What he sells, top row first: the bars, then his accessory if he has one.
+## What he sells, top row first: the bars, the healing potion, then his accessory if he has one.
 func items() -> Array:
-	var out: Array = BARS.duplicate()
+	var out: Array = BARS.duplicate() + SIPS
 	var ware: String = folk.ware() if folk != null else ""
 	if ware != "":
 		out.append(ware)
@@ -218,6 +220,12 @@ func confirm() -> void:
 
 # --- Drawing ------------------------------------------------------------------------------
 
+## How far apart the rows are: 24, or 21 when there are seven (the bars, the potion, his accessory, mending the
+## horn, the question and the way out), so they stay on his plate.
+static func row_pitch(n: int) -> float:
+	return 24.0 if n <= 6 else 21.0
+
+
 func _words(f: Font, at: Vector2, text: String, size: int, col: Color, width := -1.0, align := HORIZONTAL_ALIGNMENT_LEFT) -> void:
 	root.draw_string(f, at + Vector2(1, 1), text, align, width, size, Color(SHADOW, SHADOW.a * col.a))
 	root.draw_string(f, at, text, align, width, size, col)
@@ -272,24 +280,30 @@ func _draw_screen() -> void:
 	for n in mini(said.size(), 4):
 		_words(pix, Vector2(x + face, y + 52.0 + 13.0 * float(n)), str(said[n]), Art.TEXT_SIZE, INK)
 
-	# What you have.
+	# What you have, at the right of his name (version 70: it was a line of its own, and the potion took its room).
 	var purse = folk.loot.purses[who]
 	var bag = folk.tools.bag_of(who)
-	var hy := y + 110.0
-	var hx := x
-	ItemArt.draw(root, "hud_coin", Vector2(hx, hy - 9.0))
-	_words(pix, Vector2(hx + 15.0, hy), "%d coins" % int(purse.coins), Art.TEXT_SIZE, AMBER)
-	hx += 110.0
+	var hy := y + 28.0
+	var coins := "%d coins" % int(purse.coins)
+	var have_w := 15.0 + pix.get_string_size(coins, HORIZONTAL_ALIGNMENT_LEFT, -1, Art.TEXT_SIZE).x
 	for item in BARS:
+		have_w += 12.0 + 18.0 + pix.get_string_size(str(int(bag.count(item))), HORIZONTAL_ALIGNMENT_LEFT, -1, Art.TEXT_SIZE).x
+	var hx := x + w - ceilf(have_w)
+	ItemArt.draw(root, "hud_coin", Vector2(hx, hy - 9.0))
+	_words(pix, Vector2(hx + 15.0, hy), coins, Art.TEXT_SIZE, AMBER)
+	hx += 15.0 + pix.get_string_size(coins, HORIZONTAL_ALIGNMENT_LEFT, -1, Art.TEXT_SIZE).x + 12.0
+	for item in BARS:
+		var n := str(int(bag.count(item)))
 		ItemArt.draw(root, "item_" + str(item), Vector2(hx, hy - 12.0))
-		_words(pix, Vector2(hx + 20.0, hy), "%d" % int(bag.count(item)), Art.TEXT_SIZE, INK)
-		hx += 60.0
+		_words(pix, Vector2(hx + 18.0, hy), n, Art.TEXT_SIZE, INK)
+		hx += 18.0 + pix.get_string_size(n, HORIZONTAL_ALIGNMENT_LEFT, -1, Art.TEXT_SIZE).x + 12.0
 
 	var sold := items()
 	var all := rows()
 	row = clampi(row, 0, all.size() - 1)
+	var pitch := row_pitch(all.size())
 	for k in all.size():
-		var rr := Rect2(x, y + 122.0 + float(k) * 24.0, w, 21.0)
+		var rr := Rect2(x, y + ROWS_AT + float(k) * pitch, w, pitch - 3.0)
 		var on := k == row
 		rects.append([rr, k])
 		if not Art.draw_nine(root, "swing/ui/well_selected.png" if on else "swing/ui/well.png", rr, 3):
@@ -302,7 +316,10 @@ func _draw_screen() -> void:
 			tx += 12.0
 		if k < sold.size():
 			var item := str(sold[k])
-			if not Accessories.has(item):
+			if ItemArt.icon(item) != null:
+				ItemArt.draw_small(root, item, Rect2(tx - 2.0, rr.position.y, 20.0, rr.size.y))
+				tx += 20.0
+			elif not Accessories.has(item):
 				ItemArt.draw(root, "item_" + item, Vector2(tx, rr.position.y + 2.0))
 				tx += 20.0
 			var cost: int = folk.price(item)
@@ -315,7 +332,7 @@ func _draw_screen() -> void:
 		_words(silk, Vector2(tx, rr.position.y + 14.0), str(all[k]).to_upper(), 8, AMBER if on else INK)
 
 	# Under the rows: news of the last press, or what the accessory under the cursor does (its picture beside it).
-	var foot := y + 122.0 + float(all.size()) * 24.0
+	var foot := y + ROWS_AT + float(all.size()) * pitch
 	if t < note_until and note != "":
 		_words(pix, Vector2(x, foot + 17.0), note, Art.TEXT_SIZE, AMBER)
 	elif row < sold.size() and Accessories.has(sold[row]):

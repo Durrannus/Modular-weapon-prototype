@@ -124,6 +124,10 @@ func _rows() -> void:
 			print("  %-16s %-34s %-52s %s" % [row["page"], row["group"], row["label"], Lab.words(id, d)])
 	for page in Lab.PAGES:
 		_check(int(pages.get(page, 0)) > 0, "the page %s has numbers" % page)
+		if font != null:
+			var silk := Art.font("Silkscreen-Regular")
+			var pw: float = silk.get_string_size(str(page).to_upper(), HORIZONTAL_ALIGNMENT_LEFT, -1, 8).x if silk != null else 0.0
+			_check(pw <= 96.0, "the page %s's name fits its button (%d of 96, version 70)" % [page, pw])
 		if font != null and Lab.PAGE_NOTES.has(page):
 			_check(font.get_string_size(str(Lab.PAGE_NOTES[page]), HORIZONTAL_ALIGNMENT_LEFT, -1, Art.TEXT_SIZE).x <= 492.0, "the page %s's note fits" % page)
 	if font != null:

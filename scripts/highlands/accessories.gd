@@ -34,7 +34,7 @@ const ORDER := ["tinkers_thimble", "hearthstone_pebble", "ashen_locket", "lucky_
 const POOL := ["tinkers_thimble", "hearthstone_pebble", "ashen_locket", "lucky_copper", "banner_pin", "thorn_charm", "iron_bracer", "wayfinders_compass",
 	"prospectors_sieve", "bandolier", "field_rations"]
 
-## The numbers (the lab's page "Inventory and accessories").
+## The numbers (the lab's page "Inventory").
 static var THIMBLE_DODGE := 1.2       # how much faster the dodge comes back
 static var PEBBLE_WAIT := 4.0         # seconds out of the fight before the pebble warms
 static var PEBBLE_HEAL := 0.02        # the share of your health it gives back each second

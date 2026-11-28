@@ -214,6 +214,7 @@ func _state(g, i := 0) -> Dictionary:
 		"bag": JSON.stringify(g.tools.hands[i].bag.data()),
 		"belt": JSON.stringify(g.tools.hands[i].belt),
 		"tool": int(g.tools.hands[i].tool),
+		"hotbar": JSON.stringify(g.tools.hands[i].items),
 		"weapons": JSON.stringify(g.builds[i].to_save()),
 		"weapon": JSON.stringify(g.builds[i].get_data()),
 		"owned": JSON.stringify(g.owned[i]),
@@ -483,6 +484,9 @@ func _play() -> void:
 	_check(g.save_now() and g.saves_written == before + 2, "saving again with nothing changed writes nothing (the backup is not pushed out by a copy)")
 	bag.add("stone", 1)
 	_check(g.save_now() and g.saves_written == before + 3 and _text(Save.path(W, "world_1") + ".bak") != "" and _text(Save.path(C, "character_1") + ".bak") != "", "after picking up one stone only the character is written; both have a backup now")
+	bag.add("potion", 2)
+	await _frames(2)
+	_check(g.tools.put_on(0, "potion", 5) == 5 and g.save_now(), "(two potions, on the hotbar's slot 6)")
 	var state := _state(g)
 	var kinds: PackedByteArray = m.kinds.duplicate()
 	var ground: Array = [_painted(m, rock[0]), _painted(m, tin[0])]
@@ -502,7 +506,7 @@ func _play() -> void:
 	var again := _state(g)
 	for key in state:
 		_check(again[key] == state[key], "and so does %s (%s)" % [{"things": "everything that stands on it", "changes": "what was changed", "bag": "the bag", "belt": "the tool belt",
-			"tool": "the tool that was picked", "weapons": "every weapon and preset", "weapon": "the weapon in the hand", "owned": "what can be used at the forge"}[key], str(again[key]).left(60)])
+			"tool": "the tool that was picked", "hotbar": "the hotbar", "weapons": "every weapon and preset", "weapon": "the weapon in the hand", "owned": "what can be used at the forge"}[key], str(again[key]).left(60)])
 	_check(_painted(g.map, rock[0]) == ground[0] and _painted(g.map, tin[0]) == ground[1], "the dug ground is painted the same, pixel for pixel")
 	_check(not g.map.things.any(func(t): return Tools.thing_class(t) == "pine" and LandMap.thing_key(t) == pine_key) and g.map.things.any(func(t): return str(t["n"]) == "pine_stump" and LandMap.thing_key(t) == pine_key),
 		"the felled pine is still a stump")

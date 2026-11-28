@@ -176,6 +176,8 @@ func _plans() -> void:
 		var ok_reach := true
 		var ok_clear := true
 		var ok_holds := true
+		var ok_potions := true
+		var potions := 0
 		var ok_far := true
 		for c in plan:
 			kinds[str(c["kind"])] = int(kinds.get(str(c["kind"]), 0)) + 1
@@ -202,8 +204,14 @@ func _plans() -> void:
 			if int(c["coins"]) < 1 or int(c["memory"]) < 1 or (c["items"] as Array).is_empty():
 				ok_holds = false
 			for it in c["items"]:
-				if not (str(it[0]) in ["tin_ore", "copper_ore"]) or int(it[1]) < 1 or int(it[1]) > 6:
+				if str(it[0]) == "potion":
+					potions += 1
+					if int(it[1]) != (2 if str(c["kind"]) in ["sealed", "site"] else 1):
+						ok_potions = false
+				elif not (str(it[0]) in ["tin_ore", "copper_ore"]) or int(it[1]) < 1 or int(it[1]) > 6:
 					ok_holds = false
+			if str(c["kind"]) == "first" and not (c["items"] as Array).has(["potion", 1]):
+				ok_potions = false
 			var d := (p["at"] as Vector2).distance_to(cave)
 			match str(c["kind"]):
 				"first":
@@ -223,6 +231,7 @@ func _plans() -> void:
 		_check(ok_reach, "world %d: every chest can be walked to from the cave, but for the sealed places', which cannot" % seed_value)
 		_check(ok_clear, "world %d: no chest stands in something" % seed_value)
 		_check(ok_holds, "world %d: every chest holds coins, Memory and a little ore, never bars (Darren, 25 November)" % seed_value)
+		_check(ok_potions and potions > 1 and potions < plan.size(), "world %d: healing potions in some chests, not all: always one in the first, two in a richer one (version 70; %d of %d)" % [seed_value, potions, plan.size()])
 		_check(ok_far and firsts == 1, "world %d: one first chest in the safe hills, the guarded ones where somebody lives, the plain ones where nobody does" % seed_value)
 		var sealed := 0
 		var sealed_with := 0
@@ -237,7 +246,7 @@ func _plans() -> void:
 			_check(by_pocket.has(pocket) and str(by_pocket[pocket]["kind"]) == "site", "world %d: the %s has its chest" % [seed_value, site])
 			if by_pocket.has(pocket):
 				var plain_most := roundi(float(LootPlan.COINS_MAX) * 1.3)
-				_check(int(by_pocket[pocket]["coins"]) >= roundi(float(LootPlan.COINS_MIN) * LootPlan.RICH) and (by_pocket[pocket]["items"] as Array).size() == 2 and int(by_pocket[pocket]["memory"]) > roundi(float(LootPlan.MEMORY) * 1.3) and plain_most > 0,
+				_check(int(by_pocket[pocket]["coins"]) >= roundi(float(LootPlan.COINS_MIN) * LootPlan.RICH) and (by_pocket[pocket]["items"] as Array).filter(func(it): return str(it[0]) != "potion").size() == 2 and int(by_pocket[pocket]["memory"]) > roundi(float(LootPlan.MEMORY) * 1.3) and plain_most > 0,
 					"world %d: and it is a richer one (%s)" % [seed_value, str(by_pocket[pocket])])
 		var inner := plan.filter(func(c): return int(m.pockets[int(c["pocket"])].get("ring", 1)) == 1).size()
 		_check(inner >= 6 and inner <= 30 and plan.size() >= 40 and plan.size() <= 100, "world %d: a sensible number of chests (%d in the inner ring, %d in all, for %d open places)" % [seed_value, inner, plan.size(), m.pockets.size()])

@@ -56,6 +56,7 @@ func _run() -> void:
 	_bag()
 	_buttons()
 	await _belt()
+	await _hotbar()
 	await _drawn()
 	await _digging()
 	await _mining()
@@ -217,6 +218,21 @@ func _buttons() -> void:
 	_check(pad._event_is(back, "tool_next"), "Select picks the next tool on a controller")
 	pad.tools = false
 	_check(not pad._event_is(back, "tool_next"), "and does nothing of the sort elsewhere")
+	# The hotbar (version 70): keys 1 to 8 pick a slot straight away, for one tick, and only where there are tools.
+	var keys = PlayerInput.make("kbm")
+	keys.tools = true
+	keys.feed(_key(KEY_4))
+	keys.poll()
+	var first: int = keys.slot_pick
+	keys.poll()
+	_check(first == 3 and keys.slot_pick == -1, "key 4 picks the fourth slot, once (%d, then %d)" % [first, keys.slot_pick])
+	keys.feed(_key(KEY_9))
+	keys.poll()
+	_check(keys.slot_pick == -1, "(9 is not a slot)")
+	keys.tools = false
+	keys.feed(_key(KEY_2))
+	keys.poll()
+	_check(keys.slot_pick == -1, "and away from the Highlands the number keys pick nothing")
 	for action in ["work", "tool_next", "tool_prev", "interact_tools", "dash_tools"]:
 		_check(InputMap.has_action(action), "the controls know \"%s\"" % action)
 
@@ -291,6 +307,94 @@ func _belt() -> void:
 	g.queue_free()
 	await _frames(3)
 	_check(not p.input.tools if is_instance_valid(p) else true, "leaving the Highlands hands F and the left trigger back")
+
+
+# --- The hotbar (version 70) ---------------------------------------------------------------
+
+func _slot(p, k: int) -> void:
+	await physics_frame
+	p.input.slot_pick = k
+	await physics_frame
+	p.input.slot_pick = -1
+	await physics_frame
+
+
+func _hotbar() -> void:
+	var g = _game(77)
+	await _frames(5)
+	var p = g.players[0]
+	var tools = g.tools
+	var h = tools.hands[0]
+	var bag: Bag = tools.bag_of(0)
+	var shown: Array = []
+	for k in Tools.HOTBAR:
+		shown.append(tools.slot_of(0, k))
+	_check(Tools.HOTBAR == 8 and shown == ["pickaxe", "axe", "mallet", "", "", "", "", ""], "the hotbar has eight slots, the three tools in the first three (%s)" % str(shown))
+	var screen := Rect2(0, 0, 640, 360)
+	var inside := true
+	for k in Tools.HOTBAR:
+		if not screen.encloses(tools.slot_rect(0, k)) or not tools.belt_rect(0).encloses(tools.slot_rect(0, k)):
+			inside = false
+	_check(inside, "every slot is drawn on the screen, in the hotbar's box (%s)" % str(tools.belt_rect(0)))
+	# A potion that comes in goes on by itself.
+	bag.add("potion", 3)
+	await _frames(2)
+	_check(tools.hotbar_slot(0, "potion") == 3 and tools.slot_of(0, 3) == "potion" and bag.count("potion") == 3, "healing potions that come into the inventory go on the hotbar by themselves, in slot 4")
+	_check(bag.slots.size() == 1 and Bag.stack_of("potion") == Bag.POTIONS and Bag.name_of("potion") == "Healing potion", "(they lie in the inventory, stacked to %d)" % Bag.POTIONS)
+	var seen: Array = []
+	for n in 4:
+		await _press(p, "tool_next_pressed")
+		seen.append(tools.slot_of(0, h.slot))
+	_check(seen == ["axe", "mallet", "potion", "pickaxe"], "the cycle button steps over the empty slots, to the potions and round again (%s)" % str(seen))
+	await _press(p, "tool_prev_pressed")
+	_check(h.slot == 3 and tools.tool_of(0) == "" and tools.slot_name(0) == "Healing potion", "and back (%s)" % tools.slot_name(0))
+	await _slot(p, 6)
+	_check(h.slot == 6 and tools.slot_name(0) == "Empty slot" and tools.tool_of(0) == "", "a number key picks its slot even when it is empty")
+	await _slot(p, 1)
+	_check(h.slot == 1 and tools.tool_of(0) == "axe", "key 2 is the axe")
+	# Drinking.
+	await _slot(p, 3)
+	p.hp = p.max_hp * 0.3
+	await _press(p, "work_pressed")
+	_check(bag.count("potion") == 2 and absf(p.hp - p.max_hp * (0.3 + Tools.POTION_HEAL)) < 0.01, "the use button drinks one: %d%% of your health back (%.0f of %.0f)" % [roundi(Tools.POTION_HEAL * 100.0), p.hp, p.max_hp])
+	await _press(p, "work_pressed")
+	_check(bag.count("potion") == 2, "another cannot be drunk straight after")
+	await _frames(roundi(Tools.POTION_WAIT * 60.0) + 2)
+	await _press(p, "work_pressed")
+	_check(bag.count("potion") == 1 and is_equal_approx(p.hp, p.max_hp), "%.1f seconds later it can, and never past your health" % Tools.POTION_WAIT)
+	await _frames(roundi(Tools.POTION_WAIT * 60.0) + 2)
+	await _press(p, "work_pressed")
+	_check(bag.count("potion") == 1, "at full health nothing is drunk")
+	# Moved, taken off, put on again.
+	_check(tools.put_on(0, "potion", 6) == 6 and tools.slot_of(0, 3) == "" and tools.slot_of(0, 6) == "potion", "a potion moved to slot 7 leaves slot 4")
+	_check(tools.put_on(0, "potion", 1) == -1 and tools.put_on(0, "stone", 4) == -1 and tools.slot_of(0, 1) == "axe", "the tools' slots, and stone, are not for the hotbar")
+	_check(tools.take_off(0, "potion") and tools.hotbar_slot(0, "potion") == -1, "taken off, the slot is empty")
+	await _frames(3)
+	_check(tools.hotbar_slot(0, "potion") == -1 and bag.count("potion") == 1, "and it stays off (the potion is still in the inventory)")
+	_check(tools.put_on(0, "potion") == 3, "put on again it goes in the first free slot")
+	# None left.
+	bag.take("potion", 1)
+	await _slot(p, 3)
+	p.hp = p.max_hp * 0.5
+	await _press(p, "work_pressed")
+	_check(bag.count("potion") == 0 and is_equal_approx(p.hp, p.max_hp * 0.5) and tools.slot_of(0, 3) == "potion", "with none left nothing happens, and the slot keeps its place for more")
+	h.slot = 0
+	await _press(p, "tool_prev_pressed")
+	_check(h.slot == 2, "(and the cycle steps over it)")
+	# Saved with the character.
+	var d: Dictionary = tools.hand_data(0)
+	_check(d.get("hotbar") == ["potion", "", "", "", ""] and int(d.get("tool", -1)) == 2, "the hotbar is saved with the character (%s)" % str(d.get("hotbar")))
+	d["hotbar"] = ["", "stone", "potion", 5, ""]
+	d["tool"] = 12
+	tools.set_hand_data(0, d)
+	_check(h.items == ["", "", "potion", "", ""] and h.slot == 7, "and comes back; what cannot go on the hotbar is left off (%s, slot %d)" % [str(h.items), h.slot])
+	# The lab's potions.
+	Tools.LAB_POTIONS = 2
+	await _frames(2)
+	_check(bag.count("potion") == 2, "the lab can give everybody potions")
+	Tools.LAB_POTIONS = 0
+	g.queue_free()
+	await _frames(3)
 
 
 # --- Digging rock --------------------------------------------------------------------------
@@ -589,6 +693,7 @@ func _two_players() -> void:
 	_check(tools.tool_of(0) == "axe" and tools.tool_of(1) == "pickaxe", "each player picks their own tool")
 	_check(tools.bag_of(1).count("stone") == 1 and tools.bag_of(0).slots.is_empty(), "and what you dig goes in your own bag")
 	_check(tools.belt_rect(0).position.x < 320.0 and tools.belt_rect(1).position.x > 320.0, "the second player's belt is on their side of the screen")
+	_check(not tools.belt_rect(0).grow(40.0).intersects(tools.belt_rect(1).grow(40.0)), "the two hotbars of eight are well apart (%s, %s)" % [str(tools.belt_rect(0)), str(tools.belt_rect(1))])
 	g.queue_free()
 	await _frames(3)
 

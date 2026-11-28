@@ -52,7 +52,7 @@ The README is the long, plain-words story for Darren; this file is only for find
 | `scripts/highlands/levels.gd`, `perks.gd` | Memory and the forge's levels, the four role trees and every perk. |
 | `scripts/highlands/folk.gd`, `folk_plan.gd` | Pip, his cage, the quests and their list, the waystone. |
 | `scripts/highlands/bag.gd`, `gear.gd`, `accessories.gd` | The inventory, the Accessory Satchel, what each accessory does. |
-| `scripts/highlands/tools.gd` | Pickaxe, axe, mallet: digging, mining, felling; blows by name (`NEED`) and by make (`POWER`). |
+| `scripts/highlands/tools.gd` | Pickaxe, axe, mallet: digging, mining, felling; blows by name (`NEED`) and by make (`POWER`). The hotbar (version 70): `HOTBAR` slots, tools in the first three, `USABLE` things in the rest (`Hand.slot`, `Hand.items`, `put_on`, `take_off`, `use`: the healing potion). The inventory screen puts things on it (`pack_screen.gd` `_hotbar`); keys 1 to 8 are `player_input.gd` `slot_pick`. Icons of 24 by 24: `item_art.gd` `icon`, `draw_small` (`art/items/`). |
 | `scripts/save.gd` | Saved characters and worlds. |
 | `scripts/lab.gd`, `scripts/ui/lab_screen.gd` | The lab's list of numbers; its screen, with the Spawn page (arena) and the Bosses page (version 69: any game with `boss_fights()`, `start_boss(id)`, `end_boss(id)`, optional `back_boss(id)`; a new boss only needs an entry there). |
 | `scripts/ui/` | Screens: forge (`swing_forge.gd`), the Highlands forge (`forge_hall.gd`), HUD, inventory and a chest's inventory (`pack_screen.gd`), shop, pause, save pick, title, online menu, version corner. |

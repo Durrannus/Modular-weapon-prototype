@@ -14,6 +14,19 @@ extends Node2D
 ##
 ## Until there is a workbench to make them at, everyone starts with the basic three (Claude's choice).
 ##
+## THE HOTBAR (version 70). Darren, 28 November 2026: "i want a hot bar to hold the tools and things like potions for
+## healing etc." It takes the tool belt's place: HOTBAR slots for each player, the pickaxe, the axe and the mallet in
+## the first three and things from the inventory in the other five (the healing potion so far: USABLE). C, the mouse
+## wheel and Select pick the next slot with something in it to use; keys 1 to 8 pick a slot straight away; F or the
+## left trigger uses the picked slot: a tool works, a potion is drunk. A slot holds a kind of thing, not the things
+## themselves: what is used comes out of the inventory, and the number in the slot is how many the inventory holds, so
+## nothing can be lost by the hotbar. Something goes onto it from the inventory screen (pack_screen.gd): keys 1 to 8
+## on it put it in that slot, Y on a controller in the first free one. Darren also said: "we will also have the
+## ability to make potions in the future from items in the game so make that a future note": brewing is NOT built;
+## until it is, potions come from chests and Pip's shop. Claude's choices: the tools keep slots 1 to 3; a potion gives
+## back POTION_HEAL of your health at once and another can be drunk POTION_WAIT seconds later; drinking works during
+## a swing; at full health it is not drunk.
+##
 ## Rules for the code: everything that changes the game (which tool is picked, how worn a tile is, what breaks,
 ## what goes in a bag, the moment a landed blow holds the swing) is worked out in tick(), once a physics tick, from
 ## the players' buttons alone. Chips, sparks, cracks, bursts, the pine that leans and falls, and the pictures flying
@@ -33,6 +46,11 @@ const TILE := 16.0 * UNIT
 const CHUNK := LandMap.CHUNK * TILE
 
 const TOOLS := ["pickaxe", "axe", "mallet"]
+const HOTBAR := 8
+const USABLE := ["potion"]          # what can go on the hotbar from the inventory
+static var POTION_HEAL := 0.4       # a share of your health
+static var POTION_WAIT := 2.0       # seconds before another potion can be drunk
+static var LAB_POTIONS := 0         # the lab's: everybody always carries at least this many potions
 const NAMES := {"pickaxe": "Pickaxe", "axe": "Axe", "mallet": "Mallet"}
 ## What one blow of a tool of each make is worth: the blows a thing takes (NEED) are basic blows. Darren, 25 November:
 ## "Think we make the stone easier to mine seeing as it's the starter biome also", "Then even easier when we upgrade
@@ -76,14 +94,22 @@ const PLATE := Color("#19142a")
 const SHADE := Color(0.098, 0.078, 0.165, 0.5)
 const SIZE := Vector2(640, 360)
 const MARGIN := 10.0
-const SLOT := 18.0
+const SLOT := 20.0                 # a hotbar slot (version 70: 20, so the potion's flask fits; the belt's were 18)
 
 
 ## What one player carries and is doing with it. The belt, the tool that is picked, the inventory and the backpack
 ## that sets its size belong to the character and are in its save (hand_data(), set_hand_data()); the rest is this
 ## moment's.
 class Hand:
-	var tool := 0                                                         # which of TOOLS is picked
+	var slot := 0                                                         # which hotbar slot is picked (0 to 7)
+	var items: Array = ["", "", "", "", ""]                               # slots 4 to 8: a kind of thing, or ""
+	var drink_wait := 0.0                                                 # seconds until another potion
+	## The picked tool: one of TOOLS while a tool's slot is picked (else -1). Setting it picks that slot.
+	var tool: int:
+		get:
+			return slot if slot < TOOLS.size() else -1
+		set(v):
+			slot = v
 	var belt := {"pickaxe": "basic", "axe": "basic", "mallet": "basic"}   # the make of each tool ("" = none)
 	var bag := Bag.new()
 	var swing := -1.0             # seconds into the swing (-1: no tool is swinging)
@@ -93,6 +119,8 @@ class Hand:
 	var target := {}              # what it will strike, or struck ({}: nothing)
 	var picked_at := -9.0         # when the picked tool last changed (the belt lights up)
 	var gained := {}              # item -> when some last went into the bag
+	var kept_off := {}            # kinds taken off the hotbar by hand: they do not go back on by themselves
+	var fade := 1.0               # how much of the hotbar shows (less while an enemy in a fight is under it)
 	var told_at := -9.0           # when a word was last put over their head ("Inventory full")
 
 
@@ -159,9 +187,69 @@ func _add_hand(i: int) -> void:
 	players[i].tool_draw = _draw_hand.bind(i)
 
 
-## The tool player i has picked: "pickaxe", "axe" or "mallet".
+## The tool player i has picked: "pickaxe", "axe" or "mallet" ("" while a slot of the hotbar's own is picked).
 func tool_of(i: int) -> String:
-	return TOOLS[(hands[i] as Hand).tool]
+	var h: Hand = hands[i]
+	return TOOLS[h.slot] if h.slot < TOOLS.size() else ""
+
+
+## What is in hotbar slot k of player i: a tool's name, a kind of thing, or "".
+func slot_of(i: int, k: int) -> String:
+	var h: Hand = hands[i]
+	if k < TOOLS.size():
+		return TOOLS[k] if str(h.belt.get(TOOLS[k], "")) != "" else ""
+	return str(h.items[k - TOOLS.size()]) if k < HOTBAR else ""
+
+
+## Can slot k be used right now (a tool on the belt, or something there is some of)?
+func _has(h: Hand, k: int) -> bool:
+	if k < TOOLS.size():
+		return str(h.belt.get(TOOLS[k], "")) != ""
+	var id := str(h.items[k - TOOLS.size()])
+	return id != "" and h.bag.count(id) > 0
+
+
+## Puts a kind of thing from the inventory onto hotbar slot k (3 to 7) of player i, or the first free one (k = -1).
+## Whatever was there comes off (it stays in the inventory: the hotbar never holds the things themselves), and the
+## same kind elsewhere on the hotbar moves here. The slot it went to, or -1 if it cannot go on.
+func put_on(i: int, id: String, k := -1, light := true) -> int:
+	var h: Hand = hands[i]
+	if not id in USABLE:
+		return -1
+	if k < 0:
+		k = TOOLS.size() + h.items.find(id)
+		if k < TOOLS.size():
+			var free := h.items.find("")
+			if free < 0:
+				return -1
+			k = TOOLS.size() + free
+	if k < TOOLS.size() or k >= HOTBAR:
+		return -1
+	for n in h.items.size():
+		if str(h.items[n]) == id:
+			h.items[n] = ""
+	h.items[k - TOOLS.size()] = id
+	h.kept_off.erase(id)
+	if light:
+		h.picked_at = clock
+	return k
+
+
+## Takes a kind of thing off player i's hotbar (it stays in the inventory). False if it was not on it.
+func take_off(i: int, id: String) -> bool:
+	var h: Hand = hands[i]
+	var n := h.items.find(id)
+	if n < 0:
+		return false
+	h.items[n] = ""
+	h.kept_off[id] = true
+	return true
+
+
+## Which hotbar slot a kind of thing is in for player i (0 to 7), or -1.
+func hotbar_slot(i: int, id: String) -> int:
+	var n: int = (hands[i] as Hand).items.find(id)
+	return TOOLS.size() + n if n >= 0 else -1
 
 
 func bag_of(i: int) -> Bag:
@@ -172,7 +260,7 @@ func bag_of(i: int) -> Bag:
 ## tool that is picked, the inventory (under "bag", as the materials bag it grew out of was) and the backpack.
 func hand_data(i: int) -> Dictionary:
 	var h: Hand = hands[i]
-	return {"belt": h.belt.duplicate(), "tool": h.tool, "bag": h.bag.data(), "pack": h.bag.pack}
+	return {"belt": h.belt.duplicate(), "tool": h.slot, "hotbar": h.items.duplicate(), "bag": h.bag.data(), "pack": h.bag.pack}
 
 
 ## And back. A make of tool this game does not have becomes the basic one; whatever is missing stays as it was.
@@ -183,12 +271,16 @@ func set_hand_data(i: int, d: Dictionary) -> void:
 		for name in TOOLS:
 			if belt.get(name) is String:
 				h.belt[name] = str(belt[name]) if (belt[name] == "" or POWER.has(belt[name])) else "basic"
+	var hot = d.get("hotbar")
+	if hot is Array:
+		for n in mini(hot.size(), h.items.size()):
+			h.items[n] = str(hot[n]) if str(hot[n]) in USABLE else ""
 	if d.get("tool") is int or d.get("tool") is float:
-		h.tool = clampi(int(d["tool"]), 0, TOOLS.size() - 1)
-	if str(h.belt.get(TOOLS[h.tool], "")) == "":
+		h.slot = clampi(int(d["tool"]), 0, HOTBAR - 1)
+	if h.slot < TOOLS.size() and str(h.belt.get(TOOLS[h.slot], "")) == "":
 		for n in TOOLS.size():
 			if str(h.belt.get(TOOLS[n], "")) != "":
-				h.tool = n
+				h.slot = n
 				break
 	if d.get("pack") is int or d.get("pack") is float:
 		h.bag.pack = clampi(int(d["pack"]), 0, Bag.PACKS.size() - 1)
@@ -207,10 +299,26 @@ func tick(delta: float, busy: bool) -> void:
 			_stop(p, h)
 			continue
 		var inp = p.input
+		h.drink_wait = maxf(h.drink_wait - delta, 0.0)
+		if int(LAB_POTIONS) > 0 and h.bag.count("potion") < int(LAB_POTIONS):
+			h.bag.add("potion", int(LAB_POTIONS) - h.bag.count("potion"))
+		# Something for the hotbar that comes into the inventory goes on by itself, in the first free slot (unless it
+		# was taken off by hand).
+		for id in USABLE:
+			if h.bag.count(id) > 0 and not id in h.items and not h.kept_off.has(id):
+				put_on(i, id, -1, false)
 		if inp.tool_next_pressed:
 			_pick(h, 1)
 		if inp.tool_prev_pressed:
 			_pick(h, -1)
+		if inp.slot_pick >= 0 and inp.slot_pick < HOTBAR and inp.slot_pick != h.slot:
+			_choose(h, inp.slot_pick)
+		# A slot of the hotbar's own: the work button uses what is in it, once a press.
+		if h.slot >= TOOLS.size():
+			_stop(p, h)
+			if inp.work_pressed:
+				use(i)
+			continue
 		# The weapon comes first: a tool never swings through an attack, a dodge or a rune.
 		var free: bool = p.current_step < 0 and p.dodge_timer <= 0.0 and p.hold_button < 0 and p.snipe_button < 0 and p.leap_landing.is_empty() \
 			and not inp.attack_pressed and not (inp.attack_held and not p.need_release)
@@ -257,13 +365,51 @@ func _stop(p, h: Hand) -> void:
 
 
 func _pick(h: Hand, step: int) -> void:
-	for n in TOOLS.size():
-		h.tool = posmod(h.tool + step, TOOLS.size())
-		if str(h.belt.get(TOOLS[h.tool], "")) != "":
+	for n in HOTBAR:
+		h.slot = posmod(h.slot + step, HOTBAR)
+		if _has(h, h.slot):
 			break
 	h.picked_at = clock
 	h.target = {}
 	Sfx.play(game, "click", -10.0, 1.3)
+
+
+## A key from 1 to 8: that slot, whatever is in it.
+func _choose(h: Hand, k: int) -> void:
+	h.slot = k
+	h.picked_at = clock
+	h.target = {}
+	Sfx.play(game, "click", -10.0, 1.3)
+
+
+## Player i uses what is in their picked slot of the hotbar's own (a potion is drunk). True if it was used.
+func use(i: int) -> bool:
+	var p = players[i]
+	var h: Hand = hands[i]
+	var id := slot_of(i, h.slot)
+	if id == "" or h.slot < TOOLS.size():
+		return false
+	if h.bag.count(id) <= 0:
+		_tell(p, h, "No %s left" % Bag.name_of(id).to_lower())
+		Sfx.play(game, "click", -10.0, 0.6)
+		return false
+	match id:
+		"potion":
+			if h.drink_wait > 0.0:
+				return false
+			if p.hp >= p.max_hp:
+				_tell(p, h, "Already at full health")
+				return false
+			h.bag.take(id, 1)
+			h.drink_wait = POTION_WAIT
+			var heal: float = p.max_hp * clampf(POTION_HEAL, 0.0, 1.0)
+			heal = minf(heal, p.max_hp - p.hp)
+			p.hp += heal
+			p._label("+%d" % roundi(heal), Color("#7fe0c0"))
+			Sfx.play(game, "pickup", -8.0, 1.6)
+			h.gained[id] = clock
+			return true
+	return false
 
 
 static func thing_class(t: Dictionary) -> String:
@@ -286,7 +432,9 @@ static func thing_box(t: Dictionary) -> Rect2:
 ## What the picked tool would strike, the way `dir` points: the nearest thing it works on within reach. A tile is
 ## {tile, kind, fixed, at}; a thing is {thing, class, at}; `at` is where the blow lands. {} when there is nothing.
 func find(p, h: Hand, dir: Vector2) -> Dictionary:
-	var tool: String = TOOLS[h.tool]
+	if h.slot >= TOOLS.size():
+		return {}
+	var tool: String = TOOLS[h.slot]
 	if dir == Vector2.ZERO or str(h.belt.get(tool, "")) == "":
 		return {}
 	var from: Vector2 = p.global_position
@@ -908,6 +1056,8 @@ func _sprite_size(name: String) -> Vector2:
 ## down onto the work. The axe's blade leads, so its picture is turned over when the swing goes the other way.
 func _draw_hand(layer: Node2D, i: int) -> void:
 	var h: Hand = hands[i]
+	if h.slot >= TOOLS.size():
+		return
 	var info: Dictionary = boxes.get("hand_" + str(TOOLS[h.tool]), {})
 	if h.swing < 0.0 or sheet == null or info.is_empty():
 		return
@@ -947,15 +1097,38 @@ func _head_width(text: String) -> float:
 
 ## Where player i's belt is drawn: above their swing path, at their side of the screen.
 func belt_rect(i: int) -> Rect2:
-	var w := SLOT * 3.0 + 4.0
+	var w := SLOT * float(HOTBAR) + 2.0 * float(HOTBAR - 1)
 	var x := SIZE.x - MARGIN - w if i % 2 == 1 else MARGIN
 	return Rect2(x, SIZE.y - 28.0 - 18.0 - SLOT, w, SLOT)
+
+
+## Hotbar slot k of player i, on the screen.
+func slot_rect(i: int, k: int) -> Rect2:
+	var belt := belt_rect(i)
+	return Rect2(belt.position + Vector2(float(k) * (SLOT + 2.0), 0.0), Vector2(SLOT, SLOT))
 
 
 ## The buttons, in words: what this player would press.
 static func hint(pad: bool) -> String:
 	return "LT use   Select next" if pad else "F use   C next"
 
+
+## What the picked slot is called on the hotbar's line.
+func slot_name(i: int) -> String:
+	var h: Hand = hands[i]
+	var what := slot_of(i, h.slot)
+	if what == "":
+		return "Empty slot"
+	if h.slot < TOOLS.size():
+		return str(NAMES[what])
+	return Bag.name_of(what)
+
+
+## How long what you win shows beside the hotbar (version 70: the hotbar takes the room the counts had, so they show
+## only for a moment after more comes in; the inventory always has them).
+const SHOW_GAINED := 4.0
+const HIDE_UNDER := 0.3            # how much of the hotbar shows while an enemy in a fight is under it
+var _fade := 1.0
 
 func _draw_hud() -> void:
 	for i in hands.size():
@@ -965,40 +1138,70 @@ func _draw_hud() -> void:
 		var h: Hand = hands[i]
 		var right := i % 2 == 1
 		var belt := belt_rect(i)
-		var name := str(NAMES[TOOLS[h.tool]])
+		var name := slot_name(i)
 		var words := hint(p.input.on_pad())
-		# What is carried, beside the belt: a picture and a number for each material there is some of.
+		# What has just come in, beside the hotbar: a picture and how many there are now.
 		var held: Array = []
 		var bag_w := 0.0
 		for item in Bag.ORDER:
-			if h.bag.count(item) > 0:
+			if h.bag.count(item) > 0 and clock - float(h.gained.get(item, -99.0)) < SHOW_GAINED and not item in h.items:
 				held.append(item)
 				bag_w += 17.0 + _head_width(str(h.bag.count(item))) + 5.0
 		var words_w := _head_width(name) + 10.0 + _head_width(words)
-		var back := Rect2(belt.position - Vector2(4, 14), Vector2(maxf(belt.size.x + (bag_w + 3.0 if bag_w > 0.0 else 0.0), words_w) + 8.0, belt.size.y + 18.0))
+		var back := Rect2(belt.position - Vector2(4, 14), Vector2(maxf(belt.size.x, words_w) + 8.0, belt.size.y + 18.0))
 		if right:
 			back.position.x = belt.end.x + 4.0 - back.size.x
-		panel.draw_rect(back, Art.shade(SHADE))
-		# The picked tool's name, and the two buttons.
+		var x := back.end.x + 4.0 if not right else back.position.x - 4.0 - bag_w
+		var mats := Rect2(x - 3.0, belt.position.y - 1.0, bag_w + 2.0, SLOT + 2.0)
+		# No panel covers an enemy in a fight (the project's review of version 69): while one that is after
+		# somebody stands under it, the hotbar fades to HIDE_UNDER and comes back when it has gone.
+		var under := false
+		if game != null and "folk" in game and game.folk != null:
+			var boxes: Array = game.folk.foe_boxes()
+			under = game.folk._covers(back, boxes) or (not held.is_empty() and game.folk._covers(mats, boxes))
+		h.fade = move_toward(h.fade, HIDE_UNDER if under else 1.0, 0.08)
+		_fade = h.fade
+		panel.draw_rect(back, _f(Art.shade(SHADE)))
+		# The picked slot's name, and the two buttons.
 		var lit := clampf(1.0 - (clock - h.picked_at) / 0.5, 0.0, 1.0)
 		var line := belt.position.y - 4.0
-		_head(name, Vector2(back.position.x + 4.0, line), INK.lerp(AMBER, lit), back.size.x - 8.0, HORIZONTAL_ALIGNMENT_RIGHT if right else HORIZONTAL_ALIGNMENT_LEFT)
-		_head(words, Vector2(back.position.x + 4.0, line), DIM, back.size.x - 8.0, HORIZONTAL_ALIGNMENT_LEFT if right else HORIZONTAL_ALIGNMENT_RIGHT)
-		# The belt: three places, the picked one framed in amber and the others dimmed.
-		for k in TOOLS.size():
-			var r := Rect2(belt.position + Vector2(float(k) * (SLOT + 2.0), 0.0), Vector2(SLOT, SLOT))
-			var on: bool = k == h.tool
-			panel.draw_rect(r, PLATE)
-			panel.draw_rect(Rect2(r.position + Vector2(0.5, 0.5), r.size - Vector2(1, 1)), AMBER if on else FAINT, false, 1.0)
+		_head(name, Vector2(back.position.x + 4.0, line), _f(INK.lerp(AMBER, lit)), back.size.x - 8.0, HORIZONTAL_ALIGNMENT_RIGHT if right else HORIZONTAL_ALIGNMENT_LEFT)
+		_head(words, Vector2(back.position.x + 4.0, line), _f(DIM), back.size.x - 8.0, HORIZONTAL_ALIGNMENT_LEFT if right else HORIZONTAL_ALIGNMENT_RIGHT)
+		# The slots: the picked one framed in amber, the others dimmed; each with its key, and a thing with how many.
+		var silk := Art.font("Silkscreen-Regular")
+		for k in HOTBAR:
+			var r := slot_rect(i, k)
+			var on: bool = k == h.slot
+			panel.draw_rect(r, _f(PLATE))
+			panel.draw_rect(Rect2(r.position + Vector2(0.5, 0.5), r.size - Vector2(1, 1)), _f(AMBER if on else FAINT), false, 1.0)
 			if on:
-				panel.draw_rect(Rect2(r.position + Vector2(1.5, 1.5), r.size - Vector2(3, 3)), Color(AMBER.r, AMBER.g, AMBER.b, 0.35 + 0.5 * lit), false, 1.0)
-			if str(h.belt.get(TOOLS[k], "")) != "":
-				_sprite(panel, "belt_" + str(TOOLS[k]), r.position + Vector2(1, 1), 1.0, Color.WHITE if on else Color(0.55, 0.55, 0.6))
-		# The count of each material carried, lit for a moment when more comes in.
-		var x := belt.end.x + 7.0 if not right else belt.position.x - 4.0 - bag_w
+				panel.draw_rect(Rect2(r.position + Vector2(1.5, 1.5), r.size - Vector2(3, 3)), _f(Color(AMBER.r, AMBER.g, AMBER.b, 0.35 + 0.5 * lit)), false, 1.0)
+			var what := slot_of(i, k)
+			var tint := _f(Color.WHITE if on else Color(0.55, 0.55, 0.6))
+			if k < TOOLS.size():
+				if what != "":
+					_sprite(panel, "belt_" + what, r.position + Vector2(2, 2), 1.0, tint)
+			elif what != "":
+				var n := h.bag.count(what)
+				ItemArt.draw_small(panel, what, r, tint if n > 0 else _f(Color(0.4, 0.4, 0.45)))
+				var fresh := clampf(1.0 - (clock - float(h.gained.get(what, -9.0))) / 0.7, 0.0, 1.0)
+				if silk != null:
+					panel.draw_string(silk, Vector2(r.position.x, r.end.y - 1.0), str(n), HORIZONTAL_ALIGNMENT_RIGHT, SLOT - 1.0, 8, _f((INK if n > 0 else FAINT).lerp(AMBER, fresh)))
+			if silk != null and not p.input.on_pad():
+				panel.draw_string(silk, r.position + Vector2(2, 7), str(k + 1), HORIZONTAL_ALIGNMENT_LEFT, -1, 8, _f(AMBER if on else FAINT))
+		# What has just come in, lit for a moment.
+		if not held.is_empty():
+			panel.draw_rect(mats, _f(Art.shade(SHADE)))
 		for item in held:
 			var n := str(h.bag.count(item))
 			var fresh := clampf(1.0 - (clock - float(h.gained.get(item, -9.0))) / 0.7, 0.0, 1.0)
-			_sprite(panel, "item_" + str(item), Vector2(x, belt.position.y + 1.0), 1.0)
-			_head(n, Vector2(x + 17.0, belt.position.y + SLOT * 0.5 + 4.0), INK.lerp(AMBER, fresh))
+			_sprite(panel, "item_" + str(item), Vector2(x, belt.position.y + 2.0), 1.0, _f(Color.WHITE))
+			_head(n, Vector2(x + 17.0, belt.position.y + SLOT * 0.5 + 4.0), _f(INK.lerp(AMBER, fresh)))
 			x += 17.0 + _head_width(n) + 5.0
+	_fade = 1.0
+
+
+## A colour as the hotbar being drawn shows it (faded while an enemy in a fight is under it).
+func _f(c: Color) -> Color:
+	return Color(c.r, c.g, c.b, c.a * _fade)
+

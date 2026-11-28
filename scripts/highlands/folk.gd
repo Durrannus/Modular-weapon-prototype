@@ -16,7 +16,7 @@ extends Node
 ##     the Roost is down.
 ##   - Pip waits where he dropped until nobody is near, and is then at the base, beside the cave mouth (rooms cannot
 ##     be built yet). The first time you speak to him there he tells you of the horn; after that he is a shop.
-##   - A bar costs TIN_PRICE or COPPER_PRICE coins. He buys nothing yet. His one accessory (ware()) costs
+##   - A bar costs TIN_PRICE or COPPER_PRICE coins, a healing potion POTION_PRICE (version 70). He buys nothing yet. His one accessory (ware()) costs
 ##     ACCESSORY_PRICE and changes each time the forge's level rises; he will not sell you one you already have.
 ##   - The waystone takes REPAIR_COPPER copper bars, from the whole squad's bags (whoever uses it first). A mended
 ##     stone takes the whole squad to the forge, and the forge's screen takes them back. Nobody travels while an
@@ -79,6 +79,7 @@ static var REPAIR_COPPER := 5
 static var TIN_PRICE := 6
 static var COPPER_PRICE := 10
 static var ACCESSORY_PRICE := 40
+static var POTION_PRICE := 15
 static var SMOKE_SIGN := 0         # the far-off plume at the screen's edge that shows the way to the Roost: how many puffs tall (0: none;
                                    # Darren, 28 November: "take the smoke signal indicator off the game and only have it on the map")
 
@@ -96,7 +97,7 @@ const MET_LINES := [
 	"The horn is in three pieces, and three of his best carry them. The big brute in the old quarry. The white hound. And the best thrower at the roost.",
 	"Bring me all three and we can mend it. Until then I sell bars, if you have the coins.",
 ]
-const SHOP_LINE := "Tin and copper, straight bars, fair prices. What do you need?"
+const SHOP_LINE := "Tin and copper, straight bars, and a red draught for your cuts. Fair prices. What do you need?"
 
 const INK := Color("#e8e4bc")
 const DIM := Color("#8ba688")
@@ -509,6 +510,8 @@ func ware() -> String:
 func price(item: String) -> int:
 	if Accessories.has(item):
 		return int(ACCESSORY_PRICE)
+	if item == "potion":
+		return int(POTION_PRICE)
 	return int(TIN_PRICE) if item == "tin_bar" else int(COPPER_PRICE)
 
 
@@ -702,6 +705,7 @@ func _arrive() -> void:
 
 func tick(delta: float) -> void:
 	clock += delta
+	_tick_quests(delta)
 	for a in [cage, pip_actor, stone, fire] + fires:
 		if a != null:
 			a.step(delta)
@@ -959,13 +963,73 @@ func sign_height() -> float:
 	return float(rules.get("rise_px_per_s", 6.0)) * maxf(float(int(SMOKE_SIGN)) - 1.0, 0.0) + 14.0
 
 
-## Where the quests are listed, as a box (empty when there are none).
-func track_rect() -> Rect2:
+## Where the quests are listed, as a box (empty when there are none). `names`: the box of their names alone.
+func track_rect(names := false) -> Rect2:
 	var pix := Art.font(Art.TEXT)
 	var h := 0.0
 	for q in quests():
-		h += 17.0 + 12.0 * float(Shop.lines_of(pix, str(q["text"]), Art.TEXT_SIZE, TRACK_W - 12.0).size()) + 3.0 + 3.0
+		h += (17.0 if names else 17.0 + 12.0 * float(Shop.lines_of(pix, str(q["text"]), Art.TEXT_SIZE, TRACK_W - 12.0).size()) + 3.0) + 3.0
 	return Rect2(track_at(), Vector2(TRACK_W, maxf(h - 3.0, 0.0)))
+
+
+## A PANEL OF THE HUD NEVER HIDES A FOE IN A FIGHT (version 70, after the project's review of version 69, where the
+## quest list covered one of Rattlecrown's elites). During a boss fight the quest list is put away: the fight's own
+## line at the top says what to do. Otherwise, while a foe that is fighting stands under it, the list shrinks to its
+## quests' names, and if one stands under those too it goes; it comes back a moment (QUESTS_BACK) after the foe has
+## moved. "all", "names" or "none".
+const QUESTS_BACK := 1.0
+var _quests_mode := "all"
+var _quests_held := 0.0
+
+func quests_shown() -> String:
+	return _quests_mode
+
+
+func _tick_quests(delta: float) -> void:
+	var want := "all"
+	var c = crown()
+	if c != null and c.fighting():
+		want = "none"
+	elif not quests().is_empty():
+		var boxes := foe_boxes()
+		if not boxes.is_empty():
+			if _covers(track_rect(true), boxes):
+				want = "none"
+			elif _covers(track_rect(), boxes):
+				want = "names"
+	var rank := {"all": 0, "names": 1, "none": 2}
+	if int(rank[want]) >= int(rank[_quests_mode]):
+		_quests_mode = want
+		_quests_held = QUESTS_BACK
+	else:
+		_quests_held -= delta
+		if _quests_held <= 0.0:
+			_quests_mode = want
+			_quests_held = QUESTS_BACK
+
+
+## Where on the screen every foe that is fighting stands, as boxes round their bodies (screen pixels).
+func foe_boxes() -> Array:
+	var out: Array = []
+	if game == null or not ("rig" in game) or game.rig == null:
+		return out
+	var mid: Vector2 = game.rig.camera.get_screen_center_position()
+	for e in game.get_tree().get_nodes_in_group("highlands_foes"):
+		if not is_instance_valid(e) or e.dead or not e.fighting():
+			continue
+		var at: Vector2 = (e.global_position - mid) / UNIT + SIZE * 0.5
+		var r: float = float(e.radius) / UNIT + 4.0
+		out.append(Rect2(at - Vector2(r, r * 2.6), Vector2(r * 2.0, r * 3.6)))
+	return out
+
+
+static func _covers(panel_box: Rect2, boxes: Array) -> bool:
+	if panel_box.size.y <= 0.0:
+		return false
+	for b: Rect2 in boxes:
+		if panel_box.intersects(b):
+			return true
+	return false
 
 
 ## The corners of the screen that are spoken for: each player's bars above and belt below, and the quests.
@@ -1089,9 +1153,11 @@ func _draw_hud() -> void:
 	var silk := Art.font("Silkscreen-Regular")
 	var pix := Art.font(Art.TEXT)
 	var at := track_at()
+	if _quests_mode == "none":
+		return
 	for q in quests():
-		var lines := Shop.lines_of(pix, str(q["text"]), Art.TEXT_SIZE, TRACK_W - 12.0)
-		var h := 17.0 + 12.0 * float(lines.size()) + 3.0
+		var lines: Array = Shop.lines_of(pix, str(q["text"]), Art.TEXT_SIZE, TRACK_W - 12.0) if _quests_mode == "all" else []
+		var h := 17.0 + (12.0 * float(lines.size()) + 3.0 if not lines.is_empty() else 0.0)
 		panel.draw_rect(Rect2(at, Vector2(TRACK_W, h)), Art.shade(SHADE))
 		var mark := Art.texture("hud/objective_mark.png")
 		if mark != null:

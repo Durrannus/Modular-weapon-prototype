@@ -87,6 +87,7 @@ func _run() -> void:
 	await _found()
 	await _compass()
 	await _screen()
+	await _hotbar_screen()
 	await _two_screens()
 	await _lab()
 	await _smoke()
@@ -1059,6 +1060,48 @@ func _screen() -> void:
 	await _leave(g)
 
 
+## The hotbar from the inventory (version 70): E puts a potion on or takes it off, a number key picks its slot.
+func _hotbar_screen() -> void:
+	var g = _game(424242, 1, false, [], {}, ["kbm"])
+	await _frames(10)
+	var packs = g.packs
+	var tools = g.tools
+	var bag: Bag = tools.bag_of(0)
+	bag.add("stone", 5)
+	bag.add("potion", 2)
+	await _frames(3)
+	_check(tools.hotbar_slot(0, "potion") == 3, "(the potions went on the hotbar by themselves)")
+	await _key(KEY_TAB)
+	var v = packs.views[0]
+	await _frames(10)
+	await _key(KEY_D)
+	_check(str(packs.under_cursor(0).get("id", "")) == "potion", "(the cursor is on the potions)")
+	await _key(KEY_E)
+	_check(tools.hotbar_slot(0, "potion") == -1 and bag.count("potion") == 2 and v.note == "Healing potion is off the hotbar.", "E takes them off the hotbar (\"%s\")" % v.note)
+	await _key(KEY_E)
+	_check(tools.hotbar_slot(0, "potion") == 3 and v.note == "Healing potion is on the hotbar, in slot 4.", "and puts them back on, in the first free slot (\"%s\")" % v.note)
+	await _key(KEY_7)
+	_check(tools.hotbar_slot(0, "potion") == 6 and v.note == "Healing potion is on the hotbar, in slot 7.", "key 7 moves them to slot 7 (\"%s\")" % v.note)
+	await _key(KEY_2)
+	_check(tools.hotbar_slot(0, "potion") == 6 and tools.slot_of(0, 1) == "axe" and v.note == "Slots 1 to 3 hold the tools.", "the tools' slots are not for them (\"%s\")" % v.note)
+	await _key(KEY_Q)
+	_check(tools.hotbar_slot(0, "potion") == -1 and v.held.is_empty(), "Q takes them off too")
+	await _key(KEY_A)
+	await _key(KEY_7)
+	_check(tools.hotbar_slot(0, "potion") == -1 and str(packs.under_cursor(0).get("id", "")) == "stone", "a number key on stone does nothing")
+	await _key(KEY_TAB)
+	_check(not packs.is_open(0) and tools.hands[0].slot == 0, "closing the inventory, the number keys pressed in it do not change your slot")
+	var pix := Art.font(Art.TEXT)
+	var wide: float = PackScreen.WIDE - PackScreen.PAD * 2.0
+	_check(PackScreen.lines_of(pix, Bag.text_of("potion"), Art.TEXT_SIZE, wide).size() <= 2, "what a healing potion does fits its two lines")
+	for line in ["Healing potion is on the hotbar, in slot 8.", "Healing potion is off the hotbar.", "Slots 1 to 3 hold the tools.", "The hotbar is full. Take something off first.",
+			"E: on or off the hotbar     1 to 8: into that slot", "A: on or off the hotbar"]:
+		_check(pix.get_string_size(line, HORIZONTAL_ALIGNMENT_LEFT, -1, Art.TEXT_SIZE).x <= wide, "\"%s\" fits the plate" % line)
+	_check(ItemArt.icon("potion") != null and ItemArt.icon("potion").get_size() == Vector2(24, 24) and ItemArt.icon_used("potion").size.x <= 18.0 and ItemArt.icon_used("potion").size.y <= 18.0,
+		"the Art builder's potion icon is in the game, and its flask fits a hotbar slot (%s)" % str(ItemArt.icon_used("potion")))
+	await _leave(g)
+
+
 func _two_screens() -> void:
 	var g = _game(424242, 2, false, [], {}, ["kbm", "pad"])
 	await _frames(10)
@@ -1116,7 +1159,7 @@ func _lab() -> void:
 			"accessories:THIMBLE_DODGE", "accessories:PEBBLE_WAIT", "accessories:PEBBLE_HEAL", "accessories:LOCKET_SHARE", "accessories:LUCKY_COINS", "accessories:PIN_SOFTEN", "accessories:PIN_REACH",
 			"accessories:THORN_DAMAGE", "accessories:THORN_REACH", "accessories:BRACER_KNOCK", "accessories:SIEVE_CHANCE", "accessories:BANDOLIER_RUNES", "accessories:RATIONS_HEALTH"]:
 		_check(Lab.by_id.has(id), "the lab has %s" % id)
-	_check(Lab.PAGES.has("Inventory and accessories") and Lab.PAGE_NOTES.has("Inventory and accessories"), "on a page of its own")
+	_check(Lab.PAGES.has("Inventory") and Lab.PAGE_NOTES.has("Inventory"), "on a page of its own")
 	var g = _game(424242, 2)
 	await _frames(5)
 	var gear = g.gear
@@ -1346,13 +1389,13 @@ func _pips_ware() -> void:
 	var next: String = folk.ware()
 	_check(next != ware and Accessories.POOL.has(next), "it changes when the forge's level rises (%s)" % next)
 	g.levels.level -= 1
-	_check(shop.rows() == ["Tin bar", "Copper bar", Accessories.name_of(ware), Shop.ASK, Shop.LEAVE] and shop.items() == ["tin_bar", "copper_bar", ware], "his shop has a row for it, under the bars")
+	_check(shop.rows() == ["Tin bar", "Copper bar", "Healing potion", Accessories.name_of(ware), Shop.ASK, Shop.LEAVE] and shop.items() == ["tin_bar", "copper_bar", "potion", ware], "his shop has a row for it, under the bars and the healing potion")
 	_check(folk.price(ware) == int(Folk.ACCESSORY_PRICE) and folk.price("tin_bar") == int(Folk.TIN_PRICE), "(its price is the lab's)")
 	folk.pip = 3
 	folk._show()
 	purse.coins = int(Folk.ACCESSORY_PRICE) - 1
 	shop.open(0)
-	shop.row = 2
+	shop.row = 3
 	shop.confirm()
 	_check(bag.count(ware) == 0 and shop.note == "That is %d coins. You have %d." % [int(Folk.ACCESSORY_PRICE), int(Folk.ACCESSORY_PRICE) - 1], "too few coins: nothing (\"%s\")" % shop.note)
 	purse.coins = int(Folk.ACCESSORY_PRICE) + 5
@@ -1366,7 +1409,8 @@ func _pips_ware() -> void:
 	for id in Accessories.POOL:
 		_check(pix.get_string_size("Bought the %s for %d coins." % [Accessories.name_of(id), 9999], HORIZONTAL_ALIGNMENT_LEFT, -1, Art.TEXT_SIZE).x <= Shop.BOX.size.x - 36.0, "(the line for the %s fits his plate)" % Accessories.name_of(id))
 		_check(Shop.lines_of(pix, Accessories.text_of(id), Art.TEXT_SIZE, Shop.BOX.size.x - 36.0 - 30.0).size() <= 2, "(and what it does fits under his rows)")
-	_check(Shop.BOX.position.y + 122.0 + 5.0 * 24.0 + 30.0 <= Shop.BOX.end.y and Shop.BOX.end.y <= 360.0 - 32.0, "(five rows and the line under them are on his plate, above the band of buttons)")
+	for n in [6, 7]:
+		_check(Shop.BOX.position.y + Shop.ROWS_AT + float(n) * Shop.row_pitch(n) + 30.0 <= Shop.BOX.end.y and Shop.BOX.end.y <= 360.0 - 32.0, "(%d rows and the line under them are on his plate, above the band of buttons)" % n)
 	shop.close()
 	await _leave(g)
 

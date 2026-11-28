@@ -18,6 +18,11 @@ extends CanvasLayer
 ## only taken out (loot.gd's take() and take_all()); what you leave stays in the chest. Emptied, it closes by
 ## itself after a moment.
 ##
+## THE HOTBAR (version 70). A healing potion (and anything else that is used up from the hotbar: tools.gd's USABLE)
+## goes onto the hotbar from here: E (A on a controller, or a click) puts it in the first free slot or takes it off
+## again, and a key from 1 to 8 puts it in that slot (4 to 8: the first three hold the tools). Only which kind is in
+## which slot is kept there: the potions themselves stay in the inventory.
+##
 ## The rules are gear.gd's, bag.gd's and loot.gd's: this only moves a cursor and asks them. What is in your hand on this
 ## screen has not left where it was: it moves only when it is put down somewhere it fits, so nothing can be lost
 ## by closing the screen.
@@ -343,6 +348,9 @@ func press(i: int) -> void:
 		var u := under_cursor(i)
 		if u.is_empty():
 			return
+		if _for_hotbar(str(u["id"])) and not bool(u["worn"]):
+			_hotbar(i, str(u["id"]))
+			return
 		if not Accessories.has(u["id"]):
 			say(i, "Only accessories go in the satchel.")
 			Sfx.play(self, "click", -14.0, 0.7)
@@ -423,6 +431,9 @@ func quick(i: int) -> void:
 	if u.is_empty():
 		return
 	var id := str(u["id"])
+	if _for_hotbar(id):
+		_hotbar(i, id)
+		return
 	if not Accessories.has(id):
 		say(i, "Only accessories go in the satchel.")
 		Sfx.play(self, "click", -14.0, 0.7)
@@ -442,6 +453,32 @@ func quick(i: int) -> void:
 			say(i, "No room in the satchel. Move or turn something.")
 			Sfx.play(self, "click", -14.0, 0.7)
 	_keep_in(i)
+
+
+## Is it something that goes on the hotbar?
+func _for_hotbar(id: String) -> bool:
+	return tools != null and id in tools.USABLE
+
+
+## On the hotbar, or off it: E, A, Q, Y or a click on it. Into slot k (0 to 7) when a number key says which.
+func _hotbar(i: int, id: String, k := -1) -> void:
+	var name := Bag.name_of(id)
+	if k < 0 and tools.hotbar_slot(i, id) >= 0:
+		tools.take_off(i, id)
+		say(i, "%s is off the hotbar." % name)
+		Sfx.play(self, "click", -9.0, 0.9)
+		return
+	if k >= 0 and k < tools.TOOLS.size():
+		say(i, "Slots 1 to 3 hold the tools.")
+		Sfx.play(self, "click", -14.0, 0.7)
+		return
+	var got: int = tools.put_on(i, id, k)
+	if got < 0:
+		say(i, "The hotbar is full. Take something off first.")
+		Sfx.play(self, "click", -14.0, 0.7)
+		return
+	say(i, "%s is on the hotbar, in slot %d." % [name, got + 1])
+	Sfx.play(self, "pickup", -9.0, 1.1)
 
 
 ## With a chest open: the stack under the cursor goes into your inventory (coins into your purse), as much as fits.
@@ -568,6 +605,11 @@ func _input(event: InputEvent) -> void:
 			KEY_W, KEY_UP: move(i, Vector2i(0, -1))
 			KEY_S, KEY_DOWN: move(i, Vector2i(0, 1))
 		if event.is_echo():
+			return
+		if code >= KEY_1 and code <= KEY_8 and v.chest < 0 and v.held.is_empty():
+			var u := under_cursor(i)
+			if not u.is_empty() and _for_hotbar(str(u["id"])):
+				_hotbar(i, str(u["id"]), code - KEY_1)
 			return
 		match code:
 			KEY_E, KEY_ENTER, KEY_KP_ENTER, KEY_SPACE: press(i)
@@ -717,9 +759,10 @@ func _draw_view(i: int) -> void:
 			if icon != null:
 				root.draw_texture(icon, at, Color(1, 1, 1, 0.3) if lifted else Color.WHITE)
 		else:
-			ItemArt.draw(root, "item_" + id, at + Vector2(4, 4))
-			var count := str(int(s[1]))
-			_words(silk, Vector2(at.x, at.y + SLOT - 2.0), count, 8, INK, SLOT - 2.0, HORIZONTAL_ALIGNMENT_RIGHT)
+			_draw_thing(id, int(s[1]), at)
+			var on: int = tools.hotbar_slot(i, id) if _for_hotbar(id) else -1
+			if on >= 0:
+				_words(silk, Vector2(at.x + 2.0, at.y + 8.0), str(on + 1), 8, AMBER)      # which hotbar slot it is in
 
 	if v.chest >= 0:
 		_draw_chest(i, sx, y)
@@ -761,7 +804,11 @@ func _draw_thing(id: String, n: int, at: Vector2) -> void:
 		if icon != null:
 			root.draw_texture(icon, at)
 		return
-	ItemArt.draw(root, "item_" + id, at + Vector2(4, 4))
+	var icon := ItemArt.icon(id)
+	if icon != null:
+		root.draw_texture(icon, at)      # its own 24 by 24 icon (version 70: the healing potion)
+	else:
+		ItemArt.draw(root, "item_" + id, at + Vector2(4, 4))
 	_words(silk, Vector2(at.x, at.y + SLOT - 2.0), str(n), 8, INK, SLOT - 2.0, HORIZONTAL_ALIGNMENT_RIGHT)
 
 
@@ -828,6 +875,9 @@ func _draw_foot(i: int) -> void:
 			_words(silk, Vector2(x, fy + 12.0), "IN THE CHEST", 8, DIM, w, HORIZONTAL_ALIGNMENT_RIGHT)
 		elif Accessories.has(id):
 			_words(silk, Vector2(x, fy + 12.0), "IN USE" if bool(u["worn"]) else "NOT IN USE", 8, PALE if bool(u["worn"]) else DIM, w, HORIZONTAL_ALIGNMENT_RIGHT)
+		elif _for_hotbar(id):
+			var on: int = tools.hotbar_slot(i, id)
+			_words(silk, Vector2(x, fy + 12.0), "HOTBAR SLOT %d" % (on + 1) if on >= 0 else "NOT ON THE HOTBAR", 8, PALE if on >= 0 else DIM, w, HORIZONTAL_ALIGNMENT_RIGHT)
 		var said := lines_of(pix, text_of(id), Art.TEXT_SIZE, w)
 		for n in mini(said.size(), 2):
 			_words(pix, Vector2(x, fy + 25.0 + 11.0 * float(n)), str(said[n]), Art.TEXT_SIZE, INK)
@@ -846,6 +896,9 @@ func _draw_foot(i: int) -> void:
 	var line2 := ("B: let go" if hold else "Y: wear or take off     B: close") if pad else ("Esc: let go" if hold else "Q: wear or take off     Tab: close")
 	if v.chest >= 0:
 		line1 = "A: take     Y: take everything" if pad else "E: take     Q: take everything"
+		line2 = "B: close" if pad else "Tab: close"
+	elif not hold and not u.is_empty() and _for_hotbar(str(u["id"])) and not bool(u["worn"]):
+		line1 = "A: on or off the hotbar" if pad else "E: on or off the hotbar     1 to 8: into that slot"
 		line2 = "B: close" if pad else "Tab: close"
 	_words(pix, Vector2(x, r.end.y - 21.0), line1, Art.TEXT_SIZE, DIM)
 	_words(pix, Vector2(x, r.end.y - 10.0), line2, Art.TEXT_SIZE, DIM)

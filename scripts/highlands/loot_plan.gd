@@ -34,6 +34,10 @@ extends RefCounted
 ##     always holds one, so the satchel is met in the safe hills; a richer chest holds one about half the time
 ##     and any other about one time in seven. Which one is the chest's own roll (`gift`).
 ##   - The unique parts are NOT in the chests yet.
+##   - HEALING POTIONS are in some chests since version 70 (Darren, 28 November: "things like potions for healing";
+##     until they can be brewed they come from chests and Pip's shop): the first chest always holds one, a richer
+##     chest two about POTION_RICH of the time, and any other one about POTION of the time. Rolled after everything
+##     else, so what chests held before is what they hold now.
 ##
 ## A chest: {id (its place's number: what the world save keeps), pocket, kind: "first", "plain", "guarded", "sealed"
 ## or "site", tile, foot (art pixels), coins, memory, items: [[what, how many]], gift: an accessory or "", blank: true
@@ -61,6 +65,8 @@ static var RING_SHARE := [1.0, 1.0, 1.25, 1.55]    # in the middle and outer rin
 static var RING_COPPER := [0.0, 0.0, 0.75, 0.9]    # and the chance that a plain chest's ore is copper
 static var GIFT := 0.35            # how often a chest holds an accessory ...
 static var RICH_GIFT := 0.6        # ... and a richer one (the first chest always does)
+static var POTION := 0.3           # how often a chest holds a healing potion ...
+static var POTION_RICH := 0.7      # ... and a richer one two (the first chest always holds one)
 const FIRST_FROM := 12.0           # tiles from the cave: the first chest is in the nearest place at least this far out
 const TALL := 30                   # a thing at least this tall (art pixels) would hide a chest standing behind it
 
@@ -155,6 +161,15 @@ static func _holds(seed_value: int, id: int, kind: String, far: bool, ring := 1)
 	var chance := 1.0 if kind == "first" else (RICH_GIFT if kind in ["sealed", "site"] else GIFT)
 	# A passive blank stone: rolled last of all. (Whether the world still gives one is asked when it is opened.)
 	var blank := rng.randf() < BLANK
+	# Healing potions (version 70): rolled after all that, for the same reason.
+	var sip := rng.randf()
+	if kind == "first":
+		items.append(["potion", 1])
+	elif kind in ["sealed", "site"]:
+		if sip < POTION_RICH:
+			items.append(["potion", 2])
+	elif sip < POTION:
+		items.append(["potion", 1])
 	return {"coins": maxi(coins, 1), "memory": maxi(memory, 1), "items": items, "gift": str(Accessories.POOL[pick]) if roll < chance else "", "blank": blank}
 
 

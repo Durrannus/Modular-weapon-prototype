@@ -38,6 +38,9 @@ var work_held := false
 var work_pressed := false
 var tool_next_pressed := false
 var tool_prev_pressed := false
+## The hotbar (version 70): keys 1 to 8 pick a slot straight away. The slot pressed this tick (0 to 7), or -1.
+var slot_pick := -1
+var _slot_latch := -1
 
 var _was := {"attack": false, "dash": false, "interact": false, "pause": false, "ability1": false, "ability2": false, "ability3": false, "work": false, "tool_next": false, "tool_prev": false}
 var _latched := {"attack": false, "dash": false, "interact": false, "pause": false, "ability1": false, "ability2": false, "ability3": false, "work": false, "tool_next": false, "tool_prev": false}
@@ -99,6 +102,10 @@ func feed(event: InputEvent) -> void:
 			using_pad = true
 	if event is InputEventJoypadMotion or event.is_echo() or not event.is_pressed():
 		return
+	if tools and event is InputEventKey:
+		var k := (event as InputEventKey).physical_keycode
+		if k >= KEY_1 and k <= KEY_8:
+			_slot_latch = k - KEY_1
 	for name in _latched:
 		if _event_is(event, name):
 			_latched[name] = true
@@ -217,6 +224,8 @@ func poll() -> void:
 	work_pressed = pressed["work"]
 	tool_next_pressed = pressed["tool_next"]
 	tool_prev_pressed = pressed["tool_prev"]
+	slot_pick = _slot_latch
+	_slot_latch = -1
 
 
 ## Forget anything held or latched (after a menu closes, so its last click doesn't swing).
@@ -234,3 +243,5 @@ func clear() -> void:
 	work_pressed = false
 	tool_next_pressed = false
 	tool_prev_pressed = false
+	slot_pick = -1
+	_slot_latch = -1

@@ -63,3 +63,39 @@ static func draw(ci: CanvasItem, name: String, at: Vector2, px := 1.0, tint := C
 	var n := int(info.get("frames", 1))
 	ci.draw_texture_rect_region(got[0], Rect2(at, one * px), Rect2(float(box[0]) + one.x * float(posmod(frame, maxi(n, 1))), float(box[1]), one.x, one.y), tint)
 	return one
+
+
+## The 24 by 24 icon of something you carry that has its own icon (version 70: the Art builder's equipment icons,
+## art/items/<name>_icon.png, the healing potion first), or null.
+static func icon(name: String) -> Texture2D:
+	return Art.texture("items/%s_icon.png" % name)
+
+
+static var _used := {}
+
+
+## The part of an icon that is drawn on (its picture without the empty edge), in its pixels.
+static func icon_used(name: String) -> Rect2:
+	if _used.has(name):
+		return _used[name]
+	var tex := icon(name)
+	var got := Rect2()
+	if tex != null:
+		var img := tex.get_image()
+		got = Rect2(img.get_used_rect()) if img != null else Rect2(Vector2.ZERO, tex.get_size())
+	_used[name] = got
+	return got
+
+
+## Draws something you carry, as big as it fits, in the middle of `rect` (the hotbar's slots, version 70): its own
+## icon's drawn part when it has one, else its 16 by 16 bag picture. One art pixel is one pixel of `ci`.
+static func draw_small(ci: CanvasItem, name: String, rect: Rect2, tint := Color.WHITE) -> void:
+	var tex := icon(name)
+	if tex != null:
+		var used := icon_used(name)
+		var at := (rect.position + (rect.size - used.size) * 0.5).floor()
+		ci.draw_texture_rect_region(tex, Rect2(at, used.size), used, tint)
+		return
+	var one := size("item_" + name)
+	if one != Vector2.ZERO:
+		draw(ci, "item_" + name, (rect.position + (rect.size - one) * 0.5).floor(), 1.0, tint)

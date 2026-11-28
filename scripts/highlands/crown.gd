@@ -295,13 +295,10 @@ class Trap extends Node2D:
 			elif state == "lower":
 				k = maxi(n - 1 - int(t * float(info.get("fps", 12))), 0)
 			var o: Array = info.get("origin", [8, 27])
-			if state == "warn":
-				# The slab itself is painted into the floor (CrownPlan.stamp); while it rattles its rim is warning
-				# orange, so the warning is seen round the feet of whoever set it off.
-				draw_rect(Rect2(-16, -16, 32, 2), WARN)
-				draw_rect(Rect2(-16, 14, 32, 2), WARN)
-				draw_rect(Rect2(-16, -16, 2, 32), WARN)
-				draw_rect(Rect2(14, -16, 2, 32), WARN)
+			# The trap is the hall's own flagstones with holes cut through them, painted into the floor
+			# (CrownPlan.stamp). While it rattles the warning is the sprite's own: its holes glow warning orange
+			# (version 70, the Art builder's traps redone: no orange rim round the tile, which brought back the
+			# hard edge of a plate set on the floor).
 			draw_set_transform(Vector2(0, 16), 0.0, Vector2(PX, PX))
 			draw_texture_rect_region(sheet, Rect2(-float(o[0]), -float(o[1]), fw, float(box[3])), Rect2(float(box[0]) + fw * float(k), float(box[1]), fw, float(box[3])))
 			draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)

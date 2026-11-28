@@ -35,12 +35,17 @@ const PACKS := [
 ## What can be carried in stacks so far, in the order the screen lists it.
 const ORDER := ["stone", "wood", "tin_ore", "copper_ore", "tin_bar", "copper_bar", "passive_blank", "active_blank"]
 const NAMES := {"stone": "Stone", "wood": "Wood", "tin_ore": "Tin ore", "copper_ore": "Copper ore", "tin_bar": "Tin bar", "copper_bar": "Copper bar",
-	"passive_blank": "Passive blank stone", "active_blank": "Active blank stone"}
+	"passive_blank": "Passive blank stone", "active_blank": "Active blank stone", "potion": "Healing potion"}
 const TEXTS := {"stone": "Rubble from digging. For building, once there is something to build.", "wood": "From felled pines. For building, once there is something to build.",
 	"tin_ore": "Mined from the pale veins. To be smelted into bars.", "copper_ore": "Mined from the orange veins. To be smelted into bars.",
 	"tin_bar": "For tin parts, at the forge's anvil.", "copper_bar": "For copper parts, and for mending waystones.",
 	"passive_blank": "At the forge: infuse it into a passive rune, break it down for Memory, or hand it over.",
-	"active_blank": "At the forge: infuse it into an active rune, break it down for Memory, or hand it over."}
+	"active_blank": "At the forge: infuse it into an active rune, break it down for Memory, or hand it over.",
+	"potion": "Put it on your hotbar, pick its slot and press use: drinking it gives back some of your health."}
+## Things that are used up from the hotbar (version 70), not listed with the materials: what each is called is in
+## NAMES. They stack to POTIONS (Claude's choice: few enough that each one matters).
+const USED := ["potion"]
+const POTIONS := 10
 
 ## Until backpacks can be made (Pip sews the first from hides, and there are no hides yet), the lab says which one
 ## everybody carries: the larger of this and the character's own counts.
@@ -62,7 +67,7 @@ static func text_of(id: String) -> String:
 
 ## How many of it lie in one slot: an accessory has a slot to itself.
 static func stack_of(id: String) -> int:
-	return 1 if Accessories.has(id) else STACK
+	return 1 if Accessories.has(id) else (POTIONS if id in USED else STACK)
 
 
 ## The backpack in use: the character's own, or the lab's if that is larger.
