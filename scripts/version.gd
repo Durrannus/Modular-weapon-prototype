@@ -14,7 +14,7 @@ extends RefCounted
 ## never claims more than it knows.
 
 const NUMBER := 69
-const FILES := "87ab76b8f4e6"
+const FILES := "2b5a92b855ee"
 
 ## Everything that makes the game what it is. Not project.godot (the editor
 ## rewrites it), not the tests, and not this file (it holds the answer).

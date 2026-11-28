@@ -38,6 +38,7 @@ var query := ""             # what the search box holds ("": a page is showing)
 
 var _root: Control
 var _pages: VBoxContainer
+var _pages_scroll: ScrollContainer
 var _scroll: ScrollContainer
 var _list: VBoxContainer
 var _note: Label
@@ -91,11 +92,17 @@ func _ready() -> void:
 	_search.size = Vector2(144, 16)
 	_search.changed.connect(_searched)
 	_root.add_child(_search)
-	# The pages, down the left.
+	# The pages, down the left. More pages than there is room for scroll (version 69: by then the last few, Bosses
+	# among them, ran off the bottom of the screen).
+	_pages_scroll = ScrollContainer.new()
+	_pages_scroll.position = Vector2(18, 38)
+	_pages_scroll.size = Vector2(112, 268)
+	_pages_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	_pages_scroll.follow_focus = true
+	_root.add_child(_pages_scroll)
 	_pages = VBoxContainer.new()
-	_pages.position = Vector2(18, 38)
 	_pages.add_theme_constant_override("separation", 2)
-	_root.add_child(_pages)
+	_pages_scroll.add_child(_pages)
 	# The page's note, then its numbers.
 	_note = _words("", DIM)
 	_note.position = Vector2(132, 36)
@@ -116,10 +123,11 @@ func _ready() -> void:
 	grab.bg_color = FAINT
 	var grab_hot := StyleBoxFlat.new()
 	grab_hot.bg_color = AMBER
-	_scroll.get_v_scroll_bar().add_theme_stylebox_override("scroll", bar_back)
-	_scroll.get_v_scroll_bar().add_theme_stylebox_override("grabber", grab)
-	_scroll.get_v_scroll_bar().add_theme_stylebox_override("grabber_highlight", grab_hot)
-	_scroll.get_v_scroll_bar().add_theme_stylebox_override("grabber_pressed", grab_hot)
+	for sc: ScrollContainer in [_scroll, _pages_scroll]:
+		sc.get_v_scroll_bar().add_theme_stylebox_override("scroll", bar_back)
+		sc.get_v_scroll_bar().add_theme_stylebox_override("grabber", grab)
+		sc.get_v_scroll_bar().add_theme_stylebox_override("grabber_highlight", grab_hot)
+		sc.get_v_scroll_bar().add_theme_stylebox_override("grabber_pressed", grab_hot)
 	_list = VBoxContainer.new()
 	_list.custom_minimum_size = Vector2(LIST_W, 0)
 	_list.add_theme_constant_override("separation", 2)
@@ -284,6 +292,8 @@ func _empty_list() -> void:
 func _show_page(which: String) -> void:
 	page = which
 	_empty_list()
+	if _page_buttons.has(which):
+		_pages_scroll.ensure_control_visible.call_deferred(_page_buttons[which])
 	if which == SPAWN:
 		_note.text = "Puts enemies in the arena, near you. Close the lab to fight them."
 		_make_spawn_page()
