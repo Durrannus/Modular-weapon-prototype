@@ -518,3 +518,49 @@ func _draw_tiles(ci: CanvasItem) -> void:
 		var py := ARENA.position.y + ty * TILE
 		ci.draw_texture_rect(wall, Rect2(Vector2(ARENA.position.x - TILE, py), size), false)
 		ci.draw_texture_rect(wall, Rect2(Vector2(ARENA.end.x, py), size), false)
+
+
+# --- The lab's Bosses page (version 69) ----------------------------------------------------
+# Darren, 28 November 2026: "give the lab the ability to start and end the boss fight whenever, to all boss fights in
+# future too." Here a boss fight is a boss in the room: starting puts one in, awake (as the Spawn page does), ending
+# takes it out.
+
+const ARENA_BOSSES := [["guardian", "The forge guardian", "The tutorial cave's boss, awake at once in this room."],
+	["rattlecrown", "Rattlecrown", "The Highlands' boss, on his feet (his phase 2), in this room."]]
+
+func boss_fights() -> Array:
+	var out: Array = []
+	for b in ARENA_BOSSES:
+		var n := _bosses_here(str(b[0])).size()
+		out.append({"id": b[0], "name": b[1], "about": b[2], "state": "In the room, fighting." if n > 0 else "Not in the room.",
+			"can_start": n == 0, "can_end": n > 0, "can_back": false})
+	return out
+
+
+func _bosses_here(kind: String) -> Array:
+	var out: Array = []
+	for e in get_tree().get_nodes_in_group("foes"):
+		if is_instance_valid(e) and str(e.kind) == kind and not e.dead and not e.is_queued_for_deletion():
+			out.append(e)
+	return out
+
+
+func start_boss(id: String) -> String:
+	if not _bosses_here(id).is_empty():
+		return "The fight is on already."
+	if spawn_enemies(id, 1).is_empty():
+		return "There is no such boss."
+	return ""
+
+
+func end_boss(id: String) -> String:
+	var here := _bosses_here(id)
+	if here.is_empty():
+		return "No fight is on."
+	for e in here:
+		e.remove_from_group("enemies")
+		e.remove_from_group("foes")
+		e.queue_free()
+	for h in get_tree().get_nodes_in_group("hazards"):
+		h.queue_free()
+	return "The fight is over: the boss is gone from the room."

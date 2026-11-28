@@ -284,7 +284,7 @@ func _arena() -> void:
 	# Open: the game stops. Change iron and health; close: both are in force.
 	m.open_lab()
 	_check(s.is_open and paused, "L opens it and the game stops")
-	_check(s._page_buttons.has("Spawn") and s._page_buttons.size() == Lab.PAGES.size() + 1, "its pages are the lab's and Spawn")
+	_check(s._page_buttons.has("Spawn") and s._page_buttons.has("Bosses") and s._page_buttons.size() == Lab.PAGES.size() + 2, "its pages are the lab's, Spawn and Bosses")
 	for page in Lab.PAGES:
 		s._show_page(page)
 		var want := 0
@@ -395,6 +395,26 @@ func _arena() -> void:
 		if e.kind == "dummy" and not e.is_queued_for_deletion():
 			dummies += 1
 	_check(dummies == 1, "...and only that one (%d)" % dummies)
+	# The Bosses page (version 69): start and end any boss fight.
+	m.open_lab()
+	s._show_page("Bosses")
+	_check(s._boss_rows.has("guardian") and s._boss_rows.has("rattlecrown"), "the Bosses page lists the forge guardian and Rattlecrown")
+	_check(not s._boss_rows["guardian"]["start"].disabled and s._boss_rows["guardian"]["end"].disabled, "with no boss in the room: Start, and no End")
+	s._start_boss("guardian")
+	_check(not s.is_open and not paused, "Start closes the lab, so the fight begins")
+	await _frames(3)
+	_check(m._bosses_here("guardian").size() == 1, "the guardian is in the room")
+	m.open_lab()
+	s._show_page("Bosses")
+	_check(s._boss_rows["guardian"]["start"].disabled and not s._boss_rows["guardian"]["end"].disabled, "with him in the room: End, and no Start")
+	s._end_boss("guardian")
+	await _frames(3)
+	_check(m._bosses_here("guardian").is_empty() and is_instance_valid(m.home_dummy), "End takes him out of the room (the dummy stays)")
+	s._start_boss("rattlecrown")
+	await _frames(3)
+	_check(m._bosses_here("rattlecrown").size() == 1, "Rattlecrown can be started in the arena too")
+	_check(m.end_boss("rattlecrown") != "" and m._bosses_here("rattlecrown").is_empty(), "and ended")
+	await _frames(3)
 	# The real key: L opens it, L closes it, and it stays closed. Esc closes it too,
 	# and doesn't open the pause menu behind it.
 	await _key(KEY_L)
@@ -509,6 +529,7 @@ func _cave() -> void:
 	_check(is_equal_approx(float(c.players[0].weapon["damage"]), 6.0), "the wooden sword hits for the lab's 6")
 	c.open_lab()
 	_check(c.lab_screen.is_open and not c.lab_screen._page_buttons.has("Spawn"), "it opens, with no Spawn page (that is the arena's)")
+	_check(c.lab_screen._page_buttons.has("Bosses"), "...and with the Bosses page")
 	Lab.set_value("guardian:HP", 600.0)
 	c.lab_screen.dirty = true
 	c.lab_screen.close()
@@ -516,6 +537,20 @@ func _cave() -> void:
 	Lab.reset_all()
 	c.lab_changed()
 	_check(is_equal_approx(c.guardian.max_hp, 255.0) and is_equal_approx(cr.max_hp, 14.0), "reset: 255 and 14 again")
+	# The Bosses page (version 69): the guardian can be woken from any point of the story before he is beaten.
+	c.stage = "crate"
+	var fights: Array = c.boss_fights()
+	_check(fights.size() == 1 and bool(fights[0]["can_start"]) and not bool(fights[0]["can_end"]), "the cave's Bosses page: the forge guardian, ready to start (%s)" % [fights])
+	_check(c.start_boss("guardian") == "", "Start wakes him")
+	_check(c.stage == "boss_wake" and c.armed.all(func(a): return a), "the fight is on and everybody holds a weapon (%s)" % c.stage)
+	_check(c.players[0].global_position.y < (float(c.ROOMS[3].end.y) - 0.6) * c.TILE, "everybody is in the forge")
+	_check(c.start_boss("guardian") != "", "he cannot be started twice")
+	var old_g = c.guardian
+	_check(c.end_boss("guardian") != "", "End calls it off")
+	await _frames(3)
+	_check(c.stage == "forge" and c.guardian != old_g and str(c.guardian.mode) == "dormant" and c.ui.boss == null, "a fresh guardian kneels asleep, the story is at the forge (%s, %s)" % [c.stage, c.guardian.mode])
+	c.stage = "smith"
+	_check(not bool(c.boss_fights()[0]["can_start"]), "once he is beaten the story has moved on: no Start in the cave")
 	paused = false
 	c.queue_free()
 	await _frames(3)

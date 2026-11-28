@@ -90,6 +90,8 @@ func _run() -> void:
 		await _fight()
 	if only == "" or only == "two":
 		await _two_players()
+	if only == "" or only == "lab":
+		await _lab_bosses()
 	if only == "" or only == "saved":
 		await _saved()
 	print("%s  Rattlecrown: %d checks, %d failed" % ["PASS" if fails == 0 else "FAIL", checks, fails])
@@ -1357,6 +1359,53 @@ func _fight() -> void:
 
 
 # --- Two players --------------------------------------------------------------------------------------
+
+## The lab's Bosses page (version 69). Darren, 28 November 2026: "give the lab the ability to start and end the boss
+## fight whenever, to all boss fights in future too."
+func _lab_bosses() -> void:
+	var g = _game(424242)
+	await _frames(5)
+	var crown = g.crown
+	var p = g.players[0]
+	var home: Vector2 = p.global_position
+	var fights: Array = g.boss_fights()
+	_check(fights.size() == 1 and str(fights[0]["id"]) == "rattlecrown" and bool(fights[0]["can_start"]) and not bool(fights[0]["can_end"]), "the Highlands' Bosses page: Rattlecrown, ready to start")
+	_check(not crown.horn and not crown.gate_open, "(nobody has the horn, and the Scrapyard gate is shut)")
+	p.hp = 10.0
+	_check(g.start_boss("rattlecrown") == "", "Start: his fight begins with no horn")
+	_check(crown.fighting() and crown.phase() == 1 and crown.shut_in, "phase 1, with the Throne Room's gate shut behind the squad")
+	_check(crown.room_rect().has_point(p.global_position), "the squad is in the Throne Room")
+	_check(is_equal_approx(p.hp, p.max_hp), "at full health")
+	_check(g.start_boss("rattlecrown") != "", "it cannot be started twice")
+	fights = g.boss_fights()
+	_check(bool(fights[0]["can_end"]) and bool(fights[0]["can_back"]) and not bool(fights[0]["can_start"]), "now the page offers End and Take everybody back")
+	await _wait(func(): return crown.stage == "elites", 240)
+	_check(crown.stage == "elites" and crown.elites.size() == 3, "the three elites come in, as in a fight begun with the horn")
+	_check(crown.elites.all(func(e): return e.radius > 0.0 and e.art_scale >= 1.0), "(drawn as elites, version 69)")
+	_check(g.end_boss("rattlecrown") != "", "End")
+	await _frames(3)
+	_check(crown.stage == "wait" and not crown.shut_in and crown.elites.is_empty() and crown.boss == null, "he sits back down, the court gone, the gate up")
+	_check(p.global_position.distance_to(home) < 1.0, "and the squad is back where it stood")
+	fights = g.boss_fights()
+	_check(bool(fights[0]["can_start"]) and not bool(fights[0]["can_back"]), "Start again, and nobody to take back")
+	# Ending a fight begun with the horn leaves everybody where they are.
+	_put(g, p, crown.blow_spot() + Vector2(0, 10))
+	crown.start()
+	await _frames(3)
+	var there: Vector2 = p.global_position
+	g.end_boss("rattlecrown")
+	await _frames(3)
+	_check(crown.stage == "wait" and p.global_position.distance_to(there) < 1.0, "ending a fight begun with the horn calls it off and leaves the squad there")
+	# The lab's own page.
+	g.open_lab()
+	var s = g.lab_screen
+	_check(s._page_buttons.has("Bosses") and not s._page_buttons.has("Spawn"), "the Highlands' lab has a Bosses page")
+	s._show_page("Bosses")
+	_check(s._boss_rows.has("rattlecrown") and not s._boss_rows["rattlecrown"]["start"].disabled, "...with Rattlecrown, ready to start")
+	s._start_boss("rattlecrown")
+	_check(not s.is_open and not paused and crown.fighting(), "its Start closes the lab and the fight is on")
+	await _leave(g)
+
 
 func _two_players() -> void:
 	var g = _game(424242, 2)

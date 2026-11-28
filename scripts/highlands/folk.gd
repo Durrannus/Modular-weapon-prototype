@@ -28,8 +28,10 @@ extends Node
 ##     Pip mends the horn in his shop, and what he says of it follows how things stand with Rattlecrown.
 ##   - Smoke (version 47, asked for in the review of version 46: the first quest had nothing to find it by in a
 ##     land 350 tiles out). While Pip is caged the camp's smoke stands over the Roost, half a screen tall, and
-##     while the Roost is off the screen a small far-off plume stands at the screen's edge on the Roost's side,
-##     over the quest's own mark (SMOKE_SIGN, in the lab). Both go once the cage is broken. The puffs are the Art builder's (art/smoke): the
+##     while the Roost is off the screen a small far-off plume stood at the screen's edge on the Roost's side,
+##     over the quest's own mark (SMOKE_SIGN, in the lab). Since version 69 that plume is off unless the lab puts it
+##     back (Darren, 28 November: "only have it on the map"); the smoke is on both maps (version 59). Both go once the
+##     cage is broken. The puffs are the Art builder's (art/smoke): the
 ##     game's greys, a pixel at a time. Looks only: nothing in the rules reads them.
 ##
 ## The rules run on the game's tick (tick()); nothing here asks any dice.
@@ -77,7 +79,8 @@ static var REPAIR_COPPER := 5
 static var TIN_PRICE := 6
 static var COPPER_PRICE := 10
 static var ACCESSORY_PRICE := 40
-static var SMOKE_SIGN := 5         # the far-off plume at the screen's edge that shows the way to the Roost: how many puffs tall (0: none)
+static var SMOKE_SIGN := 0         # the far-off plume at the screen's edge that shows the way to the Roost: how many puffs tall (0: none;
+                                   # Darren, 28 November: "take the smoke signal indicator off the game and only have it on the map")
 
 const NAME := "Pip"
 ## Stand-ins, all of them: the story is Darren's to write.
@@ -985,7 +988,7 @@ func hud_corners() -> Array:
 func quests() -> Array:
 	var out: Array = []
 	if pip < 3:
-		var text := "Follow the smoke to the stone-throwers' roost and free Pip." if int(SMOKE_SIGN) >= 1 and has_roost() else "Find the stone-throwers' roost and free Pip."
+		var text := "Follow the smoke to the stone-throwers' roost and free Pip." if has_roost() else "Find the stone-throwers' roost and free Pip."
 		if pip == 0 and found.has("roost") or pip == 1 and not freed_said:
 			text = "Clear the roost and break Pip's cage."
 		elif pip >= 1:

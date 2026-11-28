@@ -1,7 +1,8 @@
 extends CanvasLayer
 ## The lab's screen: the game's numbers in pages, each with - and + and a box to
-## type in, a search box that finds a number on any page, and (in the test
-## arena) a page that puts any enemy in the room.
+## type in, a search box that finds a number on any page, (in the test
+## arena) a page that puts any enemy in the room, and (wherever there is a boss)
+## a page that starts and ends any boss fight (version 69).
 ## The numbers themselves live in scripts/lab.gd.
 ##
 ## It pauses the game while it is open, like the pause menu. It is never there
@@ -18,6 +19,8 @@ const FAINT := Color("#5f8072")
 const AMBER := Color("#ffc850")
 const DARK := Color("#19142a")
 const SPAWN := "Spawn"
+const BOSSES := "Bosses"
+const BOSSES_NOTE := "Start or end any boss fight. Starting closes the lab, so the fight begins. A fight won here counts as won."
 const HINT := "Hold - or + to keep going. Shift: bigger steps. Click a number to type it. Distances: the screen is 640 wide."
 const FOUND_NOTE := "Every number with those words, from all the pages. Esc or a page's button goes back."
 const NONE_NOTE := "No number has those words. Try one word: dagger, recharge, health."
@@ -47,6 +50,7 @@ var _held_for := 0.0
 var _said_left := 0.0
 var _count_label: Label     # the Spawn page's "in the arena now" line
 var _arrive_button: Button
+var _boss_rows := {}        # the Bosses page: a fight's id -> {state, start, end, back}
 var _closed_tick := -10     # the game tick it was last closed on
 var _search: SearchBox
 var _reset_page_button: Button   # "Reset this page", or "Reset these" over a search
@@ -226,6 +230,8 @@ func _process(delta: float) -> void:
 			_hint.add_theme_color_override("font_color", FAINT)
 	if page == SPAWN:
 		_refresh_spawn()
+	elif page == BOSSES:
+		_refresh_bosses()
 
 
 # --- Pages ------------------------------------------------------------------------------
@@ -239,6 +245,8 @@ func _make_pages() -> void:
 	var names: Array = Lab.PAGES.duplicate()
 	if _can_spawn():
 		names.append(SPAWN)
+	if _can_boss():
+		names.append(BOSSES)
 	for n in names:
 		var b := _button(str(n), 104.0, 17.0)
 		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
@@ -249,6 +257,10 @@ func _make_pages() -> void:
 
 func _can_spawn() -> bool:
 	return is_instance_valid(game) and game.has_method("spawn_enemies")
+
+
+func _can_boss() -> bool:
+	return is_instance_valid(game) and game.has_method("boss_fights")
 
 
 ## A page's button: the page, and the search is put away.
@@ -265,6 +277,7 @@ func _empty_list() -> void:
 	_rows = {}
 	_count_label = null
 	_arrive_button = null
+	_boss_rows = {}
 	_scroll.scroll_vertical = 0
 
 
@@ -274,6 +287,9 @@ func _show_page(which: String) -> void:
 	if which == SPAWN:
 		_note.text = "Puts enemies in the arena, near you. Close the lab to fight them."
 		_make_spawn_page()
+	elif which == BOSSES:
+		_note.text = BOSSES_NOTE
+		_make_boss_page()
 	else:
 		_note.text = str(Lab.PAGE_NOTES.get(which, ""))
 		var group := ""
@@ -318,7 +334,7 @@ func _refresh_status() -> void:
 	_reset_page_button.text = "RESET THIS PAGE" if query == "" else "RESET THESE"
 	for n in _page_buttons:
 		var b: Button = _page_buttons[n]
-		var changed := Lab.changed_on(str(n)) if n != SPAWN else 0
+		var changed := Lab.changed_on(str(n)) if not n in [SPAWN, BOSSES] else 0
 		b.text = ("%s (%d)" % [n, changed] if changed > 0 else str(n)).to_upper()
 		b.add_theme_color_override("font_color", AMBER if n == page and query == "" else (INK if changed == 0 else Color("#86d4a4")))
 	var total := Lab.changed_count()
@@ -417,7 +433,7 @@ func _let_go() -> void:
 func _reset_page() -> void:
 	if query != "":
 		Lab.reset_these(_rows.keys())
-	elif page == SPAWN:
+	elif page == SPAWN or page == BOSSES:
 		return
 	else:
 		Lab.reset_page(page)
@@ -500,6 +516,81 @@ func _refresh_spawn() -> void:
 	_arrive_button.text = ("NEW ENEMIES ARRIVE BY THEMSELVES: %s" % ("ON" if game.spawning else "OFF"))
 
 
+# --- The Bosses page (version 69) ----------------------------------------------------------
+# Darren, 28 November 2026: "give the lab the ability to start and end the boss fight whenever, to all boss fights in
+# future too." Any game with a boss answers boss_fights() with its fights ({id, name, about, state, can_start,
+# can_end, can_back}), and start_boss(id), end_boss(id) and back_boss(id) do the rest: a new boss needs only an entry
+# in its game's list, and this page shows it.
+
+func _make_boss_page() -> void:
+	var fights: Array = game.boss_fights()
+	if fights.is_empty():
+		var none := _words("There is no boss here.", DIM)
+		none.custom_minimum_size = Vector2(LIST_W, 16)
+		_list.add_child(none)
+		return
+	for f in fights:
+		var id := str(f["id"])
+		_list.add_child(_heading(str(f["name"]), _list.get_child_count() > 0))
+		var about := _words(str(f.get("about", "")), DIM)
+		about.custom_minimum_size = Vector2(LIST_W, 0)
+		about.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		_list.add_child(about)
+		var state := _words("", INK)
+		state.custom_minimum_size = Vector2(LIST_W, 16)
+		state.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		_list.add_child(state)
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 4)
+		var start := _button("Start the fight", 120.0, 18.0)
+		start.pressed.connect(_start_boss.bind(id))
+		row.add_child(start)
+		var end := _button("End the fight", 120.0, 18.0)
+		end.pressed.connect(_end_boss.bind(id))
+		row.add_child(end)
+		var back: Button = null
+		if game.has_method("back_boss"):
+			back = _button("Take everybody back", 150.0, 18.0)
+			back.pressed.connect(_back_boss.bind(id))
+			row.add_child(back)
+		_list.add_child(row)
+		_boss_rows[id] = {"state": state, "start": start, "end": end, "back": back}
+	_refresh_bosses()
+
+
+func _refresh_bosses() -> void:
+	if _boss_rows.is_empty() or not _can_boss():
+		return
+	for f in game.boss_fights():
+		var r: Dictionary = _boss_rows.get(str(f["id"]), {})
+		if r.is_empty():
+			continue
+		(r["state"] as Label).text = "Now: " + str(f["state"])
+		(r["start"] as Button).disabled = not bool(f.get("can_start", false))
+		(r["end"] as Button).disabled = not bool(f.get("can_end", false))
+		if r["back"] != null:
+			(r["back"] as Button).visible = bool(f.get("can_back", false))
+
+
+func _start_boss(id: String) -> void:
+	var why: String = game.start_boss(id)
+	if why != "":
+		_say(why)
+		_refresh_bosses()
+		return
+	close()
+
+
+func _end_boss(id: String) -> void:
+	_say(str(game.end_boss(id)))
+	_refresh_bosses()
+
+
+func _back_boss(id: String) -> void:
+	_say(str(game.back_boss(id)))
+	_refresh_bosses()
+
+
 # --- The kit --------------------------------------------------------------------------------
 
 func _words(text: String, color: Color, size := Art.TEXT_SIZE, heading := false) -> Label:
@@ -540,7 +631,9 @@ func _button(text: String, w: float, h: float) -> Button:
 		b.add_theme_stylebox_override("hover", hot)
 		b.add_theme_stylebox_override("pressed", hot)
 		b.add_theme_stylebox_override("focus", hot)
+		b.add_theme_stylebox_override("disabled", idle)
 		b.add_theme_color_override("font_color", INK)
+		b.add_theme_color_override("font_disabled_color", FAINT)
 		for state in ["font_hover_color", "font_pressed_color", "font_focus_color", "font_hover_pressed_color"]:
 			b.add_theme_color_override(state, DARK)
 	return b

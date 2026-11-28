@@ -37,6 +37,7 @@ const SCRIPTS := {
 	"badger": "res://scripts/foes/badger.gd",
 	"capercaillie": "res://scripts/foes/capercaillie.gd",
 	"scrap_hound": "res://scripts/foes/scrap_hound.gd",
+	"foe": "res://scripts/foes/foe.gd",
 	"foes": "res://scripts/highlands/foes.gd",
 	"foe_plan": "res://scripts/highlands/foe_plan.gd",
 	"snow": "res://scripts/highlands/snow.gd",
@@ -444,6 +445,9 @@ static func _build_rows() -> void:
 	_add(p, g, "How far it lunges", "hound:LUNGE_DIST", "d", 5.0, 50.0, 800.0)
 	_add(p, g, "Shortest wait between lunges", "hound:REST_MIN", "s", 0.1, 0.2, 20.0)
 	_add(p, g, "Longest wait between lunges", "hound:REST_MAX", "s", 0.1, 0.2, 20.0)
+	g = "Every elite"
+	_add(p, g, "Size beside its kind", "foe:ELITE_SIZE", "%", 0.05, 1.0, 2.5)
+	_add(p, g, "Walking pace beside its kind", "foe:ELITE_SPEED", "%", 0.05, 0.5, 2.0)
 	g = "Elite hound (the pack leader)"
 	_add(p, g, "Health", "hound:ELITE_HP", "", 1.0, 1.0, 10000.0)
 	_add(p, g, "What its bite does", "hound:ELITE_BITE", "", 1.0, 0.0, 1000.0)

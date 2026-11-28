@@ -13,6 +13,12 @@ extends "res://scripts/enemy.gd"
 ##
 ## AN ELITE is the same creature, marked (`elite`): tougher, with one trick of its own, drawn from its own
 ## pictures with a thin rim of light ("glow faintly", the Game Bible). It always counts as the toughest enemy.
+## Since version 69 it is also BIGGER AND QUICKER than its kind. Darren, 28 November 2026: "make the elites more
+## unique also as they dont look like anything special atm. like a meaner and bigger variant of the original enemie."
+## Its body reaches ELITE_SIZE times as far (it is hit, and bites, from further off) and it walks ELITE_SPEED times as
+## fast. Until the Art builder draws the elites bigger, its picture is drawn ELITE_SIZE times bigger (a stand-in: one
+## art pixel becomes one and a half); a picture the book marks "drawn_big" is drawn as it is. Its body against the
+## rock stays its kind's size, so it still fits every tunnel its kind does. (Claude's: the numbers, and that.)
 ##
 ## A WARD (the elite shaman's) makes a goblin impossible to hurt for a few seconds: `warded`.
 ##
@@ -25,6 +31,9 @@ const SHEET := "foes/enemies.png"
 const BOOK := "foes/enemies.json"
 const ART_NAMES := {"scrap_brute": "brute"}      # the game's name -> the art's (the arena already has a "brute")
 const WARD_WORD_EVERY := 0.7
+## An elite beside its kind (version 69; both in the lab).
+static var ELITE_SIZE := 1.5
+static var ELITE_SPEED := 1.15
 
 var pack = null                # the group it belongs to, or null (the test arena)
 var home := Vector2.INF        # where it stands when nothing is happening
@@ -60,6 +69,29 @@ func _ready() -> void:
 	_last_pos = position
 	# (Never the object's own number: that one differs from run to run, and the fights with it.)
 	_own = absi(int(round(position.x)) * 7 + int(round(position.y)) * 13)
+	_grow()
+
+
+var _kind_radius := -1.0
+
+## An elite is bigger than its kind (version 69): its reach and its picture, never its body against the rock (made
+## already, at its kind's size, so it fits the same tunnels). Again whenever the lab changes the size.
+func _grow() -> void:
+	if _kind_radius < 0.0:
+		_kind_radius = radius
+	var big := ELITE_SIZE if elite else 1.0
+	radius = _kind_radius * big
+	art_scale = 1.0 if bool(_art_info().get("drawn_big", false)) else big
+
+
+func lab_changed() -> void:
+	super.lab_changed()
+	_grow()
+
+
+## How much quicker than its kind it walks.
+func pace() -> float:
+	return ELITE_SPEED if elite else 1.0
 
 
 func _set_mode(m: String, time := 0.0) -> void:
@@ -181,6 +213,7 @@ func _go(goal: Vector2, spd: float, delta: float) -> Vector2:
 	if _side_t > 0.0:
 		_side_t -= delta
 		dir = (dir + dir.orthogonal() * _side * 1.3).normalized()
+	spd *= pace()
 	_wanted = spd
 	return dir * spd
 
@@ -380,7 +413,7 @@ func _draw() -> void:
 		if not sp.is_empty():
 			var rim := _art_tex(str(sp["anim"]) + "_rim")
 			if rim != null:
-				Art.draw_strip(self, rim, sp["frames"], sp["frame"], _feet(), sp["origin"], sp["flip"])
+				Art.draw_strip(self, rim, sp["frames"], sp["frame"], _feet(), sp["origin"], sp["flip"], Color.WHITE, art_px())
 		else:
 			draw_arc(Vector2.ZERO, radius + 3.0, 0.0, TAU, 24, Color("#f0c070"), 2.0)
 	# A ward is three scrap shields going round the goblin: the far half under it, the near half over it.
@@ -401,7 +434,7 @@ func _draw_ward(half: String) -> void:
 		if not flicker:
 			var o: Array = info.get("origin_feet", [0, 0])
 			var n := int(strip.get("frames", 4))
-			Art.draw_strip(self, tex, n, int(anim_time * float(strip.get("fps", 6))) % maxi(n, 1), _feet(), Vector2(o[0], o[1]))
+			Art.draw_strip(self, tex, n, int(anim_time * float(strip.get("fps", 6))) % maxi(n, 1), _feet(), Vector2(o[0], o[1]), false, Color.WHITE, art_px())
 		return
 	if half == "front":      # no art: a plain bronze ring
 		draw_arc(Vector2(0, -radius * 0.5), radius + 9.0, 0.0, TAU, 28, Color(Color("#c9923a"), 0.3 if flicker else 0.9), 2.0)

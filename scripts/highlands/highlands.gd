@@ -796,3 +796,80 @@ func _update_interactions() -> void:
 
 func net_state() -> Array:
 	return super.net_state() + [world_seed, ui.busy()]
+
+
+# --- The lab's Bosses page (version 69) ----------------------------------------------------
+# Darren, 28 November 2026: "give the lab the ability to start and end the boss fight whenever, to all boss fights in
+# future too." Every game with a boss answers the same three questions (scripts/ui/lab_screen.gd asks them): which
+# fights there are (boss_fights), start one (start_boss) and end one (end_boss); and here one more, take the squad back
+# (back_boss). Claude's: starting needs no horn and takes the squad, on its feet and at full health, in front of his
+# throne; a fight started from the lab counts as a real one (won, his hoard opens and the horn cracks); ending it
+# calls it off as when everybody leaves the room, and takes the squad back to where it stood when the lab started it.
+
+var _boss_from: Array = []      # where everybody stood when the lab started Rattlecrown's fight
+
+func boss_fights() -> Array:
+	if crown == null or not crown.ok():
+		return []
+	var state := "On his throne, waiting for the Rusted Warhorn."
+	match crown.phase():
+		1:
+			state = "Fighting, phase 1: he watches from the throne while the three elites fight."
+		2:
+			state = "Fighting, phase 2: on his feet."
+		3:
+			state = "Fighting, phase 3: crowned."
+	if crown.stage == "won":
+		state = "Just beaten."
+	return [{"id": "rattlecrown", "name": "Rattlecrown", "about": "The Scrapyard's Throne Room. Starting takes everybody in front of his throne, with no horn needed.",
+		"state": state, "can_start": not crown.fighting(), "can_end": crown.fighting(), "can_back": not _boss_from.is_empty()}]
+
+
+## Starts a boss fight: "" if it started, else why not.
+func start_boss(id: String) -> String:
+	if id != "rattlecrown" or crown == null or not crown.ok():
+		return "There is no such fight on this land."
+	if crown.fighting():
+		return "The fight is on already."
+	if crown.stage == "won":
+		crown.stage = "wait"
+	var spot: Vector2 = crown.blow_spot() + Vector2(0, 30)
+	var from: Array = []
+	for i in players.size():
+		var p = players[i]
+		from.append(p.global_position)
+		p.get_up(spot + Vector2((float(i) - float(players.size() - 1) * 0.5) * 40.0, 0), 1.0)
+		p.hp = p.max_hp
+	if _boss_from.is_empty():
+		_boss_from = from
+	if rig != null:
+		rig.snap()
+	if land != null:
+		land.settle()
+	if not crown.start():
+		return "He cannot be fought right now."
+	return ""
+
+
+## Ends a boss fight: what to say.
+func end_boss(id: String) -> String:
+	if id != "rattlecrown" or crown == null or not crown.fighting():
+		return "No fight is on."
+	crown.reset()
+	if not _boss_from.is_empty():
+		back_boss(id)
+	return "The fight is called off: Rattlecrown sits back down."
+
+
+## Takes the squad back to where it stood when the lab started the fight.
+func back_boss(_id: String) -> String:
+	if _boss_from.is_empty():
+		return "Nobody was taken anywhere."
+	for i in mini(players.size(), _boss_from.size()):
+		players[i].get_up(_boss_from[i], 0.0)
+	_boss_from = []
+	if rig != null:
+		rig.snap()
+	if land != null:
+		land.settle()
+	return "Everybody is back where they stood."

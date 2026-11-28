@@ -41,6 +41,7 @@ var knock := Vector2.ZERO
 var flash := 0.0
 var flash_tint := 3.0     # how hard the sprite whites out when hit
 var lift := 1.0           # sprite brightness; set above 1 for an enemy that sinks into a dark floor
+var art_scale := 1.0      # its picture drawn this much bigger than the art (a Highlands elite, version 69)
 var freeze := 0.0          # frozen on the frame it was hit
 var hit_stun := 0.0        # can't move or attack after a hit
 var burn_time := 0.0
@@ -483,7 +484,7 @@ func _draw_mark_body() -> void:
 	if float(m["left"]) < 1.5 and int(float(m["left"]) * 10.0) % 2 == 0:
 		pulse *= 0.35
 	if not sp.is_empty():
-		Art.draw_strip(_mark_body, sp["tex"], sp["frames"], sp["frame"], _feet(), sp["origin"], sp["flip"], Color(1, 1, 1, pulse))
+		Art.draw_strip(_mark_body, sp["tex"], sp["frames"], sp["frame"], _feet(), sp["origin"], sp["flip"], Color(1, 1, 1, pulse), art_px())
 
 
 ## Where a spot is drawn: on the body, which stands taller than its footprint.
@@ -687,6 +688,11 @@ func _feet() -> Vector2:
 	return Vector2(0, radius * 0.7)
 
 
+## How big one pixel of its picture is drawn, in world units.
+func art_px() -> float:
+	return Art.PIXEL * art_scale
+
+
 ## Sprites are drawn facing right and mirrored to look left. Front views say no.
 func _flip(_anim: String) -> bool:
 	return facing.x < 0.0
@@ -734,7 +740,7 @@ func _update_glow() -> void:
 	if tex == null or flash > 0.0 or held:   # held: its eyes and embers go out
 		_glow.put(null)
 	else:
-		_glow.put(tex, sp["frames"], sp["frame"], _feet(), sp["origin"], sp["flip"])
+		_glow.put(tex, sp["frames"], sp["frame"], _feet(), sp["origin"], sp["flip"], art_px())
 
 
 ## Which strip to show: [name, seconds into it, loops].
@@ -799,7 +805,7 @@ func _head_y() -> float:
 			top = float(img.get_used_rect().position.y)
 		_tops[key] = top
 	var o: Array = info["origin_feet"]
-	return minf(_feet().y - (float(o[1]) - float(_tops[key])) * Art.PIXEL, -radius)
+	return minf(_feet().y - (float(o[1]) - float(_tops[key])) * art_px(), -radius)
 
 
 ## Is it reeling with stars round its head?
@@ -943,7 +949,7 @@ func _draw() -> void:
 			tint *= Color(0.65, 0.8, 1.0)
 		elif held:
 			tint *= HELD_TINT
-		Art.draw_strip(self, sp["tex"], sp["frames"], sp["frame"], _feet(), sp["origin"], sp["flip"], tint)
+		Art.draw_strip(self, sp["tex"], sp["frames"], sp["frame"], _feet(), sp["origin"], sp["flip"], tint, art_px())
 
 	if kind == "dummy":
 		var dps := current_dps()

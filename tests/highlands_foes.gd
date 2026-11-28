@@ -98,6 +98,7 @@ func _run() -> void:
 	await _elite_slinger()
 	await _elite_brute()
 	await _elite_shaman()
+	await _elites_bigger()
 	await _scrap_hound()
 	await _arena_close()
 	await _land()
@@ -612,6 +613,45 @@ func _shaman() -> void:
 	s.cast_in = 99.0
 	await _frames(240)
 	_check(s.global_position.distance_to(p.global_position) > front.global_position.distance_to(p.global_position) + 30.0, "a shaman stands behind the other goblins")
+
+
+## Version 69. Darren, 28 November 2026: "make the elites more unique ... like a meaner and bigger variant of the
+## original enemie." Each elite is bigger than its kind (its reach and its picture, not its body against the rock) and
+## walks faster.
+func _elites_bigger() -> void:
+	for kind in ["hound", "slinger", "scrap_brute", "shaman"]:
+		await _reset()
+		var a = _put(kind, Vector2(160, -60))
+		var b = _put(kind + "_elite", Vector2(160, 60))
+		await _frames(2)
+		_check(is_equal_approx(b.radius, a.radius * Foe.ELITE_SIZE), "an elite %s reaches %.2f times as far as its kind (%.1f against %.1f)" % [kind, Foe.ELITE_SIZE, b.radius, a.radius])
+		var shape_a: CircleShape2D = null
+		var shape_b: CircleShape2D = null
+		for c in a.get_children():
+			if c is CollisionShape2D:
+				shape_a = c.shape
+		for c in b.get_children():
+			if c is CollisionShape2D:
+				shape_b = c.shape
+		_check(shape_a != null and shape_b != null and is_equal_approx(shape_a.radius, shape_b.radius), "...but its body against the rock is its kind's, so it fits the same tunnels")
+		var drawn_big := bool(b._art_info().get("drawn_big", false))
+		_check(is_equal_approx(b.art_scale, 1.0 if drawn_big else Foe.ELITE_SIZE) and is_equal_approx(a.art_scale, 1.0), "its picture is drawn %s" % ("as the Art builder drew it, bigger" if drawn_big else "%.2f times bigger (a stand-in)" % Foe.ELITE_SIZE))
+		_check(b._head_y() < a._head_y() - 4.0, "its health bar sits higher, over its bigger head (%.0f against %.0f)" % [b._head_y(), a._head_y()])
+		_check(is_equal_approx(b.pace(), Foe.ELITE_SPEED) and is_equal_approx(a.pace(), 1.0), "it walks %.2f times as fast" % Foe.ELITE_SPEED)
+		var va: Vector2 = a._go(a.global_position + Vector2(-200, 0), 100.0, 1.0 / 60.0)
+		var vb: Vector2 = b._go(b.global_position + Vector2(-200, 0), 100.0, 1.0 / 60.0)
+		_check(is_equal_approx(vb.length(), va.length() * Foe.ELITE_SPEED), "...on its way anywhere (%.0f against %.0f)" % [vb.length(), va.length()])
+	# The lab's size follows at once.
+	await _reset()
+	var e = _put("hound_elite", Vector2(160, 0))
+	await _frames(2)
+	var was: float = e.radius
+	Foe.ELITE_SIZE = 1.2
+	m.lab_changed()
+	_check(is_equal_approx(e.radius, was / 1.5 * 1.2), "the lab's size reaches an elite already there")
+	Foe.ELITE_SIZE = 1.5
+	m.lab_changed()
+	await _reset()
 
 
 func _elite_hound() -> void:

@@ -46,7 +46,7 @@ The README is the long, plain-words story for Darren; this file is only for find
 | `scripts/highlands/charts.gd` | The small map, the whole map on M, the seen land, the lab's map switch. |
 | `scripts/highlands/foes.gd`, `foe_plan.gd`, `nav.gd` | Who lives where (goblin ground round the Scrapyard: `SCRAP_REACH`; hound ground in and near the snow; the moor's creatures everywhere else: `_creatures`), waking and coming back; the way round rock. |
 | `scripts/highlands/snow.gd` | The snowy section round the Hound Den: where snow lies (`depth`, `chunk`), the Den's mouth (`stamp`), the falling snow. The painter paints `art/highlands/snow/` there (`bake.py --snow`). |
-| `scripts/foes/` | The Highlands enemies (`foe.gd` shared; hound, slinger, scrap brute, shaman, bat, rock), Rattlecrown, the moor's neutral creatures (`creature.gd` shared: ambling, the moor sheet; boar, badger, capercaillie), and the goblins' war dog (`scrap_hound.gd`, a hound from `art/foes/hounds.png`). `pack.gd`: a group; `neutral` ones wake only when hit. |
+| `scripts/foes/` | The Highlands enemies (`foe.gd` shared; hound, slinger, scrap brute, shaman, bat, rock), Rattlecrown, the moor's neutral creatures (`creature.gd` shared: ambling, the moor sheet; boar, badger, capercaillie), and the goblins' war dog (`scrap_hound.gd`, a hound from `art/foes/hounds.png`). `pack.gd`: a group; `neutral` ones wake only when hit. Elites (version 69, `foe.gd` `_grow`, `pace`): reach and picture `ELITE_SIZE` bigger (body against rock unchanged; `art_scale`, `art_px()` in `enemy.gd`), walk `ELITE_SPEED` faster. |
 | `scripts/highlands/crown.gd`, `crown_plan.gd` | The Scrapyard, the Throne Room fight, traps, hoard. |
 | `scripts/highlands/loot.gd`, `loot_plan.gd` | Chests (each player's share waits in the chest: `left_in`, `take`, `take_all`), drops, coins, Memory. |
 | `scripts/highlands/levels.gd`, `perks.gd` | Memory and the forge's levels, the four role trees and every perk. |
@@ -54,7 +54,7 @@ The README is the long, plain-words story for Darren; this file is only for find
 | `scripts/highlands/bag.gd`, `gear.gd`, `accessories.gd` | The inventory, the Accessory Satchel, what each accessory does. |
 | `scripts/highlands/tools.gd` | Pickaxe, axe, mallet: digging, mining, felling; blows by name (`NEED`) and by make (`POWER`). |
 | `scripts/save.gd` | Saved characters and worlds. |
-| `scripts/lab.gd`, `scripts/ui/lab_screen.gd` | The lab's list of numbers; its screen. |
+| `scripts/lab.gd`, `scripts/ui/lab_screen.gd` | The lab's list of numbers; its screen, with the Spawn page (arena) and the Bosses page (version 69: any game with `boss_fights()`, `start_boss(id)`, `end_boss(id)`, optional `back_boss(id)`; a new boss only needs an entry there). |
 | `scripts/ui/` | Screens: forge (`swing_forge.gd`), the Highlands forge (`forge_hall.gd`), HUD, inventory and a chest's inventory (`pack_screen.gd`), shop, pause, save pick, title, online menu, version corner. |
 | `scripts/net/` | Online play for two (on hold). |
 | `scripts/art.gd`, `sfx.gd`, `music.gd`, `sim.gd`, `version.gd` | Loading art by name; sounds made in code; music; the game's dice; the version stamp. |

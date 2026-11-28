@@ -1459,3 +1459,71 @@ func _restart_room() -> void:
 	wiping = false
 	ui.card("Knocked out", "You come round at the door. Try again.", 1.8)
 	ui.card_blocks = false
+
+
+# --- The lab's Bosses page (version 69) ----------------------------------------------------
+# Darren, 28 November 2026: "give the lab the ability to start and end the boss fight whenever, to all boss fights in
+# future too." (scripts/ui/lab_screen.gd asks every game the same: boss_fights, start_boss, end_boss.) Claude's:
+# starting takes everybody into the forge, armed (whoever has no weapon yet takes the crate's) and at full health,
+# and wakes him at once, whatever the story was doing; ending puts a fresh guardian back on his knees and the story
+# back at the forge (fitting the rune wakes him again). Once he is beaten the story has moved on and he cannot be
+# started here: the test arena's Bosses page puts him in its room.
+
+func boss_fights() -> Array:
+	var on := stage in ["boss_wake", "boss"]
+	var done := stage in ["boss_dead", "smith", "tin_card", "tin", "stairs", "end"]
+	var state := "Kneeling asleep on the casting circle."
+	if on:
+		state = "Fighting."
+	elif done:
+		state = "Beaten. (The test arena's Bosses page puts him in its room.)"
+	var why := ""
+	if stage == "intro":
+		why = "The cave has not started yet."
+	elif stage in ["rune_card", "ability_card"]:
+		why = "Close the card first."
+	return [{"id": "guardian", "name": "The forge guardian", "about": "The forge, the cave's last room. Starting takes everybody in, armed, and wakes him.",
+		"state": state if why == "" else state + " " + why, "can_start": not on and not done and why == "", "can_end": on, "can_back": false}]
+
+
+func start_boss(id: String) -> String:
+	if id != "guardian" or guardian == null:
+		return "There is no such fight in the cave."
+	var fights: Array = boss_fights()
+	if not bool(fights[0]["can_start"]):
+		return str(fights[0]["state"])
+	# Whatever room fight was on is over, and everybody has a weapon.
+	for e in get_tree().get_nodes_in_group("foes"):
+		if e != guardian:
+			e.queue_free()
+	for h in get_tree().get_nodes_in_group("hazards"):
+		h.queue_free()
+	fighting = false
+	for i in players.size():
+		if not armed[i]:
+			armed[i] = true
+			owned[i] = _starter_parts(builds[i].weapon())
+			builds[i].changed.emit()
+		players[i].with_spirit = true
+		players[i].get_up(Vector2.INF, 1.0)
+		players[i].hp = players[i].max_hp
+	_wake_guardian()
+	rig.snap()
+	return ""
+
+
+func end_boss(id: String) -> String:
+	if id != "guardian" or not stage in ["boss_wake", "boss"]:
+		return "No fight is on."
+	for h in get_tree().get_nodes_in_group("hazards"):
+		h.queue_free()
+	if is_instance_valid(guardian):
+		guardian.queue_free()
+	_spawn_guardian()
+	stage = "forge"
+	_set_forge(false)
+	_open_gate(2)
+	music.play("cave_calm", 2.0)
+	ui.boss = null
+	_forge_objective()
+	return "The fight is called off: the guardian kneels again. Fitting the rune at the forge wakes him."

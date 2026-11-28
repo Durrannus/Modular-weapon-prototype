@@ -1211,7 +1211,11 @@ func _smoke() -> void:
 			if not near:
 				slow = false
 	_check(slow, "small, slow movement: from one tick to the next no puff moves more than a pixel up")
-	# The far-off plume at the screen's edge.
+	# The far-off plume at the screen's edge: off since version 69 (Darren, 28 November: "take the smoke signal indicator
+	# off the game and only have it on the map"); the lab can put it back, and how it works is checked with it there.
+	_check(int(Folk.SMOKE_SIGN) == 0 and folk.smoke_sign().is_empty(), "no plume stands at the screen's edge: the smoke is on the map only")
+	_check(str(folk.quests()[0]["text"]).begins_with("Follow the smoke"), "and the quest still says to follow the smoke (on the map, and at the Roost)")
+	Folk.SMOKE_SIGN = 5
 	var sign: Array = folk.smoke_sign()
 	var to: Vector2 = folk.smoke_feet() - p.global_position
 	_check(to.length() > 1500.0, "(the Roost is a long way from where you start: %d tiles)" % int(to.length() / TILE))
@@ -1222,11 +1226,6 @@ func _smoke() -> void:
 		_check((at - Vector2(320, 180)).normalized().dot(to.normalized()) > 0.7, "on the Roost's side")
 		_check(folk.hud_corners().all(func(r): return not Rect2(at.x - 9.0, at.y - folk.sign_height() + 4.0, 18.0, folk.sign_height() + 12.0).intersects(r)), "clear of the bars, the quests and the belts")
 	_check(folk.puffs(folk.clock, float(int(Folk.SMOKE_SIGN))).size() == int(Folk.SMOKE_SIGN), "(%d puffs tall)" % int(Folk.SMOKE_SIGN))
-	_check(str(folk.quests()[0]["text"]).begins_with("Follow the smoke"), "and the quest says to follow the smoke")
-	var was := int(Folk.SMOKE_SIGN)
-	Folk.SMOKE_SIGN = 0
-	_check(folk.smoke_sign().is_empty() and str(folk.quests()[0]["text"]).begins_with("Find the"), "the lab can turn the far-off plume off (the quest's words follow)")
-	Folk.SMOKE_SIGN = was
 	# Nobody is lost in it.
 	var start: Vector2 = p.global_position
 	_put(g, p, folk.smoke_feet() + Vector2(-20.0, -120.0))
@@ -1321,6 +1320,7 @@ func _smoke() -> void:
 	folk.clock += Folk.SMOKE_LIFE + 1.0
 	await _frames(3)
 	_check(not folk.smoking() and not folk.smoke.visible, "(the smoke has gone)")
+	Folk.SMOKE_SIGN = 0
 	var world: Dictionary = g._world_now()
 	await _leave(g)
 	# A world where he was freed before: no smoke at all.
