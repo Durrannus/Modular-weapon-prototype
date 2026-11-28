@@ -38,16 +38,21 @@ extends RefCounted
 ##     until they can be brewed they come from chests and Pip's shop): the first chest always holds one, a richer
 ##     chest two about POTION_RICH of the time, and any other one about POTION of the time. Rolled after everything
 ##     else, so what chests held before is what they hold now.
+##   - SCRAP ARMOUR is in some chests since version 71 (Darren chose "First scrap armour set now" on 28 November: a
+##     helm, a jerkin and boots of goblin scrap, found in chests and sold by Pip): a richer chest holds a piece about
+##     ARMOUR_RICH of the time and any other about ARMOUR of the time (not the first chest). Which piece is the
+##     chest's own roll. Rolled after the potions. Whoever has that piece already gets coins in its place (loot.gd).
 ##
 ## A chest: {id (its place's number: what the world save keeps), pocket, kind: "first", "plain", "guarded", "sealed"
 ## or "site", tile, foot (art pixels), coins, memory, items: [[what, how many]], gift: an accessory or "", blank: true
-## if it holds a passive blank stone (while the world has not given its cap)}.
+## if it holds a passive blank stone (while the world has not given its cap), armour: a piece of armour or ""}.
 
 const LandMap := preload("res://scripts/highlands/land_map.gd")
 const WorldGen := preload("res://scripts/highlands/world_gen.gd")
 const Painter := preload("res://scripts/highlands/land_painter.gd")
 const FoePlan := preload("res://scripts/highlands/foe_plan.gd")
 const Accessories := preload("res://scripts/highlands/accessories.gd")
+const Armour := preload("res://scripts/highlands/armour.gd")
 
 static var GUARDED_SHARE := 0.17   # of the inner ring's places somebody lives in, how many have a chest
 static var EMPTY_SHARE := 0.04     # of the places nobody lives in, beyond the safe hills
@@ -67,6 +72,8 @@ static var GIFT := 0.35            # how often a chest holds an accessory ...
 static var RICH_GIFT := 0.6        # ... and a richer one (the first chest always does)
 static var POTION := 0.3           # how often a chest holds a healing potion ...
 static var POTION_RICH := 0.7      # ... and a richer one two (the first chest always holds one)
+static var ARMOUR := 0.1           # how often a chest holds a piece of scrap armour ...
+static var ARMOUR_RICH := 0.35     # ... and a richer one (never the first chest)
 const FIRST_FROM := 12.0           # tiles from the cave: the first chest is in the nearest place at least this far out
 const TALL := 30                   # a thing at least this tall (art pixels) would hide a chest standing behind it
 
@@ -170,7 +177,12 @@ static func _holds(seed_value: int, id: int, kind: String, far: bool, ring := 1)
 			items.append(["potion", 2])
 	elif sip < POTION:
 		items.append(["potion", 1])
-	return {"coins": maxi(coins, 1), "memory": maxi(memory, 1), "items": items, "gift": str(Accessories.POOL[pick]) if roll < chance else "", "blank": blank}
+	# Scrap armour (version 71): rolled after the potions.
+	var dress := rng.randf()
+	var piece := str(Armour.ORDER[rng.randi_range(0, Armour.ORDER.size() - 1)])
+	var dressed := dress < (0.0 if kind == "first" else (ARMOUR_RICH if kind in ["sealed", "site"] else ARMOUR))
+	return {"coins": maxi(coins, 1), "memory": maxi(memory, 1), "items": items, "gift": str(Accessories.POOL[pick]) if roll < chance else "", "blank": blank,
+		"armour": piece if dressed else ""}
 
 
 ## The tile for a chest in an open place: one that can be walked to from the place's middle, with open ground all

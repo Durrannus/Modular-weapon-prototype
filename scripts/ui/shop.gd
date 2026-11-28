@@ -16,6 +16,7 @@ const Sfx := preload("res://scripts/sfx.gd")
 const ItemArt := preload("res://scripts/highlands/item_art.gd")
 const Bag := preload("res://scripts/highlands/bag.gd")
 const Accessories := preload("res://scripts/highlands/accessories.gd")
+const Armour := preload("res://scripts/highlands/armour.gd")
 
 const SCREEN := Vector2(640, 360)
 const INK := Color("#e8e4bc")
@@ -25,6 +26,7 @@ const AMBER := Color("#ffc850")
 const PLATE := Color("#19142a")
 const SHADOW := Color(0.06, 0.04, 0.11, 0.9)
 const BOX := Rect2(140, 38, 360, 284)
+const TALL_BOX := Rect2(140, 22, 360, 304)      # with eight rows (version 71): his plate reaches up over the health bars
 const BARS := ["tin_bar", "copper_bar"]
 const SIPS := ["potion"]      # version 70: the healing potion, under the bars
 const ROWS_AT := 104.0        # the rows' top, down from the plate's (version 70: what you have went up beside his name)
@@ -57,9 +59,13 @@ func _ready() -> void:
 	root.draw.connect(_draw_screen)
 
 
-## What he sells, top row first: the bars, the healing potion, then his accessory if he has one.
+## What he sells, top row first: the bars, the healing potion, the piece of scrap armour you have not got (version
+## 71), then his accessory if he has one.
 func items() -> Array:
 	var out: Array = BARS.duplicate() + SIPS
+	var piece: String = folk.armour_for(who) if folk != null and folk.has_method("armour_for") else ""
+	if piece != "":
+		out.append(piece)
 	var ware: String = folk.ware() if folk != null else ""
 	if ware != "":
 		out.append(ware)
@@ -196,6 +202,8 @@ func confirm() -> void:
 			Sfx.play(self, "pickup", -8.0, 1.1)
 			if Accessories.has(item):
 				say("Bought the %s for %d coins." % [Bag.name_of(item), cost], 3.5)
+			elif Armour.has(item):
+				say("Bought the %s for %d coins." % [Armour.name_of(item).to_lower(), cost], 3.5)
 			else:
 				say("Bought a %s for %d coins." % [Bag.name_of(item).to_lower(), cost], 2.5)
 		else:
@@ -220,10 +228,20 @@ func confirm() -> void:
 
 # --- Drawing ------------------------------------------------------------------------------
 
-## How far apart the rows are: 24, or 21 when there are seven (the bars, the potion, his accessory, mending the
-## horn, the question and the way out), so they stay on his plate.
+## How far apart the rows are: 24, or 21 when there are seven or eight (the bars, the potion, a piece of armour, his
+## accessory, mending the horn, the question and the way out), so they stay on his plate.
 static func row_pitch(n: int) -> float:
 	return 24.0 if n <= 6 else 21.0
+
+
+## His plate, for this many rows: taller, and higher up, with eight.
+static func box(n: int) -> Rect2:
+	return BOX if n <= 7 else TALL_BOX
+
+
+## What a piece of armour is, under his rows: the piece, and how much it guards.
+static func armour_text(id: String) -> String:
+	return "%s Defence %d." % [Armour.text_of(id), Armour.defence_of(id)]
 
 
 func _words(f: Font, at: Vector2, text: String, size: int, col: Color, width := -1.0, align := HORIZONTAL_ALIGNMENT_LEFT) -> void:
@@ -254,7 +272,7 @@ func _draw_screen() -> void:
 	var pix := Art.font(Art.TEXT)
 	rects = []
 	root.draw_rect(Rect2(Vector2.ZERO, SCREEN), Color(0.06, 0.04, 0.09, 0.72))
-	var r := BOX
+	var r := box(rows().size())
 	if not Art.draw_nine(root, "swing/ui/panel.png", r, 8):
 		root.draw_rect(r, PLATE)
 	var x := r.position.x + 18.0
@@ -317,8 +335,9 @@ func _draw_screen() -> void:
 		if k < sold.size():
 			var item := str(sold[k])
 			if ItemArt.icon(item) != null:
-				ItemArt.draw_small(root, item, Rect2(tx - 2.0, rr.position.y, 20.0, rr.size.y))
-				tx += 20.0
+				var wide := maxf(20.0, ItemArt.icon_used(item).size.x + 2.0)      # (a piece of armour is wider than the potion)
+				ItemArt.draw_small(root, item, Rect2(tx - 2.0 + (wide - 20.0) * 0.5, rr.position.y, 20.0, rr.size.y))
+				tx += wide
 			elif not Accessories.has(item):
 				ItemArt.draw(root, "item_" + item, Vector2(tx, rr.position.y + 2.0))
 				tx += 20.0
@@ -340,6 +359,14 @@ func _draw_screen() -> void:
 		if icon != null:
 			root.draw_texture(icon, Vector2(x, foot + 1.0))
 		var does := lines_of(pix, Accessories.text_of(str(sold[row])), Art.TEXT_SIZE, w - 30.0)
+		for n in mini(does.size(), 2):
+			_words(pix, Vector2(x + 30.0, foot + 11.0 + 12.0 * float(n)), str(does[n]), Art.TEXT_SIZE, DIM)
+	elif row < sold.size() and Armour.has(sold[row]):
+		var piece := str(sold[row])
+		var icon := ItemArt.icon(piece)
+		if icon != null:
+			root.draw_texture(icon, Vector2(x, foot + 1.0))
+		var does := lines_of(pix, armour_text(piece), Art.TEXT_SIZE, w - 30.0)
 		for n in mini(does.size(), 2):
 			_words(pix, Vector2(x + 30.0, foot + 11.0 + 12.0 * float(n)), str(does[n]), Art.TEXT_SIZE, DIM)
 

@@ -23,6 +23,14 @@ extends CanvasLayer
 ## again, and a key from 1 to 8 puts it in that slot (4 to 8: the first three hold the tools). Only which kind is in
 ## which slot is kept there: the potions themselves stay in the inventory.
 ##
+## THE EQUIPMENT PAGE (version 71). Darren, 28 November 2026: "i want an equipment screen to be visible from inventory
+## too, so you can unequip armour and wepons etc, and see your stats". The right side of the screen has two pages,
+## the satchel and the equipment, turned with C (LB or RB on a controller) or a click on their names. The equipment
+## page shows the weapon in hand (E takes it off and puts it back: highlands.gd's empty hands), the armour worn on
+## head, body and feet (armour.gd, gear.gd: E on a piece in the inventory wears it, E on a worn piece takes it off),
+## and the player's numbers. Claude's choices: the weapon taken off stays on this page, faint, and is not an
+## inventory item (its picture is wider than a slot); wearing a piece from the inventory turns to this page.
+##
 ## The rules are gear.gd's, bag.gd's and loot.gd's: this only moves a cursor and asks them. What is in your hand on this
 ## screen has not left where it was: it moves only when it is put down somewhere it fits, so nothing can be lost
 ## by closing the screen.
@@ -35,6 +43,9 @@ const ItemArt := preload("res://scripts/highlands/item_art.gd")
 const Accessories := preload("res://scripts/highlands/accessories.gd")
 const Bag := preload("res://scripts/highlands/bag.gd")
 const Gear := preload("res://scripts/highlands/gear.gd")
+const Armour := preload("res://scripts/highlands/armour.gd")
+const SwingBuild := preload("res://scripts/weapon/swing_build.gd")
+const SwordArt := preload("res://scripts/weapon/sword_art.gd")
 
 const SCREEN := Vector2(640, 360)
 const INK := Color("#e8e4bc")
@@ -55,6 +66,12 @@ const MOST_ROWS := 10            # of slots drawn (eight is the largest backpack
 const CHEST_COLS := 4            # a chest's own small inventory (as loot.gd's)
 const CHEST_ROWS := 2
 const SHUT_AFTER := 0.35         # an emptied chest's screen closes this long after
+const PAGES := ["SATCHEL", "EQUIPMENT"]     # the right side's two pages (version 71)
+const EQ_ROW := 6.0              # between the weapon and the armour on the equipment page
+const EQ_STATS := 27.0           # from the foot of the armour to the first line of numbers
+const EQ_LINE := 12.0            # one line of numbers
+const EQ_LINES := 7
+const EQ_TALL := 14.0 + SLOT + EQ_ROW + SLOT + EQ_STATS + EQ_LINE * float(EQ_LINES - 1) + 8.0      # the equipment page under its names
 
 
 ## One player's screen.
@@ -70,6 +87,8 @@ class View:
 	var chest := -1              # the chest whose inventory is open beside yours (loot.gd's number), or -1: the satchel
 	var cslot := 0               # which of its slots the cursor is on
 	var shut_at := -1.0          # an emptied chest's screen closes by itself at this time
+	var page := 0                # the right side: 0 the satchel, 1 the equipment (version 71); kept between openings
+	var eq := 0                  # on the equipment page: 0 the weapon, 1 to 3 the head, body and feet
 
 
 var game                         # the Highlands scene
@@ -211,8 +230,11 @@ func _slots(i: int) -> int:
 
 ## The whole plate of player i's screen.
 func plate(i: int) -> Rect2:
-	var right := float(CHEST_ROWS) if (views[i] as View).chest >= 0 else float(gear.size_of(i).y)
-	var grid := maxf(float(rows_of(i)) * SLOT, right * SLOT + 14.0)
+	var v: View = views[i]
+	var right := float(CHEST_ROWS) * SLOT + 14.0 if v.chest >= 0 else float(gear.size_of(i).y) * SLOT + 14.0
+	if v.chest < 0 and v.page == 1:
+		right = EQ_TALL
+	var grid := maxf(float(rows_of(i)) * SLOT, right)
 	var x := floorf((SCREEN.x - WIDE) * 0.5)
 	if players.size() > 1:
 		x = 8.0 if i % 2 == 0 else SCREEN.x - 8.0 - WIDE
@@ -243,6 +265,81 @@ func cell_rect(i: int, c: Vector2i) -> Rect2:
 func chest_rect(i: int, n: int) -> Rect2:
 	var r := plate(i)
 	return Rect2(r.position.x + PAD + SLOT * 6.0 + GAP + float(n % CHEST_COLS) * SLOT, r.position.y + HEAD + 14.0 + float(n / CHEST_COLS) * SLOT, SLOT, SLOT)
+
+
+## On the equipment page: where spot n is drawn (0 the weapon, as wide as the page; 1 to 3 the head, body and feet,
+## in a row under it).
+func eq_rect(i: int, n: int) -> Rect2:
+	var r := plate(i)
+	var sx := r.position.x + PAD + SLOT * 6.0 + GAP
+	var top := r.position.y + HEAD + 14.0
+	if n <= 0:
+		return Rect2(sx, top, SLOT * 5.0, SLOT)
+	return Rect2(sx + float(n - 1) * SLOT * 2.0, top + SLOT + EQ_ROW, SLOT, SLOT)
+
+
+## The names of the right side's two pages, over it: where page n's name is (a click on it turns to it).
+func tab_rect(i: int, n: int) -> Rect2:
+	var r := plate(i)
+	var sx := r.position.x + PAD + SLOT * 6.0 + GAP
+	var silk := Art.font("Silkscreen-Regular")
+	var w: float = silk.get_string_size(PAGES[n], HORIZONTAL_ALIGNMENT_LEFT, -1, 8).x + 4.0
+	return Rect2(sx - 2.0 if n == 0 else sx + SLOT * 5.0 - w + 2.0, r.position.y + 9.0, w, 13.0)
+
+
+## The armour place of equipment spot n ("head", "body", "feet"; "" for the weapon).
+static func eq_slot(n: int) -> String:
+	return str(Armour.SLOTS[n - 1]) if n >= 1 and n <= Armour.SLOTS.size() else ""
+
+
+## Is the cursor of player i on the equipment page?
+func on_equipment(i: int) -> bool:
+	var v: View = views[i]
+	return is_open(i) and v.chest < 0 and v.page == 1 and v.side == 1
+
+
+## Player i's numbers on the equipment page: [[name, value], ...], top first.
+func stats_of(i: int) -> Array:
+	var p = players[i]
+	var w: Dictionary = p.weapon
+	var bare: bool = not p.armed()
+	var defence: int = gear.defence(i)
+	var pace: float = 1.0 + float(w.get("move_speed", 0.0))      # (of the Highlands' own walking pace: 100% as you are)
+	var out: Array = []
+	out.append(["Health", "%d / %d" % [ceili(p.hp), roundi(p.max_hp)]])
+	out.append(["Damage", "none" if bare else _plain(float(w.get("damage", 0.0)))])
+	out.append(["Attack speed", "none" if bare else "%d%%" % roundi(float(w.get("speed", 1.0)) * 100.0)])
+	out.append(["Move speed", "%d%%" % roundi(pace * 100.0)])
+	out.append(["Defence", "%d, %d%% less" % [defence, Armour.less(defence)] if defence > 0 else "0"])
+	out.append(["Accessories", "%d in use" % (gear.kits[i].worn as Array).size()])
+	var levels = game.get("levels") if game != null else null
+	if levels != null:
+		var learnt: int = (levels.perks[i] as Array).size() if i < levels.perks.size() else 0
+		out.append(["Level", "%d, %d perk%s" % [int(levels.level), learnt, "" if learnt == 1 else "s"]])
+	return out
+
+
+static func _plain(n: float) -> String:
+	return ("%d" % roundi(n)) if is_equal_approx(n, roundf(n)) else ("%.1f" % (roundf(n * 10.0) / 10.0))
+
+
+## The weapon player i holds (or has taken off): its head's picture, and its name.
+func _weapon_icon(i: int) -> Texture2D:
+	var b = game.builds[i] if game != null and i < game.builds.size() else null
+	if b == null:
+		return null
+	if b.weapon() == "bow":
+		return Art.texture("swing/bow/limbs/%s_icon.png" % b.blade)
+	return SwordArt.part_texture("blades", b.blade, "icon")
+
+
+func _weapon_name(i: int) -> String:
+	var b = game.builds[i] if game != null and i < game.builds.size() else null
+	return str(SwingBuild.head_part(b.blade).get("name", "Weapon")) if b != null else "Weapon"
+
+
+func _hands_empty(i: int) -> bool:
+	return game != null and game.has_method("hands_empty") and game.hands_empty(i)
 
 
 ## What is in slot n of the chest open on player i's screen: [id, how many], or [] if it is empty.
@@ -277,6 +374,10 @@ func under_cursor(i: int) -> Dictionary:
 	if v.side == 0:
 		var s := in_slot(i, v.slot)
 		return {"id": str(s[0]), "n": int(s[1]), "worn": false} if not s.is_empty() else {}
+	if v.chest < 0 and v.page == 1:
+		if v.eq == 0:
+			return {"id": "", "n": 1, "worn": not _hands_empty(i), "weapon": true}
+		return {"id": gear.worn_in(i, eq_slot(v.eq)), "n": 1, "worn": true, "armour": eq_slot(v.eq)}
 	if v.chest >= 0:
 		var c := in_chest_slot(i, v.cslot)
 		return {"id": str(c[0]), "n": int(c[1]), "worn": false, "chest": true} if not c.is_empty() else {}
@@ -294,6 +395,7 @@ func _keep_in(i: int) -> void:
 	v.cell = Vector2i(clampi(v.cell.x, 0, maxi(size.x - box.x, 0)), clampi(v.cell.y, 0, maxi(size.y - box.y, 0)))
 	v.slot = clampi(v.slot, 0, maxi(_slots(i) - 1, 0))
 	v.cslot = clampi(v.cslot, 0, CHEST_COLS * CHEST_ROWS - 1)
+	v.eq = clampi(v.eq, 0, Armour.SLOTS.size())
 
 
 # --- What the buttons do -------------------------------------------------------------------
@@ -313,6 +415,19 @@ func move(i: int, d: Vector2i) -> void:
 			v.slot = mini(row, rows - 1) * Bag.COLS + Bag.COLS - 1
 		else:
 			v.cslot = clampi(row + d.y, 0, CHEST_ROWS - 1) * CHEST_COLS + clampi(col + d.x, 0, CHEST_COLS - 1)
+	elif v.side == 1 and v.page == 1 and v.chest < 0:
+		# The equipment page: the weapon over the head, body and feet. Off its left edge, back to the inventory
+		# (beside the weapon: the second row; beside the armour: the third).
+		if d.x < 0 and v.eq <= 1:
+			v.side = 0
+			v.slot = mini(1 if v.eq == 0 else 2, rows - 1) * Bag.COLS + Bag.COLS - 1
+		elif v.eq == 0:
+			if d.y > 0:
+				v.eq = 1
+		elif d.y < 0:
+			v.eq = 0
+		else:
+			v.eq = clampi(v.eq + d.x, 1, Armour.SLOTS.size())
 	elif v.side == 0:
 		var col := v.slot % Bag.COLS
 		var row := v.slot / Bag.COLS
@@ -320,6 +435,7 @@ func move(i: int, d: Vector2i) -> void:
 			v.side = 1
 			v.cell = Vector2i(0, mini(row, size.y - 1))
 			v.cslot = mini(row, CHEST_ROWS - 1) * CHEST_COLS
+			v.eq = 0 if row < 2 else 1
 		else:
 			col = clampi(col + d.x, 0, Bag.COLS - 1)
 			row = clampi(row + d.y, 0, rows - 1)
@@ -344,12 +460,18 @@ func press(i: int) -> void:
 	if v.chest >= 0:
 		_take(i)
 		return
+	if v.held.is_empty() and on_equipment(i):
+		_equip(i)
+		return
 	if v.held.is_empty():
 		var u := under_cursor(i)
 		if u.is_empty():
 			return
 		if _for_hotbar(str(u["id"])) and not bool(u["worn"]):
 			_hotbar(i, str(u["id"]))
+			return
+		if Armour.has(u["id"]) and not bool(u["worn"]):
+			_wear(i, str(u["id"]))
 			return
 		if not Accessories.has(u["id"]):
 			say(i, "Only accessories go in the satchel.")
@@ -360,6 +482,7 @@ func press(i: int) -> void:
 			v.held = {"id": str(u["id"]), "rot": 0, "from": "bag"}
 			var fit: Array = gear.first_fit(i, str(u["id"]))
 			v.side = 1
+			v.page = 0           # (an accessory goes in the satchel: its page)
 			v.cell = Vector2i(int(fit[0]), int(fit[1])) if not fit.is_empty() else Vector2i.ZERO
 			if not fit.is_empty():
 				v.held["rot"] = int(fit[2])
@@ -395,7 +518,7 @@ func press(i: int) -> void:
 
 ## A quarter turn: of what is in hand, or of the piece the cursor is on if it has room to turn where it lies.
 func turn(i: int) -> void:
-	if not is_open(i) or (views[i] as View).chest >= 0:
+	if not is_open(i) or (views[i] as View).chest >= 0 or on_equipment(i):
 		return
 	var v: View = views[i]
 	if not v.held.is_empty():
@@ -427,12 +550,18 @@ func quick(i: int) -> void:
 		return
 	if not v.held.is_empty():
 		return
+	if on_equipment(i):
+		_equip(i)
+		return
 	var u := under_cursor(i)
 	if u.is_empty():
 		return
 	var id := str(u["id"])
 	if _for_hotbar(id):
 		_hotbar(i, id)
+		return
+	if Armour.has(id):
+		_wear(i, id)
 		return
 	if not Accessories.has(id):
 		say(i, "Only accessories go in the satchel.")
@@ -453,6 +582,62 @@ func quick(i: int) -> void:
 			say(i, "No room in the satchel. Move or turn something.")
 			Sfx.play(self, "click", -14.0, 0.7)
 	_keep_in(i)
+
+
+## A piece of armour from the inventory is worn in its place (what was worn there goes back into the inventory), and
+## the right side turns to the equipment page to show it.
+func _wear(i: int, id: String) -> void:
+	if not gear.put_on(i, id):
+		return
+	(views[i] as View).page = 1
+	say(i, "You wear the %s: defence %d." % [Armour.name_of(id).to_lower(), gear.defence(i)])
+	Sfx.play(self, "pickup", -9.0, 1.1)
+	_keep_in(i)
+
+
+## E (A, Q, Y or a click) on the equipment page: the weapon comes off or goes back into the hand; a worn piece of
+## armour goes into the inventory.
+func _equip(i: int) -> void:
+	var v: View = views[i]
+	if v.eq == 0:
+		if game == null or not game.has_method("set_hands_empty"):
+			return
+		var empty := not _hands_empty(i)
+		game.set_hands_empty(i, empty)
+		say(i, "Your weapon is off. Your hands are empty." if empty else "Your weapon is back in your hand.")
+		Sfx.play(self, "click" if empty else "pickup", -9.0, 0.9 if empty else 1.1)
+		return
+	var slot := eq_slot(v.eq)
+	var id: String = gear.worn_in(i, slot)
+	if id == "":
+		say(i, "Nothing is worn on your %s." % slot)
+		Sfx.play(self, "click", -14.0, 0.7)
+		return
+	if not gear.take_off(i, slot):
+		say(i, "Your inventory is full.")
+		Sfx.play(self, "click", -14.0, 0.7)
+		return
+	say(i, "The %s is in your inventory." % Armour.name_of(id).to_lower())
+	Sfx.play(self, "click", -9.0, 0.9)
+
+
+## The right side turns to its other page, the satchel or the equipment (C, LB or RB, or a click on a page's name);
+## to page `to` if it says which. Not with a chest open or an accessory in hand.
+func flip(i: int, to := -1) -> void:
+	if not is_open(i):
+		return
+	var v: View = views[i]
+	if v.chest >= 0 or not v.held.is_empty():
+		return
+	var next := (1 - v.page) if to < 0 else clampi(to, 0, 1)
+	if next == v.page:
+		return
+	v.page = next
+	if v.side == 1:
+		v.cell = Vector2i.ZERO
+		v.eq = 0
+	_keep_in(i)
+	Sfx.play(self, "click", -12.0, 1.2)
 
 
 ## Is it something that goes on the hotbar?
@@ -615,6 +800,7 @@ func _input(event: InputEvent) -> void:
 			KEY_E, KEY_ENTER, KEY_KP_ENTER, KEY_SPACE: press(i)
 			KEY_R: turn(i)
 			KEY_Q: quick(i)
+			KEY_C: flip(i)
 			KEY_ESCAPE, KEY_BACKSPACE: back(i)
 	elif event is InputEventJoypadButton:
 		match (event as InputEventJoypadButton).button_index:
@@ -626,9 +812,15 @@ func _input(event: InputEvent) -> void:
 			JOY_BUTTON_X: turn(i)
 			JOY_BUTTON_Y: quick(i)
 			JOY_BUTTON_B: back(i)
+			JOY_BUTTON_LEFT_SHOULDER, JOY_BUTTON_RIGHT_SHOULDER: flip(i)
 			JOY_BUTTON_START: close(i)
 	elif event is InputEventMouseButton:
 		var b := (event as InputEventMouseButton).button_index
+		if b == MOUSE_BUTTON_LEFT and v.chest < 0:
+			for n in PAGES.size():
+				if tab_rect(i, n).has_point(root.get_local_mouse_position()):
+					flip(i, n)
+					return
 		if not _point(i, root.get_local_mouse_position()):
 			return
 		if b == MOUSE_BUTTON_LEFT:
@@ -653,6 +845,13 @@ func _point(i: int, m: Vector2) -> bool:
 			if chest_rect(i, n).has_point(m):
 				v.side = 1
 				v.cslot = n
+				return true
+		return false
+	if v.page == 1:
+		for n in Armour.SLOTS.size() + 1:
+			if eq_rect(i, n).has_point(m):
+				v.side = 1
+				v.eq = n
 				return true
 		return false
 	var size: Vector2i = gear.size_of(i)
@@ -766,7 +965,11 @@ func _draw_view(i: int) -> void:
 
 	if v.chest >= 0:
 		_draw_chest(i, sx, y)
+	elif v.page == 1:
+		_draw_tabs(i)
+		_draw_equipment(i, sx, y)
 	else:
+		_draw_tabs(i)
 		_draw_satchel(i, sx, y)
 
 	# The cursor.
@@ -809,7 +1012,8 @@ func _draw_thing(id: String, n: int, at: Vector2) -> void:
 		root.draw_texture(icon, at)      # its own 24 by 24 icon (version 70: the healing potion)
 	else:
 		ItemArt.draw(root, "item_" + id, at + Vector2(4, 4))
-	_words(silk, Vector2(at.x, at.y + SLOT - 2.0), str(n), 8, INK, SLOT - 2.0, HORIZONTAL_ALIGNMENT_RIGHT)
+	if Bag.stack_of(id) > 1 or n > 1:      # (a piece of armour lies alone in its slot, like an accessory)
+		_words(silk, Vector2(at.x, at.y + SLOT - 2.0), str(n), 8, INK, SLOT - 2.0, HORIZONTAL_ALIGNMENT_RIGHT)
 
 
 ## The satchel: its name and size, its cells, and what is worn in them; what is in hand, and the cursor.
@@ -817,8 +1021,9 @@ func _draw_satchel(i: int, sx: float, y: float) -> void:
 	var silk := Art.font("Silkscreen-Regular")
 	var v: View = views[i]
 	var size: Vector2i = gear.size_of(i)
-	_words(silk, Vector2(sx, y + 19.0), str(Gear.SATCHELS[gear.satchel_now(i)]["name"]).to_upper(), 8, AMBER)
-	_words(silk, Vector2(sx, y + 32.0), "WORN: IN USE", 8, PALE)
+	var sat: int = gear.satchel_now(i)
+	# (Its name was over it until version 71, where the two pages' names went; a bigger one's name is here now.)
+	_words(silk, Vector2(sx, y + 32.0), "WORN: IN USE" if sat == 0 else str(Gear.SATCHELS[sat]["name"]).to_upper(), 8, PALE)
 	_words(silk, Vector2(sx, y + 32.0), "%d X %d" % [size.x, size.y], 8, DIM, SLOT * 5.0, HORIZONTAL_ALIGNMENT_RIGHT)
 	var worn: Array = gear.kits[i].worn
 	var held_k := int(v.held["from"]) if not v.held.is_empty() and str(v.held["from"]) != "bag" else -1
@@ -854,6 +1059,77 @@ func _draw_satchel(i: int, sx: float, y: float) -> void:
 		_draw_cursor(i, cell_rect(i, v.cell).position)
 
 
+## The right side's two pages, named over it: the one shown in amber.
+func _draw_tabs(i: int) -> void:
+	var silk := Art.font("Silkscreen-Regular")
+	var v: View = views[i]
+	for n in PAGES.size():
+		var r := tab_rect(i, n)
+		_words(silk, Vector2(r.position.x + 2.0, r.position.y + 10.0), PAGES[n], 8, AMBER if n == v.page else FAINT)
+
+
+## The equipment page (version 71): the weapon in hand, the armour worn, and the player's numbers.
+func _draw_equipment(i: int, sx: float, y: float) -> void:
+	var silk := Art.font("Silkscreen-Regular")
+	var pix := Art.font(Art.TEXT)
+	var v: View = views[i]
+	var bare := _hands_empty(i)
+	_words(silk, Vector2(sx, y + 32.0), "WEAPON", 8, DIM)
+	_words(silk, Vector2(sx, y + 32.0), "TAKEN OFF" if bare else "IN HAND", 8, DIM if bare else PALE, SLOT * 5.0, HORIZONTAL_ALIGNMENT_RIGHT)
+
+	# The weapon: its head's picture in a long well (faint when it is taken off).
+	var wr := eq_rect(i, 0)
+	if not Art.draw_nine(root, "swing/ui/well.png", wr, 3):
+		root.draw_rect(wr, Color(PLATE, 0.8))
+	var icon := _weapon_icon(i)
+	if icon != null:
+		root.draw_texture(icon, (wr.get_center() - icon.get_size() * 0.5).round(), Color(1, 1, 1, 0.3) if bare else Color.WHITE)
+
+	# The armour: head, body and feet, each with its place's name under it.
+	for n in range(1, Armour.SLOTS.size() + 1):
+		var at := eq_rect(i, n).position
+		if ItemArt.draw(root, "slot", at) == Vector2.ZERO:
+			Art.draw_nine(root, "swing/ui/well.png", Rect2(at, Vector2(SLOT, SLOT)), 3)
+		var slot := eq_slot(n)
+		var id: String = gear.worn_in(i, slot)
+		var tex := ItemArt.icon(id) if id != "" else Art.texture("items/slot_%s.png" % slot)
+		if tex != null:
+			root.draw_texture(tex, at)
+		_words(silk, Vector2(at.x - SLOT, at.y + SLOT + 10.0), str(Armour.SLOT_NAMES[slot]).to_upper(), 8, PALE if id != "" else FAINT, SLOT * 3.0, HORIZONTAL_ALIGNMENT_CENTER)
+
+	# The numbers.
+	var top := y + HEAD + 14.0 + SLOT + EQ_ROW + SLOT
+	root.draw_rect(Rect2(sx, top + 15.0, SLOT * 5.0, 1.0), Color(FAINT, 0.6))
+	var lines := stats_of(i)
+	for n in lines.size():
+		var at := Vector2(sx, top + EQ_STATS + EQ_LINE * float(n))
+		_words(pix, at, str(lines[n][0]), Art.TEXT_SIZE, DIM)
+		_words(pix, at, str(lines[n][1]), Art.TEXT_SIZE, INK, SLOT * 5.0, HORIZONTAL_ALIGNMENT_RIGHT)
+
+	if v.side == 1:
+		if v.eq == 0:
+			_draw_wide_cursor(i, wr)
+		else:
+			_draw_cursor(i, eq_rect(i, v.eq).position)
+	else:
+		_draw_cursor(i, slot_rect(i, v.slot).position)
+
+
+## The cursor's brackets round the weapon's long well: the slot cursor's left half at its left end, the right half
+## at its right end.
+func _draw_wide_cursor(i: int, r: Rect2) -> void:
+	var col: Color = Art.PLAYER_COLORS[i % Art.PLAYER_COLORS.size()] if players.size() > 1 else INK
+	var got := ItemArt.find("slot_cursor")
+	if got.is_empty():
+		root.draw_rect(Rect2(r.position + Vector2(0.5, 0.5), r.size - Vector2.ONE), col, false, 1.0)
+		return
+	var box: Array = (got[1] as Dictionary)["box"]
+	var half := floorf(float(box[2]) * 0.5)
+	var h := float(box[3])
+	root.draw_texture_rect_region(got[0], Rect2(r.position, Vector2(half, h)), Rect2(float(box[0]), float(box[1]), half, h), col)
+	root.draw_texture_rect_region(got[0], Rect2(Vector2(r.end.x - half, r.position.y), Vector2(half, h)), Rect2(float(box[0]) + float(box[2]) - half, float(box[1]), half, h), col)
+
+
 ## Under the grids: what the cursor is on, a note, and what the buttons do.
 func _draw_foot(i: int) -> void:
 	var v: View = views[i]
@@ -865,7 +1141,22 @@ func _draw_foot(i: int) -> void:
 	var w := r.size.x - PAD * 2.0
 	root.draw_rect(Rect2(x, fy - 1.0, w, 1.0), Color(FAINT, 0.6))
 	var u := under_cursor(i)
-	if not u.is_empty():
+	var said_of := ""
+	if u.has("weapon") or u.has("armour"):
+		# The equipment page's weapon, or one of its armour places.
+		var id := str(u["id"])
+		var name := _weapon_name(i) if u.has("weapon") else (Armour.name_of(id) if id != "" else str(Armour.SLOT_NAMES[str(u["armour"])]))
+		var state := ("IN HAND" if bool(u["worn"]) else "TAKEN OFF") if u.has("weapon") else ("+%d DEFENCE" % Armour.defence_of(id) if id != "" else "EMPTY")
+		_words(silk, Vector2(x, fy + 12.0), name.to_upper(), 8, AMBER)
+		_words(silk, Vector2(x, fy + 12.0), state, 8, PALE if bool(u["worn"]) and (u.has("weapon") or id != "") else DIM, w, HORIZONTAL_ALIGNMENT_RIGHT)
+		if u.has("weapon"):
+			said_of = "Your weapon. Taken off, it waits here: empty hands cannot fight, but the tools still work." if bool(u["worn"]) else "Taken off, it waits here: empty hands cannot fight, but the tools still work."
+		else:
+			said_of = Armour.text_of(id) if id != "" else "Armour from your inventory is worn here, and guards you."
+		var said0 := lines_of(pix, said_of, Art.TEXT_SIZE, w)
+		for n in mini(said0.size(), 2):
+			_words(pix, Vector2(x, fy + 25.0 + 11.0 * float(n)), str(said0[n]), Art.TEXT_SIZE, INK)
+	elif not u.is_empty():
 		var id := str(u["id"])
 		var name := name_of(id)
 		if int(u["n"]) > 1:
@@ -875,6 +1166,8 @@ func _draw_foot(i: int) -> void:
 			_words(silk, Vector2(x, fy + 12.0), "IN THE CHEST", 8, DIM, w, HORIZONTAL_ALIGNMENT_RIGHT)
 		elif Accessories.has(id):
 			_words(silk, Vector2(x, fy + 12.0), "IN USE" if bool(u["worn"]) else "NOT IN USE", 8, PALE if bool(u["worn"]) else DIM, w, HORIZONTAL_ALIGNMENT_RIGHT)
+		elif Armour.has(id):
+			_words(silk, Vector2(x, fy + 12.0), "+%d DEFENCE" % Armour.defence_of(id), 8, DIM, w, HORIZONTAL_ALIGNMENT_RIGHT)
 		elif _for_hotbar(id):
 			var on: int = tools.hotbar_slot(i, id)
 			_words(silk, Vector2(x, fy + 12.0), "HOTBAR SLOT %d" % (on + 1) if on >= 0 else "NOT ON THE HOTBAR", 8, PALE if on >= 0 else DIM, w, HORIZONTAL_ALIGNMENT_RIGHT)
@@ -884,7 +1177,7 @@ func _draw_foot(i: int) -> void:
 	elif v.chest >= 0:
 		_words(pix, Vector2(x, fy + 25.0), "Take what you want. What you leave stays in the chest." if loot.has_left(v.chest, i) else "The chest is empty.", Art.TEXT_SIZE, DIM)
 	else:
-		_words(pix, Vector2(x, fy + 25.0), "An accessory works only while it is in the satchel.", Art.TEXT_SIZE, DIM)
+		_words(pix, Vector2(x, fy + 25.0), "Armour guards you only while it is worn." if v.page == 1 else "An accessory works only while it is in the satchel.", Art.TEXT_SIZE, DIM)
 	if t < v.note_until and v.note != "":
 		root.draw_rect(Rect2(x - 2.0, fy + 2.0, w + 4.0, 13.0), PLATE)
 		_words(pix, Vector2(x, fy + 12.0), v.note, Art.TEXT_SIZE, AMBER)
@@ -893,10 +1186,23 @@ func _draw_foot(i: int) -> void:
 	var pad: bool = players[i].input.on_pad()
 	var hold := not v.held.is_empty()
 	var line1 := ("A: %s     X: turn" if pad else "E: %s     R: turn") % ("put down" if hold else "pick up")
-	var line2 := ("B: let go" if hold else "Y: wear or take off     B: close") if pad else ("Esc: let go" if hold else "Q: wear or take off     Tab: close")
+	var other := "satchel" if v.page == 1 else "equipment"
+	var turn_to := ("LB, RB: %s" if pad else "C: %s") % other
+	var line2 := ("B: let go" if hold else "Y: wear or take off     %s     B: close" % turn_to) if pad else ("Esc: let go" if hold else "Q: wear or take off     %s     Tab: close" % turn_to)
 	if v.chest >= 0:
 		line1 = "A: take     Y: take everything" if pad else "E: take     Q: take everything"
 		line2 = "B: close" if pad else "Tab: close"
+	elif u.has("weapon") or u.has("armour"):
+		var does := ""
+		if u.has("weapon"):
+			does = "take off" if bool(u["worn"]) else "put back in hand"
+		elif str(u["id"]) != "":
+			does = "take off"
+		line1 = (("A: %s" if pad else "E: %s") % does) if does != "" else ""
+		line2 = "%s     %s" % [turn_to, "B: close" if pad else "Tab: close"]
+	elif not hold and not u.is_empty() and Armour.has(str(u["id"])):
+		line1 = "A: wear it" if pad else "E: wear it"
+		line2 = "%s     %s" % [turn_to, "B: close" if pad else "Tab: close"]
 	elif not hold and not u.is_empty() and _for_hotbar(str(u["id"])) and not bool(u["worn"]):
 		line1 = "A: on or off the hotbar" if pad else "E: on or off the hotbar     1 to 8: into that slot"
 		line2 = "B: close" if pad else "Tab: close"

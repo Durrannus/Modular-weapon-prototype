@@ -105,6 +105,7 @@ var music                       # the calm cave tune, standing in until the High
 var characters: Array = []      # each player's saved character (scripts/save.gd); {} = that player is not saved
 var world_save := {}            # the saved world; {} = this land is not saved (the tests, and `-- highlands`)
 var swaps: Array = []           # per player: carries all four weapons, and B swaps between them
+var bare: Array = []            # per player: the weapon is taken off (version 71: empty hands)
 var new_world := false          # this world has never been played before
 var relaid := false             # this world was saved on a land that is made differently now: it was laid out again
 var unreadable: Array = []      # what a character's save held that this game could not read, in words
@@ -412,6 +413,25 @@ func _exit_tree() -> void:
 			p.input.tools = false
 
 
+## Empty hands (version 71): the inventory's Equipment page takes the weapon out of the hand and puts it back.
+## Taken off, the weapon is not lost or changed: it waits on that page, and the forge still works on it.
+func hands_empty(i: int) -> bool:
+	return i >= 0 and i < bare.size() and bool(bare[i])
+
+
+func set_hands_empty(i: int, empty: bool) -> void:
+	if i < 0 or i >= players.size():
+		return
+	while bare.size() <= i:
+		bare.append(false)
+	bare[i] = empty
+	players[i].set_weapon(weapon_stats(i))
+
+
+func weapon_stats(i: int) -> Dictionary:
+	return {} if hands_empty(i) else builds[i].compute()
+
+
 ## What everyone holds. A saved character: what its save says. Straight from the cave: the weapon they built there.
 ## A new character made on the pick screen (and anyone who is not saved): the arena's test weapons, all four.
 func _arm() -> void:
@@ -442,11 +462,21 @@ func _arm() -> void:
 			owned.append(null)
 			swaps.append(true)
 	can_swap = true in swaps
+	# Empty hands (version 71): a character saved with its weapon taken off comes back that way.
+	bare = []
+	for i in players.size():
+		bare.append(bool((characters[i] as Dictionary).get("bare", false)))
+		if bare[i]:
+			players[i].set_weapon(weapon_stats(i))
 
 
 ## Only somebody who carries all four weapons swaps between them.
 func swap_weapon(i: int, to := "") -> void:
 	if i >= 0 and i < swaps.size() and swaps[i]:
+		if hands_empty(i) and to == "" and not players[i].is_down:
+			set_hands_empty(i, false)      # (with empty hands the swap button takes the weapon back up first)
+			Sfx.play(self, "click", -8.0)
+			return
 		super.swap_weapon(i, to)
 
 
@@ -472,6 +502,7 @@ func _character_now(i: int) -> Dictionary:
 	c["owned"] = (owned[i] as Array).duplicate() if owned[i] is Array else null
 	c["spirit"] = bool(players[i].with_spirit)
 	c["swap"] = bool(swaps[i])
+	c["bare"] = hands_empty(i)
 	c.merge(tools.hand_data(i), true)
 	c.merge(loot.purse_data(i), true)
 	c.merge(levels.perks_data(i), true)

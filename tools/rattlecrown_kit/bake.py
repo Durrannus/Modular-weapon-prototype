@@ -235,9 +235,12 @@ def floor(lay, hl3, K3):
     B = hl3.World(rows(True), 23, long_grass=0.0)
     ox, oy = -gx0 * T, -gy0 * T                        # the room's top left corner, in the map's pixels
     tile = lambda x0, y0, x1, y1: (x0 - gx0, y0 - gy0, x1 - gx0, y1 - gy0)
+    # Version 71 (the Art builder's traps, round 2): the whole hall is laid with the traps' own worn bricks first, so
+    # a trap is only holes in the floor; the aisle's paving goes over it as before. (The square stones that were laid
+    # round each trap patch are gone: they showed as a ring.)
+    K3.hall_floor(B, tile(0, 0, RW - 1, RH - 1))
     K3.paving(B, [tile(x, y, x + w - 1, y + h - 1) for (x, y, w, h) in lay["paving"]], 5)
     patches = _patches([tuple(t) for t in lay["traps"]])
-    K3.paving(B, [tile(x, y, x + w - 1, y + h - 1) for (x, y, w, h) in patches], 9, spread=(1, 1, 1, 0.6, 0.22, 0.05))
     for (x, y, w, h) in patches:
         K3.sunk_traps(B, x - gx0, y - gy0, w, h)
     for i, (bx, by) in enumerate(lay["braziers"]):

@@ -31,6 +31,7 @@ extends Node
 ## extra ore) asks the game's shared dice.
 
 const Accessories := preload("res://scripts/highlands/accessories.gd")
+const Armour := preload("res://scripts/highlands/armour.gd")
 const Bag := preload("res://scripts/highlands/bag.gd")
 const LandMap := preload("res://scripts/highlands/land_map.gd")
 const Art := preload("res://scripts/art.gd")
@@ -68,6 +69,7 @@ class Kit:
 	var calm := 0.0                # seconds since they last took or dealt damage (the Hearthstone Pebble)
 	var points := Vector2.INF      # where their compass points (world units; INF: nowhere)
 	var nudged := -99.0            # when something new last came for the satchel (the screen says which button opens it)
+	var armour := {"head": "", "body": "", "feet": ""}   # version 71: the piece worn in each place ("" for none)
 
 
 var game                           # the Highlands scene
@@ -241,6 +243,59 @@ func refresh(i: int) -> void:
 		p.hp = want * share
 
 
+# --- Armour (version 71) --------------------------------------------------------------------
+
+## Player i puts on a piece of armour from their inventory. Whatever was worn in its place goes back into the
+## inventory (into the slot the new piece leaves, so there is always room). False if it is not armour or not there.
+func put_on(i: int, id: String) -> bool:
+	var slot := Armour.slot_of(id)
+	if slot == "" or bag_of(i).count(id) <= 0:
+		return false
+	var kit: Kit = kits[i]
+	var old := str(kit.armour.get(slot, ""))
+	bag_of(i).take(id, 1)
+	kit.armour[slot] = id
+	if old != "":
+		bag_of(i).put_back(old)
+	return true
+
+
+## Player i takes off what they wear in this place, into their inventory. False if nothing is worn there or the
+## inventory is full.
+func take_off(i: int, slot: String) -> bool:
+	var kit: Kit = kits[i]
+	var id := str(kit.armour.get(slot, ""))
+	if id == "" or bag_of(i).add(id, 1) != 1:
+		return false
+	kit.armour[slot] = ""
+	return true
+
+
+## What player i wears in this place ("" for nothing).
+func worn_in(i: int, slot: String) -> String:
+	return str((kits[i] as Kit).armour.get(slot, "")) if i >= 0 and i < kits.size() else ""
+
+
+## Does player i have this piece, worn or in the inventory?
+func owns_piece(i: int, id: String) -> bool:
+	return worn_in(i, Armour.slot_of(id)) == id or bag_of(i).count(id) > 0
+
+
+## Player i's defence: what they wear, added up.
+func defence(i: int) -> int:
+	if i < 0 or i >= kits.size():
+		return 0
+	var n := 0
+	for slot in Armour.SLOTS:
+		n += Armour.defence_of(worn_in(i, slot))
+	return n
+
+
+## What a hit on player p comes to through their armour.
+func armoured(p, amount: float) -> float:
+	return Armour.cut(amount, defence(_who(p)))
+
+
 # --- What the accessories do: asked by the player, the loot, the tools and the levels --------
 
 func _who(p) -> int:
@@ -398,7 +453,7 @@ func kit_data(i: int) -> Dictionary:
 	var worn: Array = []
 	for w in kit.worn:
 		worn.append([str(w["id"]), int(w["x"]), int(w["y"]), int(w["rot"])])
-	return {"satchel": kit.satchel, "worn": worn}
+	return {"satchel": kit.satchel, "worn": worn, "armour": kit.armour.duplicate()}
 
 
 ## And back. Whatever is missing stays as it was; an accessory this game does not know is left out; a piece that
@@ -412,6 +467,10 @@ func set_kit_data(i: int, d: Dictionary) -> void:
 		for v in d["worn"]:
 			if v is Array and v.size() == 4 and Accessories.has(v[0]) and (v[1] is int or v[1] is float) and (v[2] is int or v[2] is float) and (v[3] is int or v[3] is float):
 				kit.worn.append({"id": str(v[0]), "x": int(v[1]), "y": int(v[2]), "rot": posmod(int(v[3]), 4) if Accessories.turns(str(v[0])) else 0})
+	if d.get("armour") is Dictionary:
+		for slot in Armour.SLOTS:
+			var id = d["armour"].get(slot, "")
+			kit.armour[slot] = str(id) if Armour.has(id) and Armour.slot_of(str(id)) == slot else ""
 	settle(i)
 	refresh(i)
 	# A character comes into a world whole: more health from what it wears is health it has.

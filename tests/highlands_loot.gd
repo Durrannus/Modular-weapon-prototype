@@ -18,6 +18,7 @@ const Loot := preload("res://scripts/highlands/loot.gd")
 const ItemArt := preload("res://scripts/highlands/item_art.gd")
 const Bag := preload("res://scripts/highlands/bag.gd")
 const Accessories := preload("res://scripts/highlands/accessories.gd")
+const Armour := preload("res://scripts/highlands/armour.gd")
 const Nav := preload("res://scripts/highlands/nav.gd")
 const Make := preload("res://scripts/foes/make.gd")
 const Rock := preload("res://scripts/foes/rock.gd")
@@ -78,6 +79,7 @@ func _run() -> void:
 	await _chest()
 	await _two_players()
 	await _bag_full()
+	await _armour_chest()
 	await _work()
 	await _drops()
 	await _saved()
@@ -178,6 +180,8 @@ func _plans() -> void:
 		var ok_holds := true
 		var ok_potions := true
 		var potions := 0
+		var ok_dressed := true
+		var dressed := 0
 		var ok_far := true
 		for c in plan:
 			kinds[str(c["kind"])] = int(kinds.get(str(c["kind"]), 0)) + 1
@@ -212,6 +216,11 @@ func _plans() -> void:
 					ok_holds = false
 			if str(c["kind"]) == "first" and not (c["items"] as Array).has(["potion", 1]):
 				ok_potions = false
+			var piece := str(c.get("armour", ""))
+			if piece != "":
+				dressed += 1
+				if not Armour.has(piece) or str(c["kind"]) == "first":
+					ok_dressed = false
 			var d := (p["at"] as Vector2).distance_to(cave)
 			match str(c["kind"]):
 				"first":
@@ -232,6 +241,7 @@ func _plans() -> void:
 		_check(ok_clear, "world %d: no chest stands in something" % seed_value)
 		_check(ok_holds, "world %d: every chest holds coins, Memory and a little ore, never bars (Darren, 25 November)" % seed_value)
 		_check(ok_potions and potions > 1 and potions < plan.size(), "world %d: healing potions in some chests, not all: always one in the first, two in a richer one (version 70; %d of %d)" % [seed_value, potions, plan.size()])
+		_check(ok_dressed and dressed > 0 and dressed < plan.size() / 3, "world %d: scrap armour in a few chests, never the first (version 71; %d of %d)" % [seed_value, dressed, plan.size()])
 		_check(ok_far and firsts == 1, "world %d: one first chest in the safe hills, the guarded ones where somebody lives, the plain ones where nobody does" % seed_value)
 		var sealed := 0
 		var sealed_with := 0
@@ -257,6 +267,32 @@ func _plans() -> void:
 
 
 # --- A chest ---------------------------------------------------------------------------------
+
+## A chest with a piece of scrap armour in it (version 71): the piece for whoever has not got it, coins for whoever has.
+func _armour_chest() -> void:
+	var g = _game(424242)
+	await _frames(5)
+	var loot = g.loot
+	var k := _kind(g, "plain")
+	var c: Dictionary = loot.chests[k]["plan"]
+	c["armour"] = "scrap_helm"
+	c["gift"] = ""
+	c["blank"] = false
+	loot._fill(k, 0)
+	var share: Array = loot.left_in(k, 0)
+	_check(share.has(["scrap_helm", 1]) and int(share[0][1]) == int(c["coins"]), "a chest with scrap armour holds the piece for you (%s)" % str(share))
+	_check(loot.take_all(k, 0) and g.tools.bag_of(0).count("scrap_helm") == 1, "(taken, it is in your inventory)")
+	var k2 := _kind(g, "plain", 1)
+	var c2: Dictionary = loot.chests[k2]["plan"]
+	c2["armour"] = "scrap_helm"
+	c2["gift"] = ""
+	c2["blank"] = false
+	g.gear.put_on(0, "scrap_helm")
+	loot._fill(k2, 0)
+	share = loot.left_in(k2, 0)
+	_check(not share.has(["scrap_helm", 1]) and int(share[0][1]) == int(c2["coins"]) + int(Loot.GIFT_COINS) and loot.said.contains("Scrap helm again"), "one you wear already is coins instead (\"%s\")" % loot.said)
+	await _leave(g)
+
 
 func _chest() -> void:
 	var g = _game(424242)

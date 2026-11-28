@@ -21,6 +21,7 @@ const ItemArt := preload("res://scripts/highlands/item_art.gd")
 const Bag := preload("res://scripts/highlands/bag.gd")
 const Gear := preload("res://scripts/highlands/gear.gd")
 const Accessories := preload("res://scripts/highlands/accessories.gd")
+const Armour := preload("res://scripts/highlands/armour.gd")
 const PackScreen := preload("res://scripts/ui/pack_screen.gd")
 const Shop := preload("res://scripts/ui/shop.gd")
 const SavePick := preload("res://scripts/ui/save_pick.gd")
@@ -88,6 +89,7 @@ func _run() -> void:
 	await _compass()
 	await _screen()
 	await _hotbar_screen()
+	await _equipment()
 	await _two_screens()
 	await _lab()
 	await _smoke()
@@ -1102,6 +1104,127 @@ func _hotbar_screen() -> void:
 	await _leave(g)
 
 
+## The equipment page and the scrap armour (version 71).
+func _equipment() -> void:
+	for id in Armour.ORDER:
+		_check(Armour.has(id) and Armour.SLOTS.has(Armour.slot_of(id)) and Armour.defence_of(id) > 0 and Bag.stack_of(id) == 1 and Bag.name_of(id) == Armour.name_of(id),
+			"%s is armour, worn on the %s, guards %d, lies alone in its slot" % [id, Armour.slot_of(id), Armour.defence_of(id)])
+		_check(ItemArt.icon(id) != null and ItemArt.icon(id).get_size() == Vector2(24, 24), "(the Art builder's icon for the %s is in the game)" % Armour.name_of(id))
+	for slot in Armour.SLOTS:
+		_check(Art.texture("items/slot_%s.png" % slot) != null, "(and the empty %s slot's outline)" % slot)
+	_check(is_equal_approx(Armour.cut(100.0, 0), 100.0) and is_equal_approx(Armour.cut(100.0, 6), 100.0 * (1.0 - 6.0 * Armour.DEFENCE_SHARE)) and is_equal_approx(Armour.cut(100.0, 999), 100.0 * (1.0 - Armour.DEFENCE_MOST)),
+		"each point of defence takes DEFENCE_SHARE off a hit, never more than DEFENCE_MOST")
+	var g = _game(424242, 1, false, [], {}, ["kbm"])
+	await _frames(10)
+	var packs = g.packs
+	var gear = g.gear
+	var p = g.players[0]
+	var bag: Bag = g.tools.bag_of(0)
+	bag.add("scrap_helm", 1)
+	bag.add("scrap_jerkin", 1)
+	bag.add("stone", 3)
+	await _key(KEY_TAB)
+	var v = packs.views[0]
+	await _frames(10)
+	_check(v.page == 0, "the inventory opens on the satchel's page")
+	_check(str(packs.under_cursor(0).get("id", "")) == "scrap_helm", "(the cursor is on the scrap helm)")
+	await _key(KEY_E)
+	_check(gear.worn_in(0, "head") == "scrap_helm" and bag.count("scrap_helm") == 0 and gear.defence(0) == Armour.defence_of("scrap_helm"), "E on a piece of armour wears it: on your head, out of the inventory")
+	_check(v.page == 1 and v.note == "You wear the scrap helm: defence %d." % gear.defence(0), "and turns to the equipment page to show it (\"%s\")" % v.note)
+	_check(str(packs.under_cursor(0).get("id", "")) == "scrap_jerkin", "(the jerkin moved up into the helm's slot)")
+	await _key(KEY_Q)
+	_check(gear.worn_in(0, "body") == "scrap_jerkin" and gear.defence(0) == Armour.defence_of("scrap_helm") + Armour.defence_of("scrap_jerkin"), "Q wears it too")
+	var hp_before: float = p.hp
+	p.unhurt = false
+	p.take_damage(20.0)
+	var lost: float = hp_before - p.hp
+	p.hp = p.max_hp
+	_check(lost > 0.0 and is_equal_approx(gear.armoured(p, 20.0), Armour.cut(20.0, gear.defence(0))), "a hit is cut by what you wear (lost %.2f of 20)" % lost)
+	gear.kits[0].armour["head"] = ""
+	gear.kits[0].armour["body"] = ""
+	p.invuln = 0.0
+	p.take_damage(20.0)
+	var bare_lost: float = hp_before - p.hp
+	p.hp = p.max_hp
+	gear.kits[0].armour["head"] = "scrap_helm"
+	gear.kits[0].armour["body"] = "scrap_jerkin"
+	_check(bare_lost > lost and is_equal_approx(lost / bare_lost, 1.0 - float(Armour.less(5)) / 100.0) , "(without it the same hit takes more: %.2f)" % bare_lost)
+	for n in 6:
+		await _key(KEY_D)
+	_check(v.side == 1 and v.eq == 0 and packs.under_cursor(0).has("weapon"), "off the inventory's right edge the cursor is on the weapon")
+	await _key(KEY_S)
+	_check(v.eq == 1 and str(packs.under_cursor(0).get("armour", "")) == "head", "down from the weapon: the head")
+	await _key(KEY_D)
+	await _key(KEY_D)
+	await _key(KEY_D)
+	_check(v.eq == 3, "right along the armour: body, then feet, and no farther")
+	await _key(KEY_A)
+	await _key(KEY_A)
+	await _key(KEY_E)
+	_check(gear.worn_in(0, "head") == "" and bag.count("scrap_helm") == 1 and v.note == "The scrap helm is in your inventory.", "E on the worn helm takes it off, into the inventory (\"%s\")" % v.note)
+	await _key(KEY_E)
+	_check(v.note == "Nothing is worn on your head.", "E on an empty place says so (\"%s\")" % v.note)
+	await _key(KEY_W)
+	await _key(KEY_E)
+	_check(g.hands_empty(0) and not p.armed() and v.note == "Your weapon is off. Your hands are empty.", "E on the weapon takes it off: empty hands (\"%s\")" % v.note)
+	_check(str(packs.stats_of(0)[1][1]) == "none" and not bool(packs.under_cursor(0)["worn"]), "(its damage is shown as none)")
+	await _key(KEY_E)
+	_check(not g.hands_empty(0) and p.armed() and v.note == "Your weapon is back in your hand.", "and E puts it back (\"%s\")" % v.note)
+	var lines: Array = packs.stats_of(0)
+	var names: Array = lines.map(func(l): return str(l[0]))
+	_check(names == ["Health", "Damage", "Attack speed", "Move speed", "Defence", "Accessories", "Level"], "the page shows your numbers (%s)" % str(lines))
+	_check(str(lines[3][1]) == "100%", "(walking as fast as ever: %s)" % str(lines[3][1]))
+	_check(str(lines[4][1]) == "%d, %d%% less" % [Armour.defence_of("scrap_jerkin"), Armour.less(Armour.defence_of("scrap_jerkin"))], "(defence, and what it takes off a hit: %s)" % str(lines[4][1]))
+	await _key(KEY_C)
+	_check(v.page == 0 and v.side == 1 and v.cell == Vector2i.ZERO, "C turns to the satchel's page")
+	await _key(KEY_C)
+	_check(v.page == 1 and v.eq == 0, "and back")
+	# A full inventory: nothing comes off.
+	bag.add("stone", 99 * bag.cap())
+	_check(not gear.take_off(0, "body") and gear.worn_in(0, "body") == "scrap_jerkin", "with the inventory full the jerkin stays on")
+	bag.take("stone", bag.count("stone"))
+	# The page and its words fit.
+	var r: Rect2 = packs.plate(0)
+	_check(r.end.y <= 356.0 and packs.eq_rect(0, 3).end.y + 10.0 < r.position.y + PackScreen.HEAD + PackScreen.EQ_TALL, "the equipment page is on the screen (%s)" % str(r))
+	var last: float = packs.eq_rect(0, 1).end.y + PackScreen.EQ_STATS + PackScreen.EQ_LINE * float(lines.size() - 1)
+	_check(last + 3.0 <= r.end.y - PackScreen.FOOT, "its numbers are above the words under it")
+	var silk := Art.font("Silkscreen-Regular")
+	var pix := Art.font(Art.TEXT)
+	var wide: float = PackScreen.WIDE - PackScreen.PAD * 2.0
+	_check(silk.get_string_size("SATCHEL", HORIZONTAL_ALIGNMENT_LEFT, -1, 8).x + silk.get_string_size("EQUIPMENT", HORIZONTAL_ALIGNMENT_LEFT, -1, 8).x + 8.0 <= PackScreen.SLOT * 5.0, "the two pages' names fit over it")
+	for l in lines + [["Health", "999 / 999"], ["Defence", "20, 60% less"], ["Level", "20, 20 perks"]]:
+		_check(pix.get_string_size(str(l[0]) + "  " + str(l[1]), HORIZONTAL_ALIGNMENT_LEFT, -1, Art.TEXT_SIZE).x <= PackScreen.SLOT * 5.0, "\"%s  %s\" fits the page" % [l[0], l[1]])
+	for id in Armour.ORDER:
+		_check(PackScreen.lines_of(pix, Armour.text_of(id), Art.TEXT_SIZE, wide).size() <= 2, "what the %s is fits its two lines" % Armour.name_of(id))
+		_check(pix.get_string_size("You wear the %s: defence 99." % Armour.name_of(id).to_lower(), HORIZONTAL_ALIGNMENT_LEFT, -1, Art.TEXT_SIZE).x <= wide, "(the line for wearing the %s fits)" % Armour.name_of(id))
+	for line in ["Your weapon. Taken off, it waits here: empty hands cannot fight, but the tools still work.", "Armour from your inventory is worn here, and guards you."]:
+		_check(PackScreen.lines_of(pix, line, Art.TEXT_SIZE, wide).size() <= 2, "\"%s\" fits its two lines" % line)
+	for line in ["Your weapon is off. Your hands are empty.", "Nothing is worn on your head.", "Q: wear or take off     C: equipment     Tab: close",
+			"Y: wear or take off     LB, RB: equipment     B: close", "LB, RB: satchel     B: close", "A: put back in hand"]:
+		_check(pix.get_string_size(line, HORIZONTAL_ALIGNMENT_LEFT, -1, Art.TEXT_SIZE).x <= wide, "\"%s\" fits the plate" % line)
+	await _key(KEY_TAB)
+	# Empty hands outside: no attack, and the swap button takes the weapon back up.
+	g.set_hands_empty(0, true)
+	await _frames(2)
+	_check(not p.armed(), "with empty hands there is no weapon to attack with")
+	var kind: String = g.builds[0].weapon()
+	g.swap_weapon(0)
+	await _frames(2)
+	_check(g.swaps[0] and not g.hands_empty(0) and p.armed() and g.builds[0].weapon() == kind, "the swap button takes the same weapon back up first")
+	await _leave(g)
+	# Two players: the second one's page turns with LB, and only theirs.
+	g = _game(424242, 2, false, [], {}, ["kbm", "pad"])
+	await _frames(10)
+	packs = g.packs
+	await _key(KEY_TAB)
+	await _button(JOY_BUTTON_LEFT_STICK)
+	await _frames(10)
+	await _button(JOY_BUTTON_LEFT_SHOULDER)
+	_check(packs.views[1].page == 1 and packs.views[0].page == 0, "two players: LB turns the second player's page only")
+	_check(packs.plate(0).end.y <= 356.0 and packs.plate(1).end.y <= 356.0 and not packs.plate(0).intersects(packs.plate(1)), "(both plates on the screen, side by side)")
+	await _leave(g)
+
+
 func _two_screens() -> void:
 	var g = _game(424242, 2, false, [], {}, ["kbm", "pad"])
 	await _frames(10)
@@ -1389,13 +1512,13 @@ func _pips_ware() -> void:
 	var next: String = folk.ware()
 	_check(next != ware and Accessories.POOL.has(next), "it changes when the forge's level rises (%s)" % next)
 	g.levels.level -= 1
-	_check(shop.rows() == ["Tin bar", "Copper bar", "Healing potion", Accessories.name_of(ware), Shop.ASK, Shop.LEAVE] and shop.items() == ["tin_bar", "copper_bar", "potion", ware], "his shop has a row for it, under the bars and the healing potion")
+	_check(shop.rows() == ["Tin bar", "Copper bar", "Healing potion", "Scrap helm", Accessories.name_of(ware), Shop.ASK, Shop.LEAVE] and shop.items() == ["tin_bar", "copper_bar", "potion", "scrap_helm", ware], "his shop has a row for it, under the bars, the healing potion and the scrap helm (%s)" % str(shop.rows()))
 	_check(folk.price(ware) == int(Folk.ACCESSORY_PRICE) and folk.price("tin_bar") == int(Folk.TIN_PRICE), "(its price is the lab's)")
 	folk.pip = 3
 	folk._show()
 	purse.coins = int(Folk.ACCESSORY_PRICE) - 1
 	shop.open(0)
-	shop.row = 3
+	shop.row = 4
 	shop.confirm()
 	_check(bag.count(ware) == 0 and shop.note == "That is %d coins. You have %d." % [int(Folk.ACCESSORY_PRICE), int(Folk.ACCESSORY_PRICE) - 1], "too few coins: nothing (\"%s\")" % shop.note)
 	purse.coins = int(Folk.ACCESSORY_PRICE) + 5
@@ -1405,12 +1528,27 @@ func _pips_ware() -> void:
 	purse.coins = 100
 	shop.confirm()
 	_check(bag.count(ware) == 1 and purse.coins == 100 and shop.note == "You have one. A second would do nothing more.", "he will not sell you a second (\"%s\")" % shop.note)
+	# Scrap armour (version 71): the first piece you have not got, one at a time.
+	shop.row = 3
+	shop.confirm()
+	_check(bag.count("scrap_helm") == 1 and purse.coins == 100 - int(Armour.PRICE["scrap_helm"]) and shop.note == "Bought the scrap helm for %d coins." % int(Armour.PRICE["scrap_helm"]), "he sells the scrap helm (\"%s\")" % shop.note)
+	_check(shop.items()[3] == "scrap_jerkin" and folk.price("scrap_jerkin") == int(Armour.PRICE["scrap_jerkin"]), "then the jerkin, in its place")
+	_check(folk.buy(0, "scrap_helm") == "You have one. A second would do nothing more.", "(and not a second helm)")
+	g.gear.put_on(0, "scrap_helm")
+	_check(shop.items()[3] == "scrap_jerkin", "(worn, it still counts as yours)")
+	bag.add("scrap_jerkin", 1)
+	bag.add("scrap_boots", 1)
+	_check(not shop.items().has("scrap_boots") and shop.items().size() == 4, "with all three he sells no more armour")
 	var pix := Art.font(Art.TEXT)
+	for id in Armour.ORDER:
+		_check(pix.get_string_size("Bought the %s for %d coins." % [Armour.name_of(id).to_lower(), 999], HORIZONTAL_ALIGNMENT_LEFT, -1, Art.TEXT_SIZE).x <= Shop.BOX.size.x - 36.0, "(the line for the %s fits his plate)" % Armour.name_of(id))
+		_check(Shop.lines_of(pix, Shop.armour_text(id), Art.TEXT_SIZE, Shop.BOX.size.x - 36.0 - 30.0).size() <= 2, "(and what it is fits under his rows)")
 	for id in Accessories.POOL:
 		_check(pix.get_string_size("Bought the %s for %d coins." % [Accessories.name_of(id), 9999], HORIZONTAL_ALIGNMENT_LEFT, -1, Art.TEXT_SIZE).x <= Shop.BOX.size.x - 36.0, "(the line for the %s fits his plate)" % Accessories.name_of(id))
 		_check(Shop.lines_of(pix, Accessories.text_of(id), Art.TEXT_SIZE, Shop.BOX.size.x - 36.0 - 30.0).size() <= 2, "(and what it does fits under his rows)")
-	for n in [6, 7]:
-		_check(Shop.BOX.position.y + Shop.ROWS_AT + float(n) * Shop.row_pitch(n) + 30.0 <= Shop.BOX.end.y and Shop.BOX.end.y <= 360.0 - 32.0, "(%d rows and the line under them are on his plate, above the band of buttons)" % n)
+	for n in [6, 7, 8]:
+		var box: Rect2 = Shop.box(n)
+		_check(box.position.y + Shop.ROWS_AT + float(n) * Shop.row_pitch(n) + 30.0 <= box.end.y and box.end.y <= 360.0 - 32.0 and box.position.y >= 4.0, "(%d rows and the line under them are on his plate, above the band of buttons)" % n)
 	shop.close()
 	await _leave(g)
 
@@ -1436,6 +1574,9 @@ func _saved() -> void:
 	bag.add("bandolier", 1)
 	bag.add("iron_bracer", 1)
 	_check(gear.wear(0, "bandolier", 0, 2, 1) and gear.wear(0, "iron_bracer", 1, 1, 0), "(two worn, one in the inventory)")
+	bag.add("scrap_boots", 1)
+	_check(gear.put_on(0, "scrap_boots"), "(scrap boots worn)")
+	g.set_hands_empty(0, true)
 	bag.pack = 1
 	gear.kits[0].satchel = 1
 	var bag_text := str(bag.data())
@@ -1450,6 +1591,7 @@ func _saved() -> void:
 	var on_disk := Save.read(Save.WORLDS, str(where["id"]))
 	_check(me.get("bag") is Array and int(me.get("pack", -1)) == 1 and int(me.get("satchel", -1)) == 1 and me.get("worn") is Array and (me["worn"] as Array).size() == 2, "the character's file holds its inventory, its backpack, its satchel and what is worn (%s)" % str(me.get("worn")))
 	_check(on_disk.get("visited") is Array and (on_disk["visited"] as Array).size() == seen and seen > 0, "the world's file holds where the squad has been")
+	_check(me.get("armour") is Dictionary and str(me["armour"].get("feet", "")) == "scrap_boots" and bool(me.get("bare", false)), "and the armour worn, and that the weapon is taken off (%s)" % str(me.get("armour")))
 	_check(SavePick.accessory_count(me) == 3 and SavePick.bag_counts(me).any(func(part): return str(part[0]) == "stone" and int(part[1]) == 120), "the pick screen counts its accessories (3) beside its materials")
 	await _leave(g)
 	g = _game(0, 1, false, [Save.read(Save.CHARACTERS, str(who["id"]))], Save.read(Save.WORLDS, str(where["id"])))
@@ -1458,6 +1600,7 @@ func _saved() -> void:
 	bag = g.tools.bag_of(0)
 	_check(str(bag.data()) == bag_text and int(bag.pack) == 1 and bag.cap() == 30, "played again: the inventory and the backpack are as they were")
 	_check(str(gear.kit_data(0)) == kit_text and gear.size_of(0) == Vector2i(3, 4) and gear.has(0, "bandolier") and gear.has(0, "iron_bracer"), "and so are the satchel and what is worn in it, working")
+	_check(gear.worn_in(0, "feet") == "scrap_boots" and gear.defence(0) == Armour.defence_of("scrap_boots") and g.hands_empty(0) and not g.players[0].armed(), "and the boots, and the empty hands")
 	_check(gear.visited.size() >= seen and not g.relaid, "and where the squad has been (the land is not laid out again)")
 	written = g.saves_written
 	g.save_now()

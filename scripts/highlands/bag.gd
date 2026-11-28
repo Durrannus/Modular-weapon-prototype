@@ -19,6 +19,7 @@ extends RefCounted
 ## Nothing in here is random, and it knows nothing about the screen.
 
 const Accessories := preload("res://scripts/highlands/accessories.gd")
+const Armour := preload("res://scripts/highlands/armour.gd")
 
 const COLS := 6
 const SLOTS := 24                 # with no backpack: four rows
@@ -57,17 +58,21 @@ var slots: Array = []        # [[item id, how many]], none empty
 
 ## What a thing is called.
 static func name_of(id: String) -> String:
+	if Armour.has(id):
+		return Armour.name_of(id)
 	return str(NAMES[id]) if NAMES.has(id) else Accessories.name_of(id)
 
 
 ## One line about it.
 static func text_of(id: String) -> String:
+	if Armour.has(id):
+		return Armour.text_of(id)
 	return str(TEXTS[id]) if TEXTS.has(id) else Accessories.text_of(id)
 
 
-## How many of it lie in one slot: an accessory has a slot to itself.
+## How many of it lie in one slot: an accessory and a piece of armour have a slot to themselves.
 static func stack_of(id: String) -> int:
-	return 1 if Accessories.has(id) else (POTIONS if id in USED else STACK)
+	return 1 if Accessories.has(id) or Armour.has(id) else (POTIONS if id in USED else STACK)
 
 
 ## The backpack in use: the character's own, or the lab's if that is larger.

@@ -38,7 +38,7 @@ The README is the long, plain-words story for Darren; this file is only for find
 | `scripts/weapon/*_art.gd` | Drawing swords and bows from `art/swing/`. |
 | `scripts/enemy.gd` | Arena and cave enemies (crabs, dummies), damage taking, the Stagger meter. |
 | `scripts/cave/` | The tutorial cave (`cave.gd`), its crawler, burrower, forge guardian, hazards, screen furniture. |
-| `scripts/highlands/highlands.gd` | The Highlands game: makes the world, players, systems, saving hooks, the Highlands-only shares. |
+| `scripts/highlands/highlands.gd` | The Highlands game: makes the world, players, systems, saving hooks, the Highlands-only shares. Empty hands (version 71): `hands_empty`, `set_hands_empty`, `weapon_stats` ({} while the weapon is taken off; saved as the character's "bare"). |
 | `scripts/highlands/world_gen.gd`, `land_map.gd` | Making a map from a seed (rings, places, ore, dressing, pine groves); the map as tiles. Raise `WorldGen.GEN` when the land changes, then `tests/saving.gd -- ref`. |
 | `scripts/highlands/land_painter.gd`, `land_view.gd`, `veins.gd` | Painting the land from the art kit (and the snow kit round the Den: `_snow_edge`); showing it near the camera; ore veins. |
 | `scripts/highlands/land_grow.gd` | The ground answering what grows in it (concept v4, version 65): turf by the damp rule, texture, flower beds, the Scrapyard's trodden yard, plants drawn into the ground, drifts of foliage for each section (`_foliage`, version 66), each thing's mark (`art/highlands/marks.png`). The painter calls `grow` per chunk. |
@@ -52,10 +52,11 @@ The README is the long, plain-words story for Darren; this file is only for find
 | `scripts/highlands/levels.gd`, `perks.gd` | Memory and the forge's levels, the four role trees and every perk. |
 | `scripts/highlands/folk.gd`, `folk_plan.gd` | Pip, his cage, the quests and their list, the waystone. |
 | `scripts/highlands/bag.gd`, `gear.gd`, `accessories.gd` | The inventory, the Accessory Satchel, what each accessory does. |
+| `scripts/highlands/armour.gd` | Scrap armour (version 71): the pieces, where each is worn (`SLOTS`), `DEFENCE`, `cut`. `gear.gd` keeps what each character wears (`Kit.armour`, `put_on`, `take_off`, `defence`, `armoured`: the player's `take_damage` asks it); chests (`loot_plan.gd` `ARMOUR`) and Pip (`folk.gd` `armour_for`) give it. |
 | `scripts/highlands/tools.gd` | Pickaxe, axe, mallet: digging, mining, felling; blows by name (`NEED`) and by make (`POWER`). The hotbar (version 70): `HOTBAR` slots, tools in the first three, `USABLE` things in the rest (`Hand.slot`, `Hand.items`, `put_on`, `take_off`, `use`: the healing potion). The inventory screen puts things on it (`pack_screen.gd` `_hotbar`); keys 1 to 8 are `player_input.gd` `slot_pick`. Icons of 24 by 24: `item_art.gd` `icon`, `draw_small` (`art/items/`). |
 | `scripts/save.gd` | Saved characters and worlds. |
 | `scripts/lab.gd`, `scripts/ui/lab_screen.gd` | The lab's list of numbers; its screen, with the Spawn page (arena) and the Bosses page (version 69: any game with `boss_fights()`, `start_boss(id)`, `end_boss(id)`, optional `back_boss(id)`; a new boss only needs an entry there). |
-| `scripts/ui/` | Screens: forge (`swing_forge.gd`), the Highlands forge (`forge_hall.gd`), HUD, inventory and a chest's inventory (`pack_screen.gd`), shop, pause, save pick, title, online menu, version corner. |
+| `scripts/ui/` | Screens: forge (`swing_forge.gd`), the Highlands forge (`forge_hall.gd`), HUD, inventory and a chest's inventory (`pack_screen.gd`: since version 71 its right side has two pages, the satchel and the equipment, `View.page`, `flip`, `eq_rect`, `stats_of`), shop, pause, save pick, title, online menu, version corner. |
 | `scripts/net/` | Online play for two (on hold). |
 | `scripts/art.gd`, `sfx.gd`, `music.gd`, `sim.gd`, `version.gd` | Loading art by name; sounds made in code; music; the game's dice; the version stamp. |
 | `art/`, `parts/`, `scenes/`, `shaders/` | Pictures and their json; weapon parts as `.tres`; scenes; shaders. |

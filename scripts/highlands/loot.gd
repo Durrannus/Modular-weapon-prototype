@@ -45,6 +45,8 @@ extends Node
 ##     drop them too"). Some chests hold one (loot_plan.gd says which), and an elite leaves one about half the time.
 ##     Everyone gets their own. Whoever has that accessory already gets GIFT_COINS coins in its place: a second
 ##     one would do nothing (gear.gd), and there is nobody to sell it to yet.
+##   - SCRAP ARMOUR (version 71): some chests hold a piece (loot_plan.gd), everyone their own, and whoever has that
+##     piece already gets GIFT_COINS coins in its place, as for an accessory.
 ##   - BLANK RUNE STONES (version 55). Darren, 24 November: "Passive blanks in chests: about 4% a chest", at most
 ##     12 in a world played solo and 4 more for each extra player (24 with four), "tradeable between players", and a
 ##     spare one is broken down at the forge for Memory. The Bible: a blank is infused at the forge into a rune of
@@ -64,6 +66,7 @@ extends Node
 const LandMap := preload("res://scripts/highlands/land_map.gd")
 const LootPlan := preload("res://scripts/highlands/loot_plan.gd")
 const Accessories := preload("res://scripts/highlands/accessories.gd")
+const Armour := preload("res://scripts/highlands/armour.gd")
 const ItemArt := preload("res://scripts/highlands/item_art.gd")
 const Art := preload("res://scripts/art.gd")
 const Sfx := preload("res://scripts/sfx.gd")
@@ -311,8 +314,12 @@ func _fill(k: int, by: int) -> void:
 	var gift := str(c.get("gift", ""))
 	if not Accessories.has(gift) or _gear() == null:
 		gift = ""
+	var piece := str(c.get("armour", ""))
+	if not Armour.has(piece) or _gear() == null:
+		piece = ""
 	var left: Array = []
 	var new_to := 0
+	var dressed := 0
 	for i in players.size():
 		var share: Array = []
 		if is_instance_valid(players[i]):
@@ -324,15 +331,26 @@ func _fill(k: int, by: int) -> void:
 				else:
 					accessory = gift
 					new_to += 1
+			var armour := ""
+			if piece != "":
+				if _gear().owns_piece(i, piece):
+					coins += int(GIFT_COINS)      # (two of the same piece guard no more than one)
+				else:
+					armour = piece
+					dressed += 1
 			share.append(["coins", coins])
 			for it in c["items"]:
 				if int(it[1]) > 0:
 					share.append([str(it[0]), int(it[1])])
 			if accessory != "":
 				share.append([accessory, 1])
+			if armour != "":
+				share.append([armour, 1])
 		left.append(share)
 	if gift != "" and new_to == 0:
 		say("%s again: %d coins instead" % [Accessories.name_of(gift), int(GIFT_COINS)])
+	elif piece != "" and dressed == 0:
+		say("%s again: %d coins instead" % [Armour.name_of(piece), int(GIFT_COINS)])
 	# A passive blank: one stone, for whoever opened it, while the world has not given its share.
 	if bool(c.get("blank", false)) and blanks_found < blank_cap():
 		var who := by if by >= 0 and by < players.size() and is_instance_valid(players[by]) else _first()

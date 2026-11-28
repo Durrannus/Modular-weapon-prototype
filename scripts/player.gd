@@ -4255,6 +4255,7 @@ func take_damage(amount: float, from: Vector2 = Vector2.INF, by = null) -> void:
 		amount = roles.softened(self, amount, by)
 	if gear != null:
 		amount = gear.softened(self, amount)      # (the Banner Pin)
+		amount = gear.armoured(self, amount)      # (what they wear: version 71)
 	if roles != null:
 		amount = roles.guarded(self, amount)      # (a Warden's Bodyguard takes a third)
 		amount = roles.tempered(self, amount)     # (Tempered: no more than a third of your health)

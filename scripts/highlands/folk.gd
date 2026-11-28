@@ -18,6 +18,8 @@ extends Node
 ##     be built yet). The first time you speak to him there he tells you of the horn; after that he is a shop.
 ##   - A bar costs TIN_PRICE or COPPER_PRICE coins, a healing potion POTION_PRICE (version 70). He buys nothing yet. His one accessory (ware()) costs
 ##     ACCESSORY_PRICE and changes each time the forge's level rises; he will not sell you one you already have.
+##   - Scrap armour (version 71): he sells the first piece you have not got (helm, then jerkin, then boots: armour_for()),
+##     at its price in armour.gd (Armour.PRICE). Claude's choice: one piece at a time, so his rows stay few.
 ##   - The waystone takes REPAIR_COPPER copper bars, from the whole squad's bags (whoever uses it first). A mended
 ##     stone takes the whole squad to the forge, and the forge's screen takes them back. Nobody travels while an
 ##     enemy is after them. Once its stone is lit, nothing comes back to live at the Watchpost.
@@ -42,6 +44,7 @@ const LandMap := preload("res://scripts/highlands/land_map.gd")
 const ItemArt := preload("res://scripts/highlands/item_art.gd")
 const Shop := preload("res://scripts/ui/shop.gd")
 const Accessories := preload("res://scripts/highlands/accessories.gd")
+const Armour := preload("res://scripts/highlands/armour.gd")
 
 const UNIT := Art.PIXEL
 const TILE := 16.0 * UNIT
@@ -97,7 +100,7 @@ const MET_LINES := [
 	"The horn is in three pieces, and three of his best carry them. The big brute in the old quarry. The white hound. And the best thrower at the roost.",
 	"Bring me all three and we can mend it. Until then I sell bars, if you have the coins.",
 ]
-const SHOP_LINE := "Tin and copper, straight bars, and a red draught for your cuts. Fair prices. What do you need?"
+const SHOP_LINE := "Tin and copper bars, a red draught for your cuts, and goblin scrap to wear. Fair prices. What do you need?"
 
 const INK := Color("#e8e4bc")
 const DIM := Color("#8ba688")
@@ -506,10 +509,22 @@ func ware() -> String:
 	return str(Accessories.POOL[posmod(int(map.seed_value) + level, Accessories.POOL.size())])
 
 
+## The piece of scrap armour player i is offered: the first of Armour.ORDER they have not got ("" if they have all).
+func armour_for(i: int) -> String:
+	if game == null or not ("gear" in game) or game.gear == null:
+		return ""
+	for id in Armour.ORDER:
+		if not game.gear.owns_piece(i, str(id)):
+			return str(id)
+	return ""
+
+
 ## What a thing costs at Pip's.
 func price(item: String) -> int:
 	if Accessories.has(item):
 		return int(ACCESSORY_PRICE)
+	if Armour.has(item):
+		return int(Armour.PRICE.get(item, 0))
 	if item == "potion":
 		return int(POTION_PRICE)
 	return int(TIN_PRICE) if item == "tin_bar" else int(COPPER_PRICE)
@@ -522,6 +537,8 @@ func buy(i: int, item: String) -> String:
 	var purse = loot.purses[i]
 	var cost := price(item)
 	if Accessories.has(item) and loot.owns(i, item):
+		return "You have one. A second would do nothing more."
+	if Armour.has(item) and game != null and "gear" in game and game.gear != null and game.gear.owns_piece(i, item):
 		return "You have one. A second would do nothing more."
 	if int(purse.coins) < cost:
 		return "That is %d coins. You have %d." % [cost, int(purse.coins)]

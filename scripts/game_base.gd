@@ -52,7 +52,7 @@ var test_commands := false   # tests: allow the "test_ko" command (knocks everyo
 ## again from its parts, and everyone alive takes their new health and speed.
 func lab_changed() -> void:
 	for i in players.size():
-		players[i].set_weapon(builds[i].compute())
+		players[i].set_weapon(weapon_stats(i))
 		players[i].lab_changed()
 	for e in get_tree().get_nodes_in_group("foes"):
 		if is_instance_valid(e) and e.has_method("lab_changed"):
@@ -110,7 +110,13 @@ func _add_players(at: Vector2) -> void:
 
 
 func _on_build_changed(i: int) -> void:
-	players[i].set_weapon(builds[i].compute())
+	players[i].set_weapon(weapon_stats(i))
+
+
+## What player i holds, worked out from their weapon. (The Highlands give empty hands while the weapon is taken off
+## on the inventory's Equipment page: version 71.)
+func weapon_stats(i: int) -> Dictionary:
+	return builds[i].compute()
 
 
 func _make_ui() -> void:

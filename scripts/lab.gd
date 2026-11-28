@@ -48,6 +48,7 @@ const SCRIPTS := {
 	"folk": "res://scripts/highlands/folk.gd",
 	"bag": "res://scripts/highlands/bag.gd",
 	"gear": "res://scripts/highlands/gear.gd",
+	"armour": "res://scripts/highlands/armour.gd",
 	"accessories": "res://scripts/highlands/accessories.gd",
 	"rattlecrown": "res://scripts/foes/rattlecrown.gd",
 	"crown": "res://scripts/highlands/crown.gd",
@@ -626,6 +627,17 @@ static func _build_rows() -> void:
 	_add(p, g, "An ordinary chest holds one", "loot_plan:POTION", "%", 0.05, 0.0, 1.0)
 	_add(p, g, "A sealed or named place's chest holds two", "loot_plan:POTION_RICH", "%", 0.05, 0.0, 1.0)
 	_add(p, g, "Pip sells one for, in coins", "folk:POTION_PRICE", "", 1.0, 0.0, 1000.0)
+	g = "Scrap armour"
+	_add(p, g, "Scrap helm: defence", "armour:DEFENCE/scrap_helm", "n", 1.0, 0.0, 20.0)
+	_add(p, g, "Scrap jerkin: defence", "armour:DEFENCE/scrap_jerkin", "n", 1.0, 0.0, 20.0)
+	_add(p, g, "Scrap boots: defence", "armour:DEFENCE/scrap_boots", "n", 1.0, 0.0, 20.0)
+	_add(p, g, "Each point of defence takes off every hit", "armour:DEFENCE_SHARE", "%", 0.01, 0.0, 0.2)
+	_add(p, g, "All of it together never more than", "armour:DEFENCE_MOST", "%", 0.05, 0.0, 0.95)
+	_add(p, g, "An ordinary chest holds a piece", "loot_plan:ARMOUR", "%", 0.05, 0.0, 1.0)
+	_add(p, g, "A sealed or named place's chest holds a piece", "loot_plan:ARMOUR_RICH", "%", 0.05, 0.0, 1.0)
+	_add(p, g, "Pip sells the helm for, in coins", "armour:PRICE/scrap_helm", "", 1.0, 0.0, 1000.0)
+	_add(p, g, "Pip sells the jerkin for, in coins", "armour:PRICE/scrap_jerkin", "", 1.0, 0.0, 1000.0)
+	_add(p, g, "Pip sells the boots for, in coins", "armour:PRICE/scrap_boots", "", 1.0, 0.0, 1000.0)
 	g = "Finding accessories"
 	_add(p, g, "An ordinary chest holds one", "loot_plan:GIFT", "%", 0.05, 0.0, 1.0)
 	_add(p, g, "A sealed or named place's chest holds one", "loot_plan:RICH_GIFT", "%", 0.05, 0.0, 1.0)
