@@ -821,7 +821,7 @@ func boss_fights() -> Array:
 			state = "Fighting, phase 3: crowned."
 	if crown.stage == "won":
 		state = "Just beaten."
-	return [{"id": "rattlecrown", "name": "Rattlecrown", "about": "The Scrapyard's Throne Room. Starting takes everybody in front of his throne, with no horn needed.",
+	return [{"id": "rattlecrown", "name": "Rattlecrown", "about": "The Scrapyard's Throne Room. Start takes everybody in front of his throne, no horn needed. A win here counts as a win.",
 		"state": state, "can_start": not crown.fighting(), "can_end": crown.fighting(), "can_back": not _boss_from.is_empty()}]
 
 

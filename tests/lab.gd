@@ -126,6 +126,8 @@ func _rows() -> void:
 		_check(int(pages.get(page, 0)) > 0, "the page %s has numbers" % page)
 		if font != null and Lab.PAGE_NOTES.has(page):
 			_check(font.get_string_size(str(Lab.PAGE_NOTES[page]), HORIZONTAL_ALIGNMENT_LEFT, -1, Art.TEXT_SIZE).x <= 492.0, "the page %s's note fits" % page)
+	if font != null:
+		_check(font.get_string_size(LabScreen.BOSSES_NOTE, HORIZONTAL_ALIGNMENT_LEFT, -1, Art.TEXT_SIZE).x <= 492.0, "the Bosses page's note fits (version 69)")
 	_check(Lab.changed_count() == 0, "nothing is left changed")
 
 
